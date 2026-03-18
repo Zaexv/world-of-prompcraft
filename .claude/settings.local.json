@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:api.github.com)",
+      "Bash(npm --version)",
+      "WebSearch",
+      "Bash(find \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft\" -type f \\\\\\( -name \"*.ts\" -o -name \"*.py\" \\\\\\) ! -path \"*/node_modules/*\" ! -path \"*/.venv/*\" ! -path \"*/dist/*\" -exec cat {} +)",
+      "Bash(lsof -ti:8000)",
+      "Bash(xargs kill:*)",
+      "Bash(lsof -ti:5173)",
+      "Bash(cp \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/.claude/skills/extend-world/SKILL.md\" ~/.claude/skills/extend-world/SKILL.md)",
+      "Bash(cp \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/.claude/skills/commit/SKILL.md\" ~/.claude/skills/commit/SKILL.md)"
+    ]
+  }
+}
