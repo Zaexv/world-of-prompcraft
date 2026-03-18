@@ -3,10 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from .agents.registry import AgentRegistry
 from .config import settings
 from .llm.provider import get_llm
 from .world.world_state import WorldState
-from .agents.registry import AgentRegistry
 from .ws.connection_manager import ConnectionManager
 from .ws.handler import handle_message, init_handler
 

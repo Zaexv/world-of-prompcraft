@@ -18,7 +18,8 @@ export class Water {
   }
 
   constructor(scene: THREE.Scene) {
-    const geometry = new THREE.PlaneGeometry(512, 512, 1, 1);
+    // Large water plane — repositioned each frame to follow the player
+    const geometry = new THREE.PlaneGeometry(2048, 2048, 1, 1);
 
     // Generate a simple normal map procedurally
     const normalCanvas = this.generateNormalMap(512);
@@ -49,11 +50,17 @@ export class Water {
     scene.add(this.water);
   }
 
-  /** Call every frame. */
-  update(delta: number): void {
+  /** Call every frame. Pass player position to keep water centered. */
+  update(delta: number, playerX?: number, playerZ?: number): void {
     const mat = this.water.material as THREE.ShaderMaterial;
     if (mat.uniforms['time']) {
       mat.uniforms['time'].value += delta * 0.5;
+    }
+
+    // Follow player so water extends to the horizon in every direction
+    if (playerX !== undefined && playerZ !== undefined) {
+      this.water.position.x = playerX;
+      this.water.position.z = playerZ;
     }
   }
 

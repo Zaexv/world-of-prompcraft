@@ -70,7 +70,7 @@ def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]):
                 player_prompt = msg.get("content", "")
                 break
         system_prompt = _build_system_prompt(state, player_prompt)
-        messages = [SystemMessage(content=system_prompt)] + list(state["messages"])
+        messages = [SystemMessage(content=system_prompt), *state["messages"]]
         ai_message = await llm_with_tools.ainvoke(messages)
         return {"messages": [ai_message]}
 

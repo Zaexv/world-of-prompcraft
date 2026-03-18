@@ -99,9 +99,19 @@ export class SceneManager {
     }
   }
 
+  /** Update player position for effects and water tracking. */
+  setPlayerPosition(x: number, z: number): void {
+    this.effects.setPlayerPosition(x, z);
+    this.playerX = x;
+    this.playerZ = z;
+  }
+
+  private playerX = 0;
+  private playerZ = 0;
+
   tick(): number {
     const delta = this.clock.getDelta();
-    this.water.update(delta);
+    this.water.update(delta, this.playerX, this.playerZ);
     this.effects.update(delta);
 
     // Use post-processing composer if available, otherwise fall back to direct render

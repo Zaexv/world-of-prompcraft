@@ -52,6 +52,7 @@ function createLeafTexture(size = 32): THREE.Texture {
 interface WispData {
   light: THREE.PointLight;
   sprite: THREE.Sprite;
+  spriteMaterial: THREE.SpriteMaterial;  // cached to avoid per-frame casts
   origin: THREE.Vector3;
   phase: number;      // offset in animation cycle
   speed: number;      // radians per second
@@ -88,8 +89,8 @@ export class Effects {
   private particleVelocities: Float32Array;
   private particleCount = 200;
 
-  // Ground glow
-  private glowPatches: { mesh: THREE.Mesh; phase: number; baseOpacity: number }[] = [];
+  // Ground glow (material cached to avoid per-frame casts)
+  private glowPatches: { mesh: THREE.Mesh; material: THREE.MeshBasicMaterial; phase: number; baseOpacity: number }[] = [];
 
   // Falling leaves
   private leaves: LeafData[] = [];
@@ -142,6 +143,7 @@ export class Effects {
       this.wisps.push({
         light,
         sprite,
+        spriteMaterial: spriteMat,
         origin: new THREE.Vector3(originX, baseY, originZ),
         phase: Math.random() * Math.PI * 2,
         speed: 0.15 + Math.random() * 0.2,
@@ -229,6 +231,7 @@ export class Effects {
       this.scene.add(mesh);
       this.glowPatches.push({
         mesh,
+        material: mat,
         phase: Math.random() * Math.PI * 2,
         baseOpacity,
       });
@@ -281,6 +284,16 @@ export class Effects {
     }
   }
 
+  // Last known player position for relocating effects
+  private playerX = 0;
+  private playerZ = 0;
+
+  /** Update the player position so effects stay near the camera. */
+  setPlayerPosition(x: number, z: number): void {
+    this.playerX = x;
+    this.playerZ = z;
+  }
+
   /* ================================================================ */
   /*  UPDATE                                                          */
   /* ================================================================ */
@@ -304,7 +317,7 @@ export class Effects {
       w.light.intensity = w.baseIntensity * (0.6 + 0.4 * pulse);
       const s = 1.0 + 0.3 * pulse;
       w.sprite.scale.set(s, s, 1);
-      (w.sprite.material as THREE.SpriteMaterial).opacity = 0.5 + 0.4 * pulse;
+      w.spriteMaterial.opacity = 0.5 + 0.4 * pulse;
     }
 
     // --- Ambient particles ---
@@ -319,11 +332,11 @@ export class Effects {
       positions[i3] += Math.sin(t + i) * 0.005;
       positions[i3 + 2] += Math.cos(t + i * 0.7) * 0.005;
 
-      // Reset if too high
+      // Reset near player if too high
       if (positions[i3 + 1] > 30) {
-        positions[i3] = (Math.random() - 0.5) * 100;
+        positions[i3] = this.playerX + (Math.random() - 0.5) * 100;
         positions[i3 + 1] = 0;
-        positions[i3 + 2] = (Math.random() - 0.5) * 100;
+        positions[i3 + 2] = this.playerZ + (Math.random() - 0.5) * 100;
       }
     }
     (this.particles.geometry.attributes.position as THREE.BufferAttribute).needsUpdate = true;
@@ -331,8 +344,7 @@ export class Effects {
     // --- Ground glow ---
     for (const g of this.glowPatches) {
       const pulse = Math.sin(t * 0.6 + g.phase) * 0.5 + 0.5; // 0..1
-      (g.mesh.material as THREE.MeshBasicMaterial).opacity =
-        g.baseOpacity * (0.6 + 0.4 * pulse);
+      g.material.opacity = g.baseOpacity * (0.6 + 0.4 * pulse);
     }
 
     // --- Falling leaves ---
@@ -346,12 +358,12 @@ export class Effects {
       m.rotation.x += delta * 0.3;
       m.rotation.z += delta * 0.2;
 
-      // Reset when hitting ground
+      // Reset near player when hitting ground
       if (m.position.y < 0) {
         m.position.set(
-          (Math.random() - 0.5) * 80,
+          this.playerX + (Math.random() - 0.5) * 80,
           25 + Math.random() * 10,
-          (Math.random() - 0.5) * 80,
+          this.playerZ + (Math.random() - 0.5) * 80,
         );
       }
     }

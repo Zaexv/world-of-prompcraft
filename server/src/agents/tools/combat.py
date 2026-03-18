@@ -26,14 +26,16 @@ def create_combat_tools(pending_actions: list, world_state: dict) -> list:
             damage_type: The element or type of damage ("physical", "fire", "ice",
                          "lightning", "holy", "dark").
         """
-        pending_actions.append({
-            "kind": "damage",
-            "params": {
-                "target": target,
-                "amount": amount,
-                "damageType": damage_type,
-            },
-        })
+        pending_actions.append(
+            {
+                "kind": "damage",
+                "params": {
+                    "target": target,
+                    "amount": amount,
+                    "damageType": damage_type,
+                },
+            }
+        )
 
         # Update world state when targeting the player
         if target == "player":
@@ -52,10 +54,12 @@ def create_combat_tools(pending_actions: list, world_state: dict) -> list:
         Args:
             stance: The type of defensive stance ("block", "parry", "dodge", "brace").
         """
-        pending_actions.append({
-            "kind": "emote",
-            "params": {"animation": "defend"},
-        })
+        pending_actions.append(
+            {
+                "kind": "emote",
+                "params": {"animation": "defend"},
+            }
+        )
         return f"Assumed {stance} defensive stance, reducing incoming damage"
 
     @tool
@@ -66,10 +70,12 @@ def create_combat_tools(pending_actions: list, world_state: dict) -> list:
         Args:
             direction: The direction to flee ("away", "north", "south", "east", "west").
         """
-        pending_actions.append({
-            "kind": "move_npc",
-            "params": {"direction": direction, "distance": 20},
-        })
+        pending_actions.append(
+            {
+                "kind": "move_npc",
+                "params": {"direction": direction, "distance": 20},
+            }
+        )
         return f"Fled {direction}"
 
     @tool
@@ -82,13 +88,15 @@ def create_combat_tools(pending_actions: list, world_state: dict) -> list:
             amount: How many hit-points to restore (must be positive).
         """
         heal_amount = abs(amount)
-        pending_actions.append({
-            "kind": "heal",
-            "params": {
-                "target": target,
-                "amount": heal_amount,
-            },
-        })
+        pending_actions.append(
+            {
+                "kind": "heal",
+                "params": {
+                    "target": target,
+                    "amount": heal_amount,
+                },
+            }
+        )
 
         if target == "player":
             player = world_state.get("player", {})

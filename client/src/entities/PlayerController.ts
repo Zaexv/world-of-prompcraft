@@ -5,10 +5,10 @@ import { CollisionSystem } from '../systems/CollisionSystem';
 
 /**
  * First/Third-person player controller with pointer-lock mouse look,
- * WASD movement, jumping, and third-person camera follow.
+ * WASD movement, jumping, swimming, and third-person camera follow.
  *
- * Includes water collision: the player cannot walk into deep water
- * and is slowed when near the water's edge.
+ * When terrain drops below water level the player transitions to swimming:
+ * reduced speed, buoyancy instead of gravity, and a different animation state.
  */
 export class PlayerController {
   /** Player world position (client-authoritative for now). */
@@ -19,6 +19,8 @@ export class PlayerController {
   public pitch = 0;
   /** Whether pointer lock is currently active. */
   public isPointerLocked = false;
+  /** Whether the player is currently swimming. */
+  public isSwimming = false;
 
   // --- Movement ---
   private readonly walkSpeed = 8;
@@ -28,9 +30,19 @@ export class PlayerController {
   private verticalVelocity = 0;
   private isGrounded = true;
 
-  // --- Water collision ---
-  /** Wading depth offset above water level — player stops here. */
-  private readonly wadingOffset = 0.3;
+  // --- Swimming ---
+  private readonly swimSpeed = 5;
+  private readonly swimSprintSpeed = 8;
+  /** How far below water surface the player floats (0 = surface). */
+  private readonly swimDepth = 0.4;
+  /** Buoyancy force pulling the player toward the surface. */
+  private readonly buoyancy = 12;
+  /** Gravity while swimming (weaker). */
+  private readonly swimGravity = -5;
+  /** Vertical impulse when pressing space while swimming (swim upward). */
+  private readonly swimUpSpeed = 4;
+
+  // --- Water proximity ---
   /** Distance from water edge where movement starts slowing. */
   private readonly waterSlowRange = 1.5;
   /** Speed multiplier when near water. */
@@ -125,17 +137,21 @@ export class PlayerController {
   }
 
   // ----------------------------------------------------------------
-  //  Water collision helpers
+  //  Water helpers
   // ----------------------------------------------------------------
 
   /**
-   * Returns how far the terrain at (x, z) is above the wading threshold.
-   * Positive = safely above water, negative = below water.
+   * Returns how far the terrain at (x, z) is above water level.
+   * Positive = above water, negative = submerged terrain.
    */
   private terrainWaterMargin(x: number, z: number): number {
     const terrainY = this.getHeightAt(x, z);
-    const wadingLevel = Water.getWaterLevel() + this.wadingOffset;
-    return terrainY - wadingLevel;
+    return terrainY - Water.getWaterLevel();
+  }
+
+  /** Whether the terrain at (x, z) is below the water surface. */
+  private isWaterAt(x: number, z: number): boolean {
+    return this.getHeightAt(x, z) < Water.getWaterLevel();
   }
 
   // ----------------------------------------------------------------
@@ -159,20 +175,32 @@ export class PlayerController {
     const forward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
     const strafe = (this.keys['KeyA'] ? 1 : 0) - (this.keys['KeyD'] ? 1 : 0);
     const running = !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'];
-    let speed = running ? this.runSpeed : this.walkSpeed;
+
+    const waterLevel = Water.getWaterLevel();
+    const terrainHere = this.getHeightAt(this.position.x, this.position.z);
+    const inWater = terrainHere < waterLevel;
+
+    // Determine swimming state
+    this.isSwimming = inWater;
+
+    let speed: number;
+    if (this.isSwimming) {
+      speed = running ? this.swimSprintSpeed : this.swimSpeed;
+    } else {
+      speed = running ? this.runSpeed : this.walkSpeed;
+
+      // Water proximity slow-down (only on land near water edges)
+      const currentMargin = this.terrainWaterMargin(this.position.x, this.position.z);
+      if (currentMargin < this.waterSlowRange && currentMargin >= 0) {
+        const t = currentMargin / this.waterSlowRange;
+        speed *= lerp(this.waterSlowFactor, 1.0, t);
+      }
+    }
 
     // Direction relative to camera yaw
     const moveAngle = this.yaw;
     const sinYaw = Math.sin(moveAngle);
     const cosYaw = Math.cos(moveAngle);
-
-    // --- Water proximity slow-down ---
-    const currentMargin = this.terrainWaterMargin(this.position.x, this.position.z);
-    if (currentMargin < this.waterSlowRange && currentMargin >= 0) {
-      // Linearly blend from full speed to waterSlowFactor as we approach water
-      const t = currentMargin / this.waterSlowRange; // 1 = far, 0 = at edge
-      speed *= lerp(this.waterSlowFactor, 1.0, t);
-    }
 
     const dx = (forward * sinYaw + strafe * cosYaw) * speed;
     const dz = (forward * cosYaw - strafe * sinYaw) * speed;
@@ -180,29 +208,8 @@ export class PlayerController {
     // --- Candidate position ---
     const prevX = this.position.x;
     const prevZ = this.position.z;
-    const candidateX = this.position.x + dx * delta;
-    const candidateZ = this.position.z + dz * delta;
-
-    // --- Water collision: prevent walking into deep water ---
-    const marginAtCandidate = this.terrainWaterMargin(candidateX, candidateZ);
-
-    if (marginAtCandidate >= 0) {
-      // Candidate is above water — allow full movement
-      this.position.x = candidateX;
-      this.position.z = candidateZ;
-    } else {
-      // Try sliding along each axis independently (walk along the edge)
-      const marginX = this.terrainWaterMargin(candidateX, this.position.z);
-      const marginZ = this.terrainWaterMargin(this.position.x, candidateZ);
-
-      if (marginX >= 0) {
-        this.position.x = candidateX;
-      }
-      if (marginZ >= 0) {
-        this.position.z = candidateZ;
-      }
-      // If both axes would put us in water, we simply don't move.
-    }
+    this.position.x += dx * delta;
+    this.position.z += dz * delta;
 
     // --- Obstacle collision: raycast-based resolution ---
     if (this.collisionSystem && this.scene) {
@@ -221,31 +228,58 @@ export class PlayerController {
 
     this.velocity.set(dx, 0, dz);
 
-    // --- Jump / Gravity ---
-    if (this.keys['Space'] && this.isGrounded) {
-      this.verticalVelocity = this.jumpVelocity;
-      this.isGrounded = false;
-    }
-
+    // --- Vertical movement ---
     const terrainY = this.getHeightAt(this.position.x, this.position.z);
-    const waterLevel = Water.getWaterLevel();
+    const swimSurface = waterLevel - this.swimDepth;
 
-    if (!this.isGrounded) {
-      this.verticalVelocity += this.gravity * delta;
+    if (this.isSwimming) {
+      // Swimming physics: buoyancy + gentle gravity
+      this.isGrounded = false;
+
+      // Space = swim upward, otherwise gentle sink
+      if (this.keys['Space']) {
+        this.verticalVelocity = this.swimUpSpeed;
+      } else {
+        // Apply gentle gravity + buoyancy toward the swim surface
+        this.verticalVelocity += this.swimGravity * delta;
+
+        // Buoyancy: pull toward the swim surface level
+        const distFromSurface = this.position.y - swimSurface;
+        this.verticalVelocity -= distFromSurface * this.buoyancy * delta;
+
+        // Damping so the player doesn't oscillate forever
+        this.verticalVelocity *= (1 - 3 * delta);
+      }
+
       this.position.y += this.verticalVelocity * delta;
-      // Land on terrain
-      if (this.position.y <= terrainY) {
+
+      // Clamp: don't float above swim surface, don't go below terrain
+      if (this.position.y > swimSurface) {
+        this.position.y = swimSurface;
+        this.verticalVelocity = Math.min(this.verticalVelocity, 0);
+      }
+      if (this.position.y < terrainY) {
         this.position.y = terrainY;
         this.verticalVelocity = 0;
-        this.isGrounded = true;
       }
     } else {
-      this.position.y = terrainY;
-    }
+      // Normal land physics
+      if (this.keys['Space'] && this.isGrounded) {
+        this.verticalVelocity = this.jumpVelocity;
+        this.isGrounded = false;
+      }
 
-    // Hard clamp: player must never go below water level
-    if (this.position.y < waterLevel) {
-      this.position.y = waterLevel;
+      if (!this.isGrounded) {
+        this.verticalVelocity += this.gravity * delta;
+        this.position.y += this.verticalVelocity * delta;
+        if (this.position.y <= terrainY) {
+          this.position.y = terrainY;
+          this.verticalVelocity = 0;
+          this.isGrounded = true;
+        }
+      } else {
+        this.position.y = terrainY;
+      }
     }
 
     // --- Third-person camera ---

@@ -2,7 +2,7 @@
 name = "world-of-promptcraft-server"
 version = "0.1.0"
 description = "LangGraph-powered backend for World of Promptcraft"
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi[standard]>=0.115.0",
     "uvicorn[standard]>=0.34.0",
@@ -20,6 +20,8 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "pytest-asyncio>=0.24",
+    "ruff>=0.8.0",
+    "mypy>=1.13.0",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -28,3 +30,7 @@ packages = ["src"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

@@ -4,9 +4,7 @@ from __future__ import annotations
 
 from langchain_core.tools import tool
 
-VALID_ANIMATIONS = frozenset(
-    ["bow", "laugh", "wave", "threaten", "dance", "cry", "cheer"]
-)
+VALID_ANIMATIONS = frozenset(["bow", "laugh", "wave", "threaten", "dance", "cry", "cheer"])
 
 
 def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
@@ -33,10 +31,12 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
                 f"Invalid animation '{animation}'. "
                 f"Choose from: {', '.join(sorted(VALID_ANIMATIONS))}"
             )
-        pending_actions.append({
-            "kind": "emote",
-            "params": {"animation": animation},
-        })
+        pending_actions.append(
+            {
+                "kind": "emote",
+                "params": {"animation": animation},
+            }
+        )
         return f"Performed {animation} emote"
 
     @tool
@@ -48,10 +48,12 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
             quest_name: A short, memorable name for the quest.
             description: A description of the quest objectives and context.
         """
-        pending_actions.append({
-            "kind": "start_quest",
-            "params": {"questName": quest_name, "description": description},
-        })
+        pending_actions.append(
+            {
+                "kind": "start_quest",
+                "params": {"questName": quest_name, "description": description},
+            }
+        )
         return f"Offered quest: {quest_name}"
 
     @tool
@@ -63,14 +65,18 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
             quest_name: The name of the quest being completed.
             reward: The item or reward to grant the player.
         """
-        pending_actions.append({
-            "kind": "complete_quest",
-            "params": {"questName": quest_name, "reward": reward},
-        })
-        pending_actions.append({
-            "kind": "give_item",
-            "params": {"item": reward},
-        })
+        pending_actions.append(
+            {
+                "kind": "complete_quest",
+                "params": {"questName": quest_name, "reward": reward},
+            }
+        )
+        pending_actions.append(
+            {
+                "kind": "give_item",
+                "params": {"item": reward},
+            }
+        )
         return f"Completed quest: {quest_name}, rewarded: {reward}"
 
     return [emote, give_quest, complete_quest]

@@ -31,14 +31,13 @@ def create_environment_tools(pending_actions: list, world_state: dict) -> list:
                      "clear", "rain", "storm", "fog", "snow".
         """
         if weather not in VALID_WEATHER:
-            return (
-                f"Invalid weather '{weather}'. "
-                f"Choose from: {', '.join(sorted(VALID_WEATHER))}"
-            )
-        pending_actions.append({
-            "kind": "change_weather",
-            "params": {"weather": weather},
-        })
+            return f"Invalid weather '{weather}'. Choose from: {', '.join(sorted(VALID_WEATHER))}"
+        pending_actions.append(
+            {
+                "kind": "change_weather",
+                "params": {"weather": weather},
+            }
+        )
         return f"Changed weather to {weather}"
 
     @tool
@@ -54,13 +53,14 @@ def create_environment_tools(pending_actions: list, world_state: dict) -> list:
         """
         if effect_type not in VALID_EFFECTS:
             return (
-                f"Invalid effect '{effect_type}'. "
-                f"Choose from: {', '.join(sorted(VALID_EFFECTS))}"
+                f"Invalid effect '{effect_type}'. Choose from: {', '.join(sorted(VALID_EFFECTS))}"
             )
-        pending_actions.append({
-            "kind": "spawn_effect",
-            "params": {"effectType": effect_type, "duration": duration},
-        })
+        pending_actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": effect_type},
+            }
+        )
         return f"Spawned {effect_type} effect for {duration}s"
 
     @tool
@@ -72,10 +72,12 @@ def create_environment_tools(pending_actions: list, world_state: dict) -> list:
             destination_x: The target X coordinate.
             destination_z: The target Z coordinate.
         """
-        pending_actions.append({
-            "kind": "move_npc",
-            "params": {"position": [destination_x, 0, destination_z]},
-        })
+        pending_actions.append(
+            {
+                "kind": "move_npc",
+                "params": {"position": [destination_x, 0, destination_z]},
+            }
+        )
         return f"Moving to position ({destination_x}, {destination_z})"
 
     return [change_weather, spawn_effect, move_npc]

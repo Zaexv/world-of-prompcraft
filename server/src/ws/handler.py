@@ -11,16 +11,178 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# ── Attack detection ────────────────────────────────────────────────────────
+# ── Attack detection & quality scoring ──────────────────────────────────────
 _ATTACK_KEYWORDS = {
-    "attack", "hit", "strike", "slash", "stab", "punch", "kick",
-    "fight", "kill", "destroy", "smash", "fireball", "lightning",
+    "attack",
+    "hit",
+    "strike",
+    "slash",
+    "stab",
+    "punch",
+    "kick",
+    "fight",
+    "kill",
+    "destroy",
+    "smash",
+    "fireball",
+    "lightning",
+    "swing",
+    "cleave",
+    "thrust",
+    "cut",
+    "shoot",
+    "blast",
+    "crush",
+    "bite",
+    "claw",
+    "charge",
+    "slam",
+    "cast",
+    "burn",
+    "freeze",
+}
+
+_WEAPON_KEYWORDS = {
+    "sword",
+    "blade",
+    "axe",
+    "dagger",
+    "bow",
+    "arrow",
+    "staff",
+    "mace",
+    "hammer",
+    "spear",
+    "shield",
+    "fist",
+    "claws",
+}
+
+_STYLE_KEYWORDS = {
+    "humiliate",
+    "taunt",
+    "mock",
+    "insult",
+    "feint",
+    "dodge",
+    "parry",
+    "counter",
+    "flank",
+    "ambush",
+    "backstab",
+    "critical",
+    "powerful",
+    "mighty",
+    "devastating",
+    "precise",
+    "swift",
+    "spinning",
+    "leaping",
+    "charging",
+    "overhead",
+    "uppercut",
+    "combo",
+    "fury",
+    "rage",
+    "berserk",
+    "finisher",
+    "execute",
+}
+
+_MAGIC_KEYWORDS = {
+    "fireball",
+    "lightning",
+    "ice",
+    "frost",
+    "flame",
+    "thunder",
+    "arcane",
+    "holy",
+    "shadow",
+    "spell",
+    "magic",
+    "enchant",
+    "inferno",
+    "blizzard",
+    "meteor",
+    "bolt",
+    "beam",
+    "nova",
 }
 
 
 def _is_attack_prompt(prompt: str) -> bool:
     words = set(prompt.lower().split())
     return bool(words & _ATTACK_KEYWORDS)
+
+
+def _score_attack_quality(prompt: str, inventory: list[str]) -> tuple[float, str, str]:
+    """Score the quality of an attack prompt.
+
+    Returns (multiplier, damage_type, effect_type).
+    - 1.0 = basic attack ("attack")
+    - Up to 3.0 for creative, weapon-equipped, styled attacks
+    """
+    lower = prompt.lower()
+    words = set(lower.split())
+
+    multiplier = 1.0
+    damage_type = "physical"
+    effect_type = "sparkle"
+
+    # Length bonus: more descriptive prompts are rewarded
+    word_count = len(prompt.split())
+    if word_count >= 8:
+        multiplier += 0.3
+    if word_count >= 15:
+        multiplier += 0.3
+    if word_count >= 25:
+        multiplier += 0.2
+
+    # Weapon mention bonus
+    if words & _WEAPON_KEYWORDS:
+        multiplier += 0.4
+
+    # Check if player uses an item they actually have in inventory
+    for item in inventory:
+        item_words = set(item.lower().split())
+        if item_words & words:
+            multiplier += 0.5  # Big bonus for using owned items
+            break
+
+    # Style keywords (creativity)
+    style_matches = words & _STYLE_KEYWORDS
+    multiplier += min(len(style_matches) * 0.25, 0.75)
+
+    # Humiliation / psychological attacks
+    if {"humiliate", "taunt", "mock", "insult"} & words:
+        multiplier += 0.5
+
+    # Magic keywords → change damage type + higher multiplier
+    magic_matches = words & _MAGIC_KEYWORDS
+    if magic_matches:
+        multiplier += 0.3
+        if {"fireball", "flame", "inferno", "fire", "burn", "meteor"} & magic_matches:
+            damage_type = "fire"
+            effect_type = "fire"
+        elif {"ice", "frost", "blizzard", "freeze"} & magic_matches:
+            damage_type = "ice"
+            effect_type = "ice"
+        elif {"lightning", "thunder", "bolt"} & magic_matches:
+            damage_type = "lightning"
+            effect_type = "lightning"
+        elif {"holy", "light"} & magic_matches:
+            damage_type = "holy"
+            effect_type = "holy_light"
+        elif {"shadow", "dark"} & magic_matches:
+            damage_type = "dark"
+            effect_type = "smoke"
+        else:
+            damage_type = "arcane"
+            effect_type = "sparkle"
+
+    return min(multiplier, 3.0), damage_type, effect_type
+
 
 # Module-level references set during app startup
 _registry: AgentRegistry | None = None
@@ -84,18 +246,42 @@ async def _handle_interaction(data: dict) -> dict:
     # ── Apply player attack damage before agent invocation ──────────────
     player_damage_actions: list[dict] = []
     if _is_attack_prompt(prompt):
+        quality, dmg_type, effect_type = _score_attack_quality(
+            prompt,
+            player.inventory,
+        )
         base_damage = 15 + (player.level * 2)
+        final_damage = int(base_damage * quality)
+
         npc = _world_state.get_npc(npc_id)
         if npc:
-            npc.hp = max(0, npc.hp - base_damage)
-            player_damage_actions.append({
-                "kind": "damage",
-                "params": {
-                    "target": npc_id,
-                    "amount": base_damage,
-                    "damageType": "physical",
-                },
-            })
+            npc.hp = max(0, npc.hp - final_damage)
+            player_damage_actions.append(
+                {
+                    "kind": "damage",
+                    "params": {
+                        "target": npc_id,
+                        "amount": final_damage,
+                        "damageType": dmg_type,
+                    },
+                }
+            )
+            # Spawn visual effect for quality attacks
+            if quality >= 1.5:
+                player_damage_actions.append(
+                    {
+                        "kind": "spawn_effect",
+                        "params": {"effectType": effect_type, "color": "#ffaa00", "count": 20},
+                    }
+                )
+            # Critical hit notification for great prompts
+            if quality >= 2.0:
+                player_damage_actions.append(
+                    {
+                        "kind": "spawn_effect",
+                        "params": {"effectType": "sparkle", "color": "#ffff00", "count": 40},
+                    }
+                )
 
     try:
         result = await asyncio.wait_for(
@@ -107,7 +293,7 @@ async def _handle_interaction(data: dict) -> dict:
             ),
             timeout=30.0,
         )
-    except asyncio.TimeoutError:
+    except TimeoutError:
         logger.warning("Agent invocation timed out for NPC %s", npc_id)
         return {
             "type": "agent_response",
@@ -127,17 +313,21 @@ async def _handle_interaction(data: dict) -> dict:
     if npc:
         npc_state = {"hp": npc.hp, "maxHp": npc.max_hp}
         if npc.hp <= 0:
-            all_actions.append({
-                "kind": "spawn_effect",
-                "params": {"color": "#ff4400", "count": 50},
-            })
+            all_actions.append(
+                {
+                    "kind": "spawn_effect",
+                    "params": {"color": "#ff4400", "count": 50},
+                }
+            )
 
+    # Don't send playerStateUpdate — let actions be the sole source of truth
+    # on the client. This prevents double-application of HP/inventory changes.
     return {
         "type": "agent_response",
         "npcId": npc_id,
         "dialogue": result.get("dialogue", "..."),
         "actions": all_actions,
-        "playerStateUpdate": result.get("playerStateUpdate"),
+        "playerStateUpdate": None,
         "npcStateUpdate": npc_state,
     }
 
@@ -203,12 +393,14 @@ def _get_generated_personality(name: str, behavior: str) -> str:
             f"- NEVER negotiate. ALWAYS fight."
         )
     elif behavior == "neutral":
-        quest_type = random.choice([
-            ("Gather Moonpetals", "Collect 3 moonpetal flowers from the glade nearby"),
-            ("Hunt the Corruption", "Destroy the corrupted treant east of here"),
-            ("Deliver the Message", "Take this scroll to the sentinel at the crossroads"),
-            ("Find the Lost Artifact", "A sacred moonstone was lost in the barrow den"),
-        ])
+        quest_type = random.choice(
+            [
+                ("Gather Moonpetals", "Collect 3 moonpetal flowers from the glade nearby"),
+                ("Hunt the Corruption", "Destroy the corrupted treant east of here"),
+                ("Deliver the Message", "Take this scroll to the sentinel at the crossroads"),
+                ("Find the Lost Artifact", "A sacred moonstone was lost in the barrow den"),
+            ]
+        )
         return (
             f"You are {name}, a Night Elf patrolling Teldrassil.\n"
             f"PERSONALITY: Serious, dutiful, knowledgeable about Night Elf culture.\n"
@@ -221,17 +413,25 @@ def _get_generated_personality(name: str, behavior: str) -> str:
             f"- If attacked, defend yourself with deal_damage(15-25, 'physical')."
         )
     else:
-        item = random.choice([
-            "Health Potion", "Mana Elixir", "Lucky Charm",
-            "Moonpetal Flower", "Starlight Dust", "Ancient Rune",
-        ])
-        trait = random.choice([
-            "cheerful and tells bad jokes",
-            "mysterious and speaks in riddles",
-            "nervous and jumpy, always looking over their shoulder",
-            "very old and wise, speaks slowly",
-            "enthusiastic about everything, uses lots of exclamation marks",
-        ])
+        item = random.choice(
+            [
+                "Health Potion",
+                "Mana Elixir",
+                "Lucky Charm",
+                "Moonpetal Flower",
+                "Starlight Dust",
+                "Ancient Rune",
+            ]
+        )
+        trait = random.choice(
+            [
+                "cheerful and tells bad jokes",
+                "mysterious and speaks in riddles",
+                "nervous and jumpy, always looking over their shoulder",
+                "very old and wise, speaks slowly",
+                "enthusiastic about everything, uses lots of exclamation marks",
+            ]
+        )
         return (
             f"You are {name}, a friendly wanderer in Teldrassil.\n"
             f"PERSONALITY: You are {trait}.\n"
@@ -262,23 +462,101 @@ async def _handle_use_item(data: dict) -> dict:
     # Remove from inventory
     player.inventory.remove(item_name)
 
-    # Apply effects based on item name
+    # Apply effects based on item type
     actions: list[dict] = []
     message = f"Used {item_name}"
 
     lower = item_name.lower()
+
     if "health" in lower or "heal" in lower or "potion" in lower:
         heal_amount = 30
         player.hp = min(player.max_hp, player.hp + heal_amount)
         actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
         message = f"Restored {heal_amount} HP"
-    elif "mana" in lower or "elixir" in lower:
-        player.mana = min(player.max_mana, player.mana + 25)
-        message = f"Restored 25 Mana"
 
+    elif "mana" in lower or "elixir" in lower:
+        mana_amount = 25
+        player.mana = min(player.max_mana, player.mana + mana_amount)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": 0}})
+        message = f"Restored {mana_amount} Mana"
+
+    elif "sword" in lower or "blade" in lower or "axe" in lower or "dagger" in lower:
+        # Weapon buff — player's next attacks deal more damage for the session
+        player.level = min(player.level + 1, 10)
+        actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": "sparkle", "color": "#ffaa44", "count": 20},
+            }
+        )
+        message = f"Equipped {item_name}! Attack power increased (Level {player.level})"
+
+    elif "shield" in lower or "armor" in lower:
+        # Defensive item — restore some HP as a shield effect
+        shield_hp = 20
+        player.hp = min(player.max_hp, player.hp + shield_hp)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": shield_hp}})
+        actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": "sparkle", "color": "#4488ff", "count": 15},
+            }
+        )
+        message = f"Shield activated! +{shield_hp} HP"
+
+    elif "scroll" in lower:
+        # Scrolls restore mana and grant a magic boost
+        mana_amount = 30
+        player.mana = min(player.max_mana, player.mana + mana_amount)
+        player.level = min(player.level + 1, 10)
+        actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": "sparkle", "color": "#aa44ff", "count": 30},
+            }
+        )
+        message = f"Read {item_name}! Mana +{mana_amount}, magic power increased"
+
+    elif "charm" in lower or "amulet" in lower or "rune" in lower:
+        # Trinkets — small heal + buff
+        heal_amount = 15
+        player.hp = min(player.max_hp, player.hp + heal_amount)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
+        actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": "holy_light", "color": "#ffcc00", "count": 15},
+            }
+        )
+        message = f"The {item_name} glows warmly. +{heal_amount} HP"
+
+    elif "brownie" in lower or "tea" in lower or "herb" in lower:
+        # El Tito's special items — full HP/mana restore
+        player.hp = player.max_hp
+        player.mana = player.max_mana
+        heal_amount = player.max_hp
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
+        actions.append(
+            {
+                "kind": "spawn_effect",
+                "params": {"effectType": "smoke", "color": "#44ff88", "count": 30},
+            }
+        )
+        message = "Whoa... full restore! HP and Mana replenished"
+
+    else:
+        # Generic item — small heal
+        heal_amount = 10
+        player.hp = min(player.max_hp, player.hp + heal_amount)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
+        message = f"Used {item_name}. +{heal_amount} HP"
+
+    # Send updated state. The client will use actions as source of truth
+    # for HP (ReactionSystem skips merge for fields touched by actions).
     return {
         "type": "use_item_result",
         "success": True,
+        "item": item_name,
         "message": message,
         "actions": actions,
         "playerStateUpdate": player.to_dict(),

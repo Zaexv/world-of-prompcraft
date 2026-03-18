@@ -4,6 +4,49 @@ import type { PlayerState } from "../state/PlayerState";
 import type { NPCStateStore } from "../state/NPCState";
 import type { WorldState } from "../state/WorldState";
 
+// ── Effect-type presets ────────────────────────────────────────────────────
+// Maps server effect types to visual parameters so each effect looks distinct.
+interface EffectPreset {
+  color: string;
+  count: number;
+  speed: number;     // velocity multiplier
+  gravity: number;   // gravity strength (negative = floats up)
+  size: number;      // particle size
+  duration: number;  // seconds
+  flash?: string;    // optional screen flash color
+}
+
+const EFFECT_PRESETS: Record<string, EffectPreset> = {
+  fire: {
+    color: "#ff4400", count: 40, speed: 3.5, gravity: -1, size: 0.35,
+    duration: 1.8, flash: "#8b2200",
+  },
+  explosion: {
+    color: "#ff6600", count: 60, speed: 6, gravity: 3, size: 0.4,
+    duration: 1.5, flash: "#8b4400",
+  },
+  ice: {
+    color: "#66ccff", count: 35, speed: 2, gravity: 1, size: 0.3,
+    duration: 2.5,
+  },
+  sparkle: {
+    color: "#ffee88", count: 25, speed: 1.5, gravity: -0.5, size: 0.2,
+    duration: 2.5,
+  },
+  smoke: {
+    color: "#888888", count: 30, speed: 1, gravity: -1.5, size: 0.5,
+    duration: 3,
+  },
+  lightning: {
+    color: "#aaeeff", count: 50, speed: 8, gravity: 5, size: 0.2,
+    duration: 0.8, flash: "#334466",
+  },
+  holy_light: {
+    color: "#ffffaa", count: 35, speed: 1.5, gravity: -2, size: 0.3,
+    duration: 2.5, flash: "#2d5016",
+  },
+};
+
 /** Minimal interface for the entity manager the reaction system depends on. */
 export interface EntityManagerLike {
   getNPC(id: string): { mesh: THREE.Group; playEmote?: (emote: string) => void; showAction?: (kind: string, duration?: number) => void } | undefined;
@@ -43,9 +86,29 @@ export class ReactionSystem {
   // ── Main entry point ───────────────────────────────────────────────────────
 
   handleResponse(response: AgentResponse): void {
-    // Apply bulk state patches first
+    // Determine which state fields will be touched by individual actions
+    // so we DON'T also apply them via the bulk merge (avoids double-damage,
+    // duplicate items, and phantom HP changes).
+    const actionTouchesHP = response.actions.some(
+      (a) => a.kind === "damage" || a.kind === "heal",
+    );
+    const actionTouchesInventory = response.actions.some(
+      (a) => a.kind === "give_item" || a.kind === "take_item",
+    );
+
     if (response.playerStateUpdate) {
-      this.playerState.merge(response.playerStateUpdate);
+      const safePatch: Partial<typeof response.playerStateUpdate> = { ...response.playerStateUpdate };
+      // Strip fields that actions will handle to prevent double-application
+      if (actionTouchesHP) {
+        delete (safePatch as any).hp;
+      }
+      if (actionTouchesInventory) {
+        delete (safePatch as any).inventory;
+      }
+      // Only merge if there's anything left worth merging
+      if (Object.keys(safePatch).length > 0) {
+        this.playerState.merge(safePatch);
+      }
     }
     if (response.npcStateUpdate) {
       this.npcStateStore.updateState(response.npcId, response.npcStateUpdate);
@@ -146,10 +209,12 @@ export class ReactionSystem {
 
       case "heal": {
         const amount = p.amount ?? 10;
-        this.playerState.heal(amount);
-        const pos = this.playerWorldPos();
-        this.createFloatingText(`+${amount}`, "#33ff66", pos);
-        this.flashScreen("#2d5016");
+        if (amount > 0) {
+          this.playerState.heal(amount);
+          const pos = this.playerWorldPos();
+          this.createFloatingText(`+${amount}`, "#33ff66", pos);
+          this.flashScreen("#2d5016");
+        }
         break;
       }
 
@@ -199,9 +264,12 @@ export class ReactionSystem {
         const pos = p.position
           ? new THREE.Vector3(...(p.position as [number, number, number]))
           : this.playerWorldPos();
-        const color: string = p.color ?? "#ffaa00";
-        const count: number = p.count ?? 30;
-        this.createParticleBurst(pos, color, count);
+        // Normalize: server sends effectType (NPC tools) or effect_type (handler)
+        const effectType: string = p.effectType ?? p.effect_type ?? "sparkle";
+        const resolved = EFFECT_PRESETS[effectType] ?? EFFECT_PRESETS.sparkle;
+        const color: string = p.color ?? resolved.color;
+        const count: number = p.count ?? resolved.count;
+        this.createParticleBurst(pos, color, count, resolved);
         break;
       }
 
@@ -209,13 +277,16 @@ export class ReactionSystem {
         const weather: string = p.weather ?? "clear";
         this.worldState.weather = weather;
 
-        // Adjust scene fog as a simple visual cue
+        // Adjust scene fog as a visual cue
         if (weather === "fog" || weather === "rain") {
           this.scene.fog = new THREE.FogExp2(0x888888, 0.015);
         } else if (weather === "storm") {
           this.scene.fog = new THREE.FogExp2(0x444444, 0.025);
+        } else if (weather === "snow") {
+          this.scene.fog = new THREE.FogExp2(0xccccdd, 0.008);
         } else {
-          this.scene.fog = null;
+          // Restore default Teldrassil fog
+          this.scene.fog = new THREE.FogExp2(0x1a1133, 0.004);
         }
         break;
       }
@@ -300,12 +371,19 @@ export class ReactionSystem {
     });
   }
 
-  /** Spawn a quick particle burst that expands outward and fades. */
+  /** Spawn a particle burst with effect-type-aware visuals. */
   createParticleBurst(
     position: THREE.Vector3,
     color: string,
     count: number,
+    preset: EffectPreset = EFFECT_PRESETS.sparkle,
   ): void {
+    this.capEffects();
+
+    const speed = preset.speed;
+    const gravity = preset.gravity;
+    const duration = preset.duration;
+
     const positions = new Float32Array(count * 3);
     const velocities: THREE.Vector3[] = [];
 
@@ -316,9 +394,9 @@ export class ReactionSystem {
 
       velocities.push(
         new THREE.Vector3(
-          (Math.random() - 0.5) * 4,
-          Math.random() * 3 + 1,
-          (Math.random() - 0.5) * 4,
+          (Math.random() - 0.5) * speed,
+          Math.random() * speed * 0.75 + speed * 0.25,
+          (Math.random() - 0.5) * speed,
         ),
       );
     }
@@ -328,16 +406,21 @@ export class ReactionSystem {
 
     const material = new THREE.PointsMaterial({
       color: new THREE.Color(color),
-      size: 0.25,
+      size: preset.size,
       transparent: true,
-      depthTest: false,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
     });
 
     const points = new THREE.Points(geometry, material);
     this.scene.add(points);
 
+    // Optional screen flash for dramatic effects
+    if (preset.flash) {
+      this.flashScreen(preset.flash);
+    }
+
     let elapsed = 0;
-    const duration = 2;
 
     this.activeEffects.push({
       update: (dt) => {
@@ -349,8 +432,7 @@ export class ReactionSystem {
           posAttr.setX(i, posAttr.getX(i) + velocities[i].x * dt);
           posAttr.setY(i, posAttr.getY(i) + velocities[i].y * dt);
           posAttr.setZ(i, posAttr.getZ(i) + velocities[i].z * dt);
-          // Gravity
-          velocities[i].y -= dt * 4;
+          velocities[i].y -= dt * gravity;
         }
         posAttr.needsUpdate = true;
         material.opacity = 1 - t;

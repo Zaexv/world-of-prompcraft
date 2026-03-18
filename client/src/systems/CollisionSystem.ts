@@ -21,6 +21,10 @@ export class CollisionSystem {
   /** Frame counter for throttling — only check every N frames. */
   private frameCount = 0;
   private readonly checkInterval = 3;
+  /** Max distance to consider a collidable for raycasting. */
+  private readonly cullDistance = 30;
+  /** Subset of collidables near the player (rebuilt each check). */
+  private nearbyCollidables: THREE.Object3D[] = [];
 
   // Reusable vectors to avoid per-frame allocations
   private _direction = new THREE.Vector3();
@@ -58,7 +62,7 @@ export class CollisionSystem {
       this.raycaster.far = maxDist;
       this.raycaster.near = 0;
 
-      const hits = this.raycaster.intersectObjects(this.collidables, true);
+      const hits = this.raycaster.intersectObjects(this.nearbyCollidables, true);
       if (hits.length > 0 && hits[0].distance < maxDist) {
         return true;
       }
@@ -84,6 +88,20 @@ export class CollisionSystem {
     this.frameCount++;
     if (this.frameCount > 10000) this.frameCount = 0;
     if (this.frameCount % this.checkInterval !== 0) {
+      return this._result.copy(desiredPos);
+    }
+
+    // Rebuild nearby collidables to avoid raycasting everything
+    this.nearbyCollidables.length = 0;
+    const cullSq = this.cullDistance * this.cullDistance;
+    for (const obj of this.collidables) {
+      const ox = obj.position.x - currentPos.x;
+      const oz = obj.position.z - currentPos.z;
+      if (ox * ox + oz * oz < cullSq) {
+        this.nearbyCollidables.push(obj);
+      }
+    }
+    if (this.nearbyCollidables.length === 0) {
       return this._result.copy(desiredPos);
     }
 

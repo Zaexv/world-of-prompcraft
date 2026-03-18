@@ -11,7 +11,39 @@
       "Bash(xargs kill:*)",
       "Bash(lsof -ti:5173)",
       "Bash(cp \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/.claude/skills/extend-world/SKILL.md\" ~/.claude/skills/extend-world/SKILL.md)",
-      "Bash(cp \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/.claude/skills/commit/SKILL.md\" ~/.claude/skills/commit/SKILL.md)"
+      "Bash(cp \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/.claude/skills/commit/SKILL.md\" ~/.claude/skills/commit/SKILL.md)",
+      "Bash(npm install:*)",
+      "Bash(pip install:*)",
+      "Bash(pytest tests/ -v)",
+      "Bash(python -m pytest tests/ -v)",
+      "Bash(pip --version)",
+      "Bash(python -m pip install pytest pytest-asyncio ruff mypy)",
+      "Bash(python -m pip install -e \".[dev]\")",
+      "Bash(npx vitest:*)",
+      "Bash(python -m ruff check src tests)",
+      "Bash(python -m ruff check src tests --fix)",
+      "Bash(python -m ruff format src tests)",
+      "Bash(npx eslint:*)",
+      "Skill(update-config)",
+      "Bash(grep -qE '\\\\.\\(ts|py\\)$')",
+      "Bash(make lint:*)",
+      "Bash(python3:*)",
+      "Bash(python -m ruff check src --fix)",
+      "Bash(jq:*)"
+    ]
+  },
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft\" && make lint test 2>&1 | tail -20 || true",
+            "timeout": 120,
+            "statusMessage": "Running lint + tests..."
+          }
+        ]
+      }
     ]
   }
 }

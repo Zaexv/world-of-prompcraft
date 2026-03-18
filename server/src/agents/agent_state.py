@@ -8,7 +8,7 @@ class NPCAgentState(TypedDict):
     npc_id: str
     npc_name: str
     npc_personality: str
-    player_state: dict          # HP, inventory, position
-    world_context: dict         # Nearby entities, time of day, zone
-    pending_actions: list[dict] # Actions to execute in the world
-    response_text: str          # Final dialogue to send back
+    player_state: dict  # HP, inventory, position
+    world_context: dict  # Nearby entities, time of day, zone
+    pending_actions: list[dict]  # Actions to execute in the world
+    response_text: str  # Final dialogue to send back

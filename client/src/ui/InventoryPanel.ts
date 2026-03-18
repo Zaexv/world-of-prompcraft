@@ -225,38 +225,42 @@ export class InventoryPanel {
     label.textContent = itemName;
     slot.appendChild(label);
 
-    // Determine if this is a potion
-    const isPotion = /potion/i.test(itemName);
-
-    // "Use" button (visible on hover, only for potions)
-    let useBtn: HTMLButtonElement | null = null;
-    if (isPotion) {
-      useBtn = document.createElement("button");
-      Object.assign(useBtn.style, {
-        position: "absolute",
-        bottom: "2px",
-        left: "50%",
-        transform: "translateX(-50%)",
-        display: "none",
-        padding: "1px 8px",
-        fontSize: "9px",
-        fontFamily: "'Cinzel', 'Times New Roman', serif",
-        fontWeight: "700",
-        color: "#1a1108",
-        background: "linear-gradient(180deg, #d4b96a 0%, #a8893a 100%)",
-        border: "1px solid #c5a55a",
-        borderRadius: "3px",
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        zIndex: "2",
-      } as CSSStyleDeclaration);
+    // "Use" button (visible on hover) — all items are usable
+    const useBtn = document.createElement("button");
+    Object.assign(useBtn.style, {
+      position: "absolute",
+      bottom: "2px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      display: "none",
+      padding: "1px 8px",
+      fontSize: "9px",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
+      fontWeight: "700",
+      color: "#1a1108",
+      background: "linear-gradient(180deg, #d4b96a 0%, #a8893a 100%)",
+      border: "1px solid #c5a55a",
+      borderRadius: "3px",
+      cursor: "pointer",
+      whiteSpace: "nowrap",
+      zIndex: "2",
+    } as CSSStyleDeclaration);
+    // Context-sensitive label based on item type
+    const lower = itemName.toLowerCase();
+    if (/sword|blade|axe|dagger|mace|hammer|spear/i.test(lower)) {
+      useBtn.textContent = "Equip";
+    } else if (/scroll/i.test(lower)) {
+      useBtn.textContent = "Read";
+    } else if (/shield|armor/i.test(lower)) {
+      useBtn.textContent = "Equip";
+    } else {
       useBtn.textContent = "Use";
-      useBtn.addEventListener("click", (e) => {
-        e.stopPropagation();
-        this.onUseItem?.(itemName);
-      });
-      slot.appendChild(useBtn);
     }
+    useBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onUseItem?.(itemName);
+    });
+    slot.appendChild(useBtn);
 
     // Hover effects
     slot.addEventListener("mouseenter", (e) => {

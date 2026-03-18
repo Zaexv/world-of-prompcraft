@@ -4,9 +4,9 @@ import asyncio
 from dataclasses import dataclass, field
 from typing import Any
 
-from .player_state import PlayerData
-from .npc_definitions import NPC_DEFINITIONS
 from ..agents.personalities.templates import NPC_PERSONALITIES
+from .npc_definitions import NPC_DEFINITIONS
+from .player_state import PlayerData
 from .zones import get_zone, get_zone_description
 
 
@@ -100,7 +100,7 @@ class WorldState:
 
     def get_context_for_npc(self, npc_id: str, player_id: str) -> dict:
         """Build a world-context snapshot for an NPC interaction."""
-        player = self.get_player(player_id)
+        self.get_player(player_id)  # Ensure player exists
         npc = self.npcs.get(npc_id)
 
         npc_pos = npc.position if npc else [0.0, 0.0, 0.0]
@@ -111,7 +111,9 @@ class WorldState:
         for other_id, other_npc in self.npcs.items():
             if other_id == npc_id:
                 continue
-            dist = sum((a - b) ** 2 for a, b in zip(npc_pos, other_npc.position)) ** 0.5
+            dist = (
+                sum((a - b) ** 2 for a, b in zip(npc_pos, other_npc.position, strict=True)) ** 0.5
+            )
             if dist < 50.0:
                 nearby.append({"name": other_npc.name, "distance": round(dist, 1)})
 

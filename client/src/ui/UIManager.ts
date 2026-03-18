@@ -6,6 +6,7 @@ import { CombatLog } from "./CombatLog";
 import { DamagePopup } from "./DamagePopup";
 import { ItemUseEffect } from "./ItemUseEffect";
 import { DeathScreen } from "./DeathScreen";
+import { Minimap } from "./Minimap";
 import type { PlayerState } from "../state/PlayerState";
 
 /**
@@ -22,6 +23,7 @@ export class UIManager {
   readonly damagePopup: DamagePopup;
   readonly itemUseEffect: ItemUseEffect;
   readonly deathScreen: DeathScreen;
+  readonly minimap: Minimap;
 
   constructor() {
     this.container = document.createElement("div");
@@ -59,6 +61,9 @@ export class UIManager {
 
     this.deathScreen = new DeathScreen();
     this.container.appendChild(this.deathScreen.element);
+
+    this.minimap = new Minimap();
+    this.container.appendChild(this.minimap.element);
   }
 
   showInteractionPanel(npcId: string, npcName: string): void {
@@ -116,5 +121,15 @@ export class UIManager {
 
   hideDeathScreen(): void {
     this.deathScreen.hide();
+  }
+
+  // ── Minimap helpers ─────────────────────────────────────────────────────
+
+  toggleMinimap(): void {
+    this.minimap.toggle();
+  }
+
+  updateMinimap(playerX: number, playerZ: number, playerAngle: number): void {
+    this.minimap.update(playerX, playerZ, playerAngle);
   }
 }

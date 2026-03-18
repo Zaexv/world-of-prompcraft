@@ -6,6 +6,7 @@ No ML models needed — uses term frequency matching for fast retrieval.
 from __future__ import annotations
 
 import re
+
 from .knowledge_base import KNOWLEDGE_BASE
 
 

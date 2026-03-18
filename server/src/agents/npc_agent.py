@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
+from langgraph.graph import END, START, StateGraph
 
 from .agent_state import NPCAgentState
-from .nodes.reason import make_reason_node
 from .nodes.act import make_act_node
+from .nodes.reason import make_reason_node
 from .nodes.respond import respond_node
 
 if TYPE_CHECKING:

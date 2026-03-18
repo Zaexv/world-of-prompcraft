@@ -1,7 +1,14 @@
 import * as THREE from 'three';
+import {
+  BiomeType,
+  getBiomeWeights,
+  biomeHeightModifier,
+  getBiomeColor,
+  getBiomeEmissive,
+} from './Biomes';
 
 /**
- * Infinite procedural Teldrassil terrain with chunk-based loading.
+ * Infinite procedural terrain with chunk-based loading and biome blending.
  *
  * Only chunks within a configurable radius around the player are loaded.
  * Chunks beyond that radius (plus a buffer) are disposed.
@@ -102,6 +109,7 @@ export class Terrain {
   /**
    * Returns the deterministic terrain height at any world (x, z).
    * Does NOT depend on loaded chunks — pure math.
+   * Includes biome height modifications.
    */
   getHeightAt(x: number, z: number): number {
     return Terrain.computeHeight(x, z);
@@ -147,11 +155,12 @@ export class Terrain {
   /**
    * Multi-octave sin/cos noise — deterministic for any (x, z).
    * This is the single source of truth for terrain height everywhere.
+   * Now includes biome-blended height modifications.
    */
   static computeHeight(x: number, z: number): number {
     let h = 0;
 
-    // Large rolling hills
+    // Large rolling hills (base terrain)
     h += Math.sin(x * 0.01 + 0.3) * Math.cos(z * 0.012 + 1.7) * 8;
     h += Math.sin(x * 0.007 - 1.2) * Math.sin(z * 0.009 + 0.8) * 6;
 
@@ -171,6 +180,20 @@ export class Terrain {
 
     // Very fine detail (root-like bumps)
     h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.2;
+
+    // Blend in biome-specific height modifications
+    const weights = getBiomeWeights(x, z);
+    for (const biome of [
+      BiomeType.EmberWastes,
+      BiomeType.CrystalTundra,
+      BiomeType.TwilightMarsh,
+      BiomeType.SunlitMeadows,
+    ]) {
+      const w = weights[biome];
+      if (w > 0.001) {
+        h += biomeHeightModifier(x, z, biome) * w;
+      }
+    }
 
     return h;
   }
@@ -212,48 +235,27 @@ export class Terrain {
     positions.needsUpdate = true;
     geometry.computeVertexNormals();
 
-    // --- Vertex colors (Teldrassil palette) ---
+    // --- Vertex colors (biome-blended palette) ---
     const colors = new Float32Array(vertexCount * 3);
     const emissiveColors = new Float32Array(vertexCount * 3);
-    const color = new THREE.Color();
-    const emissiveColor = new THREE.Color();
 
     for (let i = 0; i < vertexCount; i++) {
-      const y = positions.getY(i);
-      const t = THREE.MathUtils.clamp((y + 3) / 25, 0, 1);
+      const vx = positions.getX(i);
+      const vy = positions.getY(i);
+      const vz = positions.getZ(i);
+      const t = THREE.MathUtils.clamp((vy + 3) / 25, 0, 1);
 
-      // --- Base color ---
-      if (t < 0.3) {
-        const u = t / 0.3;
-        const darkPurpleMoss = new THREE.Color(0x1a2a1f);
-        const deepGreenPurple = new THREE.Color(0x2a4a2e);
-        color.copy(darkPurpleMoss).lerp(deepGreenPurple, u);
-        const purpleTint = new THREE.Color(0x331a44);
-        color.lerp(purpleTint, 0.25 * (1.0 - u));
-      } else if (t < 0.55) {
-        const u = (t - 0.3) / 0.25;
-        color.set(0x2a4a2e).lerp(new THREE.Color(0x3a2e1f), u);
-      } else if (t < 0.75) {
-        const u = (t - 0.55) / 0.2;
-        color.set(0x3a2e1f).lerp(new THREE.Color(0x555566), u);
-      } else {
-        const u = (t - 0.75) / 0.25;
-        color.set(0x555566).lerp(new THREE.Color(0x6a6a7a), u);
-      }
-
+      // --- Base color (biome-blended) ---
+      const color = getBiomeColor(vx, vz, vy, t);
       colors[i * 3] = color.r;
       colors[i * 3 + 1] = color.g;
       colors[i * 3 + 2] = color.b;
 
-      // --- Per-vertex emissive (bioluminescent glow in valleys) ---
-      if (t < 0.25) {
-        const glowStrength = (1.0 - t / 0.25) * 0.15;
-        emissiveColor.set(0x4422aa).lerp(new THREE.Color(0x225566), t / 0.25);
-        emissiveColors[i * 3] = emissiveColor.r * glowStrength;
-        emissiveColors[i * 3 + 1] = emissiveColor.g * glowStrength;
-        emissiveColors[i * 3 + 2] = emissiveColor.b * glowStrength;
-      }
-      // else stays 0 (Float32Array is zero-initialised)
+      // --- Per-vertex emissive (biome-specific glow) ---
+      const emissive = getBiomeEmissive(vx, vz, vy, t);
+      emissiveColors[i * 3] = emissive.r;
+      emissiveColors[i * 3 + 1] = emissive.g;
+      emissiveColors[i * 3 + 2] = emissive.b;
     }
 
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));

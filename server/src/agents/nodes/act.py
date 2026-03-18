@@ -44,9 +44,7 @@ def make_act_node(tools: list[BaseTool], shared_pending_actions: list):
             else:
                 result_str = f"Unknown tool: {tool_name}"
 
-            tool_messages.append(
-                ToolMessage(content=result_str, tool_call_id=call["id"])
-            )
+            tool_messages.append(ToolMessage(content=result_str, tool_call_id=call["id"]))
 
         # Harvest any actions the tools appended to the shared list
         pending_actions.extend(shared_pending_actions)

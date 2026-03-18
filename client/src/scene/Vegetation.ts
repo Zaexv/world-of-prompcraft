@@ -433,35 +433,47 @@ export class Vegetation {
     });
     const vineGeo = new THREE.CylinderGeometry(0.05, 0.04, 8, 4);
 
-    for (const tree of treePositions) {
-      const vineCount = 12 + Math.floor(rand() * 10);
-      for (let i = 0; i < vineCount; i++) {
+    // Count total vines for InstancedMesh allocation
+    const vineCounts: number[] = [];
+    let totalVines = 0;
+    for (const _tree of treePositions) {
+      const count = 12 + Math.floor(rand() * 10);
+      vineCounts.push(count);
+      totalVines += count;
+    }
+
+    // Use single shared geometry + InstancedMesh for all vines
+    const vineInstanced = new THREE.InstancedMesh(vineGeo, vineMat, totalVines);
+    vineInstanced.castShadow = true;
+    const vineDummy = new THREE.Object3D();
+
+    let vineIdx = 0;
+    for (let t = 0; t < treePositions.length; t++) {
+      const tree = treePositions[t];
+      for (let i = 0; i < vineCounts[t]; i++) {
         const angle = rand() * Math.PI * 2;
         const dist = 3 + rand() * 12;
         const hangHeight = 25 + rand() * 30;
         const vineLength = 5 + rand() * 12;
+        const vineScale = vineLength / 8; // base geo is height 8
 
-        const vineScaledGeo = new THREE.CylinderGeometry(
-          0.04 + rand() * 0.04,
-          0.03,
-          vineLength,
-          4,
-        );
-        const vine = new THREE.Mesh(vineScaledGeo, vineMat);
-        vine.position.set(
+        vineDummy.position.set(
           tree.x + Math.cos(angle) * dist,
           hangHeight - vineLength * 0.5,
           tree.z + Math.sin(angle) * dist,
         );
-        // Slight random sway
-        vine.rotation.set(
+        vineDummy.rotation.set(
           (rand() - 0.5) * 0.15,
           0,
           (rand() - 0.5) * 0.15,
         );
-        vine.castShadow = true;
-        scene.add(vine);
+        vineDummy.scale.set(0.6 + rand() * 0.8, vineScale, 0.6 + rand() * 0.8);
+        vineDummy.updateMatrix();
+        vineInstanced.setMatrixAt(vineIdx, vineDummy.matrix);
+        vineIdx++;
       }
     }
+    vineInstanced.instanceMatrix.needsUpdate = true;
+    scene.add(vineInstanced);
   }
 }

@@ -41,12 +41,38 @@ export class EntityManager {
     }
   }
 
-  /** Tick all NPC animations and wandering AI. */
+  // Player position for distance-based culling
+  private playerX = 0;
+  private playerZ = 0;
+  private readonly UPDATE_RADIUS_SQ = 200 * 200;   // full update within 200 units
+  private readonly VISIBLE_RADIUS_SQ = 350 * 350;  // hide beyond 350 units
+
+  /** Set the player position so NPCs can be distance-culled. */
+  setPlayerPosition(x: number, z: number): void {
+    this.playerX = x;
+    this.playerZ = z;
+  }
+
+  /** Tick NPC animations and wandering AI, culling distant NPCs. */
   update(delta: number, getHeightAt?: (x: number, z: number) => number): void {
     for (const npc of this.npcs.values()) {
-      npc.update(delta);
-      if (getHeightAt) {
-        npc.updateWander(delta, getHeightAt);
+      const dx = npc.position.x - this.playerX;
+      const dz = npc.position.z - this.playerZ;
+      const distSq = dx * dx + dz * dz;
+
+      // Hide NPCs beyond visible range
+      if (distSq > this.VISIBLE_RADIUS_SQ) {
+        if (npc.mesh.visible) npc.mesh.visible = false;
+        continue;
+      }
+      if (!npc.mesh.visible) npc.mesh.visible = true;
+
+      // Only run full AI + animation for NPCs within update radius
+      if (distSq < this.UPDATE_RADIUS_SQ) {
+        npc.update(delta);
+        if (getHeightAt) {
+          npc.updateWander(delta, getHeightAt);
+        }
       }
     }
   }

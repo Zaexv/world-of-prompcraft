@@ -25,10 +25,12 @@ def create_trade_tools(pending_actions: list, world_state: dict) -> list:
             item_name: The name of the item to offer.
             price: The price in gold. Use 0 for a free gift.
         """
-        pending_actions.append({
-            "kind": "give_item",
-            "params": {"item": item_name},
-        })
+        pending_actions.append(
+            {
+                "kind": "give_item",
+                "params": {"item": item_name},
+            }
+        )
         if price > 0:
             return f"Offered {item_name} to player for {price} gold"
         return f"Offered {item_name} to player as a gift"
@@ -41,10 +43,12 @@ def create_trade_tools(pending_actions: list, world_state: dict) -> list:
         Args:
             item_name: The name of the item to take from the player.
         """
-        pending_actions.append({
-            "kind": "take_item",
-            "params": {"item": item_name},
-        })
+        pending_actions.append(
+            {
+                "kind": "take_item",
+                "params": {"item": item_name},
+            }
+        )
         return f"Took {item_name} from player"
 
     return [offer_item, take_item]

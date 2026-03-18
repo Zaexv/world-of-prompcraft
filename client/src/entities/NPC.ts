@@ -28,7 +28,8 @@ export class NPC {
   /** How far from home the NPC will wander. */
   public wanderRadius = 8;
 
-  private wanderTarget: THREE.Vector3 | null = null;
+  private wanderTarget: THREE.Vector3 = new THREE.Vector3();
+  private hasWanderTarget = false;
   private wanderTimer = 0;
   private wanderCooldown: number;
   private isWandering = false;
@@ -175,8 +176,8 @@ export class NPC {
         const dist = Math.random() * this.wanderRadius;
         const tx = this.homePosition.x + Math.cos(angle) * dist;
         const tz = this.homePosition.z + Math.sin(angle) * dist;
-        this.wanderTarget = new THREE.Vector3(tx, 0, tz);
-        this.wanderTarget.y = getHeightAt(tx, tz);
+        this.wanderTarget.set(tx, getHeightAt(tx, tz), tz);
+        this.hasWanderTarget = true;
         this.isWandering = true;
         this.animator.play('walk');
       }
@@ -184,7 +185,7 @@ export class NPC {
     }
 
     // Move toward wander target
-    if (this.wanderTarget) {
+    if (this.hasWanderTarget) {
       const dx = this.wanderTarget.x - this.mesh.position.x;
       const dz = this.wanderTarget.z - this.mesh.position.z;
       const distSq = dx * dx + dz * dz;
@@ -192,7 +193,7 @@ export class NPC {
       if (distSq < 0.25) {
         // Reached target
         this.isWandering = false;
-        this.wanderTarget = null;
+        this.hasWanderTarget = false;
         this.wanderCooldown = 3 + Math.random() * 5;
         this.animator.play('idle');
         return;
@@ -213,12 +214,9 @@ export class NPC {
 
       // Face walking direction (smooth rotation)
       const targetAngle = Math.atan2(nx, nz);
-      // Lerp rotation for smooth turning
-      let currentAngle = this.mesh.rotation.y;
-      let angleDiff = targetAngle - currentAngle;
-      // Normalize angle difference to [-PI, PI]
-      while (angleDiff > Math.PI) angleDiff -= Math.PI * 2;
-      while (angleDiff < -Math.PI) angleDiff += Math.PI * 2;
+      let angleDiff = targetAngle - this.mesh.rotation.y;
+      // Normalize angle difference to [-PI, PI] without while loops
+      angleDiff = ((angleDiff + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
       this.mesh.rotation.y += angleDiff * Math.min(1, 8 * delta);
 
       // Update animator baseY so idle bob works at new height

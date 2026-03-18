@@ -10,8 +10,15 @@ export class Player {
 
   private leftLeg: THREE.Mesh;
   private rightLeg: THREE.Mesh;
+  private leftArm: THREE.Mesh;
+  private rightArm: THREE.Mesh;
+  private body: THREE.Mesh;
   private cloak: THREE.Mesh;
   private walkPhase = 0;
+  private swimPhase = 0;
+
+  /** Current body tilt for swim transition (radians, 0 = upright). */
+  private bodyTilt = 0;
 
   /** The yaw the model is currently visually facing (radians). */
   private facingYaw = 0;
@@ -29,10 +36,10 @@ export class Player {
     // ----- Body (taller, slimmer) -----
     const bodyGeo = new THREE.BoxGeometry(0.5, 1.4, 0.32);
     const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor });
-    const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 1.5; // centre of body
-    body.castShadow = true;
-    this.group.add(body);
+    this.body = new THREE.Mesh(bodyGeo, bodyMat);
+    this.body.position.y = 1.5; // centre of body
+    this.body.castShadow = true;
+    this.group.add(this.body);
 
     // ----- Head -----
     const headGeo = new THREE.SphereGeometry(0.22, 12, 10);
@@ -89,30 +96,85 @@ export class Player {
     this.cloak.position.set(0, 1.45, -0.2);
     this.cloak.castShadow = true;
     this.group.add(this.cloak);
+
+    // ----- Arms -----
+    const armGeo = new THREE.BoxGeometry(0.12, 0.7, 0.12);
+    const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
+
+    this.leftArm = new THREE.Mesh(armGeo, armMat);
+    this.leftArm.position.set(-0.35, 1.75, 0);
+    this.leftArm.castShadow = true;
+    this.group.add(this.leftArm);
+
+    this.rightArm = new THREE.Mesh(armGeo, armMat);
+    this.rightArm.position.set(0.35, 1.75, 0);
+    this.rightArm.castShadow = true;
+    this.group.add(this.rightArm);
   }
 
   /**
    * Called every frame.
-   * @param delta  Time since last frame (seconds).
-   * @param isMoving  Whether the player is currently moving.
-   * @param velocity  Current velocity vector (used for facing direction).
+   * @param delta      Time since last frame (seconds).
+   * @param isMoving   Whether the player is currently moving.
+   * @param velocity   Current velocity vector (used for facing direction).
+   * @param isSwimming Whether the player is currently in water.
    */
-  update(delta: number, isMoving: boolean, velocity: THREE.Vector3): void {
-    // --- Walk animation (leg oscillation + cloak billow) ---
-    if (isMoving) {
-      this.walkPhase += delta * 10;
-      const swing = Math.sin(this.walkPhase) * 0.5;
-      this.leftLeg.rotation.x = swing;
-      this.rightLeg.rotation.x = -swing;
+  update(delta: number, isMoving: boolean, velocity: THREE.Vector3, isSwimming = false): void {
+    // --- Smooth body tilt transition ---
+    const targetTilt = isSwimming ? Math.PI * 0.35 : 0; // lean forward ~63° when swimming
+    this.bodyTilt += (targetTilt - this.bodyTilt) * clampedT(delta, 6);
+    this.group.rotation.x = this.bodyTilt;
 
-      // Subtle cloak billow while moving
-      this.cloak.rotation.x = Math.sin(this.walkPhase * 0.7) * 0.12;
-    } else {
-      // Return legs to neutral
-      this.leftLeg.rotation.x *= 0.85;
-      this.rightLeg.rotation.x *= 0.85;
-      this.cloak.rotation.x *= 0.9;
+    if (isSwimming) {
+      // ---- Swimming animation ----
+      this.swimPhase += delta * (isMoving ? 6 : 2.5);
       this.walkPhase = 0;
+
+      // Leg flutter (fast, small kicks)
+      const kick = Math.sin(this.swimPhase * 2) * 0.4;
+      this.leftLeg.rotation.x = kick;
+      this.rightLeg.rotation.x = -kick;
+
+      // Arm strokes (alternating breaststroke-like motion)
+      const strokeL = Math.sin(this.swimPhase) * 1.1;
+      const strokeR = Math.sin(this.swimPhase + Math.PI) * 1.1;
+      this.leftArm.rotation.x = strokeL;
+      this.rightArm.rotation.x = strokeR;
+      // Arms sweep outward slightly
+      this.leftArm.rotation.z = Math.cos(this.swimPhase) * 0.3 + 0.15;
+      this.rightArm.rotation.z = -(Math.cos(this.swimPhase + Math.PI) * 0.3 + 0.15);
+
+      // Cloak flows behind
+      this.cloak.rotation.x = Math.sin(this.swimPhase * 0.5) * 0.2 + 0.3;
+    } else {
+      // ---- Land animation ----
+      this.swimPhase = 0;
+
+      // Damp arm rotation back to neutral
+      this.leftArm.rotation.x *= 0.85;
+      this.rightArm.rotation.x *= 0.85;
+      this.leftArm.rotation.z *= 0.85;
+      this.rightArm.rotation.z *= 0.85;
+
+      if (isMoving) {
+        this.walkPhase += delta * 10;
+        const swing = Math.sin(this.walkPhase) * 0.5;
+        this.leftLeg.rotation.x = swing;
+        this.rightLeg.rotation.x = -swing;
+
+        // Arms swing opposite to legs
+        this.leftArm.rotation.x = -swing * 0.4;
+        this.rightArm.rotation.x = swing * 0.4;
+
+        // Subtle cloak billow while moving
+        this.cloak.rotation.x = Math.sin(this.walkPhase * 0.7) * 0.12;
+      } else {
+        // Return to neutral
+        this.leftLeg.rotation.x *= 0.85;
+        this.rightLeg.rotation.x *= 0.85;
+        this.cloak.rotation.x *= 0.9;
+        this.walkPhase = 0;
+      }
     }
 
     // --- Face movement direction ---

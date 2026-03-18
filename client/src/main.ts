@@ -126,13 +126,13 @@ function initGame() {
     renderer.domElement.requestPointerLock();
   };
 
-  // ── Inventory panel wiring ──────────────────────────────────────────────
+  // ── Keyboard panel wiring ───────────────────────────────────────────────
   document.addEventListener("keydown", (e: KeyboardEvent) => {
-    if (e.code === "KeyI") {
-      // Don't toggle inventory when typing in a text input
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA") return;
+    // Don't handle keys when typing in a text input
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA") return;
 
+    if (e.code === "KeyI") {
       uiManager.toggleInventory();
 
       // Release pointer lock when inventory opens; re-acquire when it closes
@@ -143,6 +143,10 @@ function initGame() {
       } else {
         renderer.domElement.requestPointerLock();
       }
+    }
+
+    if (e.code === "KeyM") {
+      uiManager.toggleMinimap();
     }
   });
 
@@ -163,8 +167,9 @@ function initGame() {
     ws.send({ type: 'use_item', playerId: 'default', item: itemName });
   };
 
-  // ── World Generator (spawns trees & NPCs on new chunks) ─────────────────
+  // ── World Generator (spawns trees, caves, towns & NPCs on new chunks) ──
   const worldGenerator = new WorldGenerator(scene, terrain, entityManager, ws);
+  worldGenerator.setMinimap(uiManager.minimap);
   terrain.onChunkLoaded = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
 
   // ── Interaction wiring ────────────────────────────────────────────────────
@@ -363,24 +368,40 @@ function initGame() {
   };
 
   // ── Main loop ─────────────────────────────────────────────────────────────
+  // Reusable vector for camera direction (avoids per-frame allocation)
+  const _camDir = new THREE.Vector3();
+  // Cache terrain height callback to avoid creating a closure each frame
+  const getTerrainHeight = (x: number, z: number) => terrain.getHeightAt(x, z);
+
   function animate() {
     requestAnimationFrame(animate);
 
     const delta = sceneManager.tick();
+    const px = playerController.position.x;
+    const pz = playerController.position.z;
 
     // Player (skip movement when dead)
     if (!playerState.isDead) {
       playerController.update(delta);
       player.group.position.copy(playerController.position);
-      player.update(delta, playerController.isMoving, playerController.velocity);
+      player.update(delta, playerController.isMoving, playerController.velocity, playerController.isSwimming);
     }
 
     // Update terrain chunks around the player
-    terrain.update(playerController.position.x, playerController.position.z);
+    terrain.update(px, pz);
 
-    // Entities + effects
-    entityManager.update(delta, (x: number, z: number) => terrain.getHeightAt(x, z));
+    // Keep effects and water centered on the player
+    sceneManager.setPlayerPosition(px, pz);
+
+    // Entities + effects (with distance culling)
+    entityManager.setPlayerPosition(px, pz);
+    entityManager.update(delta, getTerrainHeight);
     reactionSystem.tick(delta);
+
+    // Update minimap (camera yaw as player direction arrow)
+    camera.getWorldDirection(_camDir);
+    const playerAngle = Math.atan2(_camDir.x, _camDir.z);
+    uiManager.updateMinimap(px, pz, playerAngle);
   }
 
   animate();

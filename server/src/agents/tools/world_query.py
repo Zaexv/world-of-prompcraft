@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 from langchain_core.tools import tool
 
 
@@ -50,9 +48,7 @@ def create_world_query_tools(pending_actions: list, world_state: dict) -> list:
         dz = player_pos[2] - self_pos[2]
         player_dist = (dx * dx + dz * dz) ** 0.5
         if player_dist <= radius:
-            nearby.append(
-                f"- Player at distance {player_dist:.0f}, HP={player.get('hp', '?')}"
-            )
+            nearby.append(f"- Player at distance {player_dist:.0f}, HP={player.get('hp', '?')}")
 
         if not nearby:
             return f"No entities found within {radius} units."

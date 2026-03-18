@@ -1,0 +1,46 @@
+repos:
+  # ── Python (server) ──────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^server/
+      - id: ruff-format
+        files: ^server/
+
+  # ── TypeScript (client) ──────────────────────────────
+  - repo: local
+    hooks:
+      - id: eslint
+        name: eslint
+        entry: bash -c 'cd client && npx eslint src/'
+        language: system
+        files: ^client/src/.*\.ts$
+        pass_filenames: false
+
+      - id: tsc
+        name: tsc
+        entry: bash -c 'cd client && npx tsc --noEmit'
+        language: system
+        files: ^client/src/.*\.ts$
+        pass_filenames: false
+
+  # ── Tests ────────────────────────────────────────────
+  - repo: local
+    hooks:
+      - id: pytest
+        name: pytest
+        entry: bash -c 'cd server && pytest tests/ -q'
+        language: system
+        files: ^server/
+        pass_filenames: false
+        stages: [pre-push]
+
+      - id: vitest
+        name: vitest
+        entry: bash -c 'cd client && npx vitest run'
+        language: system
+        files: ^client/src/
+        pass_filenames: false
+        stages: [pre-push]

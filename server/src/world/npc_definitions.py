@@ -13,7 +13,7 @@ NPC_DEFINITIONS: dict[str, dict] = {
     "dragon_01": {
         "id": "dragon_01",
         "name": NPC_PERSONALITIES["dragon_01"]["name"],
-        "position": NPC_PERSONALITIES["dragon_01"]["position"],   # [120, 15, -80]
+        "position": NPC_PERSONALITIES["dragon_01"]["position"],  # [120, 15, -80]
         "initial_hp": NPC_PERSONALITIES["dragon_01"]["initial_hp"],  # 500
         "personality_key": "dragon_01",
     },

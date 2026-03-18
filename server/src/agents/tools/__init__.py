@@ -7,14 +7,16 @@ Tools use a closure pattern: they close over shared `pending_actions` and
 
 from __future__ import annotations
 
-from langchain_core.tools import BaseTool
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from langchain_core.tools import BaseTool
 
 from .combat import create_combat_tools
 from .dialogue import create_dialogue_tools
-from .trade import create_trade_tools
 from .environment import create_environment_tools
+from .trade import create_trade_tools
 from .world_query import create_world_query_tools
-
 
 _CATEGORY_FACTORIES: dict[str, callable] = {
     "combat": create_combat_tools,

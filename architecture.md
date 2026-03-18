@@ -582,35 +582,171 @@ When a player mentions lore topics (Elune, Teldrassil, Night Elves, etc.), the R
 
 ---
 
-## 11. File Structure
+## 11. CI/CD & Quality Pipeline
+
+```mermaid
+flowchart TB
+    subgraph Trigger ["Trigger"]
+        Push["Push to main"]
+        PR["Pull Request"]
+    end
+
+    Push --> GHA
+    PR --> GHA
+
+    subgraph GHA ["GitHub Actions CI (.github/workflows/ci.yml)"]
+        direction TB
+
+        subgraph ClientJobs ["Client Jobs (parallel)"]
+            CL["Lint<br/>ESLint + typescript-eslint"]
+            CT["Typecheck<br/>tsc --noEmit"]
+            CV["Tests<br/>Vitest (18 tests)"]
+        end
+
+        subgraph ServerJobs ["Server Jobs (parallel)"]
+            SL["Lint<br/>Ruff check + format"]
+            SM["Typecheck<br/>mypy --strict"]
+            SP["Tests<br/>pytest (42 tests)"]
+        end
+    end
+
+    subgraph Local ["Local Development"]
+        Make["make check<br/>(lint + typecheck + tests)"]
+        Hook["Stop Hook<br/>Auto-runs on Claude task end"]
+        PreCommit[".pre-commit-config.yaml<br/>Ruff + ESLint + tsc"]
+    end
+
+    style GHA fill:#0a1628,stroke:#4488cc,color:#b8d8f8
+    style ClientJobs fill:#1a1108,stroke:#c5a55a,color:#e8dcc8
+    style ServerJobs fill:#1a0a28,stroke:#aa66ff,color:#d8b8f8
+    style Local fill:#1a2808,stroke:#88aa44,color:#c8e8a8
+```
+
+### CI Pipeline (GitHub Actions)
+
+All 6 jobs run **in parallel** with dependency caching:
+
+| Job | Tool | What it checks |
+|-----|------|----------------|
+| **Client Lint** | ESLint 9 + `typescript-eslint` | No `any`, unused vars, no bare `console.log` |
+| **Client Typecheck** | `tsc --noEmit` (strict mode) | Full TypeScript type safety |
+| **Client Tests** | Vitest | `MathHelpers`, `PlayerState`, `MessageProtocol` |
+| **Server Lint** | Ruff (check + format) | PEP8, isort, bugbear, simplify, pyupgrade |
+| **Server Typecheck** | mypy | Strict type annotations |
+| **Server Tests** | pytest + pytest-asyncio | WorldState, Combat, Zones, Protocol, RAG, Personalities |
+
+### Local Quality Tools
+
+| Command | Scope | Purpose |
+|---------|-------|---------|
+| `make check` | All | Lint + typecheck + tests (both sides) |
+| `make lint` | All | Lint only |
+| `make test` | All | Tests only |
+| `make format` | All | Auto-fix formatting |
+| `npm run check` | Client | Client lint + typecheck + tests |
+
+### Test Coverage Map
+
+```mermaid
+flowchart LR
+    subgraph ClientTests ["Client Tests (Vitest)"]
+        T1["MathHelpers.test.ts<br/>lerp, clamp, lerpAngle,<br/>smoothDamp"]
+        T2["PlayerState.test.ts<br/>singleton, damage,<br/>death, merge, respawn"]
+        T3["MessageProtocol.test.ts<br/>interaction shape,<br/>response actions"]
+    end
+
+    subgraph ServerTests ["Server Tests (pytest)"]
+        T4["test_world_state.py<br/>singleton, NPCs, damage,<br/>heal, items, weather"]
+        T5["test_combat_tools.py<br/>deal_damage, heal_target,<br/>defend, flee"]
+        T6["test_protocol.py<br/>Pydantic aliases,<br/>serialization"]
+        T7["test_zones.py<br/>zone lookup,<br/>descriptions"]
+        T8["test_retriever.py<br/>keyword matching,<br/>top_k, topic boost"]
+        T9["test_personalities.py<br/>required fields,<br/>tool rules"]
+        T10["test_player_state.py<br/>defaults, to_dict,<br/>inventory isolation"]
+    end
+
+    style ClientTests fill:#1a1108,stroke:#c5a55a,color:#e8dcc8
+    style ServerTests fill:#0a1628,stroke:#4488cc,color:#b8d8f8
+```
+
+### Linting Configuration
+
+```mermaid
+flowchart LR
+    subgraph ClientLint ["Client: eslint.config.js"]
+        E1["typescript-eslint/recommended"]
+        E2["no-explicit-any: warn"]
+        E3["no-unused-vars: warn<br/>(ignore _prefixed)"]
+        E4["no-console: warn<br/>(allow warn, error)"]
+    end
+
+    subgraph ServerLint ["Server: ruff.toml"]
+        R1["E/W: pycodestyle"]
+        R2["F: pyflakes"]
+        R3["I: isort"]
+        R4["N: pep8-naming"]
+        R5["UP: pyupgrade"]
+        R6["B: flake8-bugbear"]
+        R7["SIM: flake8-simplify"]
+        R8["RUF: ruff-specific"]
+    end
+
+    subgraph TypeCheck ["Type Checking"]
+        TC1["Client: tsconfig.json<br/>strict: true"]
+        TC2["Server: mypy.ini<br/>disallow_untyped_defs"]
+    end
+
+    style ClientLint fill:#1a1108,stroke:#c5a55a,color:#e8dcc8
+    style ServerLint fill:#1a0a28,stroke:#aa66ff,color:#d8b8f8
+    style TypeCheck fill:#1a2808,stroke:#88aa44,color:#c8e8a8
+```
+
+---
+
+## 12. File Structure
 
 ```
 world-of-prompcraft/
+├── CLAUDE.md                        # Project conventions for Claude Code
+├── Makefile                         # make check / lint / test / format
 ├── docker-compose.yml
 ├── .gitignore
+├── .pre-commit-config.yaml          # Pre-commit hooks (ruff, eslint, tsc)
+│
+├── .github/
+│   └── workflows/
+│       └── ci.yml                   # GitHub Actions: lint + typecheck + tests
 │
 ├── client/                          # Vite + TypeScript + Three.js
 │   ├── index.html                   # Entry HTML
-│   ├── package.json                 # Dependencies (three, vite, typescript)
-│   ├── tsconfig.json                # TypeScript config
+│   ├── package.json                 # Dependencies + lint/test/check scripts
+│   ├── tsconfig.json                # TypeScript config (strict mode)
 │   ├── vite.config.ts               # Vite build config
+│   ├── vitest.config.ts             # Vitest test runner config
+│   ├── eslint.config.js             # ESLint + typescript-eslint (flat config)
 │   └── src/
 │       ├── main.ts                  # Game init, main loop, wiring
 │       │
+│       ├── __tests__/               # Client unit tests (Vitest)
+│       │   ├── MathHelpers.test.ts  # lerp, clamp, lerpAngle, smoothDamp
+│       │   ├── PlayerState.test.ts  # Singleton, damage, death, merge
+│       │   └── MessageProtocol.test.ts # Message shape validation
+│       │
 │       ├── scene/                   # 3D world rendering
 │       │   ├── SceneManager.ts      # Renderer, camera, post-processing
-│       │   ├── Terrain.ts           # Procedural heightmap
-│       │   ├── Water.ts             # Animated water plane
-│       │   ├── Skybox.ts            # Sky rendering
-│       │   ├── Lighting.ts          # Directional + ambient lights
-│       │   ├── Buildings.ts         # Village structures
-│       │   ├── Vegetation.ts        # Trees, mushrooms, grass
-│       │   └── Effects.ts           # Wisps, ambient particles
+│       │   ├── Terrain.ts           # Procedural heightmap (infinite chunks)
+│       │   ├── Water.ts             # Animated reflective water plane
+│       │   ├── Skybox.ts            # CubeTexture: stars, moons, nebula
+│       │   ├── Lighting.ts          # Moonlight + 3 moonbeam spots
+│       │   ├── Buildings.ts         # Elven village structures
+│       │   ├── Vegetation.ts        # Trees, mushrooms, ferns, vines
+│       │   ├── Biomes.ts            # Biome generation per chunk
+│       │   └── Effects.ts           # Wisps, ambient particles, glow
 │       │
 │       ├── entities/                # Game entities
-│       │   ├── Player.ts            # Player character model
-│       │   ├── PlayerController.ts  # Movement, camera, collision
-│       │   ├── NPC.ts               # NPC model + role accessories
+│       │   ├── Player.ts            # Night Elf model + cape
+│       │   ├── PlayerController.ts  # WASD + mouse, pointer lock, collision
+│       │   ├── NPC.ts               # NPC model + role accessories + wander AI
 │       │   ├── NPCAnimator.ts       # Procedural NPC animations
 │       │   └── EntityManager.ts     # NPC registry + lifecycle
 │       │
@@ -645,10 +781,24 @@ world-of-prompcraft/
 │       │   └── WorldState.ts        # Weather, time aggregator
 │       │
 │       └── utils/                   # Helpers
-│           ├── MathHelpers.ts       # clamp, lerp utilities
+│           ├── MathHelpers.ts       # clamp, lerp, lerpAngle, smoothDamp
 │           └── AssetLoader.ts       # Asset loading helpers
 │
 └── server/                          # FastAPI + LangGraph (Python)
+    ├── pyproject.toml               # Dependencies + pytest config
+    ├── ruff.toml                    # Ruff linter + formatter config
+    ├── mypy.ini                     # mypy strict type checking config
+    │
+    ├── tests/                       # Server unit tests (pytest)
+    │   ├── conftest.py              # Shared fixtures
+    │   ├── test_player_state.py     # PlayerData defaults, to_dict
+    │   ├── test_world_state.py      # Singleton, NPCs, damage, heal, items
+    │   ├── test_zones.py            # Zone lookup, descriptions
+    │   ├── test_combat_tools.py     # deal_damage, heal, defend, flee
+    │   ├── test_protocol.py         # Pydantic aliases, serialization
+    │   ├── test_retriever.py        # Keyword matching, top_k, boost
+    │   └── test_personalities.py    # Required fields, tool rules
+    │
     └── src/
         ├── main.py                  # FastAPI app, lifespan, /ws endpoint
         ├── config.py                # Pydantic settings (LLM provider, keys)
@@ -695,7 +845,7 @@ world-of-prompcraft/
 
 ---
 
-## Zone Map
+## 13. Zone Map
 
 ```mermaid
 graph TB
