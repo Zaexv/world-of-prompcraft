@@ -29,7 +29,8 @@
       "Bash(make lint:*)",
       "Bash(python3:*)",
       "Bash(python -m ruff check src --fix)",
-      "Bash(jq:*)"
+      "Bash(jq:*)",
+      "Bash(npx tsc:*)"
     ]
   },
   "hooks": {

@@ -486,7 +486,7 @@ async def _handle_use_item(data: dict) -> dict:
 
     # Sync inventory from client (server's copy may be stale because
     # NPC offer_item tools don't update server-side player inventory).
-    client_inventory = data.get("inventory", None)
+    client_inventory = data.get("inventory")
     if client_inventory is not None:
         player.inventory = list(client_inventory)
 
