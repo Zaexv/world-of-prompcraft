@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import ToolMessage
 
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from ..agent_state import NPCAgentState
 
 
-def make_act_node(tools: list[BaseTool], shared_pending_actions: list):
+def make_act_node(tools: list[BaseTool], shared_pending_actions: list) -> Any:
     """Return an act node function closed over the available tools.
 
     Args:

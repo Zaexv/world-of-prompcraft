@@ -10,6 +10,7 @@ export class WebSocketClient {
   private shouldReconnect = true;
 
   /** Fired when a parsed JSON message arrives from the server. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   onMessage: ((data: any) => void) | null = null;
 
   /** Fired when the connection state changes. */

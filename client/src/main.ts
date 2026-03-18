@@ -158,12 +158,12 @@ function initGame() {
   const ws = new WebSocketClient('ws://localhost:8000/ws');
 
   ws.onConnectionChange = (connected) => {
-    console.log(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
+    console.warn(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
   };
 
   // ── Inventory use-item wiring (must be after ws is created) ──────────────
   uiManager.inventoryPanel.onUseItem = (itemName: string) => {
-    console.log(`[Inventory] Used item: ${itemName}`);
+    console.warn(`[Inventory] Used item: ${itemName}`);
 
     // Immediately remove the item from client inventory so the UI updates
     playerState.removeItem(itemName);
@@ -268,6 +268,7 @@ function initGame() {
   };
 
   // ── Server response handling ──────────────────────────────────────────────
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws.onMessage = (data: any) => {
     if (data.type === 'agent_response') {
       const response = data as AgentResponse;
@@ -445,5 +446,5 @@ function initGame() {
 
   animate();
 
-  console.log('World of Promptcraft initialized — WASD to move, click NPCs to interact');
+  console.warn('World of Promptcraft initialized — WASD to move, click NPCs to interact');
 }

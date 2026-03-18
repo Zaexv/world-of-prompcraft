@@ -30,7 +30,9 @@
       "Bash(python3:*)",
       "Bash(python -m ruff check src --fix)",
       "Bash(jq:*)",
-      "Bash(npx tsc:*)"
+      "Bash(npx tsc:*)",
+      "Bash(python -m mypy src)",
+      "Bash(make check:*)"
     ]
   },
   "hooks": {

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
 
@@ -55,7 +55,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     return "\n".join(parts)
 
 
-def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]):
+def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
     """Return a reason node function closed over the given LLM and tools."""
     llm_with_tools = llm.bind_tools(tools) if tools else llm
 

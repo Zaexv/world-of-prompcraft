@@ -32,4 +32,4 @@ class AgentResponse(BaseModel):
     player_state_update: dict | None = Field(default=None, alias="playerStateUpdate")
     npc_state_update: dict | None = Field(default=None, alias="npcStateUpdate")
 
-    model_config = {"populate_by_name": True, "by_alias": True}
+    model_config = {"populate_by_name": True, "ser_json_by_alias": True}  # type: ignore[typeddict-unknown-key]

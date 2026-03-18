@@ -35,6 +35,7 @@ class WorldState:
     """Singleton-style world state tracker with thread-safe mutations."""
 
     _instance: WorldState | None = None
+    _initialized: bool = False
 
     def __new__(cls) -> WorldState:
         if cls._instance is None:

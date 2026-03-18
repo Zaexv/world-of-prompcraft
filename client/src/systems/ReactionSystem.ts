@@ -49,7 +49,12 @@ const EFFECT_PRESETS: Record<string, EffectPreset> = {
 
 /** Minimal interface for the entity manager the reaction system depends on. */
 export interface EntityManagerLike {
-  getNPC(id: string): { mesh: THREE.Group; playEmote?: (emote: string) => void; showAction?: (kind: string, duration?: number) => void } | undefined;
+  getNPC(id: string): {
+    mesh: THREE.Group;
+    playEmote?: (emote: string) => void;
+    showAction?: (kind: string, duration?: number) => void;
+    nameplate?: { updateHP: (hp: number, maxHp: number) => void };
+  } | undefined;
   removeNPC?(id: string): void;
 }
 
@@ -97,13 +102,13 @@ export class ReactionSystem {
     );
 
     if (response.playerStateUpdate) {
-      const safePatch: Partial<typeof response.playerStateUpdate> = { ...response.playerStateUpdate };
+      const safePatch = { ...response.playerStateUpdate };
       // Strip fields that actions will handle to prevent double-application
       if (actionTouchesHP) {
-        delete (safePatch as any).hp;
+        delete safePatch.hp;
       }
       if (actionTouchesInventory) {
-        delete (safePatch as any).inventory;
+        delete safePatch.inventory;
       }
       // Only merge if there's anything left worth merging
       if (Object.keys(safePatch).length > 0) {
@@ -114,10 +119,10 @@ export class ReactionSystem {
       this.npcStateStore.updateState(response.npcId, response.npcStateUpdate);
       // Update NPC nameplate health bar
       const npc = this.entityManager.getNPC(response.npcId);
-      if (npc && 'nameplate' in npc) {
+      if (npc?.nameplate) {
         const hp = response.npcStateUpdate.hp ?? 100;
         const maxHp = response.npcStateUpdate.maxHp ?? 100;
-        (npc as any).nameplate.updateHP(hp, maxHp);
+        npc.nameplate.updateHP(hp, maxHp);
       }
 
       // NPC death check
@@ -198,9 +203,9 @@ export class ReactionSystem {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;
             this.createFloatingText(`-${amount}`, "#ff6633", npcPos);
-            if ('nameplate' in targetNpc) {
+            if (targetNpc.nameplate) {
               const state = this.npcStateStore.getState(target);
-              if (state) (targetNpc as any).nameplate.updateHP(state.hp, state.maxHp);
+              if (state) targetNpc.nameplate.updateHP(state.hp, state.maxHp);
             }
           }
         }

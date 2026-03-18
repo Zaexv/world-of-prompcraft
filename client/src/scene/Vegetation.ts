@@ -436,7 +436,7 @@ export class Vegetation {
     // Count total vines for InstancedMesh allocation
     const vineCounts: number[] = [];
     let totalVines = 0;
-    for (const _tree of treePositions) {
+    for (let _vi = 0; _vi < treePositions.length; _vi++) {
       const count = 12 + Math.floor(rand() * 10);
       vineCounts.push(count);
       totalVines += count;

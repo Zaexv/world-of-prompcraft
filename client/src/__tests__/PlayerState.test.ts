@@ -6,6 +6,7 @@ describe('PlayerState', () => {
 
   beforeEach(() => {
     // Reset singleton for each test
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (PlayerState as any)._instance = null;
     state = PlayerState.getInstance();
   });

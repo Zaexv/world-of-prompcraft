@@ -429,7 +429,7 @@ export class LoginScreen {
 
   // ── Embers ──────────────────────────────────────────────────────────────
 
-  private updateEmbers(dt: number, w: number, h: number): void {
+  private updateEmbers(dt: number, _w: number, _h: number): void {
     for (let i = this.embers.length - 1; i >= 0; i--) {
       const e = this.embers[i];
       e.x += e.vx;
@@ -508,7 +508,7 @@ export class LoginScreen {
 
   // ── Animation loop ──────────────────────────────────────────────────────
 
-  private tick = (timestamp: number): void => {
+  private tick = (_timestamp: number): void => {
     if (!this.running) return;
 
     const dt = 1 / 60; // constant dt — looks consistent regardless of frame rate jitter

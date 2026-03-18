@@ -10,7 +10,7 @@ from .tools import get_all_tools
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
-    from langgraph.graph.state import CompiledGraph
+    from langgraph.graph.state import CompiledStateGraph as CompiledGraph
 
     from ..world.world_state import WorldState
 
@@ -147,7 +147,7 @@ class AgentRegistry:
         config = {"configurable": {"thread_id": f"{npc_id}_{player_id}"}}
 
         try:
-            result = await agent.ainvoke(input_state, config=config)
+            result = await agent.ainvoke(input_state, config=config)  # type: ignore[call-overload]
         except Exception:
             logger.exception("Agent invocation failed for NPC %s", npc_id)
             return {

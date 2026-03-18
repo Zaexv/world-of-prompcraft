@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-ZONES: list[dict] = [
+ZONES: list[dict[str, object]] = [
     {
         "name": "Elders' Village",
         "description": "A peaceful village at the heart of the world, where wise elders share ancient knowledge.",
@@ -88,8 +88,8 @@ def get_zone(position: list[float]) -> str:
     z = position[2] if len(position) > 2 else 0.0
 
     for zone in ZONES:
-        if zone["min_x"] <= x <= zone["max_x"] and zone["min_z"] <= z <= zone["max_z"]:
-            return zone["name"]
+        if zone["min_x"] <= x <= zone["max_x"] and zone["min_z"] <= z <= zone["max_z"]:  # type: ignore[operator]
+            return str(zone["name"])
 
     return "Wilderness"
 
@@ -98,5 +98,5 @@ def get_zone_description(zone_name: str) -> str:
     """Return the description for a named zone."""
     for zone in ZONES:
         if zone["name"] == zone_name:
-            return zone["description"]
+            return str(zone["description"])
     return "An uncharted stretch of land."

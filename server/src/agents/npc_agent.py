@@ -13,7 +13,7 @@ from .nodes.respond import respond_node
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
-    from langgraph.graph.state import CompiledGraph
+    from langgraph.graph.state import CompiledStateGraph as CompiledGraph
 
     from ..world.world_state import WorldState
 

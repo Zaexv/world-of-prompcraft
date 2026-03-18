@@ -1,5 +1,7 @@
 import logging
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from typing import Any
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
@@ -15,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Initialize world state and agent registry on startup."""
     logger.info("Initializing World of Promptcraft backend...")
 
@@ -40,16 +42,16 @@ manager = ConnectionManager()
 
 
 @app.get("/health")
-async def health():
+async def health() -> dict[str, str]:
     return {"status": "ok", "llm_provider": settings.llm_provider}
 
 
 @app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
+async def websocket_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
     try:
         while True:
-            data = await websocket.receive_json()
+            data: dict[str, Any] = await websocket.receive_json()
             response = await handle_message(data)
             await websocket.send_json(response)
     except WebSocketDisconnect:

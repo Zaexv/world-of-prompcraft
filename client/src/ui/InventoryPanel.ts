@@ -271,7 +271,7 @@ export class InventoryPanel {
     slot.appendChild(useBtn);
 
     // Hover effects
-    slot.addEventListener("mouseenter", (e) => {
+    slot.addEventListener("mouseenter", (_e) => {
       slot.style.borderColor = "#e8cc6a";
       slot.style.background = "rgba(60,42,20,0.9)";
       // Show tooltip

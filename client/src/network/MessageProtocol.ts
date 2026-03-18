@@ -32,6 +32,7 @@ export interface Action {
     | "change_weather"
     | "start_quest"
     | "complete_quest";
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   params: Record<string, any>;
 }
 
