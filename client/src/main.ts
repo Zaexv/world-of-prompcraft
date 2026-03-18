@@ -164,7 +164,48 @@ function initGame() {
   // ── Inventory use-item wiring (must be after ws is created) ──────────────
   uiManager.inventoryPanel.onUseItem = (itemName: string) => {
     console.log(`[Inventory] Used item: ${itemName}`);
-    ws.send({ type: 'use_item', playerId: 'default', item: itemName });
+
+    // Immediately remove the item from client inventory so the UI updates
+    playerState.removeItem(itemName);
+
+    // Send current inventory so the server can sync its stale copy
+    ws.send({
+      type: 'use_item',
+      playerId: 'default',
+      item: itemName,
+      inventory: playerState.inventory,
+    });
+
+    // Show immediate visual feedback
+    const lower = itemName.toLowerCase();
+    if (/health|heal|potion/i.test(lower)) {
+      uiManager.showItemUseEffect(itemName, 'heal');
+    } else if (/mana|elixir/i.test(lower)) {
+      uiManager.showItemUseEffect(itemName, 'mana');
+    } else {
+      uiManager.showItemUseEffect(itemName, 'buff');
+    }
+    uiManager.addCombatLog(`Used ${itemName}`, '#c5a55a');
+  };
+
+  // ── Equipment wiring ──────────────────────────────────────────────────
+  uiManager.inventoryPanel.onEquipItem = (itemName: string) => {
+    const slot = playerState.equip(itemName);
+    if (slot) {
+      uiManager.showItemUseEffect(itemName, 'buff');
+      uiManager.addCombatLog(`Equipped ${itemName} [${slot}]`, '#c5a55a');
+      if (uiManager.combatHUD.isVisible) {
+        uiManager.combatHUD.addLogEntry(`Equipped ${itemName} [${slot}]`, '#c5a55a');
+      }
+      // Tell the server about the equipment change
+      ws.send({
+        type: 'equip_item',
+        playerId: 'default',
+        item: itemName,
+        slot,
+        equipped: playerState.equipped,
+      });
+    }
   };
 
   // ── World Generator (spawns trees, caves, towns & NPCs on new chunks) ──
@@ -213,6 +254,7 @@ function initGame() {
         position: [playerController.position.x, playerController.position.y, playerController.position.z],
         hp: playerState.hp,
         inventory: playerState.inventory,
+        equipped: playerState.equipped,
       },
     });
   };
@@ -334,34 +376,31 @@ function initGame() {
 
     // ── Item use result handling ─────────────────────────────────────────────
     if (data.type === 'use_item_result' && data.success) {
+      // Process server actions (heal, spawn_effect, etc.) but strip
+      // inventory from playerStateUpdate — we already removed the item
+      // client-side for instant feedback. Only sync non-inventory fields
+      // like level, mana, maxHp.
+      const serverUpdate = data.playerStateUpdate;
+      const safeUpdate = serverUpdate ? { ...serverUpdate } : undefined;
+      if (safeUpdate) {
+        delete safeUpdate.inventory; // don't overwrite client inventory
+      }
+
       reactionSystem.handleResponse({
         type: 'agent_response',
         npcId: '',
         dialogue: '',
         actions: data.actions || [],
-        playerStateUpdate: data.playerStateUpdate,
+        playerStateUpdate: safeUpdate,
       });
 
-      // Show visual effect for item use
+      // Log the server's message (visual effect already shown immediately on click)
       const itemName: string = data.item ?? '';
       const itemMessage: string = data.message ?? '';
-      if (itemName.toLowerCase().includes('health') || itemName.toLowerCase().includes('potion')) {
-        uiManager.showItemUseEffect(itemName, 'heal');
-        uiManager.addCombatLog(`Used ${itemName}: ${itemMessage}`, '#44ff44');
+      if (itemMessage && itemName) {
+        uiManager.addCombatLog(itemMessage, '#44ff44');
         if (uiManager.combatHUD.isVisible) {
-          uiManager.combatHUD.addLogEntry(`You drink a ${itemName} (+HP)`, '#44ff44');
-        }
-      } else if (itemName.toLowerCase().includes('mana')) {
-        uiManager.showItemUseEffect(itemName, 'mana');
-        uiManager.addCombatLog(`Used ${itemName}: ${itemMessage}`, '#44ff44');
-        if (uiManager.combatHUD.isVisible) {
-          uiManager.combatHUD.addLogEntry(`You drink a ${itemName} (+MP)`, '#4488ff');
-        }
-      } else if (itemName) {
-        uiManager.showItemUseEffect(itemName, 'buff');
-        uiManager.addCombatLog(`Used ${itemName}: ${itemMessage}`, '#44ff44');
-        if (uiManager.combatHUD.isVisible) {
-          uiManager.combatHUD.addLogEntry(`You use ${itemName}`, '#c5a55a');
+          uiManager.combatHUD.addLogEntry(itemMessage, '#44ff44');
         }
       }
     }

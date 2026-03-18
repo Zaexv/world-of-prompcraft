@@ -116,12 +116,16 @@ def _is_attack_prompt(prompt: str) -> bool:
     return bool(words & _ATTACK_KEYWORDS)
 
 
-def _score_attack_quality(prompt: str, inventory: list[str]) -> tuple[float, str, str]:
+def _score_attack_quality(
+    prompt: str,
+    inventory: list[str],
+    equipped: dict[str, str | None] | None = None,
+) -> tuple[float, str, str]:
     """Score the quality of an attack prompt.
 
     Returns (multiplier, damage_type, effect_type).
     - 1.0 = basic attack ("attack")
-    - Up to 3.0 for creative, weapon-equipped, styled attacks
+    - Up to 3.5 for creative, weapon-equipped, styled attacks
     """
     lower = prompt.lower()
     words = set(lower.split())
@@ -129,6 +133,21 @@ def _score_attack_quality(prompt: str, inventory: list[str]) -> tuple[float, str
     multiplier = 1.0
     damage_type = "physical"
     effect_type = "sparkle"
+
+    # ── Equipped weapon bonus (always applies when attacking) ──────────
+    if equipped:
+        weapon = equipped.get("weapon")
+        if weapon:
+            multiplier += 0.6  # Having a weapon equipped is a big deal
+            # Extra bonus if the player mentions their weapon by name
+            if any(w in lower for w in weapon.lower().split()):
+                multiplier += 0.4
+        shield = equipped.get("shield")
+        if shield:
+            multiplier += 0.2  # Shield gives a small damage bonus too
+        trinket = equipped.get("trinket")
+        if trinket:
+            multiplier += 0.15
 
     # Length bonus: more descriptive prompts are rewarded
     word_count = len(prompt.split())
@@ -139,15 +158,15 @@ def _score_attack_quality(prompt: str, inventory: list[str]) -> tuple[float, str
     if word_count >= 25:
         multiplier += 0.2
 
-    # Weapon mention bonus
+    # Weapon mention bonus (generic weapon words)
     if words & _WEAPON_KEYWORDS:
-        multiplier += 0.4
+        multiplier += 0.3
 
-    # Check if player uses an item they actually have in inventory
+    # Check if player mentions an inventory item by name
     for item in inventory:
         item_words = set(item.lower().split())
         if item_words & words:
-            multiplier += 0.5  # Big bonus for using owned items
+            multiplier += 0.4
             break
 
     # Style keywords (creativity)
@@ -181,7 +200,7 @@ def _score_attack_quality(prompt: str, inventory: list[str]) -> tuple[float, str
             damage_type = "arcane"
             effect_type = "sparkle"
 
-    return min(multiplier, 3.0), damage_type, effect_type
+    return min(multiplier, 3.5), damage_type, effect_type
 
 
 # Module-level references set during app startup
@@ -189,7 +208,9 @@ _registry: AgentRegistry | None = None
 _world_state: WorldState | None = None
 
 # Allowed fields from client player state (security whitelist)
-_ALLOWED_PLAYER_FIELDS = {"position"}
+# We sync inventory and hp so the server can score attacks properly
+# and use_item can find items the player received from NPCs.
+_ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
 def init_handler(registry: AgentRegistry, world_state: WorldState) -> None:
@@ -214,6 +235,9 @@ async def handle_message(data: dict) -> dict:
 
     if msg_type == "use_item":
         return await _handle_use_item(data)
+
+    if msg_type == "equip_item":
+        return await _handle_equip_item(data)
 
     return {"type": "error", "message": f"Unknown message type: {msg_type}"}
 
@@ -246,9 +270,14 @@ async def _handle_interaction(data: dict) -> dict:
     # ── Apply player attack damage before agent invocation ──────────────
     player_damage_actions: list[dict] = []
     if _is_attack_prompt(prompt):
+        # Use the client-sent inventory and equipped items for scoring
+        client_inventory = player_state_raw.get("inventory", []) if player_state_raw else []
+        scoring_inventory = client_inventory if client_inventory else player.inventory
+        client_equipped = player_state_raw.get("equipped", None) if player_state_raw else None
         quality, dmg_type, effect_type = _score_attack_quality(
             prompt,
-            player.inventory,
+            scoring_inventory,
+            client_equipped,
         )
         base_damage = 15 + (player.level * 2)
         final_damage = int(base_damage * quality)
@@ -455,6 +484,12 @@ async def _handle_use_item(data: dict) -> dict:
 
     player = _world_state.get_player(player_id)
 
+    # Sync inventory from client (server's copy may be stale because
+    # NPC offer_item tools don't update server-side player inventory).
+    client_inventory = data.get("inventory", None)
+    if client_inventory is not None:
+        player.inventory = list(client_inventory)
+
     # Check if item exists in inventory
     if item_name not in player.inventory:
         return {"type": "use_item_result", "success": False, "message": "Item not found"}
@@ -561,3 +596,21 @@ async def _handle_use_item(data: dict) -> dict:
         "actions": actions,
         "playerStateUpdate": player.to_dict(),
     }
+
+
+# ── Player equipment storage (server-side, keyed by player_id) ─────────
+_player_equipment: dict[str, dict[str, str | None]] = {}
+
+
+async def _handle_equip_item(data: dict) -> dict:
+    """Handle equipment changes from the client."""
+    player_id = data.get("playerId", "default")
+    item_name = data.get("item", "")
+    slot = data.get("slot", "")
+    equipped = data.get("equipped", {})
+
+    # Store the full equipment state
+    _player_equipment[player_id] = equipped
+
+    logger.info("Player %s equipped %s in %s slot", player_id, item_name, slot)
+    return {"type": "ack", "status": "ok"}

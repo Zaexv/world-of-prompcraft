@@ -31,6 +31,13 @@ def create_trade_tools(pending_actions: list, world_state: dict) -> list:
                 "params": {"item": item_name},
             }
         )
+        # Keep server-side inventory in sync so use_item can find it later
+        player = world_state.get("player", {})
+        inv = player.get("inventory", [])
+        inv.append(item_name)
+        player["inventory"] = inv
+        world_state["player"] = player
+
         if price > 0:
             return f"Offered {item_name} to player for {price} gold"
         return f"Offered {item_name} to player as a gift"
@@ -49,6 +56,13 @@ def create_trade_tools(pending_actions: list, world_state: dict) -> list:
                 "params": {"item": item_name},
             }
         )
+        # Keep server-side inventory in sync
+        player = world_state.get("player", {})
+        inv = player.get("inventory", [])
+        if item_name in inv:
+            inv.remove(item_name)
+        world_state["player"] = player
+
         return f"Took {item_name} from player"
 
     return [offer_item, take_item]

@@ -1,5 +1,11 @@
 import type { PlayerStateData } from "../network/MessageProtocol";
 
+/** Equipment slot types. */
+export type EquipSlot = "weapon" | "shield" | "trinket";
+
+/** Map of slot → equipped item name (or null). */
+export type EquippedItems = Record<EquipSlot, string | null>;
+
 /**
  * Singleton player state store.
  */
@@ -14,6 +20,9 @@ export class PlayerState {
   inventory: string[];
   position: [number, number, number];
   isDead: boolean = false;
+
+  /** Currently equipped items by slot. */
+  equipped: EquippedItems = { weapon: null, shield: null, trinket: null };
 
   /** Called whenever any property changes. */
   onChange: ((state: PlayerState) => void) | null = null;
@@ -78,6 +87,47 @@ export class PlayerState {
     const idx = this.inventory.indexOf(item);
     if (idx !== -1) {
       this.inventory.splice(idx, 1);
+      this.notify();
+    }
+  }
+
+  /** Equip an item from inventory into the appropriate slot. Returns the slot used. */
+  equip(item: string): EquipSlot | null {
+    const lower = item.toLowerCase();
+    let slot: EquipSlot | null = null;
+
+    if (/sword|blade|axe|dagger|mace|hammer|spear|bow|staff/i.test(lower)) {
+      slot = "weapon";
+    } else if (/shield|armor/i.test(lower)) {
+      slot = "shield";
+    } else if (/charm|amulet|rune|ring|trinket|cloak/i.test(lower)) {
+      slot = "trinket";
+    }
+
+    if (!slot) return null;
+
+    // If something was already in that slot, put it back in inventory
+    const prev = this.equipped[slot];
+    if (prev) {
+      this.inventory.push(prev);
+    }
+
+    // Remove from inventory and put in slot
+    const idx = this.inventory.indexOf(item);
+    if (idx !== -1) {
+      this.inventory.splice(idx, 1);
+    }
+    this.equipped[slot] = item;
+    this.notify();
+    return slot;
+  }
+
+  /** Unequip an item from a slot back into inventory. */
+  unequip(slot: EquipSlot): void {
+    const item = this.equipped[slot];
+    if (item) {
+      this.inventory.push(item);
+      this.equipped[slot] = null;
       this.notify();
     }
   }

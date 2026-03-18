@@ -1,5 +1,16 @@
 /**
+ * Default action buttons shown for any NPC without specific overrides.
+ */
+const DEFAULT_ACTIONS: Array<{ icon: string; label: string; prompt: string }> = [
+  { icon: "\uD83D\uDDE3\uFE0F", label: "Talk", prompt: "Hello, what can you tell me about this place?" },
+  { icon: "\u2694\uFE0F", label: "Attack", prompt: "I attack you with my weapon!" },
+  { icon: "\uD83D\uDED2", label: "Trade", prompt: "Do you have anything to trade?" },
+  { icon: "\uD83D\uDCDC", label: "Quest", prompt: "Do you have any quests for me?" },
+];
+
+/**
  * Pre-defined action buttons per NPC, keyed by NPC id.
+ * Any NPC not listed here gets DEFAULT_ACTIONS.
  */
 const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: string }>> = {
   dragon_01: [
@@ -228,11 +239,8 @@ export class InteractionPanel {
 
   private populateActionBar(npcId: string): void {
     this.actionBar.innerHTML = "";
-    const actions = NPC_ACTIONS[npcId];
-    if (!actions || actions.length === 0) {
-      this.actionBar.style.display = "none";
-      return;
-    }
+    // Use NPC-specific actions if available, otherwise show default actions
+    const actions = NPC_ACTIONS[npcId] ?? DEFAULT_ACTIONS;
 
     this.actionBar.style.display = "flex";
 

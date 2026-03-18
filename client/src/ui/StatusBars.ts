@@ -12,6 +12,9 @@ export class StatusBars {
   private manaText: HTMLSpanElement;
   private levelBadge: HTMLDivElement;
   private inventoryCount: HTMLSpanElement;
+  private weaponSlot: HTMLSpanElement;
+  private shieldSlot: HTMLSpanElement;
+  private trinketSlot: HTMLSpanElement;
 
   constructor() {
     this.element = document.createElement("div");
@@ -107,6 +110,24 @@ export class StatusBars {
     invRow.appendChild(this.inventoryCount);
 
     this.element.appendChild(invRow);
+
+    // ── Equipment slots row ─────────────────────────────────────────────
+    const equipRow = document.createElement("div");
+    Object.assign(equipRow.style, {
+      display: "flex",
+      gap: "4px",
+      paddingLeft: "46px",
+      flexWrap: "wrap",
+    } as CSSStyleDeclaration);
+
+    this.weaponSlot = this.createEquipSlot("\u2694\uFE0F", "Weapon"); // sword emoji
+    this.shieldSlot = this.createEquipSlot("\uD83D\uDEE1\uFE0F", "Shield");
+    this.trinketSlot = this.createEquipSlot("\uD83D\uDC8D", "Trinket"); // ring emoji
+
+    equipRow.appendChild(this.weaponSlot);
+    equipRow.appendChild(this.shieldSlot);
+    equipRow.appendChild(this.trinketSlot);
+    this.element.appendChild(equipRow);
   }
 
   update(state: PlayerState): void {
@@ -126,6 +147,11 @@ export class StatusBars {
     // Inventory
     const count = state.inventory.length;
     this.inventoryCount.textContent = `${count} item${count !== 1 ? "s" : ""}`;
+
+    // Equipment slots
+    this.updateEquipSlot(this.weaponSlot, "\u2694\uFE0F", state.equipped.weapon);
+    this.updateEquipSlot(this.shieldSlot, "\uD83D\uDEE1\uFE0F", state.equipped.shield);
+    this.updateEquipSlot(this.trinketSlot, "\uD83D\uDC8D", state.equipped.trinket);
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -174,5 +200,37 @@ export class StatusBars {
     bar.appendChild(text);
 
     return { bar, fill, text };
+  }
+
+  private createEquipSlot(icon: string, label: string): HTMLSpanElement {
+    const el = document.createElement("span");
+    Object.assign(el.style, {
+      display: "inline-flex",
+      alignItems: "center",
+      gap: "3px",
+      padding: "2px 6px",
+      fontSize: "10px",
+      color: "#777",
+      background: "rgba(20,14,6,0.7)",
+      border: "1px solid rgba(197,165,90,0.2)",
+      borderRadius: "3px",
+    } as Partial<CSSStyleDeclaration>);
+    el.textContent = `${icon} ${label}: --`;
+    el.title = `${label}: empty`;
+    return el;
+  }
+
+  private updateEquipSlot(el: HTMLSpanElement, icon: string, item: string | null): void {
+    if (item) {
+      el.textContent = `${icon} ${item}`;
+      el.title = item;
+      el.style.color = "#c5a55a";
+      el.style.borderColor = "rgba(197,165,90,0.5)";
+    } else {
+      el.textContent = `${icon} --`;
+      el.title = "Empty";
+      el.style.color = "#777";
+      el.style.borderColor = "rgba(197,165,90,0.2)";
+    }
   }
 }

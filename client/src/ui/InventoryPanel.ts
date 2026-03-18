@@ -5,7 +5,10 @@
 export class InventoryPanel {
   readonly element: HTMLDivElement;
 
+  /** Fired when the player uses a consumable (potion, scroll, etc.). */
   onUseItem: ((itemName: string) => void) | null = null;
+  /** Fired when the player equips a weapon/shield/trinket. */
+  onEquipItem: ((itemName: string) => void) | null = null;
   onClose: (() => void) | null = null;
 
   private readonly MAX_SLOTS = 20;
@@ -256,9 +259,14 @@ export class InventoryPanel {
     } else {
       useBtn.textContent = "Use";
     }
+    const isEquipment = /sword|blade|axe|dagger|mace|hammer|spear|bow|staff|shield|armor|charm|amulet|rune|ring|trinket|cloak/i.test(lower);
     useBtn.addEventListener("click", (e) => {
       e.stopPropagation();
-      this.onUseItem?.(itemName);
+      if (isEquipment) {
+        this.onEquipItem?.(itemName);
+      } else {
+        this.onUseItem?.(itemName);
+      }
     });
     slot.appendChild(useBtn);
 
