@@ -264,22 +264,10 @@ export class DungeonSystem {
       this.dungeonEnemyIds.push(enemyId);
     }
 
-    // 5. Notify server
-    this.ws.send({ type: "dungeon_enter", dungeonId: entrance.dungeonId, playerId: "player" });
-
-    // 6. Fire callback
-    this.onEnterDungeon?.(entrance.dungeonId, config.name);
-    this.nearestEntrance = null;
-    this.hidePrompt();
-
-    // 7. Dungeon fog
-    this.scene.fog = new THREE.FogExp2(config.fogColor, config.fogDensity);
-
-    // 8. Swap collision: save overworld bodies, register dungeon walls + objects
+    // 5. Swap collision BEFORE teleporting the player so overworld bodies
+    //    don't push the player out of the dungeon origin.
     if (this.collisionSystem) {
       this.savedOverworldCollidables = this.collisionSystem.saveCollidables();
-      // Register every mesh in the dungeon group as a static collidable
-      // (walls, floor, ceiling, decorations, chest, portal)
       const dungeonMeshes: THREE.Object3D[] = [];
       this.activeDungeon.group.traverse((child) => {
         if (child instanceof THREE.Mesh) {
@@ -288,6 +276,17 @@ export class DungeonSystem {
       });
       this.collisionSystem.setCollidables(dungeonMeshes);
     }
+
+    // 6. Dungeon fog
+    this.scene.fog = new THREE.FogExp2(config.fogColor, config.fogDensity);
+
+    // 7. Fire callback (teleports player to dungeon origin — collision is ready)
+    this.onEnterDungeon?.(entrance.dungeonId, config.name);
+    this.nearestEntrance = null;
+    this.hidePrompt();
+
+    // 8. Notify server
+    this.ws.send({ type: "dungeon_enter", dungeonId: entrance.dungeonId, playerId: "player" });
   }
 
   // ── Exit dungeon ─────────────────────────────────────────────────────────

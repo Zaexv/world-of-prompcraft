@@ -582,11 +582,21 @@ export class WorldGenerator {
 
   // ── Dungeon helpers ──────────────────────────────────────────────────────
 
-  /** Map world position to a dungeon ID based on zone. */
+  /** Map world position to a dungeon ID based on the surrounding zone. */
   private getDungeonForPosition(x: number, z: number): string | null {
-    if (x > 50) return "ember_depths";
-    if (z > 50) return "crystal_caverns";
-    return null;
+    // Fort Malaka / Blasted Suarezlands area (south)
+    if (z < -80) return "arcane_catacombs";
+    // Ember Peaks area (east)
+    if (x > 80) return "ember_depths";
+    // Crystal Lake / Tundra area (north)
+    if (z > 80) return "crystal_caverns";
+    // Dark Forest / western wilds
+    if (x < -80) return "twilight_hollow";
+    // Near-spawn caves still get a dungeon based on quadrant
+    if (x > 0 && z < 0) return "arcane_catacombs";
+    if (x > 0) return "ember_depths";
+    if (z > 0) return "crystal_caverns";
+    return "twilight_hollow";
   }
 
   /** Create a glowing portal torus with a name label above it. */
@@ -605,11 +615,6 @@ export class WorldGenerator {
     torus.position.set(x, y + 3, z);
     torus.rotation.x = Math.PI / 2; // Vertical orientation
     group.add(torus);
-
-    // Glow light
-    const light = new THREE.PointLight(0x8844cc, 1.5, 12);
-    light.position.set(x, y + 3, z);
-    group.add(light);
 
     // Text sprite for the dungeon name
     const canvas = document.createElement("canvas");
