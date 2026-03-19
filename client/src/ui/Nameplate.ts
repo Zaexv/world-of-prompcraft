@@ -14,8 +14,10 @@ export class Nameplate {
   private _name: string;
   private currentHp: number;
   private maxHp: number;
+  private _mood = "neutral";
+  private _relationshipScore = 0;
   private readonly canvasW = 512;
-  private readonly canvasH = 128;
+  private readonly canvasH = 160;
 
   constructor(name: string, maxHp = 100) {
     this._name = name;
@@ -38,7 +40,7 @@ export class Nameplate {
     });
 
     this.sprite = new THREE.Sprite(material);
-    this.sprite.scale.set(3, 0.75, 1);
+    this.sprite.scale.set(3, 0.94, 1);
     this.sprite.position.set(0, 3.2, 0);
     this.sprite.renderOrder = 999;
 
@@ -51,6 +53,14 @@ export class Nameplate {
     const prev = this.currentHp;
     this.currentHp = Math.max(0, Math.min(max, current));
     if (prev === this.currentHp) return;
+    this.draw();
+  }
+
+  /** Update mood and relationship indicators. */
+  updateMood(mood: string, relationshipScore: number): void {
+    if (mood === this._mood && relationshipScore === this._relationshipScore) return;
+    this._mood = mood;
+    this._relationshipScore = relationshipScore;
     this.draw();
   }
 
@@ -133,6 +143,9 @@ export class Nameplate {
     // ── Health bar ────────────────────────────────────────────────────
     this.drawHealthBar(ctx, w, h);
 
+    // ── Mood & relationship indicators ────────────────────────────────
+    this.drawMoodRelationship(ctx, w);
+
     this.texture.needsUpdate = true;
   }
 
@@ -213,6 +226,83 @@ export class Nameplate {
       ctx.lineTo(tx, barY + barH - 2);
       ctx.stroke();
     }
+  }
+
+  private static readonly MOOD_MAP: Record<string, { emoji: string; color: string }> = {
+    neutral: { emoji: "😐", color: "#888888" },
+    happy: { emoji: "😊", color: "#44cc44" },
+    pleased: { emoji: "🙂", color: "#88cc44" },
+    angry: { emoji: "😠", color: "#cc4444" },
+    annoyed: { emoji: "😒", color: "#cc8844" },
+    sad: { emoji: "😢", color: "#4488cc" },
+    fearful: { emoji: "😰", color: "#8844cc" },
+    amused: { emoji: "😄", color: "#cccc44" },
+  };
+
+  private drawMoodRelationship(ctx: CanvasRenderingContext2D, w: number): void {
+    const y = 92;
+    const barPad = 80;
+
+    // Mood emoji + label (left side)
+    const moodInfo = Nameplate.MOOD_MAP[this._mood] ?? Nameplate.MOOD_MAP.neutral;
+    ctx.font = "18px sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillText(moodInfo.emoji, barPad, y + 8);
+
+    ctx.font = "bold 11px Georgia, serif";
+    ctx.fillStyle = moodInfo.color;
+    ctx.fillText(this._mood.toUpperCase(), barPad + 22, y + 8);
+
+    // Relationship bar (right side) — thin horizontal bar
+    const relBarX = w / 2 + 20;
+    const relBarW = w - barPad - relBarX;
+    const relBarH = 6;
+    const relBarY = y + 5;
+
+    // Label
+    ctx.font = "bold 10px Georgia, serif";
+    ctx.textAlign = "left";
+    ctx.fillStyle = "rgba(197, 165, 90, 0.6)";
+    ctx.fillText("REP", w / 2 - 4, y + 8);
+
+    // Background track
+    ctx.save();
+    this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
+    ctx.fillStyle = "rgba(20, 10, 30, 0.8)";
+    ctx.fill();
+    ctx.restore();
+
+    // Filled portion: map -100..100 → 0..1
+    const frac = (this._relationshipScore + 100) / 200;
+    const fillW = relBarW * Math.max(0, Math.min(1, frac));
+
+    if (fillW > 0) {
+      ctx.save();
+      this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
+      ctx.clip();
+
+      // Color: red (enemy) → yellow (neutral) → green (ally)
+      let barColor: string;
+      if (this._relationshipScore < -30) {
+        barColor = "#cc2222";
+      } else if (this._relationshipScore < 10) {
+        barColor = "#ccaa22";
+      } else {
+        barColor = "#22cc44";
+      }
+      ctx.fillStyle = barColor;
+      ctx.fillRect(relBarX, relBarY, fillW, relBarH);
+      ctx.restore();
+    }
+
+    // Border
+    ctx.save();
+    this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
+    ctx.strokeStyle = "rgba(197, 165, 90, 0.4)";
+    ctx.lineWidth = 0.5;
+    ctx.stroke();
+    ctx.restore();
   }
 
   private drawFlourish(

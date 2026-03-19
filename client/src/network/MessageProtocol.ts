@@ -66,6 +66,7 @@ export interface NPCStateData {
   maxHp: number;
   position: [number, number, number];
   mood: string;
+  relationship_score: number;
 }
 
 export interface AgentResponse {

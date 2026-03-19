@@ -171,9 +171,18 @@ class AgentRegistry:
         player = self._world_state.get_player(player_id)
         npc = self._world_state.get_npc(npc_id)
 
+        npc_state_update: dict[str, Any] | None = None
+        if npc:
+            npc_state_update = {
+                "hp": npc.hp,
+                "maxHp": npc.max_hp,
+                "mood": result.get("mood", "neutral"),
+                "relationship_score": result.get("relationship_score", 0),
+            }
+
         return {
             "dialogue": result.get("response_text", "..."),
             "actions": pending,
             "playerStateUpdate": player.to_dict() if player else None,
-            "npcStateUpdate": {"hp": npc.hp, "maxHp": npc.max_hp} if npc else None,
+            "npcStateUpdate": npc_state_update,
         }

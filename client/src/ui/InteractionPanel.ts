@@ -58,6 +58,11 @@ const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: s
 export class InteractionPanel {
   readonly element: HTMLDivElement;
   private header: HTMLDivElement;
+  private statusBar: HTMLDivElement;
+  private moodLabel: HTMLSpanElement;
+  private relBar: HTMLDivElement;
+  private relFill: HTMLDivElement;
+  private relLabel: HTMLSpanElement;
   private actionBar: HTMLDivElement;
   private chatHistory: HTMLDivElement;
   private input: HTMLInputElement;
@@ -105,6 +110,68 @@ export class InteractionPanel {
       letterSpacing: "1px",
     } as CSSStyleDeclaration);
     this.element.appendChild(this.header);
+
+    // ── Mood & Relationship status bar ────────────────────────────────
+    this.statusBar = document.createElement("div");
+    Object.assign(this.statusBar.style, {
+      display: "none",
+      alignItems: "center",
+      gap: "12px",
+      padding: "4px 16px",
+      fontSize: "12px",
+      borderBottom: "1px solid rgba(197,165,90,0.15)",
+    } as CSSStyleDeclaration);
+
+    this.moodLabel = document.createElement("span");
+    Object.assign(this.moodLabel.style, {
+      color: "#888",
+      fontWeight: "600",
+      whiteSpace: "nowrap",
+    } as CSSStyleDeclaration);
+    this.moodLabel.textContent = "😐 Neutral";
+    this.statusBar.appendChild(this.moodLabel);
+
+    const relWrap = document.createElement("span");
+    Object.assign(relWrap.style, {
+      display: "flex",
+      alignItems: "center",
+      gap: "6px",
+      flex: "1",
+    } as CSSStyleDeclaration);
+
+    this.relLabel = document.createElement("span");
+    Object.assign(this.relLabel.style, {
+      color: "rgba(197,165,90,0.6)",
+      fontSize: "10px",
+      fontWeight: "700",
+      letterSpacing: "1px",
+      whiteSpace: "nowrap",
+    } as CSSStyleDeclaration);
+    this.relLabel.textContent = "STRANGER";
+    relWrap.appendChild(this.relLabel);
+
+    this.relBar = document.createElement("div");
+    Object.assign(this.relBar.style, {
+      flex: "1",
+      height: "6px",
+      background: "rgba(20,10,30,0.8)",
+      borderRadius: "3px",
+      overflow: "hidden",
+      border: "1px solid rgba(197,165,90,0.3)",
+    } as CSSStyleDeclaration);
+
+    this.relFill = document.createElement("div");
+    Object.assign(this.relFill.style, {
+      height: "100%",
+      width: "50%",
+      background: "#ccaa22",
+      borderRadius: "3px",
+      transition: "width 0.5s ease, background 0.5s ease",
+    } as CSSStyleDeclaration);
+    this.relBar.appendChild(this.relFill);
+    relWrap.appendChild(this.relBar);
+    this.statusBar.appendChild(relWrap);
+    this.element.appendChild(this.statusBar);
 
     // ── Action bar ─────────────────────────────────────────────────────
     this.actionBar = document.createElement("div");
@@ -234,6 +301,7 @@ export class InteractionPanel {
 
     this.hideThinking();
     this.populateActionBar(npcId);
+    this.statusBar.style.display = "flex";
     this.element.style.display = "flex";
     this.input.focus();
   }
@@ -329,6 +397,55 @@ export class InteractionPanel {
 
   hideThinking(): void {
     this.thinkingEl.style.display = "none";
+  }
+
+  private static readonly MOOD_DISPLAY: Record<string, { emoji: string; color: string }> = {
+    neutral: { emoji: "😐", color: "#888888" },
+    happy: { emoji: "😊", color: "#44cc44" },
+    pleased: { emoji: "🙂", color: "#88cc44" },
+    angry: { emoji: "😠", color: "#cc4444" },
+    annoyed: { emoji: "😒", color: "#cc8844" },
+    sad: { emoji: "😢", color: "#4488cc" },
+    fearful: { emoji: "😰", color: "#8844cc" },
+    amused: { emoji: "😄", color: "#cccc44" },
+  };
+
+  /** Update the mood emoji and relationship bar in the status section. */
+  updateMoodStatus(mood: string, relationshipScore: number): void {
+    const info = InteractionPanel.MOOD_DISPLAY[mood] ?? InteractionPanel.MOOD_DISPLAY.neutral;
+    this.moodLabel.textContent = `${info.emoji} ${mood.charAt(0).toUpperCase() + mood.slice(1)}`;
+    this.moodLabel.style.color = info.color;
+
+    // Relationship bar fill: -100..100 → 0..100%
+    const pct = Math.max(0, Math.min(100, (relationshipScore + 100) / 2));
+    this.relFill.style.width = `${pct}%`;
+
+    // Bar color
+    if (relationshipScore < -30) {
+      this.relFill.style.background = "#cc2222";
+    } else if (relationshipScore < 10) {
+      this.relFill.style.background = "#ccaa22";
+    } else {
+      this.relFill.style.background = "#22cc44";
+    }
+
+    // Tier label
+    if (relationshipScore <= -50) {
+      this.relLabel.textContent = "ENEMY";
+      this.relLabel.style.color = "#cc4444";
+    } else if (relationshipScore <= -10) {
+      this.relLabel.textContent = "WARY";
+      this.relLabel.style.color = "#cc8844";
+    } else if (relationshipScore <= 10) {
+      this.relLabel.textContent = "STRANGER";
+      this.relLabel.style.color = "rgba(197,165,90,0.6)";
+    } else if (relationshipScore <= 50) {
+      this.relLabel.textContent = "FRIEND";
+      this.relLabel.style.color = "#88cc44";
+    } else {
+      this.relLabel.textContent = "ALLY";
+      this.relLabel.style.color = "#44cc44";
+    }
   }
 
   /** Remove chat history for a specific NPC. Call when an NPC is removed. */

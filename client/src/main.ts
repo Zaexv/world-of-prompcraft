@@ -545,6 +545,13 @@ function initGame(username: string, race: string, faction: string) {
         }
       }
 
+      // ── Update InteractionPanel mood/relationship for active NPC ────────
+      if (isActiveNpc && response.npcStateUpdate) {
+        const mood = response.npcStateUpdate.mood ?? 'neutral';
+        const relScore = response.npcStateUpdate.relationship_score ?? 0;
+        uiManager.interactionPanel.updateMoodStatus(mood, relScore);
+      }
+
       // ── Combat log entries for each action (always visible) ────────────
       const npcName = npcNameMap.get(response.npcId) ?? entityManager.getNPC(response.npcId)?.name ?? response.npcId;
       for (const action of response.actions) {

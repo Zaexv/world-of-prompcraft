@@ -54,7 +54,10 @@ export interface EntityManagerLike {
     position?: THREE.Vector3;
     playEmote?: (emote: string) => void;
     showAction?: (kind: string, duration?: number) => void;
-    nameplate?: { updateHP: (hp: number, maxHp: number) => void };
+    nameplate?: {
+      updateHP: (hp: number, maxHp: number) => void;
+      updateMood?: (mood: string, relationshipScore: number) => void;
+    };
   } | undefined;
   removeNPC?(id: string): void;
 }
@@ -124,6 +127,16 @@ export class ReactionSystem {
         const hp = response.npcStateUpdate.hp ?? 100;
         const maxHp = response.npcStateUpdate.maxHp ?? 100;
         npc.nameplate.updateHP(hp, maxHp);
+
+        // Update mood & relationship indicators on the nameplate
+        const mood = response.npcStateUpdate.mood;
+        const relScore = response.npcStateUpdate.relationship_score;
+        if (mood !== undefined || relScore !== undefined) {
+          const state = this.npcStateStore.getState(response.npcId);
+          if (state) {
+            npc.nameplate.updateMood?.(state.mood, state.relationship_score);
+          }
+        }
       }
 
       // NPC death check
