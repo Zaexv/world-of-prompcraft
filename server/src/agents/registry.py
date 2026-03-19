@@ -142,6 +142,11 @@ class AgentRegistry:
             "world_context": world_context,
             "pending_actions": [],
             "response_text": "",
+            # Enrichment fields — defaults here, persisted values loaded from checkpoint
+            "conversation_summary": "",
+            "mood": "neutral",
+            "relationship_score": 0,
+            "personality_notes": "",
         }
 
         config = {"configurable": {"thread_id": f"{npc_id}_{player_id}"}}

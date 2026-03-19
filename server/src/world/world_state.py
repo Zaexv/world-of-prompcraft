@@ -58,6 +58,7 @@ class WorldState:
             "time_of_day": "day",
         }
         self.chat_history: deque[dict[str, Any]] = deque(maxlen=50)
+        self.recent_events: deque[str] = deque(maxlen=20)
         self._load_default_npcs()
 
     def _load_default_npcs(self) -> None:
@@ -168,6 +169,7 @@ class WorldState:
             "weather": self.environment.get("weather", "clear"),
             "nearby_entities": nearby,
             "recent_chat": self.get_recent_chat(10),
+            "recent_events": list(self.recent_events)[-5:],
         }
 
     # ---- Actions ----
@@ -192,6 +194,8 @@ class WorldState:
                         npc = self.npcs.get(target)
                         if npc:
                             npc.hp = max(0, npc.hp - amount)
+                            if npc.hp <= 0:
+                                self.recent_events.append(f"{npc.name} was defeated")
 
                 elif kind in ("heal_player", "heal"):
                     target = params.get("target", "player")
@@ -232,6 +236,7 @@ class WorldState:
                 elif kind == "change_weather":
                     weather = params.get("weather", "clear")
                     self.environment["weather"] = weather
+                    self.recent_events.append(f"Weather changed to {weather}")
 
                 elif kind == "start_quest":
                     pid = params.get("player_id", "")
@@ -239,6 +244,7 @@ class WorldState:
                     if quest_id:
                         player = self.get_player(pid)
                         player.start_quest(quest_id)
+                        self.recent_events.append(f"{pid} started quest {quest_id}")
 
                 elif kind == "complete_quest":
                     pid = params.get("player_id", "")
@@ -252,6 +258,14 @@ class WorldState:
                         quest_def = QUEST_DEFINITIONS.get(quest_id)
                         if quest_def and quest_def.reward_item:
                             player.inventory.append(quest_def.reward_item)
+                        self.recent_events.append(f"{pid} completed quest {quest_id}")
 
-                # spawn_effect, emote, move_npc
-                # are purely visual — handled by the client only, no server mutation needed
+                elif kind == "move_npc":
+                    # Sync NPC position server-side
+                    nid = params.get("npc_id", "")
+                    position = params.get("position")
+                    npc = self.npcs.get(nid)
+                    if npc and isinstance(position, list) and len(position) >= 3:
+                        npc.position = [float(position[0]), float(position[1]), float(position[2])]
+
+                # spawn_effect, emote are purely visual — client only

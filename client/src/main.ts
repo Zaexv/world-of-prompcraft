@@ -210,7 +210,8 @@ function initGame(username: string, race: string, faction: string) {
   };
 
   // ── Network ───────────────────────────────────────────────────────────────
-  const ws = new WebSocketClient('ws://localhost:8000/ws');
+  const wsHost = window.location.hostname || 'localhost';
+  const ws = new WebSocketClient(`ws://${wsHost}:8000/ws`);
 
   ws.onConnectionChange = (connected) => {
     console.warn(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
@@ -472,6 +473,19 @@ function initGame(username: string, race: string, faction: string) {
         const remote = entityManager.getRemotePlayer(data.speakerPlayer);
         spawnChatBubble(data.dialogue, remote?.group, 'player', data.speakerPlayer);
       }
+      return;
+    }
+
+    // ── NPC Actions Broadcasting (combat/movement sync for bystanders) ───
+    if (data.type === 'npc_actions') {
+      reactionSystem.handleResponse({
+        type: 'agent_response',
+        npcId: data.npcId,
+        dialogue: '',
+        actions: data.actions ?? [],
+        npcStateUpdate: data.npcStateUpdate ?? undefined,
+        playerStateUpdate: undefined,
+      } as AgentResponse);
       return;
     }
 

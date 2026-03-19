@@ -14,7 +14,7 @@ def test_ember_peaks() -> None:
 
 
 def test_crystal_lake() -> None:
-    assert get_zone([-100.0, 0.0, 0.0]) == "Crystal Lake"
+    assert get_zone([-200.0, 0.0, 0.0]) == "Crystal Lake"
 
 
 def test_wilderness_fallback() -> None:

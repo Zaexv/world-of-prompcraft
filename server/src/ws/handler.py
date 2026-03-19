@@ -651,6 +651,38 @@ async def _handle_interaction(data: dict, websocket: WebSocket, manager: Connect
             exclude=player_id,
         )
 
+    # ── Sync NPC position for move_npc actions ─────────────────────────────
+    for action in all_actions:
+        if action.get("kind") == "move_npc":
+            pos = action.get("params", {}).get("position")
+            npc = _world_state.get_npc(npc_id)
+            if npc and isinstance(pos, list) and len(pos) >= 3:
+                async with _world_state._lock:
+                    npc.position = [float(pos[0]), float(pos[1]), float(pos[2])]
+
+    # ── Broadcast NPC actions to nearby players (combat sync) ─────────────
+    # Other players need to see NPC damage, movement, emotes, and HP changes.
+    _BROADCAST_KINDS = {"damage", "move_npc", "emote", "spawn_effect"}  # noqa: N806
+    if npc_for_broadcast is not None:
+        broadcast_actions = [
+            a for a in all_actions
+            if a.get("kind") in _BROADCAST_KINDS
+            and a.get("params", {}).get("target") != "player"
+        ]
+        if broadcast_actions or npc_state:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_actions",
+                    "npcId": npc_id,
+                    "actions": broadcast_actions,
+                    "npcStateUpdate": npc_state,
+                },
+                origin=list(npc_for_broadcast.position),
+                radius=200.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+
     # Don't send playerStateUpdate — let actions be the sole source of truth
     # on the client. This prevents double-application of HP/inventory changes.
     return {
