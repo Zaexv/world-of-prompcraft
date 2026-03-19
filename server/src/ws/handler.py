@@ -244,6 +244,16 @@ async def handle_message(
     if msg_type == "join":
         return await _handle_join(data, websocket, manager)
 
+    if msg_type == "ping":
+        return {"type": "pong"}
+
+    # All other message types require registration
+    if manager.get_player_id(websocket) is None:
+        return None  # silently drop — client will re-join after reconnect
+
+    if msg_type == "join":
+        return await _handle_join(data, websocket, manager)
+
     if msg_type == "interaction":
         return await _handle_interaction(data, websocket, manager)
 

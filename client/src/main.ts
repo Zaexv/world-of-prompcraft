@@ -232,6 +232,7 @@ function initGame(username: string, race: string, faction: string) {
 
   // ── Chat wiring ──────────────────────────────────────────────────────────
   uiManager.chatPanel.onSendMessage = (text: string) => {
+    if (!joinedServer) return;
     ws.send({ type: 'chat_message', text });
     // Show own message in chat panel
     uiManager.chatPanel.addMessage(username, text);
@@ -241,6 +242,7 @@ function initGame(username: string, race: string, faction: string) {
 
   // ── Inventory use-item wiring (must be after ws is created) ──────────────
   uiManager.inventoryPanel.onUseItem = (itemName: string) => {
+    if (!joinedServer) return;
     console.warn(`[Inventory] Used item: ${itemName}`);
 
     // Immediately remove the item from client inventory so the UI updates
@@ -268,6 +270,7 @@ function initGame(username: string, race: string, faction: string) {
 
   // ── Equipment wiring ──────────────────────────────────────────────────
   uiManager.inventoryPanel.onEquipItem = (itemName: string) => {
+    if (!joinedServer) return;
     const slot = playerState.equip(itemName);
     if (slot) {
       uiManager.showItemUseEffect(itemName, 'buff');
@@ -353,7 +356,7 @@ function initGame(username: string, race: string, faction: string) {
   };
 
   uiManager.interactionPanel.onSendMessage = (prompt: string) => {
-    if (!activeNpcId) return;
+    if (!activeNpcId || !joinedServer) return;
 
     // Show "thinking" icon above the NPC while waiting for response
     const npc = entityManager.getNPC(activeNpcId);
@@ -554,6 +557,16 @@ function initGame(username: string, race: string, faction: string) {
 
       // ── Combat log entries for each action (always visible) ────────────
       const npcName = npcNameMap.get(response.npcId) ?? entityManager.getNPC(response.npcId)?.name ?? response.npcId;
+
+      // Log to CombatHUD when visible, otherwise to global CombatLog (never both)
+      const logCombat = (msg: string, color: string) => {
+        if (uiManager.combatHUD.isVisible) {
+          uiManager.combatHUD.addLogEntry(msg, color);
+        } else {
+          uiManager.addCombatLog(msg, color);
+        }
+      };
+
       for (const action of response.actions) {
         if (action.kind === 'damage') {
           const target = action.params.target ?? 'player';
@@ -561,11 +574,7 @@ function initGame(username: string, race: string, faction: string) {
           const damageType = action.params.damageType ?? 'physical';
 
           if (target === 'player') {
-            const msg = `${npcName} deals ${amount} ${damageType} damage!`;
-            uiManager.addCombatLog(msg, '#ff4444');
-            if (uiManager.combatHUD.isVisible) {
-              uiManager.combatHUD.addLogEntry(msg, '#ff4444');
-            }
+            logCombat(`${npcName} deals ${amount} ${damageType} damage!`, '#ff4444');
             // Spawn damage popup on player
             const playerPos = new THREE.Vector3(
               playerController.position.x,
@@ -578,11 +587,7 @@ function initGame(username: string, race: string, faction: string) {
               uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff4444', isCrit);
             }
           } else {
-            const msg = `You strike ${npcName} for ${amount} damage!`;
-            uiManager.addCombatLog(msg, '#ffffff');
-            if (uiManager.combatHUD.isVisible) {
-              uiManager.combatHUD.addLogEntry(msg, '#ffffff');
-            }
+            logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
             // Spawn damage popup on NPC
             const targetNpc = entityManager.getNPC(target);
             if (targetNpc) {
@@ -597,11 +602,7 @@ function initGame(username: string, race: string, faction: string) {
           }
         } else if (action.kind === 'heal') {
           const amount = action.params.amount ?? 0;
-          const msg = `Healed for ${amount} HP`;
-          uiManager.addCombatLog(msg, '#44ff44');
-          if (uiManager.combatHUD.isVisible) {
-            uiManager.combatHUD.addLogEntry(msg, '#44ff44');
-          }
+          logCombat(`Healed for ${amount} HP`, '#44ff44');
           // Spawn healing popup on player
           const playerPos = new THREE.Vector3(
             playerController.position.x,
@@ -614,26 +615,17 @@ function initGame(username: string, race: string, faction: string) {
           }
         } else if (action.kind === 'give_item') {
           const item = action.params.item ?? 'Unknown Item';
-          uiManager.addCombatLog(`Received: ${item}`, '#c5a55a');
-          if (uiManager.combatHUD.isVisible) {
-            uiManager.combatHUD.addLogEntry(`Received: ${item}`, '#c5a55a');
-          }
+          logCombat(`Received: ${item}`, '#c5a55a');
         } else if (action.kind === 'start_quest' || action.kind === 'complete_quest') {
           const quest = action.params.quest ?? action.params.name ?? 'Unknown Quest';
           const prefix = action.kind === 'start_quest' ? 'Quest Started' : 'Quest Complete';
-          uiManager.addCombatLog(`${prefix}: ${quest}`, '#c5a55a');
-          if (uiManager.combatHUD.isVisible) {
-            uiManager.combatHUD.addLogEntry(`${prefix}: ${quest}`, '#c5a55a');
-          }
+          logCombat(`${prefix}: ${quest}`, '#c5a55a');
         } else if (action.kind === 'advance_objective') {
           const desc = action.params.description ?? action.params.objectiveId ?? 'objective';
-          uiManager.addCombatLog(`Objective Complete: ${desc}`, '#c5a55a');
-          if (uiManager.combatHUD.isVisible) {
-            uiManager.combatHUD.addLogEntry(`Objective Complete: ${desc}`, '#c5a55a');
-          }
+          logCombat(`Objective Complete: ${desc}`, '#c5a55a');
         } else if (action.kind === 'emote') {
           const animation = action.params.animation ?? action.params.emote ?? 'gesture';
-          uiManager.addCombatLog(`${npcName} performs ${animation}`, '#aaaaaa');
+          logCombat(`${npcName} performs ${animation}`, '#aaaaaa');
         }
       }
     }

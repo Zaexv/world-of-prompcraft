@@ -4,10 +4,10 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import ToolMessage
 
+from ..agent_state import NPCAgentState
+
 if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
-
-    from ..agent_state import NPCAgentState
 
 
 def make_act_node(tools: list[BaseTool], shared_pending_actions: list) -> Any:

@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
 
+from ..agent_state import NPCAgentState
+
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
-
-    from ..agent_state import NPCAgentState
 
 logger = logging.getLogger(__name__)
 

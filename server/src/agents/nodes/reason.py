@@ -6,12 +6,11 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import SystemMessage
 
 from ...rag.retriever import get_retriever
+from ..agent_state import NPCAgentState
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
-
-    from ..agent_state import NPCAgentState
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
