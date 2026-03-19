@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+import math
+import time
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -54,6 +57,7 @@ class WorldState:
             "weather": "clear",
             "time_of_day": "day",
         }
+        self.chat_history: deque[dict[str, Any]] = deque(maxlen=50)
         self._load_default_npcs()
 
     def _load_default_npcs(self) -> None:
@@ -86,6 +90,34 @@ class WorldState:
                 if hasattr(player, key):
                     setattr(player, key, value)
 
+    def get_nearby_players(self, position: list[float], radius: float) -> dict[str, dict[str, Any]]:
+        """Return public dicts of players within *radius* (XZ distance) of *position*."""
+        result: dict[str, dict[str, Any]] = {}
+        for pid, player in self.players.items():
+            dx = position[0] - player.position[0]
+            dz = position[2] - player.position[2] if len(position) > 2 else 0.0
+            dist = math.sqrt(dx * dx + dz * dz)
+            if dist <= radius:
+                result[pid] = player.to_public_dict()
+        return result
+
+    # ---- Chat helpers ----
+
+    def add_chat_message(self, player_id: str, text: str) -> dict[str, Any]:
+        """Store a chat message and return the entry."""
+        entry: dict[str, Any] = {
+            "player": player_id,
+            "text": text,
+            "timestamp": time.time(),
+        }
+        self.chat_history.append(entry)
+        return entry
+
+    def get_recent_chat(self, limit: int = 10) -> list[dict[str, Any]]:
+        """Return the most recent *limit* chat messages."""
+        items = list(self.chat_history)
+        return items[-limit:]
+
     # ---- NPC helpers ----
 
     def get_npc(self, npc_id: str) -> NPCData | None:
@@ -96,6 +128,17 @@ class WorldState:
         if npc is None:
             return {"name": "Unknown", "personality": "You are a mysterious stranger."}
         return {"name": npc.name, "personality": npc.personality}
+
+    def get_nearby_npcs(self, position: list[float], radius: float) -> list[NPCData]:
+        """Return NPCs within radius (XZ distance) of the given position."""
+        result: list[NPCData] = []
+        for npc in self.npcs.values():
+            dx = position[0] - npc.position[0]
+            dz = position[2] - npc.position[2] if len(position) > 2 else 0.0
+            dist = math.sqrt(dx * dx + dz * dz)
+            if dist <= radius and npc.hp > 0:
+                result.append(npc)
+        return result
 
     # ---- Context ----
 
@@ -112,8 +155,8 @@ class WorldState:
         for other_id, other_npc in self.npcs.items():
             if other_id == npc_id:
                 continue
-            dist = (
-                sum((a - b) ** 2 for a, b in zip(npc_pos, other_npc.position, strict=True)) ** 0.5
+            dist = math.sqrt(
+                sum((a - b) ** 2 for a, b in zip(npc_pos, other_npc.position, strict=True))
             )
             if dist < 50.0:
                 nearby.append({"name": other_npc.name, "distance": round(dist, 1)})
@@ -124,6 +167,7 @@ class WorldState:
             "time_of_day": self.environment.get("time_of_day", "day"),
             "weather": self.environment.get("weather", "clear"),
             "nearby_entities": nearby,
+            "recent_chat": self.get_recent_chat(10),
         }
 
     # ---- Actions ----
@@ -189,5 +233,25 @@ class WorldState:
                     weather = params.get("weather", "clear")
                     self.environment["weather"] = weather
 
-                # spawn_effect, emote, move_npc, start_quest, complete_quest
+                elif kind == "start_quest":
+                    pid = params.get("player_id", "")
+                    quest_id = params.get("quest_id", "")
+                    if quest_id:
+                        player = self.get_player(pid)
+                        player.start_quest(quest_id)
+
+                elif kind == "complete_quest":
+                    pid = params.get("player_id", "")
+                    quest_id = params.get("quest_id", "")
+                    if quest_id:
+                        player = self.get_player(pid)
+                        player.complete_quest(quest_id)
+                        # Grant quest reward item to the player
+                        from .quest_definitions import QUEST_DEFINITIONS
+
+                        quest_def = QUEST_DEFINITIONS.get(quest_id)
+                        if quest_def and quest_def.reward_item:
+                            player.inventory.append(quest_def.reward_item)
+
+                # spawn_effect, emote, move_npc
                 # are purely visual — handled by the client only, no server mutation needed

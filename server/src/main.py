@@ -9,8 +9,9 @@ from .agents.registry import AgentRegistry
 from .config import settings
 from .llm.provider import get_llm
 from .world.world_state import WorldState
+from .ws import handler as _handler_module
 from .ws.connection_manager import ConnectionManager
-from .ws.handler import handle_message, init_handler
+from .ws.handler import cleanup_player_equipment, handle_message, init_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,7 +26,7 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     world_state = WorldState()
     registry = AgentRegistry(llm=llm, world_state=world_state)
 
-    init_handler(registry, world_state)
+    init_handler(registry, world_state, manager)
     logger.info(
         "Backend ready: %d NPCs registered, LLM provider=%s",
         len(world_state.npcs),
@@ -52,7 +53,19 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     try:
         while True:
             data: dict[str, Any] = await websocket.receive_json()
-            response = await handle_message(data)
-            await websocket.send_json(response)
+            response = await handle_message(data, websocket, manager)
+            if response is not None:
+                await websocket.send_json(response)
     except WebSocketDisconnect:
-        manager.disconnect(websocket)
+        player_id = manager.disconnect(websocket)
+        if player_id is not None:
+            # Remove player from the shared world state
+            world_state = _handler_module._world_state
+            if world_state is not None:
+                world_state.players.pop(player_id, None)
+            # Bug 16: Clean up equipment dict on disconnect
+            cleanup_player_equipment(player_id)
+            # Broadcast player_left
+            await manager.broadcast(
+                {"type": "player_left", "playerId": player_id},
+            )

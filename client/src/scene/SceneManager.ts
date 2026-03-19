@@ -7,6 +7,7 @@ import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Buildings } from './Buildings';
+import { FortMalaka } from './FortMalaka';
 import { Vegetation } from './Vegetation';
 import { Effects } from './Effects';
 
@@ -16,6 +17,7 @@ export class SceneManager {
   public renderer: THREE.WebGLRenderer;
   public terrain: Terrain;
   public buildings: Buildings;
+  public fortMalaka: FortMalaka;
   public vegetation: Vegetation;
 
   private clock: THREE.Clock;
@@ -34,7 +36,7 @@ export class SceneManager {
       60,
       window.innerWidth / window.innerHeight,
       0.1,
-      2000,
+      800,
     );
     this.camera.position.set(0, 30, 60);
     this.camera.lookAt(0, 0, 0);
@@ -81,7 +83,11 @@ export class SceneManager {
     this.water = new Water(this.scene);
 
     this.buildings = new Buildings(this.scene, this.terrain);
-    this.vegetation = new Vegetation(this.scene, this.terrain, this.buildings.footprints);
+    this.fortMalaka = new FortMalaka(this.scene, this.terrain);
+
+    // Combine footprints from all building systems for vegetation avoidance
+    const allFootprints = [...this.buildings.footprints, ...this.fortMalaka.footprints];
+    this.vegetation = new Vegetation(this.scene, this.terrain, allFootprints);
 
     // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);
@@ -111,7 +117,15 @@ export class SceneManager {
 
   tick(): number {
     const delta = this.clock.getDelta();
-    this.water.update(delta, this.playerX, this.playerZ);
+
+    // Skip water reflection rendering when player is far above water level
+    const playerY = this.camera.position.y;
+    const skipWaterReflection = playerY > 15;
+    this.water.mesh.visible = !skipWaterReflection;
+    if (!skipWaterReflection) {
+      this.water.update(delta, this.playerX, this.playerZ);
+    }
+
     this.effects.update(delta);
 
     // Use post-processing composer if available, otherwise fall back to direct render

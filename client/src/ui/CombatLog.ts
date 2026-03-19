@@ -24,7 +24,7 @@ export class CombatLog {
     Object.assign(this.element.style, {
       position: "absolute",
       bottom: "24px",
-      left: "24px",
+      right: "24px",
       width: "350px",
       maxHeight: "180px",
       background: "rgba(10, 6, 18, 0.8)",

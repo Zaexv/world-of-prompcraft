@@ -36,6 +36,8 @@ export class NPC {
 
   /** Stores original emissive colours so highlights can be toggled. */
   private materials: THREE.MeshStandardMaterial[] = [];
+  /** Original emissive hex values, captured on first highlight. */
+  private originalEmissives: number[] = [];
 
   constructor(config: NPCConfig) {
     this.id = config.id;
@@ -61,12 +63,10 @@ export class NPC {
     const shoulderMat = new THREE.MeshStandardMaterial({ color: darken(color, 0.15) });
     const leftShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
     leftShoulder.position.set(-0.34, 2.05, 0);
-    leftShoulder.castShadow = true;
     this.mesh.add(leftShoulder);
 
     const rightShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
     rightShoulder.position.set(0.34, 2.05, 0);
-    rightShoulder.castShadow = true;
     this.mesh.add(rightShoulder);
     this.materials.push(shoulderMat);
 
@@ -77,6 +77,7 @@ export class NPC {
     belt.position.y = 1.1;
     belt.rotation.x = Math.PI / 2;
     this.mesh.add(belt);
+    this.materials.push(beltMat);
 
     // ----- Head -----
     const headGeo = new THREE.SphereGeometry(0.25, 12, 10);
@@ -94,13 +95,11 @@ export class NPC {
     const leftLeg = new THREE.Mesh(legGeo, legMat);
     leftLeg.position.set(-0.13, 0.42, 0);
     leftLeg.name = 'leftLeg';
-    leftLeg.castShadow = true;
     this.mesh.add(leftLeg);
 
     const rightLeg = new THREE.Mesh(legGeo, legMat);
     rightLeg.position.set(0.13, 0.42, 0);
     rightLeg.name = 'rightLeg';
-    rightLeg.castShadow = true;
     this.mesh.add(rightLeg);
 
     this.materials.push(legMat);
@@ -110,8 +109,8 @@ export class NPC {
     const hatMat = new THREE.MeshStandardMaterial({ color: darken(color, 0.4) });
     const hat = new THREE.Mesh(hatGeo, hatMat);
     hat.position.y = 2.78;
-    hat.castShadow = true;
     this.mesh.add(hat);
+    this.materials.push(hatMat);
 
     // ----- Role-based accessories -----
     this.addRoleAccessory(color);
@@ -141,6 +140,8 @@ export class NPC {
   update(delta: number): void {
     this.animator.update(delta);
     this.actionIcon.update(delta);
+    // Always keep the logical position in sync with the mesh
+    this.position.copy(this.mesh.position);
   }
 
   /** Trigger an emote/animation on this NPC. */
@@ -155,11 +156,50 @@ export class NPC {
     this.actionIcon.show(actionKind, duration);
   }
 
+  /** Dispose all GPU resources (geometries, materials, textures). */
+  dispose(): void {
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          for (const mat of child.material) {
+            mat.dispose();
+          }
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+
+    // Dispose nameplate texture and sprite material
+    this.nameplate.sprite.material.dispose();
+    if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
+      this.nameplate.sprite.material.map.dispose();
+    }
+
+    // Dispose actionIcon texture and sprite material
+    this.actionIcon.sprite.material.dispose();
+    if (this.actionIcon.sprite.material instanceof THREE.SpriteMaterial && this.actionIcon.sprite.material.map) {
+      this.actionIcon.sprite.material.map.dispose();
+    }
+  }
+
   /** Toggle hover/highlight by adding emissive colour. */
   setHighlight(on: boolean): void {
-    const emissive = on ? 0x444444 : 0x000000;
-    for (const mat of this.materials) {
-      mat.emissive.setHex(emissive);
+    if (on) {
+      // Store original emissive values on first highlight
+      if (this.originalEmissives.length === 0) {
+        this.originalEmissives = this.materials.map((mat) => mat.emissive.getHex());
+      }
+      for (const mat of this.materials) {
+        mat.emissive.setHex(mat.emissive.getHex() | 0x444444);
+      }
+    } else {
+      // Restore original emissive values
+      for (let i = 0; i < this.materials.length; i++) {
+        const original = this.originalEmissives[i] ?? 0x000000;
+        this.materials[i].emissive.setHex(original);
+      }
     }
   }
 
@@ -220,7 +260,7 @@ export class NPC {
       this.mesh.rotation.y += angleDiff * Math.min(1, 8 * delta);
 
       // Update animator baseY so idle bob works at new height
-      this.animator['baseY'] = this.mesh.position.y;
+      this.animator.setBaseY(this.mesh.position.y);
     }
   }
 

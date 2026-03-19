@@ -1,9 +1,8 @@
 /**
- * LoginScreen — Dark Portal title screen for World of Promptcraft.
+ * LoginScreen — Dark Portal title screen with character creation for World of Promptcraft.
  *
  * Renders a full-screen overlay with an animated dark-portal canvas,
- * title text, and an "Enter World" button.  The 3D game world only
- * initialises once the player clicks the button.
+ * title text, faction/race selection, username input, and an "Enter World" button.
  */
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -29,10 +28,26 @@ interface Lightning {
   width: number;
 }
 
+// ── Race definitions ─────────────────────────────────────────────────────
+
+interface RaceDef {
+  id: string;
+  label: string;
+  color: string;
+  faction: 'alliance' | 'horde';
+}
+
+const RACES: RaceDef[] = [
+  { id: 'human', label: 'Human', color: '#c4a882', faction: 'alliance' },
+  { id: 'night_elf', label: 'Night Elf', color: '#8866cc', faction: 'alliance' },
+  { id: 'orc', label: 'Orc', color: '#44aa44', faction: 'horde' },
+  { id: 'undead', label: 'Undead', color: '#88aaaa', faction: 'horde' },
+];
+
 // ── LoginScreen class ──────────────────────────────────────────────────────
 
 export class LoginScreen {
-  onEnterWorld: (() => void) | null = null;
+  onEnterWorld: ((username: string, race: string, faction: string) => void) | null = null;
 
   private overlay: HTMLDivElement;
   private canvas: HTMLCanvasElement;
@@ -44,6 +59,16 @@ export class LoginScreen {
   private time = 0;
   private embers: Ember[] = [];
   private lightnings: Lightning[] = [];
+
+  // Character creation state
+  private selectedFaction: 'alliance' | 'horde' = 'alliance';
+  private selectedRace: string = 'human';
+  private usernameInput!: HTMLInputElement;
+  private errorText!: HTMLDivElement;
+  private enterBtn!: HTMLButtonElement;
+  private raceCardsContainer!: HTMLDivElement;
+  private allianceBtn!: HTMLButtonElement;
+  private hordeBtn!: HTMLButtonElement;
 
   constructor() {
     // -- Load Cinzel font ---------------------------------------------------
@@ -101,7 +126,7 @@ export class LoginScreen {
         '0 0 20px rgba(197,165,90,0.6), 0 0 40px rgba(197,165,90,0.3), 0 2px 4px rgba(0,0,0,0.8)',
       marginBottom: '0.25em',
       userSelect: 'none',
-      marginTop: '-10vh',
+      marginTop: '-5vh',
     } as CSSStyleDeclaration);
     this.overlay.appendChild(title);
 
@@ -117,15 +142,19 @@ export class LoginScreen {
       textAlign: 'center',
       letterSpacing: '0.25em',
       textShadow: '0 0 10px rgba(170,170,187,0.3)',
-      marginBottom: '35vh',
+      marginBottom: '2em',
       userSelect: 'none',
     } as CSSStyleDeclaration);
     this.overlay.appendChild(subtitle);
 
+    // -- Character creation section -----------------------------------------
+    this.buildCharacterCreation();
+
     // -- Enter World button -------------------------------------------------
-    const btn = document.createElement('button');
-    btn.textContent = 'Enter World';
-    Object.assign(btn.style, {
+    this.enterBtn = document.createElement('button');
+    this.enterBtn.textContent = 'Enter World';
+    this.enterBtn.disabled = true;
+    Object.assign(this.enterBtn.style, {
       position: 'relative',
       zIndex: '1',
       fontFamily: "'Cinzel', Georgia, serif",
@@ -141,30 +170,36 @@ export class LoginScreen {
       transition: 'all 0.3s ease',
       textShadow: '0 0 8px rgba(197,165,90,0.4)',
       boxShadow: '0 0 15px rgba(197,165,90,0.15), inset 0 0 15px rgba(197,165,90,0.05)',
+      marginTop: '1.5em',
     } as CSSStyleDeclaration);
 
-    btn.addEventListener('mouseenter', () => {
-      btn.style.boxShadow =
+    this.enterBtn.addEventListener('mouseenter', () => {
+      if (this.enterBtn.disabled) return;
+      this.enterBtn.style.boxShadow =
         '0 0 30px rgba(197,165,90,0.5), inset 0 0 20px rgba(197,165,90,0.15)';
-      btn.style.borderColor = '#e0c872';
-      btn.style.color = '#e0c872';
-      btn.style.background = '#2a1f10';
+      this.enterBtn.style.borderColor = '#e0c872';
+      this.enterBtn.style.color = '#e0c872';
+      this.enterBtn.style.background = '#2a1f10';
     });
-    btn.addEventListener('mouseleave', () => {
-      btn.style.boxShadow =
+    this.enterBtn.addEventListener('mouseleave', () => {
+      this.enterBtn.style.boxShadow =
         '0 0 15px rgba(197,165,90,0.15), inset 0 0 15px rgba(197,165,90,0.05)';
-      btn.style.borderColor = '#c5a55a';
-      btn.style.color = '#c5a55a';
-      btn.style.background = '#1a1108';
+      this.enterBtn.style.borderColor = '#c5a55a';
+      this.enterBtn.style.color = '#c5a55a';
+      this.enterBtn.style.background = '#1a1108';
     });
-    btn.addEventListener('click', () => {
-      if (this.onEnterWorld) this.onEnterWorld();
+    this.enterBtn.addEventListener('click', () => {
+      const username = this.usernameInput.value.trim();
+      if (!username) return;
+      if (this.onEnterWorld) {
+        this.onEnterWorld(username, this.selectedRace, this.selectedFaction);
+      }
     });
-    this.overlay.appendChild(btn);
+    this.overlay.appendChild(this.enterBtn);
 
     // -- Version text -------------------------------------------------------
     const version = document.createElement('div');
-    version.textContent = 'v0.1.0';
+    version.textContent = 'v0.2.0';
     Object.assign(version.style, {
       position: 'absolute',
       bottom: '12px',
@@ -179,6 +214,202 @@ export class LoginScreen {
 
     // -- Seed embers --------------------------------------------------------
     this.seedEmbers(80);
+  }
+
+  // ── Character Creation UI ──────────────────────────────────────────────
+
+  private buildCharacterCreation(): void {
+    const container = document.createElement('div');
+    Object.assign(container.style, {
+      position: 'relative',
+      zIndex: '1',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap: '1em',
+    } as CSSStyleDeclaration);
+
+    // ── Faction toggle ────────────────────────────────────────────────────
+    const factionRow = document.createElement('div');
+    Object.assign(factionRow.style, {
+      display: 'flex',
+      gap: '1em',
+    } as CSSStyleDeclaration);
+
+    this.allianceBtn = this.createFactionButton('ALLIANCE', 'alliance');
+    this.hordeBtn = this.createFactionButton('HORDE', 'horde');
+    factionRow.appendChild(this.allianceBtn);
+    factionRow.appendChild(this.hordeBtn);
+    container.appendChild(factionRow);
+
+    // ── Race cards ────────────────────────────────────────────────────────
+    this.raceCardsContainer = document.createElement('div');
+    Object.assign(this.raceCardsContainer.style, {
+      display: 'flex',
+      gap: '1em',
+    } as CSSStyleDeclaration);
+    container.appendChild(this.raceCardsContainer);
+
+    this.updateRaceCards();
+    this.updateFactionButtons();
+
+    // ── Username input ────────────────────────────────────────────────────
+    this.usernameInput = document.createElement('input');
+    this.usernameInput.type = 'text';
+    this.usernameInput.placeholder = 'Enter your name...';
+    this.usernameInput.maxLength = 20;
+    Object.assign(this.usernameInput.style, {
+      fontFamily: "'Cinzel', Georgia, serif",
+      fontSize: '1rem',
+      color: '#c5a55a',
+      background: 'rgba(26, 17, 8, 0.9)',
+      border: '1px solid #c5a55a',
+      borderRadius: '4px',
+      padding: '0.5em 1em',
+      width: '220px',
+      textAlign: 'center',
+      outline: 'none',
+    } as CSSStyleDeclaration);
+
+    this.usernameInput.addEventListener('input', () => {
+      const hasName = this.usernameInput.value.trim().length > 0;
+      this.enterBtn.disabled = !hasName;
+      this.enterBtn.style.opacity = hasName ? '1' : '0.5';
+    });
+
+    // Stop propagation to prevent game controls
+    this.usernameInput.addEventListener('keydown', (e: KeyboardEvent) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') {
+        this.enterBtn.click();
+      }
+    });
+
+    container.appendChild(this.usernameInput);
+
+    // ── Error text ────────────────────────────────────────────────────────
+    this.errorText = document.createElement('div');
+    Object.assign(this.errorText.style, {
+      fontFamily: "'Cinzel', Georgia, serif",
+      fontSize: '0.85rem',
+      color: '#ff4444',
+      textShadow: '0 0 6px rgba(255, 68, 68, 0.4)',
+      display: 'none',
+      textAlign: 'center',
+    } as CSSStyleDeclaration);
+    container.appendChild(this.errorText);
+
+    this.overlay.appendChild(container);
+  }
+
+  private createFactionButton(label: string, faction: 'alliance' | 'horde'): HTMLButtonElement {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    Object.assign(btn.style, {
+      fontFamily: "'Cinzel', Georgia, serif",
+      fontSize: '0.9rem',
+      fontWeight: '700',
+      letterSpacing: '0.1em',
+      padding: '0.5em 1.5em',
+      border: '2px solid #555',
+      borderRadius: '4px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      background: 'rgba(26, 17, 8, 0.8)',
+      color: '#999',
+    } as CSSStyleDeclaration);
+
+    btn.addEventListener('click', () => {
+      this.selectedFaction = faction;
+      // Select first race of the new faction
+      const firstRace = RACES.find(r => r.faction === faction);
+      if (firstRace) this.selectedRace = firstRace.id;
+      this.updateFactionButtons();
+      this.updateRaceCards();
+    });
+
+    return btn;
+  }
+
+  private updateFactionButtons(): void {
+    const selected = (btn: HTMLButtonElement, isSelected: boolean) => {
+      btn.style.borderColor = isSelected ? '#c5a55a' : '#555';
+      btn.style.color = isSelected ? '#c5a55a' : '#999';
+      btn.style.boxShadow = isSelected
+        ? '0 0 12px rgba(197, 165, 90, 0.3)'
+        : 'none';
+    };
+    selected(this.allianceBtn, this.selectedFaction === 'alliance');
+    selected(this.hordeBtn, this.selectedFaction === 'horde');
+  }
+
+  private updateRaceCards(): void {
+    this.raceCardsContainer.innerHTML = '';
+    const factionRaces = RACES.filter(r => r.faction === this.selectedFaction);
+    for (const race of factionRaces) {
+      const card = this.createRaceCard(race);
+      this.raceCardsContainer.appendChild(card);
+    }
+  }
+
+  private createRaceCard(race: RaceDef): HTMLDivElement {
+    const card = document.createElement('div');
+    const isSelected = this.selectedRace === race.id;
+
+    Object.assign(card.style, {
+      width: '100px',
+      height: '100px',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '6px',
+      cursor: 'pointer',
+      transition: 'all 0.2s ease',
+      background: isSelected ? race.color : 'rgba(26, 17, 8, 0.8)',
+      border: isSelected ? '2px solid #c5a55a' : '2px solid #555',
+      boxShadow: isSelected ? '0 0 15px rgba(197, 165, 90, 0.4)' : 'none',
+    } as CSSStyleDeclaration);
+
+    // Race icon (colored circle)
+    const icon = document.createElement('div');
+    Object.assign(icon.style, {
+      width: '40px',
+      height: '40px',
+      borderRadius: '50%',
+      background: race.color,
+      marginBottom: '8px',
+      border: '2px solid rgba(255,255,255,0.3)',
+    } as CSSStyleDeclaration);
+    card.appendChild(icon);
+
+    // Race label
+    const label = document.createElement('div');
+    label.textContent = race.label;
+    Object.assign(label.style, {
+      fontFamily: "'Cinzel', Georgia, serif",
+      fontSize: '0.75rem',
+      fontWeight: '700',
+      color: isSelected ? '#fff' : '#aaa',
+      textAlign: 'center',
+    } as CSSStyleDeclaration);
+    card.appendChild(label);
+
+    card.addEventListener('click', () => {
+      this.selectedRace = race.id;
+      this.updateRaceCards();
+    });
+
+    return card;
+  }
+
+  /** Display an error message below the username input. */
+  showError(message: string): void {
+    this.errorText.textContent = message;
+    this.errorText.style.display = 'block';
+    setTimeout(() => {
+      this.errorText.style.display = 'none';
+    }, 5000);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────

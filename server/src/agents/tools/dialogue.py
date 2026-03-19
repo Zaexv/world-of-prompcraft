@@ -41,8 +41,10 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
 
     @tool
     def give_quest(quest_name: str, description: str) -> str:
-        """Offer a quest to the player. Use when the NPC has a task or mission for
-        the player to undertake.
+        """Offer a dynamic or improvised quest to the player. Use ONLY for
+        spontaneous, NPC-created quests that are NOT in the predefined quest
+        definitions. For predefined quests, use start_quest from the quest tools
+        instead.
 
         Args:
             quest_name: A short, memorable name for the quest.
@@ -57,18 +59,19 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
         return f"Offered quest: {quest_name}"
 
     @tool
-    def complete_quest(quest_name: str, reward: str) -> str:
+    def complete_quest(quest_id: str, reward: str) -> str:
         """Mark a quest as completed and give the player their reward. Use when
         the player has fulfilled the quest requirements.
 
         Args:
-            quest_name: The name of the quest being completed.
+            quest_id: The identifier of the quest being completed (matches the
+                      quest_id used in start_quest).
             reward: The item or reward to grant the player.
         """
         pending_actions.append(
             {
                 "kind": "complete_quest",
-                "params": {"questName": quest_name, "reward": reward},
+                "params": {"questId": quest_id, "reward": reward},
             }
         )
         pending_actions.append(
@@ -77,6 +80,6 @@ def create_dialogue_tools(pending_actions: list, world_state: dict) -> list:
                 "params": {"item": reward},
             }
         )
-        return f"Completed quest: {quest_name}, rewarded: {reward}"
+        return f"Completed quest: {quest_id}, rewarded: {reward}"
 
     return [emote, give_quest, complete_quest]

@@ -15,13 +15,13 @@ export class Lighting {
     this.sun.position.set(80, 140, 50);
     this.sun.castShadow = true;
 
-    this.sun.shadow.mapSize.set(1024, 1024);
+    this.sun.shadow.mapSize.set(2048, 2048);
     this.sun.shadow.camera.near = 0.5;
-    this.sun.shadow.camera.far = 500;
-    this.sun.shadow.camera.left = -150;
-    this.sun.shadow.camera.right = 150;
-    this.sun.shadow.camera.top = 150;
-    this.sun.shadow.camera.bottom = -150;
+    this.sun.shadow.camera.far = 300;
+    this.sun.shadow.camera.left = -80;
+    this.sun.shadow.camera.right = 80;
+    this.sun.shadow.camera.top = 80;
+    this.sun.shadow.camera.bottom = -80;
     this.sun.shadow.bias = -0.001;
 
     scene.add(this.sun);

@@ -5,6 +5,7 @@ import {
   biomeHeightModifier,
   getBiomeColor,
   getBiomeEmissive,
+  registerBeachBlend,
 } from './Biomes';
 
 /**
@@ -21,7 +22,7 @@ import {
 // ── Chunk constants ──────────────────────────────────────────────────────────
 const CHUNK_SIZE = 64;          // world-units per chunk side
 const CHUNK_SEGMENTS = 32;      // vertex subdivisions per chunk side
-const VIEW_RADIUS = 5;          // chunks visible in each direction
+const VIEW_RADIUS = 3;          // chunks visible in each direction (7x7 = 49 chunks)
 const UNLOAD_RADIUS = VIEW_RADIUS + 2; // buffer before disposal
 
 // ── Shared material (created once, reused for every chunk) ───────────────────
@@ -89,6 +90,9 @@ export class Terrain {
   /** Called whenever a new chunk is created. Args: (chunkX, chunkZ, worldX, worldZ). */
   public onChunkLoaded: ((chunkX: number, chunkZ: number, worldX: number, worldZ: number) => void) | null = null;
 
+  /** Called whenever a chunk is unloaded. Args: (chunkX, chunkZ). */
+  public onChunkUnloaded: ((chunkX: number, chunkZ: number) => void) | null = null;
+
   // Track the last player chunk so we only recompute when the player crosses
   // into a new chunk.
   private lastPlayerCX = Number.MAX_SAFE_INTEGER;
@@ -96,6 +100,9 @@ export class Terrain {
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
+
+    // Register the beach blend function so Biomes can use it for sand colors
+    registerBeachBlend(Terrain.getBeachBlend);
 
     // Pre-load chunks around the origin so everything placed at startup
     // (buildings, vegetation, NPCs) has terrain underneath.
@@ -157,6 +164,22 @@ export class Terrain {
    * This is the single source of truth for terrain height everywhere.
    * Now includes biome-blended height modifications.
    */
+  /**
+   * Returns the Fort Malaka beach blend factor [0..1] at (x, z).
+   * 0 = normal terrain, 1 = full beach. Exported for use by Biomes.
+   */
+  static getBeachBlend(x: number, z: number): number {
+    // Fast bounding-box rejection (avoids trig for 99% of terrain)
+    if (x < -50 || x > 50 || z > -145 || z < -200) return 0;
+
+    // Beach strip: X ∈ [-45, 45], Z ∈ [-190, -155]
+    const bx = Math.max(0, (Math.abs(x) - 30) / 15);       // fade from |x|=30 to |x|=45
+    const bzNorth = Math.max(0, (z + 155) / 10);            // fade Z=-155..-145
+    const bzSouth = Math.max(0, (-190 - z) / 10);           // fade Z=-190..-200
+    const edgeFade = 1 - Math.min(1, bx + bzNorth + bzSouth);
+    return Math.max(0, edgeFade);
+  }
+
   static computeHeight(x: number, z: number): number {
     let h = 0;
 
@@ -195,6 +218,17 @@ export class Terrain {
       }
     }
 
+    // Fort Malaka beach: flatten terrain into a sandy slope toward water
+    const beachBlend = Terrain.getBeachBlend(x, z);
+    if (beachBlend > 0.001) {
+      // Beach slopes south: promenade (Z≈-155) at Y≈2 → water's edge (Z≈-185) at Y≈-0.8
+      const beachProgress = THREE.MathUtils.clamp((-z - 155) / 35, 0, 1);
+      const beachHeight = THREE.MathUtils.lerp(2.0, -0.8, beachProgress);
+      // Add gentle sandy ripples
+      const ripple = Math.sin(x * 0.3 + z * 0.1) * 0.08 * (1 - beachProgress);
+      h = THREE.MathUtils.lerp(h, beachHeight + ripple, beachBlend);
+    }
+
     return h;
   }
 
@@ -206,11 +240,20 @@ export class Terrain {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
 
+    // LOD: fewer segments for distant chunks (saves ~65% terrain triangles)
+    const distFromPlayer = Math.max(
+      Math.abs(cx - this.lastPlayerCX),
+      Math.abs(cz - this.lastPlayerCZ),
+    );
+    const segments = distFromPlayer <= 1 ? CHUNK_SEGMENTS
+                   : distFromPlayer <= 3 ? 16
+                   : 8;
+
     const geometry = new THREE.PlaneGeometry(
       CHUNK_SIZE,
       CHUNK_SIZE,
-      CHUNK_SEGMENTS,
-      CHUNK_SEGMENTS,
+      segments,
+      segments,
     );
 
     // Rotate so that X/Z is the ground plane
@@ -283,5 +326,9 @@ export class Terrain {
     chunk.mesh.geometry.dispose();
     // Material is shared — do NOT dispose it here.
     this.chunks.delete(key);
+
+    if (this.onChunkUnloaded) {
+      this.onChunkUnloaded(chunk.cx, chunk.cz);
+    }
   }
 }

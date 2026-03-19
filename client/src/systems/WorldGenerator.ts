@@ -6,6 +6,9 @@ import { createCaveEntrance } from '../scene/Caves';
 import { createTown } from '../scene/Towns';
 import type { Terrain } from '../scene/Terrain';
 import type { Minimap } from '../ui/Minimap';
+import { DUNGEONS } from '../scene/DungeonConfig';
+import type { DungeonSystem } from './DungeonSystem';
+import type { CollisionSystem } from './CollisionSystem';
 
 // ── Chunk size must match Terrain.ts ───────────────────────────────────────
 const CHUNK_SIZE = 64;
@@ -137,6 +140,15 @@ export class WorldGenerator {
   private entityManager: EntityManager;
   private ws: WebSocketClient;
   private minimap: Minimap | null = null;
+  private dungeonSystem: DungeonSystem | null = null;
+  private collisionSystem: CollisionSystem | null = null;
+
+  /** Track spawned scene objects per chunk for cleanup on unload. */
+  private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
+  /** Track spawned NPC IDs per chunk for cleanup on unload. */
+  private chunkNPCs: Map<string, string[]> = new Map();
+  /** Track dungeon entrance IDs per chunk for cleanup on unload. */
+  private chunkEntrances: Map<string, string[]> = new Map();
 
   // Shared materials for trees (created once, reused)
   private trunkMaterial: THREE.MeshStandardMaterial;
@@ -208,6 +220,71 @@ export class WorldGenerator {
     this.minimap = minimap;
   }
 
+  /** Track a scene object for cleanup when its chunk unloads. */
+  private trackObject(key: string, obj: THREE.Object3D): void {
+    let arr = this.chunkObjects.get(key);
+    if (!arr) { arr = []; this.chunkObjects.set(key, arr); }
+    arr.push(obj);
+  }
+
+  /** Track an NPC ID for cleanup when its chunk unloads. */
+  private trackNPC(key: string, npcId: string): void {
+    let arr = this.chunkNPCs.get(key);
+    if (!arr) { arr = []; this.chunkNPCs.set(key, arr); }
+    arr.push(npcId);
+  }
+
+  /** Clean up all spawned objects and NPCs for a chunk. */
+  onChunkUnloaded(chunkX: number, chunkZ: number): void {
+    const key = `${chunkX},${chunkZ}`;
+
+    // Remove scene objects (trees, caves, towns, portals)
+    const objects = this.chunkObjects.get(key);
+    if (objects) {
+      for (const obj of objects) {
+        this.scene.remove(obj);
+        this.collisionSystem?.removeCollidable(obj);
+        obj.traverse((child) => {
+          if (child instanceof THREE.Mesh) {
+            child.geometry.dispose();
+            // Materials are shared — don't dispose
+          }
+        });
+      }
+      this.chunkObjects.delete(key);
+    }
+
+    // Remove NPCs
+    const npcs = this.chunkNPCs.get(key);
+    if (npcs) {
+      for (const npcId of npcs) {
+        this.entityManager.removeNPC(npcId);
+      }
+      this.chunkNPCs.delete(key);
+    }
+
+    // Remove dungeon entrance registrations
+    const entrances = this.chunkEntrances.get(key);
+    if (entrances && this.dungeonSystem) {
+      for (const entranceId of entrances) {
+        this.dungeonSystem.unregisterEntrance(entranceId);
+      }
+      this.chunkEntrances.delete(key);
+    }
+
+    this.generatedChunks.delete(key);
+  }
+
+  /** Set dungeon system reference for registering entrances. */
+  setDungeonSystem(ds: DungeonSystem): void {
+    this.dungeonSystem = ds;
+  }
+
+  /** Set collision system so spawned trees become collidable. */
+  setCollisionSystem(cs: CollisionSystem): void {
+    this.collisionSystem = cs;
+  }
+
   // ── Biome-specific materials (lazy-created) ────────────────────────────────
   private biomeMaterials: Map<BiomeType, { trunk: THREE.MeshStandardMaterial; canopy: THREE.MeshStandardMaterial[] }> = new Map();
 
@@ -273,7 +350,8 @@ export class WorldGenerator {
 
   // ── Tree spawning (varied shapes) ────────────────────────────────────────
 
-  private spawnTrees(_chunkX: number, _chunkZ: number, worldX: number, worldZ: number): void {
+  private spawnTrees(chunkX: number, chunkZ: number, worldX: number, worldZ: number): void {
+    const chunkKey = `${chunkX},${chunkZ}`;
     const centerX = worldX + CHUNK_SIZE * 0.5;
     const centerZ = worldZ + CHUNK_SIZE * 0.5;
     const biome = getDominantBiome(centerX, centerZ);
@@ -314,6 +392,8 @@ export class WorldGenerator {
       tree.position.set(tx, ty, tz);
       tree.rotation.y = Math.random() * Math.PI * 2;
       this.scene.add(tree);
+      this.trackObject(chunkKey, tree);
+      this.collisionSystem?.addCollidable(tree);
     }
   }
 
@@ -474,8 +554,85 @@ export class WorldGenerator {
     const cy = this.terrain.getHeightAt(cx, cz);
     if (cy < WATER_LEVEL) return;
 
-    createCaveEntrance(this.scene, this.terrain, cx, cz);
+    const caveKey = `${chunkX},${chunkZ}`;
+    const caveGroup = createCaveEntrance(this.scene, this.terrain, cx, cz);
+    if (caveGroup) {
+      this.trackObject(caveKey, caveGroup);
+      this.collisionSystem?.addCollidable(caveGroup);
+    }
     if (this.minimap) this.minimap.addCave(cx, cz);
+
+    // Register as dungeon entrance if in a matching zone
+    const dungeonId = this.getDungeonForPosition(cx, cz);
+    if (dungeonId && this.dungeonSystem) {
+      const portalGroup = this.createDungeonPortal(cx, cy, cz, DUNGEONS[dungeonId].name);
+      this.scene.add(portalGroup);
+      this.trackObject(caveKey, portalGroup);
+      const entranceId = `dungeon_${chunkX}_${chunkZ}`;
+      this.dungeonSystem.registerEntrance(
+        entranceId,
+        new THREE.Vector3(cx, cy + 1, cz),
+        dungeonId,
+      );
+      let entranceArr = this.chunkEntrances.get(caveKey);
+      if (!entranceArr) { entranceArr = []; this.chunkEntrances.set(caveKey, entranceArr); }
+      entranceArr.push(entranceId);
+    }
+  }
+
+  // ── Dungeon helpers ──────────────────────────────────────────────────────
+
+  /** Map world position to a dungeon ID based on zone. */
+  private getDungeonForPosition(x: number, z: number): string | null {
+    if (x > 50) return "ember_depths";
+    if (z > 50) return "crystal_caverns";
+    return null;
+  }
+
+  /** Create a glowing portal torus with a name label above it. */
+  private createDungeonPortal(x: number, y: number, z: number, name: string): THREE.Group {
+    const group = new THREE.Group();
+
+    // Portal torus
+    const torusGeo = new THREE.TorusGeometry(2, 0.2, 8, 24);
+    const torusMat = new THREE.MeshStandardMaterial({
+      color: 0x8844cc,
+      emissive: 0x4422aa,
+      emissiveIntensity: 0.8,
+      roughness: 0.3,
+    });
+    const torus = new THREE.Mesh(torusGeo, torusMat);
+    torus.position.set(x, y + 3, z);
+    torus.rotation.x = Math.PI / 2; // Vertical orientation
+    group.add(torus);
+
+    // Glow light
+    const light = new THREE.PointLight(0x8844cc, 1.5, 12);
+    light.position.set(x, y + 3, z);
+    group.add(light);
+
+    // Text sprite for the dungeon name
+    const canvas = document.createElement("canvas");
+    canvas.width = 512;
+    canvas.height = 64;
+    const ctx = canvas.getContext("2d")!;
+    ctx.font = "bold 32px serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(0,0,0,0.7)";
+    ctx.fillText(name, 257, 33);
+    ctx.fillStyle = "#c5a55a";
+    ctx.fillText(name, 256, 32);
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.minFilter = THREE.LinearFilter;
+    const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    const sprite = new THREE.Sprite(spriteMat);
+    sprite.scale.set(6, 0.75, 1);
+    sprite.position.set(x, y + 6, z);
+    group.add(sprite);
+
+    return group;
   }
 
   // ── Town spawning ────────────────────────────────────────────────────────
@@ -495,7 +652,9 @@ export class WorldGenerator {
     const ty = this.terrain.getHeightAt(tx, tz);
     if (ty < WATER_LEVEL + 2) return;
 
+    const townKey = `${chunkX},${chunkZ}`;
     const townData = createTown(this.scene, this.terrain, tx, tz);
+    if (townData.group) this.trackObject(townKey, townData.group);
     if (this.minimap) this.minimap.addTown(tx, tz);
 
     // Spawn peaceful citizens at the town
@@ -520,6 +679,7 @@ export class WorldGenerator {
         position,
         color,
       });
+      this.trackNPC(townKey, npcId);
 
       this.ws.send({
         type: 'explore_area',
@@ -626,6 +786,7 @@ export class WorldGenerator {
     // Don't spawn if this ID already exists
     if (this.entityManager.getNPC(npcId)) return;
 
+    const npcKey = `${chunkX},${chunkZ}`;
     const position = new THREE.Vector3(nx, ny, nz);
     this.entityManager.addNPC({
       id: npcId,
@@ -633,6 +794,7 @@ export class WorldGenerator {
       position,
       color,
     });
+    this.trackNPC(npcKey, npcId);
 
     // Notify server to create an agent for this NPC
     this.ws.send({

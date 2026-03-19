@@ -49,12 +49,36 @@ NPC_DEFINITIONS: dict[str, dict] = {
         "initial_hp": NPC_PERSONALITIES["healer_01"]["initial_hp"],  # 100
         "personality_key": "healer_01",
     },
-    # --- El Tito --- Next to Sentinel Tower ---
+    # --- El Tito --- Blasted Suarezlands, Fort Malaka ---
     "eltito_01": {
         "id": "eltito_01",
         "name": NPC_PERSONALITIES["eltito_01"]["name"],
-        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [18, 0, -35]
+        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [5, 0, -120]
         "initial_hp": NPC_PERSONALITIES["eltito_01"]["initial_hp"],  # 420
         "personality_key": "eltito_01",
+    },
+    # --- Archmage Malakov --- Blasted Suarezlands, Fort Malaka ---
+    "mage_01": {
+        "id": "mage_01",
+        "name": NPC_PERSONALITIES["mage_01"]["name"],
+        "position": NPC_PERSONALITIES["mage_01"]["position"],  # [-15, 0, -115]
+        "initial_hp": NPC_PERSONALITIES["mage_01"]["initial_hp"],  # 300
+        "personality_key": "mage_01",
+    },
+    # --- Zara the Pyromancer --- Blasted Suarezlands, Fort Malaka ---
+    "mage_02": {
+        "id": "mage_02",
+        "name": NPC_PERSONALITIES["mage_02"]["name"],
+        "position": NPC_PERSONALITIES["mage_02"]["position"],  # [12, 0, -130]
+        "initial_hp": NPC_PERSONALITIES["mage_02"]["initial_hp"],  # 180
+        "personality_key": "mage_02",
+    },
+    # --- Frostweaver Nyx --- Blasted Suarezlands, Fort Malaka ---
+    "mage_03": {
+        "id": "mage_03",
+        "name": NPC_PERSONALITIES["mage_03"]["name"],
+        "position": NPC_PERSONALITIES["mage_03"]["position"],  # [-10, 0, -105]
+        "initial_hp": NPC_PERSONALITIES["mage_03"]["initial_hp"],  # 200
+        "personality_key": "mage_03",
     },
 }

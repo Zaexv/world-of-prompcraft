@@ -25,6 +25,11 @@ export class NPCAnimator {
     this.rightLeg = group.getObjectByName('rightLeg') ?? null;
   }
 
+  /** Update the base Y position (e.g. after the NPC moves to new terrain height). */
+  setBaseY(y: number): void {
+    this.baseY = y;
+  }
+
   play(animationName: string): void {
     const name = animationName as AnimationName;
     if (name === this.currentAnim) return;

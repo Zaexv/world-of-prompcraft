@@ -221,6 +221,19 @@ const _biomeKeys = [
  * Returns a blended terrain color for a position and height, considering biome weights.
  * NOTE: Returns a shared Color object — copy it if you need to store the value.
  */
+// Beach sand palette (Málaga golden sand)
+const _sandDry = new THREE.Color(0xd4b896);   // dry sand (upper beach)
+const _sandWet = new THREE.Color(0x9a8060);    // wet sand (water's edge)
+const _sandMid = new THREE.Color(0xc4a878);    // mid-beach
+
+/** Beach blend imported lazily to avoid circular deps. */
+let _getBeachBlend: ((x: number, z: number) => number) | null = null;
+
+/** Register the Terrain.getBeachBlend function (called once by Terrain). */
+export function registerBeachBlend(fn: (x: number, z: number) => number): void {
+  _getBeachBlend = fn;
+}
+
 export function getBiomeColor(x: number, z: number, y: number, t: number): THREE.Color {
   const weights = getBiomeWeights(x, z);
   _colorResult.setRGB(0, 0, 0);
@@ -245,6 +258,24 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     _colorResult.b += _colorTemp.b * w;
   }
 
+  // Beach sand override for Fort Malaka
+  const beachBlend = _getBeachBlend ? _getBeachBlend(x, z) : 0;
+  if (beachBlend > 0.001) {
+    const beachProgress = Math.max(0, Math.min(1, (-z - 155) / 35));
+    // Dry sand → mid sand → wet sand as we approach water
+    if (beachProgress < 0.5) {
+      _colorTemp.copy(_sandDry).lerp(_sandMid, beachProgress / 0.5);
+    } else {
+      _colorTemp.copy(_sandMid).lerp(_sandWet, (beachProgress - 0.5) / 0.5);
+    }
+    // Add subtle noise variation to sand color
+    const noise = Math.sin(x * 0.8 + z * 0.6) * 0.03;
+    _colorTemp.r += noise;
+    _colorTemp.g += noise * 0.8;
+
+    _colorResult.lerp(_colorTemp, beachBlend);
+  }
+
   return _colorResult;
 }
 
@@ -266,6 +297,20 @@ const _emissiveTemp = new THREE.Color();
 export function getBiomeEmissive(x: number, z: number, y: number, t: number): THREE.Color {
   const weights = getBiomeWeights(x, z);
   _emissiveResult.setRGB(0, 0, 0);
+
+  // Beach area: warm subtle glow near water, no forest glow
+  const beachBlend = _getBeachBlend ? _getBeachBlend(x, z) : 0;
+  if (beachBlend > 0.5) {
+    const beachProgress = Math.max(0, Math.min(1, (-z - 155) / 35));
+    if (beachProgress > 0.7) {
+      // Subtle warm water-edge glow
+      const str = (beachProgress - 0.7) / 0.3 * 0.06 * beachBlend;
+      _emissiveResult.r += 0.3 * str;
+      _emissiveResult.g += 0.5 * str;
+      _emissiveResult.b += 0.7 * str;
+    }
+    return _emissiveResult;
+  }
 
   // Teldrassil: purple/teal glow in valleys
   if (weights[BiomeType.Teldrassil] > 0.01 && t < 0.25) {

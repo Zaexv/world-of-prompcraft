@@ -343,7 +343,6 @@ export class Vegetation {
         0,
         -Math.cos(angle) * 0.6,
       );
-      rootExt.castShadow = true;
       group.add(rootExt);
     }
 
@@ -409,7 +408,6 @@ export class Vegetation {
         0,
         -Math.cos(angle) * 0.8,
       );
-      branch.castShadow = true;
       group.add(branch);
     }
 
@@ -444,7 +442,6 @@ export class Vegetation {
 
     // Use single shared geometry + InstancedMesh for all vines
     const vineInstanced = new THREE.InstancedMesh(vineGeo, vineMat, totalVines);
-    vineInstanced.castShadow = true;
     const vineDummy = new THREE.Object3D();
 
     let vineIdx = 0;

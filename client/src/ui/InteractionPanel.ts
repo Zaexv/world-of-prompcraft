@@ -44,10 +44,10 @@ const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: s
     { icon: "\uD83D\uDEE1\uFE0F", label: "Ask for Protection", prompt: "Can you protect me from the dangers ahead?" },
   ],
   eltito_01: [
+    { icon: "\u2728", label: "Quest", prompt: "Hey tio, got any quests or adventures for me?" },
     { icon: "\uD83C\uDF3F", label: "Chill", prompt: "Hey tio, what's up? Pass me some of that herbal tea" },
     { icon: "\uD83C\uDFAE", label: "Talk WoW", prompt: "So what are you playing in WoW right now?" },
-    { icon: "\uD83D\uDCDA", label: "WoW Lore", prompt: "Tell me about the Night Elves and Teldrassil" },
-    { icon: "\uD83D\uDE02", label: "Joke", prompt: "Tell me something funny, tio" },
+    { icon: "\uD83D\uDCDA", label: "Lore", prompt: "Tell me about the Night Elves and Teldrassil" },
   ],
 };
 
@@ -223,6 +223,7 @@ export class InteractionPanel {
     // Save current NPC's chat history before switching
     if (this.npcId && this.npcId !== npcId) {
       this.chatHistories.set(this.npcId, this.chatHistory.innerHTML);
+      this.pruneHistories();
     }
 
     this.npcId = npcId;
@@ -270,7 +271,8 @@ export class InteractionPanel {
         btn.style.boxShadow = "none";
       });
 
-      btn.addEventListener("click", () => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
         this.addMessage("player", action.prompt);
         this.showThinking();
         this.onSendMessage?.(action.prompt);
@@ -284,7 +286,9 @@ export class InteractionPanel {
     // Save chat history before hiding
     if (this.npcId) {
       this.chatHistories.set(this.npcId, this.chatHistory.innerHTML);
+      this.pruneHistories();
     }
+    this.hideThinking();
     this.element.style.display = "none";
     this.npcId = "";
   }
@@ -325,6 +329,29 @@ export class InteractionPanel {
 
   hideThinking(): void {
     this.thinkingEl.style.display = "none";
+  }
+
+  /** Remove chat history for a specific NPC. Call when an NPC is removed. */
+  clearHistory(npcId: string): void {
+    this.chatHistories.delete(npcId);
+  }
+
+  /**
+   * Prune the chat history map if it exceeds the max size (50 entries).
+   * Deletes the oldest entries (earliest inserted) to stay within the limit.
+   */
+  private pruneHistories(): void {
+    const MAX_HISTORIES = 50;
+    if (this.chatHistories.size > MAX_HISTORIES) {
+      const excess = this.chatHistories.size - MAX_HISTORIES;
+      const keys = this.chatHistories.keys();
+      for (let i = 0; i < excess; i++) {
+        const oldest = keys.next().value;
+        if (oldest !== undefined) {
+          this.chatHistories.delete(oldest);
+        }
+      }
+    }
   }
 
   /** The NPC ID currently shown, or empty string. */

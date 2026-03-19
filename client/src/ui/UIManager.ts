@@ -7,6 +7,12 @@ import { DamagePopup } from "./DamagePopup";
 import { ItemUseEffect } from "./ItemUseEffect";
 import { DeathScreen } from "./DeathScreen";
 import { Minimap } from "./Minimap";
+import { QuestLog } from "./QuestLog";
+import { QuestTracker } from "./QuestTracker";
+import { ZoneDisplay } from "./ZoneDisplay";
+import { ChatPanel } from "./ChatPanel";
+import { ChatBubbleSystem } from "./ChatBubbleSystem";
+import type * as THREE from 'three';
 import type { PlayerState } from "../state/PlayerState";
 
 /**
@@ -24,6 +30,12 @@ export class UIManager {
   readonly itemUseEffect: ItemUseEffect;
   readonly deathScreen: DeathScreen;
   readonly minimap: Minimap;
+  readonly questLog: QuestLog;
+  readonly questTracker: QuestTracker;
+  readonly zoneDisplay: ZoneDisplay;
+  readonly chatPanel: ChatPanel;
+  bubbleSystem: ChatBubbleSystem | null = null;
+  private _playerState: PlayerState | null = null;
 
   constructor() {
     this.container = document.createElement("div");
@@ -64,6 +76,30 @@ export class UIManager {
 
     this.minimap = new Minimap();
     this.container.appendChild(this.minimap.element);
+
+    this.questLog = new QuestLog();
+    this.container.appendChild(this.questLog.element);
+
+    this.questTracker = new QuestTracker();
+    this.container.appendChild(this.questTracker.element);
+
+    this.zoneDisplay = new ZoneDisplay();
+    this.container.appendChild(this.zoneDisplay.element);
+
+    this.chatPanel = new ChatPanel();
+    this.container.appendChild(this.chatPanel.element);
+
+    // Wire quest tracker click to open quest log
+    this.questTracker.onOpenQuestLog = () => {
+      if (this._playerState) {
+        this.questLog.update(this._playerState);
+      }
+      this.questLog.show();
+    };
+  }
+
+  initBubbleSystem(camera: THREE.PerspectiveCamera): void {
+    this.bubbleSystem = new ChatBubbleSystem(camera, this.container);
   }
 
   showInteractionPanel(npcId: string, npcName: string): void {
@@ -131,5 +167,25 @@ export class UIManager {
 
   updateMinimap(playerX: number, playerZ: number, playerAngle: number): void {
     this.minimap.update(playerX, playerZ, playerAngle);
+  }
+
+  // ── Quest & Zone helpers ─────────────────────────────────────────────────
+
+  toggleQuestLog(playerState?: PlayerState): void {
+    // Ensure quest content is up-to-date before showing the panel
+    if (playerState) {
+      this.questLog.update(playerState);
+    }
+    this.questLog.toggle();
+  }
+
+  showZoneTransition(name: string, description: string): void {
+    this.zoneDisplay.show(name, description);
+  }
+
+  updateQuestUI(playerState: PlayerState): void {
+    this._playerState = playerState;
+    this.questLog.update(playerState);
+    this.questTracker.update(playerState);
   }
 }

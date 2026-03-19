@@ -42,6 +42,14 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         "Be creative and stay in character. Keep your responses concise but flavourful.",
     ]
 
+    # Include recent chat from other players so NPCs are aware of world conversations
+    recent_chat = world.get("recent_chat", [])
+    if recent_chat:
+        parts.append("")
+        parts.append("## Recent World Chat (you can reference or react to these)")
+        for msg in recent_chat:
+            parts.append(f"  [{msg.get('player', '?')}]: {msg.get('text', '')}")
+
     # RAG: retrieve relevant lore based on the player's prompt
     if player_prompt:
         retriever = get_retriever()

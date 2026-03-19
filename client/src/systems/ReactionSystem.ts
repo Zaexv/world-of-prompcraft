@@ -51,6 +51,7 @@ const EFFECT_PRESETS: Record<string, EffectPreset> = {
 export interface EntityManagerLike {
   getNPC(id: string): {
     mesh: THREE.Group;
+    position?: THREE.Vector3;
     playEmote?: (emote: string) => void;
     showAction?: (kind: string, duration?: number) => void;
     nameplate?: { updateHP: (hp: number, maxHp: number) => void };
@@ -247,8 +248,16 @@ export class ReactionSystem {
 
       case "move_npc": {
         const npc = this.entityManager.getNPC(npcId);
-        if (npc && p.position) {
-          const target = new THREE.Vector3(...(p.position as [number, number, number]));
+        if (
+          npc &&
+          Array.isArray(p.position) &&
+          p.position.length >= 3
+        ) {
+          const target = new THREE.Vector3(
+            p.position[0] as number,
+            p.position[1] as number,
+            p.position[2] as number,
+          );
           const start = npc.mesh.position.clone();
           let elapsed = 0;
           const duration = p.duration ?? 2;
@@ -258,7 +267,13 @@ export class ReactionSystem {
               elapsed += dt;
               const t = Math.min(1, elapsed / duration);
               npc.mesh.position.lerpVectors(start, target, t);
-              return t < 1;
+              npc.position?.copy(npc.mesh.position);
+              if (t >= 1) {
+                npc.mesh.position.copy(target);
+                npc.position?.copy(target);
+                return false;
+              }
+              return true;
             },
           });
         }
@@ -266,9 +281,14 @@ export class ReactionSystem {
       }
 
       case "spawn_effect": {
-        const pos = p.position
-          ? new THREE.Vector3(...(p.position as [number, number, number]))
-          : this.playerWorldPos();
+        const pos =
+          Array.isArray(p.position) && p.position.length >= 3
+            ? new THREE.Vector3(
+                p.position[0] as number,
+                p.position[1] as number,
+                p.position[2] as number,
+              )
+            : this.playerWorldPos();
         // Normalize: server sends effectType (NPC tools) or effect_type (handler)
         const effectType: string = p.effectType ?? p.effect_type ?? "sparkle";
         const resolved = EFFECT_PRESETS[effectType] ?? EFFECT_PRESETS.sparkle;
@@ -296,11 +316,29 @@ export class ReactionSystem {
         break;
       }
 
-      case "start_quest":
+      case "start_quest": {
+        const questId: string = p.questId ?? "";
+        const questName: string = p.quest ?? p.name ?? p.questName ?? "Unknown Quest";
+        if (questId) this.playerState.startQuest(questId);
+        this.showQuestBanner(`Quest Started: ${questName}`);
+        break;
+      }
+
+      case "advance_objective": {
+        const questId: string = p.questId ?? "";
+        const objectiveId: string = p.objectiveId ?? "";
+        if (questId && objectiveId)
+          this.playerState.advanceObjective(questId, objectiveId);
+        const desc: string = p.description ?? objectiveId;
+        this.showQuestBanner(`Objective Complete: ${desc}`);
+        break;
+      }
+
       case "complete_quest": {
-        const questName: string = p.quest ?? p.name ?? "Unknown Quest";
-        const prefix = action.kind === "start_quest" ? "Quest Started" : "Quest Complete";
-        this.showQuestBanner(`${prefix}: ${questName}`);
+        const questId: string = p.questId ?? p.questName ?? "";
+        const questName: string = p.quest ?? p.name ?? questId;
+        if (questId) this.playerState.completeQuest(questId);
+        this.showQuestBanner(`Quest Complete: ${questName}`);
         break;
       }
     }

@@ -1,18 +1,23 @@
 import * as THREE from 'three';
 import { NPC, NPCConfig } from './NPC';
+import { RemotePlayer } from './RemotePlayer';
+import type { RemotePlayerData } from '../network/MessageProtocol';
 
 /**
- * Central registry for all NPC entities.
+ * Central registry for all NPC entities and remote players.
  * Manages their lifecycle and exposes helpers for the interaction system.
  */
 export class EntityManager {
   public readonly npcs: Map<string, NPC> = new Map();
+  private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
   private scene: THREE.Scene;
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
   }
+
+  // ── NPC management ──────────────────────────────────────────────────────────
 
   /** Create and register an NPC, adding it to the scene. */
   addNPC(config: NPCConfig): NPC {
@@ -37,9 +42,51 @@ export class EntityManager {
     const npc = this.npcs.get(id);
     if (npc) {
       this.scene.remove(npc.mesh);
+      npc.dispose?.();
       this.npcs.delete(id);
     }
   }
+
+  // ── Remote player management ────────────────────────────────────────────────
+
+  /** Add a remote player to the scene. */
+  addRemotePlayer(data: RemotePlayerData): RemotePlayer {
+    // Remove existing if present (reconnect case)
+    if (this.remotePlayers.has(data.playerId)) {
+      this.removeRemotePlayer(data.playerId);
+    }
+    const remote = new RemotePlayer(data, this.scene);
+    this.remotePlayers.set(data.playerId, remote);
+    return remote;
+  }
+
+  /** Remove a remote player by ID. */
+  removeRemotePlayer(playerId: string): void {
+    const remote = this.remotePlayers.get(playerId);
+    if (remote) {
+      remote.dispose(this.scene);
+      this.remotePlayers.delete(playerId);
+    }
+  }
+
+  /** Get a remote player by ID. */
+  getRemotePlayer(playerId: string): RemotePlayer | undefined {
+    return this.remotePlayers.get(playerId);
+  }
+
+  /** Update or add remote players from a world update. */
+  updateRemotePlayers(players: RemotePlayerData[]): void {
+    for (const p of players) {
+      const existing = this.remotePlayers.get(p.playerId);
+      if (existing) {
+        existing.setTarget(p.position, p.yaw);
+      } else {
+        this.addRemotePlayer(p);
+      }
+    }
+  }
+
+  // ── Distance culling ────────────────────────────────────────────────────────
 
   // Player position for distance-based culling
   private playerX = 0;
@@ -53,7 +100,7 @@ export class EntityManager {
     this.playerZ = z;
   }
 
-  /** Tick NPC animations and wandering AI, culling distant NPCs. */
+  /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
   update(delta: number, getHeightAt?: (x: number, z: number) => number): void {
     for (const npc of this.npcs.values()) {
       const dx = npc.position.x - this.playerX;
@@ -74,6 +121,11 @@ export class EntityManager {
           npc.updateWander(delta, getHeightAt);
         }
       }
+    }
+
+    // Update remote players
+    for (const remote of this.remotePlayers.values()) {
+      remote.update(delta);
     }
   }
 

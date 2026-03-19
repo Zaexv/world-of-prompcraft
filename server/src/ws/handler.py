@@ -3,13 +3,20 @@ from __future__ import annotations
 import asyncio
 import logging
 import random
-from typing import TYPE_CHECKING
+import re
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
+    from fastapi import WebSocket
+
     from ..agents.registry import AgentRegistry
     from ..world.world_state import WorldState
+    from .connection_manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
+
+# Background tasks for NPC chat reactions (prevent garbage collection)
+_background_tasks: set[asyncio.Task[None]] = set()
 
 # ── Attack detection & quality scoring ──────────────────────────────────────
 _ATTACK_KEYWORDS = {
@@ -206,6 +213,11 @@ def _score_attack_quality(
 # Module-level references set during app startup
 _registry: AgentRegistry | None = None
 _world_state: WorldState | None = None
+_manager: ConnectionManager | None = None
+
+# Valid races and factions for join validation
+_VALID_RACES = {"human", "night_elf", "orc", "undead"}
+_VALID_FACTIONS = {"alliance", "horde"}
 
 # Allowed fields from client player state (security whitelist)
 # We sync inventory and hp so the server can score attacks properly
@@ -213,22 +225,30 @@ _world_state: WorldState | None = None
 _ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
-def init_handler(registry: AgentRegistry, world_state: WorldState) -> None:
-    """Wire the handler to the live registry and world state (called at startup)."""
-    global _registry, _world_state
+def init_handler(
+    registry: AgentRegistry, world_state: WorldState, manager: ConnectionManager
+) -> None:
+    """Wire the handler to the live registry, world state, and connection manager."""
+    global _registry, _world_state, _manager
     _registry = registry
     _world_state = world_state
+    _manager = manager
 
 
-async def handle_message(data: dict) -> dict:
+async def handle_message(
+    data: dict, websocket: WebSocket, manager: ConnectionManager
+) -> dict | None:
     """Route incoming WebSocket messages to appropriate handlers."""
     msg_type = data.get("type")
 
+    if msg_type == "join":
+        return await _handle_join(data, websocket, manager)
+
     if msg_type == "interaction":
-        return await _handle_interaction(data)
+        return await _handle_interaction(data, websocket, manager)
 
     if msg_type == "player_move":
-        return await _handle_player_move(data)
+        return await _handle_player_move(data, websocket, manager)
 
     if msg_type == "explore_area":
         return await _handle_explore_area(data)
@@ -239,14 +259,213 @@ async def handle_message(data: dict) -> dict:
     if msg_type == "equip_item":
         return await _handle_equip_item(data)
 
+    if msg_type in ("chat", "chat_message"):
+        return await _handle_chat_message(data, websocket, manager)
+
+    if msg_type == "dungeon_enter":
+        return await _handle_dungeon_enter(data)
+
+    if msg_type == "dungeon_exit":
+        return await _handle_dungeon_exit(data)
+
+    if msg_type == "quest_update":
+        return await _handle_quest_update(data)
+
+    if msg_type == "ping":
+        return {"type": "pong"}
+
     return {"type": "error", "message": f"Unknown message type: {msg_type}"}
 
 
-async def _handle_interaction(data: dict) -> dict:
+async def _handle_join(data: dict, websocket: WebSocket, manager: ConnectionManager) -> dict:
+    """Handle a player joining the game."""
+    username = (data.get("username") or "").strip()
+    race = data.get("race", "human")
+    faction = data.get("faction", "alliance")
+
+    # Validate username: 1-20 alphanumeric/underscore characters
+    if not username or len(username) > 20 or not re.match(r"^[a-zA-Z0-9_]+$", username):
+        return {
+            "type": "join_error",
+            "message": "Username must be 1-20 alphanumeric characters.",
+        }
+
+    if manager.is_username_taken(username):
+        return {"type": "join_error", "message": "Username is already taken."}
+
+    if race not in _VALID_RACES:
+        race = "human"
+    if faction not in _VALID_FACTIONS:
+        faction = "alliance"
+
+    # Register websocket with manager
+    manager.register(websocket, username)
+
+    # BUG-3: Accept initial position from client so player isn't broadcast at [0,0,0]
+    initial_position = data.get("position")
+    if (
+        isinstance(initial_position, list)
+        and len(initial_position) >= 3
+        and all(isinstance(v, (int, float)) for v in initial_position[:3])
+    ):
+        initial_position = [float(v) for v in initial_position[:3]]
+    else:
+        initial_position = [0.0, 0.0, 0.0]
+
+    # Create player in world state
+    if _world_state is not None:
+        player = _world_state.get_player(username)
+        player.username = username
+        player.race = race
+        player.faction = faction
+        player.position = initial_position
+
+    # Build list of current players (excluding the joining player)
+    current_players: list[dict] = []
+    if _world_state is not None:
+        for pid, p in _world_state.players.items():
+            if pid != username and pid in manager.active_connections:
+                current_players.append(p.to_public_dict())
+
+    # Build NPC list
+    npc_list: list[dict] = []
+    if _world_state is not None:
+        for npc in _world_state.npcs.values():
+            npc_list.append(npc.to_dict())
+
+    # Broadcast player_joined to everyone else
+    if _world_state is not None:
+        player = _world_state.get_player(username)
+        await manager.broadcast(
+            {
+                "type": "player_joined",
+                "player": player.to_public_dict(),
+            },
+            exclude=username,
+        )
+
+    return {
+        "type": "join_ok",
+        "playerId": username,
+        "players": current_players,
+        "npcs": npc_list,
+    }
+
+
+async def _handle_chat_message(
+    data: dict, websocket: WebSocket, manager: ConnectionManager
+) -> dict | None:
+    """Handle a chat message from a player — broadcast to nearby players."""
+    player_id = manager.get_player_id(websocket)
+    if player_id is None:
+        return {"type": "error", "message": "Not registered"}
+
+    text = data.get("text", "").strip()
+    if not text:
+        return None
+
+    if _world_state is None:
+        return None
+
+    # Store in world state chat history
+    _world_state.add_chat_message(player_id, text)
+
+    # Get player position for proximity
+    player = _world_state.get_player(player_id)
+
+    # BUG-9: Match chat radius to position radius (200 units) so visible players can chat
+    await manager.broadcast_nearby(
+        {
+            "type": "chat_broadcast",
+            "sender": player_id,
+            "text": text,
+            "position": list(player.position),
+        },
+        origin=player.position,
+        radius=200.0,
+        world_state=_world_state,
+        exclude=player_id,
+    )
+
+    # Trigger nearby NPCs to react to the chat (fire-and-forget)
+    if _registry is not None:
+        nearby_npcs = _world_state.get_nearby_npcs(player.position, 50.0)
+        for npc in nearby_npcs:
+            task = asyncio.create_task(
+                _npc_react_to_chat(npc, player_id, text, player, manager)
+            )
+            _background_tasks.add(task)
+            task.add_done_callback(_background_tasks.discard)
+
+    return None
+
+
+async def _npc_react_to_chat(
+    npc: Any,
+    player_id: str,
+    text: str,
+    player: Any,
+    manager: ConnectionManager,
+) -> None:
+    """Have an NPC react to a nearby chat message — lightweight, no tools/actions."""
+    if _registry is None or _world_state is None:
+        return
+
+    # 40% chance to react — NPCs shouldn't respond to every message
+    if random.random() > 0.4:
+        return
+
+    # Use a direct lightweight LLM call instead of the full agent pipeline
+    from langchain_core.messages import HumanMessage, SystemMessage
+
+    llm = _registry._llm
+    prompt = (
+        f"You are {npc.name}, an NPC in a fantasy world.\n"
+        f"Personality: {npc.personality[:200]}\n\n"
+        f"A player named '{player_id}' said nearby: \"{text}\"\n\n"
+        "Respond with a SHORT reaction (1 sentence max, 15 words max). "
+        "Stay in character. If the message isn't relevant to you, respond with just '...' and nothing else."
+    )
+    try:
+        result = await asyncio.wait_for(
+            llm.ainvoke([SystemMessage(content=prompt), HumanMessage(content=text)]),
+            timeout=8.0,
+        )
+    except Exception:
+        return
+
+    dialogue = result.content.strip() if hasattr(result, "content") else ""
+    if not dialogue or dialogue == "..." or len(dialogue) < 2:
+        return
+
+    # Broadcast NPC dialogue to nearby players
+    npc_msg = {
+        "type": "npc_dialogue",
+        "npcId": npc.npc_id,
+        "npcName": npc.name,
+        "speakerPlayer": player_id,
+        "dialogue": dialogue,
+        "position": list(npc.position),
+    }
+    await manager.broadcast_nearby(
+        npc_msg,
+        origin=npc.position,
+        radius=100.0,
+        world_state=_world_state,
+    )
+
+
+async def _handle_interaction(data: dict, websocket: WebSocket, manager: ConnectionManager) -> dict:
     npc_id = data.get("npcId", data.get("npc_id", "unknown"))
-    player_id = data.get("playerId", data.get("player_id", "default"))
+    player_id = (
+        data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
+    )
     prompt = data.get("prompt", "")
     player_state_raw = data.get("playerState", data.get("player_state", {}))
+
+    # Bug 10: Reject unregistered players instead of falling back to "default"
+    if not player_id:
+        return {"type": "error", "message": "Player not registered"}
 
     if _registry is None or _world_state is None:
         logger.warning("Handler called before initialization")
@@ -259,13 +478,29 @@ async def _handle_interaction(data: dict) -> dict:
             "npcStateUpdate": None,
         }
 
-    # Ensure player exists in world state
+    # Bug 36: Dead players cannot interact
     player = _world_state.get_player(player_id)
-    # Only allow whitelisted fields from client (security)
+    if player.hp <= 0:
+        return {
+            "type": "agent_response",
+            "npcId": npc_id,
+            "dialogue": "[System] You are dead and cannot interact.",
+            "actions": [],
+            "playerStateUpdate": None,
+            "npcStateUpdate": None,
+        }
+
+    # Bug 6: Update player state under the world state lock
     if player_state_raw:
-        for key in _ALLOWED_PLAYER_FIELDS:
-            if key in player_state_raw and hasattr(player, key):
-                setattr(player, key, player_state_raw[key])
+        updates = {
+            key: player_state_raw[key]
+            for key in _ALLOWED_PLAYER_FIELDS
+            if key in player_state_raw and hasattr(player, key)
+        }
+        if updates:
+            await _world_state.update_player(player_id, updates)
+        # Re-fetch player after lock-protected update
+        player = _world_state.get_player(player_id)
 
     # ── Apply player attack damage before agent invocation ──────────────
     player_damage_actions: list[dict] = []
@@ -284,17 +519,30 @@ async def _handle_interaction(data: dict) -> dict:
 
         npc = _world_state.get_npc(npc_id)
         if npc:
-            npc.hp = max(0, npc.hp - final_damage)
-            player_damage_actions.append(
-                {
-                    "kind": "damage",
-                    "params": {
-                        "target": npc_id,
-                        "amount": final_damage,
-                        "damageType": dmg_type,
-                    },
+            # Bug 35: Skip if NPC was already dead before this interaction
+            if npc.hp <= 0:
+                return {
+                    "type": "agent_response",
+                    "npcId": npc_id,
+                    "dialogue": f"{npc.name} is already dead.",
+                    "actions": [],
+                    "playerStateUpdate": None,
+                    "npcStateUpdate": {"hp": 0, "maxHp": npc.max_hp},
                 }
-            )
+
+            # Bug 3 & 7: Don't mutate NPC HP directly — let apply_actions
+            # handle it under the world state lock. We apply the damage action
+            # server-side here so it's applied exactly once.
+            damage_action = {
+                "kind": "damage",
+                "params": {
+                    "target": npc_id,
+                    "amount": final_damage,
+                    "damageType": dmg_type,
+                },
+            }
+            await _world_state.apply_actions([damage_action])
+            player_damage_actions.append(damage_action)
             # Spawn visual effect for quality attacks
             if quality >= 1.5:
                 player_damage_actions.append(
@@ -312,13 +560,19 @@ async def _handle_interaction(data: dict) -> dict:
                     }
                 )
 
+    # Build player state dict with quest data so agents can see quest progress
+    player_dict = player.to_dict()
+    player_dict["active_quests"] = player.active_quests
+    player_dict["completed_quests"] = list(player.completed_quests)
+    player_dict["kill_count"] = player.kill_count
+
     try:
         result = await asyncio.wait_for(
             _registry.invoke(
                 npc_id=npc_id,
                 player_id=player_id,
                 prompt=prompt,
-                player_state=player.to_dict(),
+                player_state=player_dict,
             ),
             timeout=30.0,
         )
@@ -338,9 +592,10 @@ async def _handle_interaction(data: dict) -> dict:
 
     # Check for NPC death
     npc = _world_state.get_npc(npc_id)
-    npc_state = result.get("npcStateUpdate")
+    # Bug 11: Merge agent's npcStateUpdate with server HP instead of overwriting
+    npc_state = result.get("npcStateUpdate") or {}
     if npc:
-        npc_state = {"hp": npc.hp, "maxHp": npc.max_hp}
+        npc_state = {**npc_state, "hp": npc.hp, "maxHp": npc.max_hp}
         if npc.hp <= 0:
             all_actions.append(
                 {
@@ -349,29 +604,120 @@ async def _handle_interaction(data: dict) -> dict:
                 }
             )
 
+    # Bug 19: Sync offer_item actions to server-side player inventory
+    for action in all_actions:
+        if action.get("kind") == "offer_item":
+            item = action.get("params", {}).get("item", "")
+            if item:
+                async with _world_state._lock:
+                    player = _world_state.get_player(player_id)
+                    player.inventory.append(item)
+
+    dialogue_text = result.get("dialogue", "...")
+
+    # ── Broadcast NPC dialogue to nearby players ──────────────────────────
+    npc_for_broadcast = _world_state.get_npc(npc_id)
+    if npc_for_broadcast is not None:
+        npc_pos = npc_for_broadcast.position
+        npc_broadcast_pos = list(npc_pos)
+        # Broadcast player's prompt
+        await manager.broadcast_nearby(
+            {
+                "type": "npc_dialogue",
+                "npcId": npc_id,
+                "npcName": "",
+                "speakerPlayer": player_id,
+                "dialogue": prompt,
+                "position": npc_broadcast_pos,
+            },
+            origin=npc_pos,
+            radius=100.0,
+            world_state=_world_state,
+            exclude=player_id,
+        )
+        # Broadcast NPC's response
+        await manager.broadcast_nearby(
+            {
+                "type": "npc_dialogue",
+                "npcId": npc_id,
+                "npcName": npc_for_broadcast.name,
+                "speakerPlayer": player_id,
+                "dialogue": dialogue_text,
+                "position": npc_broadcast_pos,
+            },
+            origin=npc_pos,
+            radius=100.0,
+            world_state=_world_state,
+            exclude=player_id,
+        )
+
     # Don't send playerStateUpdate — let actions be the sole source of truth
     # on the client. This prevents double-application of HP/inventory changes.
     return {
         "type": "agent_response",
         "npcId": npc_id,
-        "dialogue": result.get("dialogue", "..."),
+        "dialogue": dialogue_text,
         "actions": all_actions,
         "playerStateUpdate": None,
         "npcStateUpdate": npc_state,
     }
 
 
-async def _handle_player_move(data: dict) -> dict:
-    player_id = data.get("playerId", data.get("player_id", "default"))
+async def _handle_player_move(
+    data: dict, websocket: WebSocket, manager: ConnectionManager
+) -> dict | None:
+    # BUG-2: Always use server-side WebSocket registration as authoritative player ID
+    player_id = manager.get_player_id(websocket)
+    if not player_id:
+        return {"type": "error", "message": "Player not registered"}
+
     position = data.get("position", [0.0, 0.0, 0.0])
+    yaw = data.get("yaw", 0.0)
+
+    # Bug 20: Clamp position coordinates to a reasonable range
+    pos_limit = 5000.0
+    if isinstance(position, list) and len(position) >= 3:
+        position = [
+            max(-pos_limit, min(pos_limit, position[0])),
+            max(-pos_limit, min(pos_limit, position[1])),
+            max(-pos_limit, min(pos_limit, position[2])),
+        ]
+    else:
+        position = [0.0, 0.0, 0.0]
 
     try:
         if _world_state is not None:
-            await _world_state.update_player(player_id, {"position": position})
+            await _world_state.update_player(player_id, {"position": position, "yaw": yaw})
+
+            # Broadcast nearby player positions as a list
+            nearby = _world_state.get_nearby_players(position, 200.0)
+            nearby.pop(player_id, None)
+            if nearby:
+                nearby_list = list(nearby.values())
+                # BUG-11: Also send world_update back to the moving player
+                # so they discover nearby stationary players
+                await manager.send_to(
+                    player_id,
+                    {"type": "world_update", "players": nearby_list},
+                )
+                # Build broadcast list that includes the moving player so
+                # other clients can see them move.
+                moving_player = _world_state.get_player(player_id)
+                broadcast_list = [moving_player.to_public_dict()] + nearby_list
+                await manager.broadcast_nearby(
+                    {
+                        "type": "world_update",
+                        "players": broadcast_list,
+                    },
+                    origin=position,
+                    radius=200.0,
+                    world_state=_world_state,
+                    exclude=player_id,
+                )
     except Exception:
         logger.exception("Failed to update player position for %s", player_id)
 
-    return {"type": "ack", "status": "ok"}
+    return None
 
 
 async def _handle_explore_area(data: dict) -> dict:
@@ -602,6 +948,11 @@ async def _handle_use_item(data: dict) -> dict:
 _player_equipment: dict[str, dict[str, str | None]] = {}
 
 
+def cleanup_player_equipment(player_id: str) -> None:
+    """Remove a player's equipment data on disconnect (Bug 16)."""
+    _player_equipment.pop(player_id, None)
+
+
 async def _handle_equip_item(data: dict) -> dict:
     """Handle equipment changes from the client."""
     player_id = data.get("playerId", "default")
@@ -614,3 +965,148 @@ async def _handle_equip_item(data: dict) -> dict:
 
     logger.info("Player %s equipped %s in %s slot", player_id, item_name, slot)
     return {"type": "ack", "status": "ok"}
+
+
+async def _handle_dungeon_enter(data: dict) -> dict:
+    """Handle a player entering a dungeon — advance enter_dungeon quest objectives."""
+    if _world_state is None:
+        return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
+
+    player_id = data.get("playerId", data.get("player_id", "default"))
+    dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
+    player = _world_state.get_player(player_id)
+    actions: list[dict] = []
+
+    # Check active quests for "enter_dungeon" objectives matching this dungeon
+    for quest in player.active_quests:
+        for obj in quest.get("objectives", []):
+            if (
+                obj.get("type") == "enter_dungeon"
+                and obj.get("target") == dungeon_id
+                and not obj.get("completed", False)
+            ):
+                player.advance_objective(quest["id"], obj["id"])
+                actions.append(
+                    {
+                        "kind": "advance_objective",
+                        "params": {
+                            "questId": quest["id"],
+                            "objectiveId": obj["id"],
+                            "description": obj.get("description", ""),
+                        },
+                    }
+                )
+
+    return {
+        "type": "quest_update",
+        "actions": actions,
+        "playerStateUpdate": player.to_dict(),
+    }
+
+
+async def _handle_dungeon_exit(data: dict) -> dict:
+    """Handle a player exiting a dungeon — add loot and advance collect_item objectives."""
+    if _world_state is None:
+        return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
+
+    player_id = data.get("playerId", data.get("player_id", "default"))
+    dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
+    loot: list[str] = data.get("loot", [])
+    player = _world_state.get_player(player_id)
+    actions: list[dict] = []
+
+    # Add loot items to player inventory
+    for item in loot:
+        player.inventory.append(item)
+
+    # Check active quests for "collect_item" objectives matching loot items
+    loot_set = set(loot)
+    for quest in player.active_quests:
+        for obj in quest.get("objectives", []):
+            if (
+                obj.get("type") == "collect_item"
+                and obj.get("target") in loot_set
+                and not obj.get("completed", False)
+            ):
+                player.advance_objective(quest["id"], obj["id"])
+                actions.append(
+                    {
+                        "kind": "advance_objective",
+                        "params": {
+                            "questId": quest["id"],
+                            "objectiveId": obj["id"],
+                            "description": obj.get("description", ""),
+                        },
+                    }
+                )
+
+    logger.info(
+        "Player %s exited dungeon %s with loot: %s",
+        player_id,
+        dungeon_id,
+        loot,
+    )
+
+    return {
+        "type": "quest_update",
+        "actions": actions,
+        "playerStateUpdate": player.to_dict(),
+    }
+
+
+async def _handle_quest_update(data: dict) -> dict:
+    """Handle generic quest objective advancement (e.g. kill tracking)."""
+    if _world_state is None:
+        return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
+
+    player_id = data.get("playerId", data.get("player_id", "default"))
+    quest_id = data.get("questId", data.get("quest_id", ""))
+    objective_id = data.get("objectiveId", data.get("objective_id", ""))
+    player = _world_state.get_player(player_id)
+    actions: list[dict] = []
+
+    # Find the matching quest and objective
+    for quest in player.active_quests:
+        if quest["id"] != quest_id:
+            continue
+        for obj in quest.get("objectives", []):
+            if obj["id"] != objective_id or obj.get("completed", False):
+                continue
+
+            # Handle kill_enemies type: increment kill_count and check threshold
+            if obj.get("type") == "kill_enemies":
+                player.kill_count += 1
+                threshold = int(obj.get("target", "1"))
+                if player.kill_count >= threshold:
+                    player.advance_objective(quest_id, objective_id)
+                    actions.append(
+                        {
+                            "kind": "advance_objective",
+                            "params": {
+                                "questId": quest_id,
+                                "objectiveId": objective_id,
+                                "description": obj.get("description", ""),
+                            },
+                        }
+                    )
+            else:
+                # Generic advancement for other objective types
+                player.advance_objective(quest_id, objective_id)
+                actions.append(
+                    {
+                        "kind": "advance_objective",
+                        "params": {
+                            "questId": quest_id,
+                            "objectiveId": objective_id,
+                            "description": obj.get("description", ""),
+                        },
+                    }
+                )
+            break
+        break
+
+    return {
+        "type": "quest_update",
+        "actions": actions,
+        "playerStateUpdate": player.to_dict(),
+    }

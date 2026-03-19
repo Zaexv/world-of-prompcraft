@@ -50,7 +50,6 @@ function createLeafTexture(size = 32): THREE.Texture {
 /*  Wisp data                                                         */
 /* ------------------------------------------------------------------ */
 interface WispData {
-  light: THREE.PointLight;
   sprite: THREE.Sprite;
   spriteMaterial: THREE.SpriteMaterial;  // cached to avoid per-frame casts
   origin: THREE.Vector3;
@@ -118,15 +117,11 @@ export class Effects {
       const isTeal = Math.random() > 0.5;
       const color = isTeal ? tealColor.clone() : purpleColor.clone();
 
-      // Point light
-      const light = new THREE.PointLight(color, 0.5, 15);
       const originX = (Math.random() - 0.5) * 80;
       const originZ = (Math.random() - 0.5) * 80;
       const baseY = 2 + Math.random() * 8;
-      light.position.set(originX, baseY, originZ);
-      this.scene.add(light);
 
-      // Sprite
+      // Emissive sprite only (no PointLight — major perf win)
       const spriteMat = new THREE.SpriteMaterial({
         map: glowTex,
         color,
@@ -136,12 +131,11 @@ export class Effects {
         opacity: 0.8,
       });
       const sprite = new THREE.Sprite(spriteMat);
-      sprite.scale.set(1.2, 1.2, 1);
-      sprite.position.copy(light.position);
+      sprite.scale.set(1.8, 1.8, 1);
+      sprite.position.set(originX, baseY, originZ);
       this.scene.add(sprite);
 
       this.wisps.push({
-        light,
         sprite,
         spriteMaterial: spriteMat,
         origin: new THREE.Vector3(originX, baseY, originZ),
@@ -301,7 +295,7 @@ export class Effects {
     this.elapsed += delta;
     const t = this.elapsed;
 
-    // --- Wisps ---
+    // --- Wisps (sprite-only, no PointLights for performance) ---
     for (const w of this.wisps) {
       const angle = t * w.speed + w.phase;
       // Figure-8 / lissajous path
@@ -309,13 +303,11 @@ export class Effects {
       const z = w.origin.z + Math.sin(angle * 2) * w.radiusZ;
       const y = w.baseY + Math.sin(t * 0.5 + w.phase) * 1.5;
 
-      w.light.position.set(x, y, z);
       w.sprite.position.set(x, y, z);
 
       // Pulse brightness
       const pulse = 0.5 + 0.5 * Math.sin(t * w.pulseSpeed + w.phase);
-      w.light.intensity = w.baseIntensity * (0.6 + 0.4 * pulse);
-      const s = 1.0 + 0.3 * pulse;
+      const s = 1.4 + 0.5 * pulse;
       w.sprite.scale.set(s, s, 1);
       w.spriteMaterial.opacity = 0.5 + 0.4 * pulse;
     }

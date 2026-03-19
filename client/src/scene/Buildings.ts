@@ -120,12 +120,11 @@ export class Buildings {
         Math.sin(angle) * 6.2,
       );
       arch.rotation.set(0, -angle + Math.PI / 2, 0);
-      arch.castShadow = true;
       group.add(arch);
     }
 
-    // Subtle point light for the glow
-    const glowLight = new THREE.PointLight(0x00ffcc, 3, 20);
+    // Subtle point light for the glow (reduced for performance)
+    const glowLight = new THREE.PointLight(0x00ffcc, 1.5, 12);
     glowLight.position.set(0, 3, 0);
     group.add(glowLight);
 
@@ -317,7 +316,6 @@ export class Buildings {
         Math.sin(angle) * 2.8,
       );
       step.rotation.set(0, -angle, 0);
-      step.castShadow = true;
       group.add(step);
     }
 
@@ -345,8 +343,8 @@ export class Buildings {
     runeRing.rotation.x = Math.PI / 2;
     group.add(runeRing);
 
-    // Subtle glow at the top
-    const topLight = new THREE.PointLight(0xaa44ff, 2, 15);
+    // Subtle glow at the top (reduced for performance)
+    const topLight = new THREE.PointLight(0xaa44ff, 1, 10);
     topLight.position.set(0, 30, 0);
     group.add(topLight);
 

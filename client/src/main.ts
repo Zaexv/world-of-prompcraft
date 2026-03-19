@@ -15,21 +15,26 @@ import { CollisionSystem } from './systems/CollisionSystem';
 import { WorldGenerator } from './systems/WorldGenerator';
 import { LoginScreen } from './ui/LoginScreen';
 import { DamagePopup } from './ui/DamagePopup';
+import { ZoneTracker } from './systems/ZoneTracker';
+import { DungeonSystem } from './systems/DungeonSystem';
 
 // ── Hostile NPC set (those that trigger the combat HUD) ──────────────────────
 const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
+
+// ── Module-level player identity ─────────────────────────────────────────────
+let localPlayerId = 'default';
+let joinedServer = false;
 
 // ── Login / Title screen ────────────────────────────────────────────────────
 const loginScreen = new LoginScreen();
 loginScreen.show();
 
-loginScreen.onEnterWorld = () => {
-  loginScreen.hide();
-  initGame();
+loginScreen.onEnterWorld = (username: string, race: string, faction: string) => {
+  initGame(username, race, faction);
 };
 
 // ── Game initialisation (runs after "Enter World") ──────────────────────────
-function initGame() {
+function initGame(username: string, race: string, faction: string) {
   // ── Core scene ────────────────────────────────────────────────────────────
   const app = document.getElementById('app')!;
   const sceneManager = new SceneManager(app);
@@ -37,16 +42,26 @@ function initGame() {
 
   // ── State ─────────────────────────────────────────────────────────────────
   const playerState = PlayerState.getInstance();
+  playerState.race = race;
+  playerState.faction = faction;
   const npcStateStore = new NPCStateStore();
   const worldState = new WorldState(playerState, npcStateStore);
 
   // ── Player ────────────────────────────────────────────────────────────────
+  // Height function — returns dungeon floor when inside a dungeon,
+  // otherwise queries the terrain as usual.
+  let inDungeonOverride = false;
+  const heightFn = (x: number, z: number): number => {
+    if (inDungeonOverride) return 0; // Dungeon floor at Y=0 (above water)
+    return terrain.getHeightAt(x, z);
+  };
+
   const playerController = new PlayerController(
     camera,
     renderer.domElement,
-    (x: number, z: number) => terrain.getHeightAt(x, z),
+    heightFn,
   );
-  const player = new Player();
+  const player = new Player(race);
   scene.add(player.group);
 
   // ── NPCs ──────────────────────────────────────────────────────────────────
@@ -59,7 +74,10 @@ function initGame() {
     { id: 'sage_01', name: 'Elyria the Sage', position: new THREE.Vector3(-40, 5, -30), color: 0x6644cc },
     { id: 'guard_01', name: 'Captain Aldric', position: new THREE.Vector3(15, 0, 2), color: 0x888888 },
     { id: 'healer_01', name: 'Sister Mira', position: new THREE.Vector3(-5, 0, 12), color: 0xeedd88 },
-    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(18, 0, -35), color: 0x44cc44 },
+    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(5, 0, -120), color: 0x44cc44 },
+    { id: 'mage_01', name: 'Archmage Malakov', position: new THREE.Vector3(-15, 0, -115), color: 0xaa44ff },
+    { id: 'mage_02', name: 'Zara the Pyromancer', position: new THREE.Vector3(12, 0, -130), color: 0xff4422 },
+    { id: 'mage_03', name: 'Frostweaver Nyx', position: new THREE.Vector3(-10, 0, -105), color: 0x44ccff },
   ];
 
   // Build a quick id->name lookup
@@ -74,19 +92,22 @@ function initGame() {
     entityManager.addNPC(cfg);
   }
 
-  // ── Collision (raycaster-based) ──────────────────────────────────────────
+  // ── Collision (AABB-based) ───────────────────────────────────────────────
   const collisionSystem = new CollisionSystem();
 
-  // Add building groups as collidables (actual meshes — no AABB approximation)
+  // Buildings (static — AABB cached once)
   collisionSystem.addCollidables(sceneManager.buildings.groups);
 
-  // Add massive tree groups as collidables
+  // Fort Malaka structures (static)
+  collisionSystem.addCollidables(sceneManager.fortMalaka.groups);
+
+  // Massive trees (static)
   if (sceneManager.vegetation.massiveTreeGroups.length > 0) {
     collisionSystem.addCollidables(sceneManager.vegetation.massiveTreeGroups);
   }
 
-  // Add NPC meshes as collidables
-  collisionSystem.addCollidables(entityManager.getMeshes());
+  // NPC meshes — dynamic source so newly spawned NPCs are always collidable
+  collisionSystem.setDynamicSource(() => entityManager.getMeshes());
 
   playerController.setCollisionSystem(collisionSystem, scene);
 
@@ -98,6 +119,7 @@ function initGame() {
   const uiManager = new UIManager();
   uiManager.updateStatusBars(playerState);
   uiManager.inventoryPanel.update(playerState.inventory);
+  uiManager.updateQuestUI(playerState);
 
   playerState.onChange = (state) => {
     uiManager.updateStatusBars(state);
@@ -126,6 +148,15 @@ function initGame() {
     renderer.domElement.requestPointerLock();
   };
 
+  // ── Chat bubbles ──────────────────────────────────────────────────────────
+  uiManager.initBubbleSystem(camera);
+
+  function spawnChatBubble(text: string, parent?: THREE.Object3D, style: 'player' | 'npc' | 'system' = 'player', senderName?: string): void {
+    if (!uiManager.bubbleSystem) return;
+    const pos = parent ? parent.position.clone() : new THREE.Vector3();
+    uiManager.bubbleSystem.spawn(text, pos, { parent, style, senderName });
+  }
+
   // ── Keyboard panel wiring ───────────────────────────────────────────────
   document.addEventListener("keydown", (e: KeyboardEvent) => {
     // Don't handle keys when typing in a text input
@@ -148,6 +179,30 @@ function initGame() {
     if (e.code === "KeyM") {
       uiManager.toggleMinimap();
     }
+
+    if (e.code === "KeyL") {
+      uiManager.toggleQuestLog(playerState);
+    }
+
+    if (e.code === "KeyE") {
+      dungeonSystem.tryEnter();
+    }
+
+    // Enter to focus chat (if not already focused)
+    if (e.code === "Enter" && !uiManager.chatPanel.isFocused) {
+      e.preventDefault();
+      uiManager.chatPanel.focusInput();
+      if (document.pointerLockElement) {
+        document.exitPointerLock();
+      }
+    }
+
+    // Escape in chat to blur and re-acquire pointer lock
+    if (e.code === "Escape" && uiManager.chatPanel.isFocused) {
+      e.preventDefault();
+      // The ChatPanel input handles blur internally, but also re-acquire lock
+      renderer.domElement.requestPointerLock();
+    }
   });
 
   uiManager.inventoryPanel.onClose = () => {
@@ -159,6 +214,28 @@ function initGame() {
 
   ws.onConnectionChange = (connected) => {
     console.warn(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
+    if (connected) {
+      // BUG-3: Send initial position in join so other players see correct spawn
+      const initPos: [number, number, number] = [
+        playerController.position.x,
+        playerController.position.y,
+        playerController.position.z,
+      ];
+      ws.send({ type: 'join', username, race, faction, position: initPos });
+    } else {
+      // Reset join flag on disconnect so player_move is not sent on the new
+      // WebSocket before the server re-registers us via a fresh join handshake.
+      joinedServer = false;
+    }
+  };
+
+  // ── Chat wiring ──────────────────────────────────────────────────────────
+  uiManager.chatPanel.onSendMessage = (text: string) => {
+    ws.send({ type: 'chat_message', text });
+    // Show own message in chat panel
+    uiManager.chatPanel.addMessage(username, text);
+    // Spawn bubble above local player (follows player group)
+    spawnChatBubble(text, player.group, 'player', username);
   };
 
   // ── Inventory use-item wiring (must be after ws is created) ──────────────
@@ -171,7 +248,7 @@ function initGame() {
     // Send current inventory so the server can sync its stale copy
     ws.send({
       type: 'use_item',
-      playerId: 'default',
+      playerId: localPlayerId,
       item: itemName,
       inventory: playerState.inventory,
     });
@@ -200,7 +277,7 @@ function initGame() {
       // Tell the server about the equipment change
       ws.send({
         type: 'equip_item',
-        playerId: 'default',
+        playerId: localPlayerId,
         item: itemName,
         slot,
         equipped: playerState.equipped,
@@ -211,7 +288,43 @@ function initGame() {
   // ── World Generator (spawns trees, caves, towns & NPCs on new chunks) ──
   const worldGenerator = new WorldGenerator(scene, terrain, entityManager, ws);
   worldGenerator.setMinimap(uiManager.minimap);
+  worldGenerator.setCollisionSystem(collisionSystem);
   terrain.onChunkLoaded = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
+  terrain.onChunkUnloaded = (cx, cz) => worldGenerator.onChunkUnloaded(cx, cz);
+
+  // ── Zone Tracker & Dungeon System ──────────────────────────────────────
+  const zoneTracker = new ZoneTracker();
+  const dungeonSystem = new DungeonSystem(scene, entityManager, ws, playerState);
+  dungeonSystem.setCollisionSystem(collisionSystem);
+  dungeonSystem.excludeFromDungeonHide(player.group);
+  worldGenerator.setDungeonSystem(dungeonSystem);
+
+  // Zone display callback
+  zoneTracker.onZoneChange = (name, desc) => {
+    uiManager.showZoneTransition(name, desc);
+  };
+
+  // Dungeon zone override + player teleport
+  dungeonSystem.onEnterDungeon = (_id, name) => {
+    inDungeonOverride = true;
+    zoneTracker.forceZone(name, `Dungeon: ${name}`);
+    // Teleport player to dungeon center
+    playerController.position.set(0, 0, 5);
+  };
+  dungeonSystem.onExitDungeon = () => {
+    inDungeonOverride = false;
+    // Restore player to entrance position
+    const saved = dungeonSystem.getSavedPlayerPosition();
+    if (saved) {
+      playerController.position.copy(saved);
+      playerController.position.y = terrain.getHeightAt(saved.x, saved.z);
+    }
+  };
+
+  // Quest UI reactivity
+  playerState.onQuestChange = () => {
+    uiManager.updateQuestUI(playerState);
+  };
 
   // ── Interaction wiring ────────────────────────────────────────────────────
   let activeNpcId: string | null = null;
@@ -250,6 +363,7 @@ function initGame() {
       type: 'interaction',
       npcId: activeNpcId,
       prompt,
+      playerId: localPlayerId,
       playerState: {
         position: [playerController.position.x, playerController.position.y, playerController.position.z],
         hp: playerState.hp,
@@ -270,20 +384,142 @@ function initGame() {
   // ── Server response handling ──────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws.onMessage = (data: any) => {
+    // ── Join OK ────────────────────────────────────────────────────────────
+    if (data.type === 'join_ok') {
+      localPlayerId = data.playerId;
+      joinedServer = true; // BUG-1: Now safe to send player_move
+      playerState.playerId = data.playerId;
+      loginScreen.hide();
+      uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${username}!`);
+
+      // Spawn existing players
+      if (data.players) {
+        for (const p of data.players) {
+          if (p.playerId !== localPlayerId) {
+            entityManager.addRemotePlayer(p);
+          }
+        }
+      }
+      return;
+    }
+
+    // ── Join Error ─────────────────────────────────────────────────────────
+    if (data.type === 'join_error') {
+      loginScreen.showError(data.message);
+      return;
+    }
+
+    // ── Player Joined ─────────────────────────────────────────────────────
+    if (data.type === 'player_joined') {
+      if (data.player.playerId !== localPlayerId) {
+        entityManager.addRemotePlayer(data.player);
+        uiManager.chatPanel.addSystemMessage(`${data.player.username} has joined the world.`);
+      }
+      return;
+    }
+
+    // ── Player Left ───────────────────────────────────────────────────────
+    if (data.type === 'player_left') {
+      const remote = entityManager.getRemotePlayer(data.playerId);
+      const leftName = remote?.username ?? data.playerId;
+      entityManager.removeRemotePlayer(data.playerId);
+      uiManager.chatPanel.addSystemMessage(`${leftName} has left the world.`);
+      return;
+    }
+
+    // ── World Update (position broadcasting) ──────────────────────────────
+    if (data.type === 'world_update') {
+      // Filter out local player from updates
+      const others = data.players.filter(
+        (p: { playerId: string }) => p.playerId !== localPlayerId,
+      );
+      entityManager.updateRemotePlayers(others);
+      return;
+    }
+
+    // ── Chat Broadcast ────────────────────────────────────────────────────
+    if (data.type === 'chat_broadcast') {
+      uiManager.chatPanel.addMessage(data.sender, data.text);
+      // BUG-5: Use remote player group if available, otherwise fall back
+      // to a temporary object at the broadcast position
+      const remote = entityManager.getRemotePlayer(data.sender);
+      if (remote) {
+        spawnChatBubble(data.text, remote.group, 'player', data.sender);
+      } else if (data.position) {
+        const pos = new THREE.Vector3(data.position[0], data.position[1], data.position[2]);
+        const tmpObj = new THREE.Object3D();
+        tmpObj.position.copy(pos);
+        scene.add(tmpObj);
+        spawnChatBubble(data.text, tmpObj, 'player', data.sender);
+        // Clean up temporary object after bubble lifetime
+        setTimeout(() => scene.remove(tmpObj), 8000);
+      } else {
+        spawnChatBubble(data.text, undefined, 'player', data.sender);
+      }
+      return;
+    }
+
+    // ── NPC Dialogue Broadcasting ─────────────────────────────────────────
+    if (data.type === 'npc_dialogue') {
+      if (data.npcName) {
+        // NPC speaking — follow NPC mesh
+        uiManager.chatPanel.addMessage(data.npcName, data.dialogue, '#c5a55a');
+        const npc = entityManager.getNPC(data.npcId);
+        spawnChatBubble(data.dialogue, npc?.mesh, 'npc', data.npcName);
+      } else {
+        // Player speaking to NPC — follow remote player
+        uiManager.chatPanel.addMessage(data.speakerPlayer, data.dialogue);
+        const remote = entityManager.getRemotePlayer(data.speakerPlayer);
+        spawnChatBubble(data.dialogue, remote?.group, 'player', data.speakerPlayer);
+      }
+      return;
+    }
+
+    // ── Server Error ──────────────────────────────────────────────────────
+    if (data.type === 'error') {
+      const errorMsg: string = data.message ?? 'An unknown error occurred.';
+      console.warn(`[Server Error] ${errorMsg}`);
+
+      // If the interaction panel is open, show the error there and clear thinking state
+      if (activeNpcId) {
+        uiManager.interactionPanel.hideThinking();
+        uiManager.interactionPanel.addMessage('system', `Error: ${errorMsg}`);
+      }
+
+      // Also surface in the chat panel so the player always sees it
+      uiManager.chatPanel.addSystemMessage(`Server error: ${errorMsg}`);
+      return;
+    }
+
+    // ── Agent Response ────────────────────────────────────────────────────
     if (data.type === 'agent_response') {
       const response = data as AgentResponse;
 
-      uiManager.interactionPanel.hideThinking();
-      uiManager.interactionPanel.addMessage('npc', response.dialogue);
+      // Check if this response is for the currently active NPC
+      const isActiveNpc = response.npcId === activeNpcId;
+
+      // UI updates only if the response matches the active NPC panel
+      if (isActiveNpc) {
+        uiManager.interactionPanel.hideThinking();
+        uiManager.interactionPanel.addMessage('npc', response.dialogue);
+      }
 
       // Hide the thinking icon — action icons will be shown per-action by ReactionSystem
       const respondingNpc = entityManager.getNPC(response.npcId);
-      if (respondingNpc) respondingNpc.actionIcon.hide();
+      if (respondingNpc) {
+        respondingNpc.actionIcon.hide();
+        // Spawn chat bubble above the NPC (follows NPC mesh)
+        spawnChatBubble(response.dialogue, respondingNpc.mesh, 'npc');
+      }
+
+      // All NPC dialogue goes to the unified ChatPanel
+      const chatNpcName = npcNameMap.get(response.npcId) ?? entityManager.getNPC(response.npcId)?.name ?? response.npcId;
+      uiManager.chatPanel.addMessage(chatNpcName, response.dialogue, '#c5a55a');
 
       reactionSystem.handleResponse(response);
 
-      // ── Combat HUD updates ──────────────────────────────────────────────
-      if (uiManager.combatHUD.isVisible) {
+      // ── Combat HUD updates (only for active NPC) ────────────────────────
+      if (isActiveNpc && uiManager.combatHUD.isVisible) {
         uiManager.combatHUD.updatePlayerHP(playerState.hp, playerState.maxHp);
         uiManager.combatHUD.updatePlayerMana(playerState.mana, playerState.maxMana);
 
@@ -368,11 +604,28 @@ function initGame() {
           if (uiManager.combatHUD.isVisible) {
             uiManager.combatHUD.addLogEntry(`${prefix}: ${quest}`, '#c5a55a');
           }
+        } else if (action.kind === 'advance_objective') {
+          const desc = action.params.description ?? action.params.objectiveId ?? 'objective';
+          uiManager.addCombatLog(`Objective Complete: ${desc}`, '#c5a55a');
+          if (uiManager.combatHUD.isVisible) {
+            uiManager.combatHUD.addLogEntry(`Objective Complete: ${desc}`, '#c5a55a');
+          }
         } else if (action.kind === 'emote') {
           const animation = action.params.animation ?? action.params.emote ?? 'gesture';
           uiManager.addCombatLog(`${npcName} performs ${animation}`, '#aaaaaa');
         }
       }
+    }
+
+    // ── Quest update handling (dungeon_enter/exit responses) ───────────────
+    if (data.type === 'quest_update') {
+      reactionSystem.handleResponse({
+        type: 'agent_response',
+        npcId: '',
+        dialogue: '',
+        actions: data.actions || [],
+        playerStateUpdate: data.playerStateUpdate,
+      });
     }
 
     // ── Item use result handling ─────────────────────────────────────────────
@@ -413,19 +666,28 @@ function initGame() {
   // Cache terrain height callback to avoid creating a closure each frame
   const getTerrainHeight = (x: number, z: number) => terrain.getHeightAt(x, z);
 
+  // Position broadcast timer (10Hz)
+  let moveSendTimer = 0;
+  const MOVE_SEND_INTERVAL = 1 / 10; // 100ms
+
   function animate() {
     requestAnimationFrame(animate);
 
     const delta = sceneManager.tick();
-    const px = playerController.position.x;
-    const pz = playerController.position.z;
 
     // Player (skip movement when dead)
     if (!playerState.isDead) {
       playerController.update(delta);
       player.group.position.copy(playerController.position);
       player.update(delta, playerController.isMoving, playerController.velocity, playerController.isSwimming);
+
+      // Sync position to playerState
+      playerState.position = [playerController.position.x, playerController.position.y, playerController.position.z];
     }
+
+    // Capture position AFTER playerController.update so all systems use current-frame data
+    const px = playerController.position.x;
+    const pz = playerController.position.z;
 
     // Update terrain chunks around the player
     terrain.update(px, pz);
@@ -438,10 +700,31 @@ function initGame() {
     entityManager.update(delta, getTerrainHeight);
     reactionSystem.tick(delta);
 
+    // Zone tracking & dungeon proximity
+    zoneTracker.update(px, pz);
+    dungeonSystem.setPlayerPosition(playerController.position);
+    dungeonSystem.update(player.group.position);
+
     // Update minimap (camera yaw as player direction arrow)
     camera.getWorldDirection(_camDir);
     const playerAngle = Math.atan2(_camDir.x, _camDir.z);
     uiManager.updateMinimap(px, pz, playerAngle);
+
+    // Update chat bubbles
+    uiManager.bubbleSystem?.update();
+
+    // BUG-1: Only send position after join_ok has been received
+    if (joinedServer) {
+      moveSendTimer += delta;
+      if (moveSendTimer >= MOVE_SEND_INTERVAL) {
+        moveSendTimer = 0;
+        ws.send({
+          type: 'player_move',
+          position: [playerController.position.x, playerController.position.y, playerController.position.z],
+          yaw: playerController.yaw,
+        });
+      }
+    }
   }
 
   animate();
