@@ -95,15 +95,15 @@ function initGame(username: string, race: string, faction: string) {
   // ── Collision (AABB-based) ───────────────────────────────────────────────
   const collisionSystem = new CollisionSystem();
 
-  // Buildings (static — AABB cached once)
-  collisionSystem.addCollidables(sceneManager.buildings.groups);
+  // Buildings (static — filtered to solid structural elements only)
+  collisionSystem.addCollidablesFiltered(sceneManager.buildings.groups);
 
-  // Fort Malaka structures (static)
-  collisionSystem.addCollidables(sceneManager.fortMalaka.groups);
+  // Fort Malaka structures (static — filtered to solid elements only)
+  collisionSystem.addCollidablesFiltered(sceneManager.fortMalaka.groups);
 
-  // Massive trees (static)
+  // Massive trees (static — filtered to trunk/roots only)
   if (sceneManager.vegetation.massiveTreeGroups.length > 0) {
-    collisionSystem.addCollidables(sceneManager.vegetation.massiveTreeGroups);
+    collisionSystem.addCollidablesFiltered(sceneManager.vegetation.massiveTreeGroups);
   }
 
   // NPC meshes — dynamic source so newly spawned NPCs are always collidable

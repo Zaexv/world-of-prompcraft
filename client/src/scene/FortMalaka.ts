@@ -139,6 +139,7 @@ export class FortMalaka {
     const base = new THREE.Mesh(baseGeo, darkStoneMat);
     base.position.y = 3;
     base.receiveShadow = true;
+    base.userData.isCollider = true;
     group.add(base);
 
     // Main tower shaft — keep castShadow
@@ -147,6 +148,7 @@ export class FortMalaka {
     shaft.position.y = 20;
     shaft.castShadow = true;
     shaft.receiveShadow = true;
+    shaft.userData.isCollider = true;
     group.add(shaft);
 
     // Upper observation deck
@@ -245,6 +247,7 @@ export class FortMalaka {
       const pillar = new THREE.Mesh(pillarGeo, stoneMat);
       pillar.position.set(side * 5, 7, 0);
       pillar.receiveShadow = true;
+      pillar.userData.isCollider = true;
       group.add(pillar);
 
       // Rune strips on pillars
@@ -318,6 +321,7 @@ export class FortMalaka {
     const base = new THREE.Mesh(baseGeo, stoneMat);
     base.position.y = 0.75;
     base.receiveShadow = true;
+    base.userData.isCollider = true;
     group.add(base);
 
     // Obelisk shaft (hexagonal prism tapering upward)
@@ -325,6 +329,7 @@ export class FortMalaka {
     const obelisk = new THREE.Mesh(obeliskGeo, stoneMat);
     obelisk.position.y = 5.5;
     obelisk.receiveShadow = true;
+    obelisk.userData.isCollider = true;
     group.add(obelisk);
 
     // Pointed cap — emissive, no PointLight needed
@@ -380,6 +385,7 @@ export class FortMalaka {
     const base = new THREE.Mesh(baseGeo, stoneMat);
     base.position.y = 2;
     base.receiveShadow = true;
+    base.userData.isCollider = true;
     group.add(base);
 
     // Pointed roof
@@ -525,6 +531,7 @@ export class FortMalaka {
     wall.position.y = 4;
     wall.castShadow = true;
     wall.receiveShadow = true;
+    wall.userData.isCollider = true;
     group.add(wall);
 
     // Crenellations (merlons) along the top — 5×2=10
@@ -542,6 +549,7 @@ export class FortMalaka {
       const towerGeo = new THREE.CylinderGeometry(2.5, 2.8, 12, 6);
       const tower = new THREE.Mesh(towerGeo, warmStoneMat);
       tower.position.set(sx * 10, 6, 0);
+      tower.userData.isCollider = true;
       group.add(tower);
 
       // Conical tower cap (terracotta)
@@ -614,6 +622,7 @@ export class FortMalaka {
     const wall = new THREE.Mesh(wallGeo, whiteMat);
     wall.position.y = 1.75;
     wall.receiveShadow = true;
+    wall.userData.isCollider = true;
     group.add(wall);
 
     // Terracotta roof (hip roof using a low cone)
@@ -687,6 +696,7 @@ export class FortMalaka {
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = trunkHeight / 2;
     trunk.rotation.z = Math.sin(z * 0.3) * 0.08; // slight lean
+    trunk.userData.isCollider = true;
     group.add(trunk);
 
     // Trunk ring marks
@@ -753,6 +763,7 @@ export class FortMalaka {
     tower.position.y = 8;
     tower.castShadow = true;
     tower.receiveShadow = true;
+    tower.userData.isCollider = true;
     group.add(tower);
 
     // Red band near top (Málaga's Farola has bands)
@@ -821,6 +832,7 @@ export class FortMalaka {
     for (const [px, pz] of postPositions) {
       const post = new THREE.Mesh(postGeo, woodMat);
       post.position.set(px, 1.75, pz);
+      post.userData.isCollider = true;
       group.add(post);
     }
 
@@ -840,6 +852,7 @@ export class FortMalaka {
     const counterGeo = new THREE.BoxGeometry(5, 0.8, 1);
     const counter = new THREE.Mesh(counterGeo, woodMat);
     counter.position.set(0, 1, -1.5);
+    counter.userData.isCollider = true;
     group.add(counter);
 
     // Bar stools (3)
@@ -965,6 +978,7 @@ export class FortMalaka {
     const railGeo = new THREE.BoxGeometry(70, 0.6, 0.3);
     const rail = new THREE.Mesh(railGeo, stoneMat);
     rail.position.set(0, 0.5, 1.5);
+    rail.userData.isCollider = true;
     group.add(rail);
 
     group.position.set(0, py, pz);

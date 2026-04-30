@@ -66,6 +66,7 @@ export class Buildings {
     basin.position.y = 1;
     basin.castShadow = true;
     basin.receiveShadow = true;
+    basin.userData.isCollider = true;
     group.add(basin);
 
     // Inner water surface (glowing teal)
@@ -93,6 +94,7 @@ export class Buildings {
         Math.sin(angle) * 6.2,
       );
       pillar.castShadow = true;
+      pillar.userData.isCollider = true;
       group.add(pillar);
 
       // Rune strip on each pillar
@@ -152,6 +154,7 @@ export class Buildings {
     trunk.position.y = 11;
     trunk.castShadow = true;
     trunk.receiveShadow = true;
+    trunk.userData.isCollider = true;
     group.add(trunk);
 
     // Thick roots flaring out at the base
@@ -159,6 +162,7 @@ export class Buildings {
     const roots = new THREE.Mesh(rootGeo, barkMat);
     roots.position.y = 2;
     roots.castShadow = true;
+    roots.userData.isCollider = true;
     group.add(roots);
 
     // Platform at mid-height
@@ -280,6 +284,7 @@ export class Buildings {
     tower.position.y = 12;
     tower.castShadow = true;
     tower.receiveShadow = true;
+    tower.userData.isCollider = true;
     group.add(tower);
 
     // Flared crown at top
@@ -386,6 +391,7 @@ export class Buildings {
         -Math.cos(angle) * 0.08,
       );
       pillar.castShadow = true;
+      pillar.userData.isCollider = true;
       group.add(pillar);
 
       // Small rune on each pillar
@@ -460,6 +466,7 @@ export class Buildings {
     table.position.y = 0.5;
     table.castShadow = true;
     table.receiveShadow = true;
+    table.userData.isCollider = true;
     group.add(table);
 
     group.position.set(x, y, z);

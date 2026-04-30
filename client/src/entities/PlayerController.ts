@@ -53,10 +53,14 @@ export class PlayerController {
   private scene: THREE.Scene | null = null;
 
   // --- Camera ---
-  private zoomDistance = 8;
-  private readonly zoomMin = 4;
+  private zoomDistance = 10;
+  private readonly zoomMin = 2;
   private readonly zoomMax = 20;
-  private readonly cameraHeight = 4;
+  /** Height above character feet for the orbit center (character head). */
+  private readonly lookAtHeight = 1.6;
+  /** Fixed vertical offset for the camera above the look-at point.
+   *  Creates a comfortable over-the-shoulder view at pitch=0. */
+  private readonly cameraArmHeight = 2.0;
 
   // --- Input state ---
   private keys: Record<string, boolean> = {};
@@ -81,8 +85,8 @@ export class PlayerController {
     this.domElement = domElement;
     this.getHeightAt = getHeightAt ?? (() => 0);
 
-    // Initialise camera behind player
-    this.cameraPos.copy(this.computeCameraTarget());
+    // Initialise camera at desired orbit position
+    this.cameraPos.copy(this.computeCameraTarget(0));
 
     this.initPointerLock();
     this.initKeyboard();
@@ -282,16 +286,19 @@ export class PlayerController {
       }
     }
 
-    // --- Third-person camera ---
-    const target = this.computeCameraTarget();
-    const lerpFactor = 1 - Math.pow(0.001, delta); // smooth follow
+    // --- Third-person camera (WoW-style) ---
+    const target = this.computeCameraTarget(delta);
+    const lerpFactor = 1 - Math.pow(0.001, delta);
     this.cameraPos.lerp(target, lerpFactor);
     this.camera.position.copy(this.cameraPos);
 
-    // Look at a point slightly above the player
-    const lookTarget = this.position.clone();
-    lookTarget.y += 1.5;
-    this.camera.lookAt(lookTarget);
+    // Look at the orbit center (character head)
+    this._lookTarget.set(
+      this.position.x,
+      this.position.y + this.lookAtHeight,
+      this.position.z,
+    );
+    this.camera.lookAt(this._lookTarget);
   }
 
   /** Whether the player is currently moving horizontally. */
@@ -308,55 +315,111 @@ export class PlayerController {
   private _camPitchQ = new THREE.Quaternion();
   private _camYawQ = new THREE.Quaternion();
   private _camTarget = new THREE.Vector3();
+  private _lookTarget = new THREE.Vector3();
+  private _rayOrigin = new THREE.Vector3();
+  private _rayDir = new THREE.Vector3();
+  private _raycaster = new THREE.Raycaster();
   private static readonly _pitchAxis = new THREE.Vector3(1, 0, 0);
   private static readonly _yawAxis = new THREE.Vector3(0, 1, 0);
   /** Minimum clearance above terrain for the camera. */
-  private readonly cameraTerrainClearance = 1.5;
-  /** Number of sample points along the player→camera ray for terrain collision. */
-  private readonly cameraRaySamples = 8;
+  private readonly cameraTerrainClearance = 0.5;
+  /** Buffer distance from raycast hit to prevent Z-fighting. */
+  private readonly cameraCollisionBuffer = 0.3;
+  /** Smoothed effective distance — WoW: instant pull-in, smooth pull-out. */
+  private effectiveDistance = 10;
 
-  private computeCameraTarget(): THREE.Vector3 {
-    // Offset behind player, rotated by yaw and pitched
-    this._camOffset.set(0, this.cameraHeight, -this.zoomDistance);
+  /**
+   * WoW-style third-person camera.
+   *
+   * 1. Orbit center is the character's head (position + lookAtHeight).
+   * 2. Camera offset = spherical arm from pitch/yaw, length = zoomDistance,
+   *    plus a small fixed upward bias (cameraArmHeight).
+   * 3. Collision check:
+   *    a. Binary-search terrain height along the ray.
+   *    b. Three.js Raycaster against all collidable scene objects.
+   *    c. Take the shorter of the two distances.
+   * 4. Smoothing:
+   *    - **Instant pull-in** when obstructed (camera never clips).
+   *    - **Smooth pull-out** when obstruction clears (~0.5s ease).
+   */
+  private computeCameraTarget(delta: number): THREE.Vector3 {
+    // Orbit center: character head
+    const orbitY = this.position.y + this.lookAtHeight;
+    this._rayOrigin.set(this.position.x, orbitY, this.position.z);
+
+    // Camera arm: behind the character, with a vertical bias.
+    // At pitch=0 the camera sits cameraArmHeight above + zoomDistance behind.
+    this._camOffset.set(0, this.cameraArmHeight, -this.zoomDistance);
     this._camPitchQ.setFromAxisAngle(PlayerController._pitchAxis, this.pitch);
     this._camOffset.applyQuaternion(this._camPitchQ);
     this._camYawQ.setFromAxisAngle(PlayerController._yawAxis, this.yaw);
     this._camOffset.applyQuaternion(this._camYawQ);
 
-    this._camTarget.set(
-      this.position.x + this._camOffset.x,
-      this.position.y + this._camOffset.y,
-      this.position.z + this._camOffset.z,
-    );
+    // Direction and total arm length
+    const armLength = this._camOffset.length();
+    this._rayDir.copy(this._camOffset).divideScalar(armLength || 1);
 
-    // --- Terrain collision along player→camera ray ---
-    // Sample terrain heights between the player and the desired camera position.
-    // If terrain is above the ray at any sample, pull the camera closer to the player.
-    const playerHeadY = this.position.y + this.cameraHeight;
-    let safeFraction = 1.0;
-    for (let i = 1; i <= this.cameraRaySamples; i++) {
-      const t = i / this.cameraRaySamples;
-      const sampleX = this.position.x + this._camOffset.x * t;
-      const sampleZ = this.position.z + this._camOffset.z * t;
-      const sampleY = this.position.y + this._camOffset.y * t;
-      const terrainY = this.getHeightAt(sampleX, sampleZ) + this.cameraTerrainClearance;
-      if (sampleY < terrainY) {
-        // This sample is underground — pull camera to just before this point
-        const prevT = (i - 1) / this.cameraRaySamples;
-        safeFraction = Math.min(safeFraction, Math.max(prevT, 0.1));
-        break;
+    // ── Collision: find max allowed distance ────────────────────────────
+
+    let maxDist = armLength;
+
+    // (a) Terrain collision — binary search along the arm
+    {
+      let lo = 0;
+      let hi = armLength;
+      for (let iter = 0; iter < 6; iter++) {
+        const mid = (lo + hi) / 2;
+        const sx = this._rayOrigin.x + this._rayDir.x * mid;
+        const sz = this._rayOrigin.z + this._rayDir.z * mid;
+        const sy = this._rayOrigin.y + this._rayDir.y * mid;
+        const terrainY = this.getHeightAt(sx, sz) + this.cameraTerrainClearance;
+        if (sy >= terrainY) {
+          lo = mid;
+        } else {
+          hi = mid;
+        }
+      }
+      maxDist = Math.min(maxDist, lo);
+    }
+
+    // (b) Object collision — raycast against collidable meshes
+    if (this.collisionSystem) {
+      const collidables = this.collisionSystem.getCollidableObjects();
+      if (collidables.length > 0) {
+        this._raycaster.set(this._rayOrigin, this._rayDir);
+        this._raycaster.far = armLength;
+        this._raycaster.near = 0;
+        const hits = this._raycaster.intersectObjects(collidables, true);
+        if (hits.length > 0) {
+          maxDist = Math.min(maxDist, hits[0].distance - this.cameraCollisionBuffer);
+        }
       }
     }
 
-    if (safeFraction < 1.0) {
-      this._camTarget.set(
-        this.position.x + this._camOffset.x * safeFraction,
-        playerHeadY + (this._camOffset.y - this.cameraHeight) * safeFraction,
-        this.position.z + this._camOffset.z * safeFraction,
-      );
+    // Minimum distance so camera doesn't end up inside the character
+    maxDist = Math.max(maxDist, this.zoomMin * 0.5);
+
+    // ── WoW-style distance smoothing ────────────────────────────────────
+    // Pull-in is instant — camera must never clip through geometry.
+    // Pull-out is smooth — camera eases back to the desired distance.
+    if (maxDist < this.effectiveDistance) {
+      // Instant pull-in (WoW behaviour)
+      this.effectiveDistance = maxDist;
+    } else {
+      // Smooth pull-out: exponential ease toward maxDist
+      const returnSpeed = 3.0;
+      this.effectiveDistance += (maxDist - this.effectiveDistance)
+        * (1 - Math.exp(-returnSpeed * delta));
     }
 
-    // Final clamp: ensure camera is always above terrain at its final position
+    // ── Final camera position ───────────────────────────────────────────
+    this._camTarget.set(
+      this._rayOrigin.x + this._rayDir.x * this.effectiveDistance,
+      this._rayOrigin.y + this._rayDir.y * this.effectiveDistance,
+      this._rayOrigin.z + this._rayDir.z * this.effectiveDistance,
+    );
+
+    // Hard floor: camera must be above terrain at its landing position
     const terrainAtCamera = this.getHeightAt(this._camTarget.x, this._camTarget.z);
     const minY = terrainAtCamera + this.cameraTerrainClearance;
     if (this._camTarget.y < minY) {

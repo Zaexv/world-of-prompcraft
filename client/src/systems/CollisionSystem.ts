@@ -1,16 +1,16 @@
 /**
- * Collision system using cannon-es for overlap detection.
+ * Collision system using swept AABB for movement resolution.
  *
- * We do NOT use cannon-es for physics simulation (no gravity, no forces).
- * Instead we use it purely as a spatial query engine:
+ * Uses the standard game-industry approach:
  *
  * 1. Static AABB bodies are created for buildings, trees, dungeon walls.
- * 2. Each frame we test the player's desired position against all bodies
- *    using cannon-es contact generation.
- * 3. If contacts exist, we push the player out along contact normals.
+ * 2. Each frame the player's movement is *swept* from current to desired
+ *    position using entry/exit time analysis on each axis.
+ * 3. On collision the remaining velocity is projected onto the contact
+ *    surface (wall-sliding) and the sweep repeats for up to 3 iterations.
  *
- * This is far more reliable than manual AABB checks because cannon-es
- * handles the broadphase culling and narrow-phase contact generation.
+ * This prevents tunneling, provides smooth wall-sliding, and handles
+ * corners correctly via iterative velocity projection.
  */
 
 import * as CANNON from 'cannon-es';
@@ -21,6 +21,18 @@ export interface PhysicsEntry {
   obj: THREE.Object3D;
   body: CANNON.Body;
 }
+
+/** Result of a swept AABB test. */
+interface SweepResult {
+  /** Fraction of movement before first contact (0..1). */
+  t: number;
+  /** Contact normal (points away from the obstacle surface). */
+  normalX: number;
+  normalZ: number;
+}
+
+/** Skin width added to push the player slightly away from contact surfaces. */
+const SKIN = 0.005;
 
 export class CollisionSystem {
   private world: CANNON.World;
@@ -40,19 +52,16 @@ export class CollisionSystem {
   private _center = new THREE.Vector3();
   private _worldPos = new THREE.Vector3();
 
-  // Player half-extents
+  // Player half-extents (match visual model: ~0.5 wide, ~3.0 tall)
   private readonly PLAYER_HX = 0.4;
-  private readonly PLAYER_HY = 1.0;
+  private readonly PLAYER_HY = 1.5;
   private readonly PLAYER_HZ = 0.4;
 
   constructor() {
     this.world = new CANNON.World();
     this.world.gravity.set(0, 0, 0);
     this.world.broadphase = new CANNON.SAPBroadphase(this.world);
-    // We don't use the solver — just AABB overlap queries
 
-    // Player body — kinematic. We position it manually each frame.
-    // Initial position (0,1,0) is a placeholder; resolveMovement() overwrites it every frame.
     this.playerShape = new CANNON.Box(
       new CANNON.Vec3(this.PLAYER_HX, this.PLAYER_HY, this.PLAYER_HZ),
     );
@@ -80,11 +89,67 @@ export class CollisionSystem {
     for (const obj of objs) this.addCollidable(obj);
   }
 
+  /**
+   * Register collision shapes for a group by decomposing it into its tagged
+   * children. Only meshes with `userData.isCollider === true` produce a
+   * collision body. If no children are tagged, falls back to a single AABB
+   * around the entire group (backward compatibility).
+   *
+   * This prevents oversized bounding boxes on groups that contain both solid
+   * geometry (trunks, pillars) and decorative geometry (canopies, vines).
+   */
+  addCollidableFiltered(group: THREE.Object3D): void {
+    const tagged: THREE.Object3D[] = [];
+    group.traverse((child) => {
+      if (child.userData.isCollider === true && child !== group) {
+        tagged.push(child);
+      }
+    });
+
+    if (tagged.length === 0) {
+      // No tagged children — fall back to whole-group AABB
+      this.addCollidable(group);
+      return;
+    }
+
+    // Ensure world matrices are up-to-date before computing AABBs
+    group.updateWorldMatrix(true, true);
+
+    for (const child of tagged) {
+      const body = this.createStaticBody(child);
+      if (body) {
+        this.world.addBody(body);
+        this.statics.push({ obj: child, body });
+      }
+    }
+  }
+
+  addCollidablesFiltered(groups: THREE.Object3D[]): void {
+    for (const g of groups) this.addCollidableFiltered(g);
+  }
+
   removeCollidable(obj: THREE.Object3D): void {
+    // Remove exact match first
     const idx = this.statics.findIndex((e) => e.obj === obj);
     if (idx !== -1) {
       this.world.removeBody(this.statics[idx].body);
       this.statics.splice(idx, 1);
+      return;
+    }
+
+    // For filtered groups: remove all child bodies whose mesh is a
+    // descendant of the given object (handles addCollidableFiltered cleanup)
+    const children: number[] = [];
+    for (let i = 0; i < this.statics.length; i++) {
+      let ancestor = this.statics[i].obj.parent;
+      while (ancestor) {
+        if (ancestor === obj) { children.push(i); break; }
+        ancestor = ancestor.parent;
+      }
+    }
+    for (let i = children.length - 1; i >= 0; i--) {
+      this.world.removeBody(this.statics[children[i]].body);
+      this.statics.splice(children[i], 1);
     }
   }
 
@@ -122,6 +187,15 @@ export class CollisionSystem {
     return this.statics.length + this.dynamicBodies.size;
   }
 
+  /** Return the Three.js objects registered as collidables (for camera raycasting). */
+  getCollidableObjects(): THREE.Object3D[] {
+    const objs: THREE.Object3D[] = [];
+    for (const entry of this.statics) {
+      if (entry.obj.visible) objs.push(entry.obj);
+    }
+    return objs;
+  }
+
   /**
    * Test whether a position (with a given half-extent radius) overlaps
    * any static collidable. Used by NPCs to avoid walking into walls/trees.
@@ -130,7 +204,7 @@ export class CollisionSystem {
     const minX = x - halfExtent;
     const maxX = x + halfExtent;
     const minY = y;
-    const maxY = y + halfExtent * 4; // rough height for NPC
+    const maxY = y + halfExtent * 4;
     const minZ = z - halfExtent;
     const maxZ = z + halfExtent;
 
@@ -152,177 +226,168 @@ export class CollisionSystem {
 
   // ── Resolution ────────────────────────────────────────────────────────
 
+  /**
+   * Swept-AABB movement resolution with velocity-projection sliding.
+   *
+   * 1. Sweep the player AABB from `currentPos` toward `desiredPos`.
+   * 2. On contact, advance to the collision point and project the
+   *    remaining velocity onto the contact surface (wall sliding).
+   * 3. Repeat for up to 3 iterations (handles corners).
+   */
   resolveMovement(
     currentPos: THREE.Vector3,
     desiredPos: THREE.Vector3,
     _scene: THREE.Scene,
   ): THREE.Vector3 {
-    this._result.copy(desiredPos);
-
-    // Sync NPC bodies
+    // Sync NPC bodies before sweep
     this.syncDynamicBodies();
 
-    // Position the player body at the desired location.
-    const py = desiredPos.y + this.PLAYER_HY;
-    this.playerBody.position.set(desiredPos.x, py, desiredPos.z);
-    this.playerBody.updateAABB();
+    let cx = currentPos.x;
+    let cz = currentPos.z;
+    let vx = desiredPos.x - currentPos.x;
+    let vz = desiredPos.z - currentPos.z;
+    const py = currentPos.y + this.PLAYER_HY; // AABB center Y
 
-    // Check contacts against all bodies and push out
-    this.resolveOverlaps();
+    // Up to 3 slide iterations (full move, first slide, corner slide)
+    for (let iter = 0; iter < 3; iter++) {
+      if (Math.abs(vx) < 1e-6 && Math.abs(vz) < 1e-6) break;
 
-    // Read corrected position
-    this._result.x = this.playerBody.position.x;
-    this._result.z = this.playerBody.position.z;
-    this._result.y = this.playerBody.position.y - this.PLAYER_HY;
+      const sweep = this.sweepAABB(cx, py, cz, vx, vz);
 
-    // If still overlapping after resolution, try axis-independent sliding
-    if (this.hasAnyOverlap()) {
-      // Try X-only movement (slide along Z wall)
-      this.playerBody.position.set(desiredPos.x, py, currentPos.z);
-      this.playerBody.updateAABB();
-      this.resolveOverlaps();
-      if (!this.hasAnyOverlap()) {
-        this._result.x = this.playerBody.position.x;
-        this._result.z = currentPos.z;
-        this._result.y = this.playerBody.position.y - this.PLAYER_HY;
-        return this._result;
+      if (sweep.t >= 1.0) {
+        // No collision — apply full remaining velocity
+        cx += vx;
+        cz += vz;
+        break;
       }
 
-      // Try Z-only movement (slide along X wall)
-      this.playerBody.position.set(currentPos.x, py, desiredPos.z);
-      this.playerBody.updateAABB();
-      this.resolveOverlaps();
-      if (!this.hasAnyOverlap()) {
-        this._result.x = currentPos.x;
-        this._result.z = this.playerBody.position.z;
-        this._result.y = this.playerBody.position.y - this.PLAYER_HY;
-        return this._result;
-      }
+      // Advance to the collision point (minus skin)
+      cx += vx * sweep.t;
+      cz += vz * sweep.t;
 
-      // All directions blocked — stay at current position
-      this._result.copy(currentPos);
+      // Remaining velocity after the collision
+      const remainVx = vx * (1 - sweep.t);
+      const remainVz = vz * (1 - sweep.t);
+
+      // Project remaining velocity onto the contact surface.
+      // Surface tangent is perpendicular to the normal: tangent = (-nz, nx).
+      // Projected velocity = dot(remain, tangent) * tangent
+      const dot = remainVx * (-sweep.normalZ) + remainVz * sweep.normalX;
+      vx = (-sweep.normalZ) * dot;
+      vz = sweep.normalX * dot;
     }
 
+    this._result.set(cx, currentPos.y, cz);
     return this._result;
   }
 
-  /** Quick check: does the player currently overlap any static or dynamic body? */
-  private hasAnyOverlap(): boolean {
-    const pMin = this.playerBody.aabb.lowerBound;
-    const pMax = this.playerBody.aabb.upperBound;
+  // ── Swept AABB ────────────────────────────────────────────────────────
 
-    for (const entry of this.statics) {
-      if (!entry.obj.visible) continue;
-      const bMin = entry.body.aabb.lowerBound;
-      const bMax = entry.body.aabb.upperBound;
-      if (
-        pMax.x > bMin.x && pMin.x < bMax.x &&
-        pMax.y > bMin.y && pMin.y < bMax.y &&
-        pMax.z > bMin.z && pMin.z < bMax.z
-      ) {
-        return true;
-      }
-    }
-    for (const [obj, body] of this.dynamicBodies) {
-      if (!obj.visible) continue;
+  /**
+   * Sweep the player AABB from (cx, cy, cz) by velocity (vx, vz) against
+   * all collidable bodies. Returns the earliest collision time and normal.
+   *
+   * Uses the standard entry/exit time algorithm:
+   * For each axis, compute when the moving box *enters* and *exits* overlap
+   * with the static box. The overall entry time is the maximum of per-axis
+   * entry times; the overall exit time is the minimum of per-axis exit times.
+   * A collision occurs when entryTime < exitTime AND entryTime ∈ [0, 1].
+   */
+  private sweepAABB(
+    cx: number, cy: number, cz: number,
+    vx: number, vz: number,
+  ): SweepResult {
+    const pHX = this.PLAYER_HX;
+    const pHY = this.PLAYER_HY;
+    const pHZ = this.PLAYER_HZ;
+
+    // Player AABB bounds at current position
+    const pMinX = cx - pHX;
+    const pMaxX = cx + pHX;
+    const pMinY = cy - pHY;
+    const pMaxY = cy + pHY;
+    const pMinZ = cz - pHZ;
+    const pMaxZ = cz + pHZ;
+
+    let bestT = 1.0;
+    let bestNX = 0;
+    let bestNZ = 0;
+
+    // Test all static + dynamic bodies
+    const allBodies = this.collectBodies();
+
+    for (const body of allBodies) {
       const bMin = body.aabb.lowerBound;
       const bMax = body.aabb.upperBound;
-      if (
-        pMax.x > bMin.x && pMin.x < bMax.x &&
-        pMax.y > bMin.y && pMin.y < bMax.y &&
-        pMax.z > bMin.z && pMin.z < bMax.z
-      ) {
-        return true;
+
+      // Y overlap test (static, we don't move vertically here)
+      if (pMaxY <= bMin.y || pMinY >= bMax.y) continue;
+
+      // --- X axis entry/exit ---
+      let xEntry: number, xExit: number;
+      if (vx === 0) {
+        // No horizontal movement on X — check static overlap
+        if (pMaxX <= bMin.x || pMinX >= bMax.x) continue; // no overlap, skip
+        xEntry = -Infinity;
+        xExit = Infinity;
+      } else if (vx > 0) {
+        xEntry = (bMin.x - pMaxX) / vx;
+        xExit = (bMax.x - pMinX) / vx;
+      } else {
+        xEntry = (bMax.x - pMinX) / vx;
+        xExit = (bMin.x - pMaxX) / vx;
       }
+
+      // --- Z axis entry/exit ---
+      let zEntry: number, zExit: number;
+      if (vz === 0) {
+        if (pMaxZ <= bMin.z || pMinZ >= bMax.z) continue;
+        zEntry = -Infinity;
+        zExit = Infinity;
+      } else if (vz > 0) {
+        zEntry = (bMin.z - pMaxZ) / vz;
+        zExit = (bMax.z - pMinZ) / vz;
+      } else {
+        zEntry = (bMax.z - pMinZ) / vz;
+        zExit = (bMin.z - pMaxZ) / vz;
+      }
+
+      const entryTime = Math.max(xEntry, zEntry);
+      const exitTime = Math.min(xExit, zExit);
+
+      // No collision if: entry > exit, or entry beyond this frame, or already past
+      if (entryTime > exitTime || entryTime >= bestT || entryTime < -SKIN) continue;
+
+      // Determine contact normal from which axis had the latest entry
+      let nx = 0;
+      let nz = 0;
+      if (xEntry > zEntry) {
+        nx = vx > 0 ? -1 : 1;
+      } else {
+        nz = vz > 0 ? -1 : 1;
+      }
+
+      bestT = Math.max(entryTime - SKIN, 0);
+      bestNX = nx;
+      bestNZ = nz;
     }
-    return false;
+
+    return { t: bestT, normalX: bestNX, normalZ: bestNZ };
   }
 
-  // ── Overlap resolution ────────────────────────────────────────────────
-
   /**
-   * For each body in the world, check if it overlaps the player AABB.
-   * If so, compute penetration and push the player out.
-   * This is a simple AABB-vs-AABB overlap test using cannon body AABBs.
+   * Collect all active body AABBs for sweep testing.
+   * Filters out invisible objects and returns only relevant bodies.
    */
-  private resolveOverlaps(): void {
-    for (let iter = 0; iter < 4; iter++) {
-      let pushed = false;
-
-      // Check static collidables
-      for (const entry of this.statics) {
-        if (!entry.obj.visible) continue;
-        if (this.pushOutOfBody(entry.body)) {
-          // Recompute AABB immediately so subsequent checks use updated bounds
-          this.playerBody.updateAABB();
-          pushed = true;
-        }
-      }
-
-      // Check dynamic collidables
-      for (const [obj, body] of this.dynamicBodies) {
-        if (!obj.visible) continue;
-        if (this.pushOutOfBody(body)) {
-          this.playerBody.updateAABB();
-          pushed = true;
-        }
-      }
-
-      if (!pushed) break;
+  private collectBodies(): CANNON.Body[] {
+    const bodies: CANNON.Body[] = [];
+    for (const entry of this.statics) {
+      if (entry.obj.visible) bodies.push(entry.body);
     }
-  }
-
-  /**
-   * Test player AABB against a body's AABB. If overlapping, push the
-   * player out along the axis of minimum penetration (XZ only).
-   */
-  private pushOutOfBody(
-    body: CANNON.Body,
-  ): boolean {
-    const pMin = this.playerBody.aabb.lowerBound;
-    const pMax = this.playerBody.aabb.upperBound;
-    const bMin = body.aabb.lowerBound;
-    const bMax = body.aabb.upperBound;
-
-    // AABB overlap test
-    if (
-      pMax.x <= bMin.x || pMin.x >= bMax.x ||
-      pMax.y <= bMin.y || pMin.y >= bMax.y ||
-      pMax.z <= bMin.z || pMin.z >= bMax.z
-    ) {
-      return false; // No overlap
+    for (const [obj, body] of this.dynamicBodies) {
+      if (obj.visible) bodies.push(body);
     }
-
-    // Compute overlap on each axis
-    const overlapX1 = pMax.x - bMin.x; // player right - body left
-    const overlapX2 = bMax.x - pMin.x; // body right - player left
-    const overlapZ1 = pMax.z - bMin.z; // player front - body back
-    const overlapZ2 = bMax.z - pMin.z; // body front - player back
-
-    // Find minimum overlap and push direction (XZ only)
-    const minOverlapX = Math.min(overlapX1, overlapX2);
-    const minOverlapZ = Math.min(overlapZ1, overlapZ2);
-
-    if (minOverlapX <= 0 || minOverlapZ <= 0) return false;
-
-    // Small margin to prevent re-entry on the next frame
-    const PUSH_EPSILON = 0.01;
-
-    if (minOverlapX < minOverlapZ) {
-      // Push along X
-      const pushX = overlapX1 < overlapX2
-        ? -(overlapX1 + PUSH_EPSILON)
-        : (overlapX2 + PUSH_EPSILON);
-      this.playerBody.position.x += pushX;
-    } else {
-      // Push along Z
-      const pushZ = overlapZ1 < overlapZ2
-        ? -(overlapZ1 + PUSH_EPSILON)
-        : (overlapZ2 + PUSH_EPSILON);
-      this.playerBody.position.z += pushZ;
-    }
-
-    return true;
+    return bodies;
   }
 
   // ── Body creation ─────────────────────────────────────────────────────
@@ -387,9 +452,7 @@ export class CollisionSystem {
 
       let body = this.dynamicBodies.get(obj);
       if (!body) {
-        // NPC half-extents: 0.5 x 1.5 x 0.5 — taller than the player (0.4 x 1.0 x 0.4)
-        // because NPC models are roughly 3 units tall vs the player's ~2 units.
-        const npcShape = new CANNON.Box(new CANNON.Vec3(0.5, 1.5, 0.5));
+        const npcShape = new CANNON.Box(new CANNON.Vec3(0.4, 1.5, 0.4));
         body = new CANNON.Body({
           mass: 0,
           type: CANNON.BODY_TYPES.STATIC,
@@ -401,7 +464,6 @@ export class CollisionSystem {
         this.dynamicBodies.set(obj, body);
       }
 
-      // Offset by NPC half-height (1.5) so the box center aligns with the NPC model center.
       body.position.set(this._worldPos.x, this._worldPos.y + 1.5, this._worldPos.z);
       body.updateAABB();
     }

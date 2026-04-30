@@ -49,12 +49,12 @@ graph TB
     Main["main.ts<br/>Game Init & Loop"]
 
     Main --> SM["SceneManager<br/>Renderer, Bloom Post-processing"]
-    Main --> PC["PlayerController<br/>WASD, Pointer Lock, Jump,<br/>Water + Raycaster Collision"]
+    Main --> PC["PlayerController<br/>WoW-style Camera + Movement"]
     Main --> P["Player<br/>Night Elf Model + Cape"]
     Main --> EM["EntityManager<br/>NPC Registry + Wandering AI"]
     Main --> IS["InteractionSystem<br/>Raycaster + Click"]
     Main --> RS["ReactionSystem<br/>Actions → 3D Effects + Death"]
-    Main --> CS["CollisionSystem<br/>Raycaster-based, 3 heights"]
+    Main --> CS["CollisionSystem<br/>Swept AABB + Tag-based Filtering"]
     Main --> WG["WorldGenerator<br/>Chunk-based tree/NPC spawning"]
     Main --> UM["UIManager<br/>All HUD Overlays"]
     Main --> WS["WebSocketClient<br/>Auto-reconnect + Queue"]
@@ -582,7 +582,98 @@ When a player mentions lore topics (Elune, Teldrassil, Night Elves, etc.), the R
 
 ---
 
-## 11. CI/CD & Quality Pipeline
+## 11. Collision & Camera System
+
+### Collision Architecture
+
+```mermaid
+flowchart TB
+    subgraph Registration ["Collision Registration"]
+        Static["Static Objects<br/>(buildings, trees, structures)"]
+        Dynamic["Dynamic Objects<br/>(NPCs)"]
+        Terrain["Terrain<br/>(heightmap queries)"]
+    end
+
+    subgraph Methods ["Registration Methods"]
+        AF["addCollidableFiltered(group)<br/>Tag-based: only isCollider meshes"]
+        AC["addCollidable(obj)<br/>Whole-object AABB"]
+        DS["setDynamicSource(fn)<br/>NPC mesh callback"]
+    end
+
+    subgraph Collision ["Collision Detection"]
+        Swept["Swept AABB<br/>Entry/exit time per axis<br/>Contact normal detection"]
+        Height["getHeightAt(x, z)<br/>Procedural heightmap"]
+        Blocked["isPositionBlocked(x, y, z, r)<br/>Overlap test against bodies"]
+    end
+
+    subgraph Resolution ["Resolution"]
+        Slide["Wall Sliding<br/>Velocity projected onto<br/>contact surface tangent"]
+        Corner["Corner Resolution<br/>3 iterations max"]
+        Skin["Skin Width (0.005)<br/>Prevent tunneling"]
+    end
+
+    Static --> AF & AC
+    Dynamic --> DS
+    Terrain --> Height
+
+    AF --> Swept
+    AC --> Swept
+    DS --> Blocked
+    Height --> PlayerY["Player Y Clamping"]
+
+    Swept --> Slide --> Corner
+
+    style Registration fill:#1a2808,stroke:#88aa44,color:#c8e8a8
+    style Methods fill:#281a0a,stroke:#cc8833,color:#f8d8b8
+    style Collision fill:#0a1628,stroke:#4488cc,color:#b8d8f8
+    style Resolution fill:#1a0a28,stroke:#aa66ff,color:#d8b8f8
+```
+
+**Tag-based collision filtering** prevents oversized bounding boxes on complex groups. Only meshes tagged with `userData.isCollider = true` produce collision bodies — decorative elements (canopies, vines, arches) are excluded. This allows players to walk under tree canopies and through open archways.
+
+| Object Category | Registration Method | Tagged Elements |
+|----------------|-------------------|-----------------|
+| Buildings (Moonwell, Tree-house, etc.) | `addCollidablesFiltered()` | Basin, pillars, trunks, tower bodies |
+| Fort Malaka structures | `addCollidablesFiltered()` | Tower base/shaft, gateway pillars, walls, pylons |
+| WorldGenerator trees | `addCollidableFiltered()` | Trunk meshes only |
+| Massive trees (Vegetation) | `addCollidablesFiltered()` | Trunk + root base |
+| Procedural towns | `addCollidableFiltered()` | Hut walls, well bases |
+| Cave entrances | `addCollidable()` | Whole-group AABB (solid structures) |
+| NPCs | `setDynamicSource()` | Synced each frame from entity positions |
+| Terrain surface | `getHeightAt()` | Heightmap — no AABB bodies needed |
+
+**Chunk lifecycle:** When `WorldGenerator` spawns objects on chunk load, it registers them for collision. On chunk unload, `removeCollidable()` walks parent chains to remove all child bodies created by filtered registration.
+
+### WoW-style Camera
+
+```mermaid
+flowchart LR
+    subgraph CameraOrbit ["Camera Orbit"]
+        Center["Orbit Center<br/>Player head (y+1.6)"]
+        Arm["Camera Arm<br/>armHeight=2.0, zoomDist=2–20"]
+        Spherical["Spherical Coords<br/>pitch + yaw rotation"]
+    end
+
+    subgraph CameraCollision ["Camera Collision"]
+        TerrainBC["Terrain Binary Search<br/>6 iterations along ray"]
+        ObjectRC["Raycaster<br/>Against collidable objects"]
+        PullIn["Instant Pull-in<br/>Never clip through objects"]
+        PullOut["Smooth Pull-out<br/>Exponential ease (speed=3.0)"]
+    end
+
+    Center --> Spherical --> Arm
+    Arm --> TerrainBC & ObjectRC
+    TerrainBC & ObjectRC --> PullIn & PullOut
+
+    style CameraOrbit fill:#1a1108,stroke:#c5a55a,color:#e8dcc8
+    style CameraCollision fill:#0a1628,stroke:#4488cc,color:#b8d8f8
+```
+
+The camera orbits around the character's head at a configurable arm height. Dual collision detection (terrain heightmap binary search + Three.js Raycaster against scene objects) ensures the camera never clips through the world. Obstruction causes instant pull-in; when clear, the camera smoothly eases back to the desired distance.
+
+---
+
+## 12. CI/CD & Quality Pipeline
 
 ```mermaid
 flowchart TB
@@ -703,7 +794,7 @@ flowchart LR
 
 ---
 
-## 12. File Structure
+## 13. File Structure
 
 ```
 world-of-prompcraft/
@@ -845,7 +936,7 @@ world-of-prompcraft/
 
 ---
 
-## 13. Zone Map
+## 14. Zone Map
 
 ```mermaid
 graph TB

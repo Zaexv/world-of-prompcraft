@@ -314,6 +314,7 @@ export class Vegetation {
     trunk.position.y = trunkHeight * 0.5;
     trunk.castShadow = true;
     trunk.receiveShadow = true;
+    trunk.userData.isCollider = true;
     group.add(trunk);
 
     // Root flare at base
@@ -326,6 +327,7 @@ export class Vegetation {
     const roots = new THREE.Mesh(rootGeo, barkMat);
     roots.position.y = trunkHeight * 0.075;
     roots.castShadow = true;
+    roots.userData.isCollider = true;
     group.add(roots);
 
     // Gnarled root extensions

@@ -224,7 +224,7 @@ export class NPC {
         const ty = getHeightAt(tx, tz);
 
         // Reject targets inside obstacles
-        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.5)) {
+        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.4)) {
           this.wanderCooldown = 1 + Math.random() * 2;
           return;
         }
@@ -263,7 +263,7 @@ export class NPC {
       const nextY = getHeightAt(nextX, nextZ);
 
       // Check if next step would collide with a building/tree
-      if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.5)) {
+      if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.4)) {
         // Stop wandering — obstacle in the way
         this.isWandering = false;
         this.hasWanderTarget = false;

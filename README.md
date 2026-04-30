@@ -231,7 +231,7 @@ Server Test ─┘
 |-------|-----------|---------|
 | **3D Engine** | [Three.js](https://threejs.org/) + TypeScript | Procedural terrain, water, skybox, bloom post-processing |
 | **Bundler** | [Vite](https://vitejs.dev/) | Hot-reload dev server, optimized production builds |
-| **Physics** | [cannon-es](https://pmndrs.github.io/cannon-es/) | AABB collision detection |
+| **Physics** | [cannon-es](https://pmndrs.github.io/cannon-es/) | Swept AABB collision, tag-based filtering, WoW-style camera |
 | **Server** | [FastAPI](https://fastapi.tiangolo.com/) | Async WebSocket server with lifespan management |
 | **AI Agents** | [LangGraph](https://langchain-ai.github.io/langgraph/) | Per-NPC StateGraph with memory, tool-calling, and reasoning nodes |
 | **LLM** | OpenAI / Anthropic | Configurable provider — GPT-4o-mini or Claude Sonnet |
@@ -272,6 +272,45 @@ Server Test ─┘
 3. Optionally add zone-specific terrain/vegetation in the client scene modules
 
 </details>
+
+---
+
+## 🛡️ Collision & Camera
+
+The game uses a **swept AABB collision system** with tag-based filtering and a WoW-style third-person camera.
+
+### Tag-based Collision Filtering
+
+Complex 3D groups (trees, buildings) contain both solid geometry (trunks, walls) and decorative geometry (canopies, vines, arches). Instead of wrapping the entire group in one oversized bounding box, only meshes tagged with `userData.isCollider = true` produce collision bodies:
+
+```typescript
+// In scene construction code:
+trunk.userData.isCollider = true;   // ← solid, blocks movement
+canopy.userData.isCollider = false;  // ← decorative, walk underneath
+
+// Registration:
+collisionSystem.addCollidableFiltered(treeGroup);
+```
+
+### What has collision
+
+| Category | Method | What blocks |
+|----------|--------|-------------|
+| Buildings | `addCollidablesFiltered()` | Pillars, walls, basins, tower bodies |
+| Fort Malaka | `addCollidablesFiltered()` | Tower bases, gateway pillars, fortress walls |
+| Trees (procedural) | `addCollidableFiltered()` | Trunk meshes only |
+| Massive trees | `addCollidablesFiltered()` | Trunk + root base |
+| Towns (procedural) | `addCollidableFiltered()` | Hut walls, well bases |
+| Caves | `addCollidable()` | Whole entrance (solid) |
+| NPCs | `setDynamicSource()` | Body hitbox (synced each frame) |
+| Terrain | `getHeightAt()` | Heightmap-based ground following |
+
+### WoW-style Camera
+
+- Orbits around character head (y+1.6) with configurable arm height
+- **Dual collision**: terrain binary search + raycaster against scene objects
+- **Instant pull-in** when obstructed (no clipping), **smooth pull-out** when clear
+- Mouse wheel zoom: 2–20 units distance
 
 ---
 

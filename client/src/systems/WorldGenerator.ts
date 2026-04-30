@@ -393,7 +393,7 @@ export class WorldGenerator {
       tree.rotation.y = Math.random() * Math.PI * 2;
       this.scene.add(tree);
       this.trackObject(chunkKey, tree);
-      this.collisionSystem?.addCollidable(tree);
+      this.collisionSystem?.addCollidableFiltered(tree);
     }
   }
 
@@ -410,6 +410,7 @@ export class WorldGenerator {
     trunk.position.y = scale;
     trunk.scale.set(scale, scale, scale);
     trunk.castShadow = true;
+    trunk.userData.isCollider = true;
 
     switch (shape) {
       case TreeShape.Cone: {
@@ -473,6 +474,7 @@ export class WorldGenerator {
         charTrunk.position.y = scale;
         charTrunk.scale.set(scale, scale * 1.2, scale);
         charTrunk.castShadow = true;
+        charTrunk.userData.isCollider = true;
         tree.add(charTrunk);
         // Bare branches
         for (let b = 0; b < 4; b++) {
@@ -500,6 +502,7 @@ export class WorldGenerator {
         mainCrystal.position.y = scale * 1.5;
         mainCrystal.scale.set(scale, scale, scale);
         mainCrystal.castShadow = true;
+        mainCrystal.userData.isCollider = true;
         tree.add(mainCrystal);
         // Smaller satellite crystals
         for (let c = 0; c < 3; c++) {
@@ -523,6 +526,7 @@ export class WorldGenerator {
         mushTrunk.position.y = scale * 0.5;
         mushTrunk.scale.set(scale * 1.3, scale * 0.6, scale * 1.3);
         mushTrunk.castShadow = true;
+        mushTrunk.userData.isCollider = true;
         tree.add(mushTrunk);
         const cap = new THREE.Mesh(this.mushroomCapGeo, pick(mats.canopy));
         cap.position.y = scale * 1.2;
@@ -659,7 +663,10 @@ export class WorldGenerator {
 
     const townKey = `${chunkX},${chunkZ}`;
     const townData = createTown(this.scene, this.terrain, tx, tz);
-    if (townData.group) this.trackObject(townKey, townData.group);
+    if (townData.group) {
+      this.trackObject(townKey, townData.group);
+      this.collisionSystem?.addCollidableFiltered(townData.group);
+    }
     if (this.minimap) this.minimap.addTown(tx, tz);
 
     // Spawn peaceful citizens at the town

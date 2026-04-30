@@ -112,6 +112,7 @@ export function createTown(
     well.position.y = 0.5;
     well.castShadow = true;
     well.receiveShadow = true;
+    well.userData.isCollider = true;
     group.add(well);
 
     // Water inside
@@ -228,6 +229,7 @@ function createHut(
   wall.position.y = wallHeight * 0.5;
   wall.castShadow = true;
   wall.receiveShadow = true;
+  wall.userData.isCollider = true;
   hut.add(wall);
 
   // Roof
