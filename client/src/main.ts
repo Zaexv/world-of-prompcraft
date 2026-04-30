@@ -710,7 +710,7 @@ function initGame(username: string, race: string, faction: string) {
 
     // Entities + effects (with distance culling)
     entityManager.setPlayerPosition(px, pz);
-    entityManager.update(delta, getTerrainHeight);
+    entityManager.update(delta, getTerrainHeight, collisionSystem);
     reactionSystem.tick(delta);
 
     // Zone tracking & dungeon proximity

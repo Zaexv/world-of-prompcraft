@@ -1,10 +1,8 @@
 from __future__ import annotations
 
 import re
-from typing import TYPE_CHECKING
 
-if TYPE_CHECKING:
-    from ..agent_state import NPCAgentState
+from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 
 # ── Keyword sets for heuristic analysis ──────────────────────────────────────
 

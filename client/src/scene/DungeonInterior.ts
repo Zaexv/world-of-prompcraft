@@ -7,6 +7,8 @@ import type { DungeonConfig } from "./DungeonConfig";
  */
 export interface DungeonObjects {
   group: THREE.Group;
+  /** Only wall meshes — used for collision (excludes floor, ceiling, decorations). */
+  wallMeshes: THREE.Mesh[];
   enemySpawnPoints: THREE.Vector3[];
   chestPosition: THREE.Vector3;
   exitPortalPosition: THREE.Vector3;
@@ -71,9 +73,10 @@ function buildRoom(
   group: THREE.Group,
   config: DungeonConfig,
   assets: SharedAssets,
-): void {
+): THREE.Mesh[] {
   const { roomWidth, roomDepth } = config;
   const wallHeight = 8;
+  const wallMeshes: THREE.Mesh[] = [];
 
   // Floor
   const floorGeo = new THREE.PlaneGeometry(roomWidth, roomDepth);
@@ -96,6 +99,7 @@ function buildRoom(
   frontWall.castShadow = true;
   frontWall.receiveShadow = true;
   group.add(frontWall);
+  wallMeshes.push(frontWall);
 
   // Back wall (negative Z)
   const backWall = new THREE.Mesh(frontBackGeo, assets.wallMat);
@@ -103,6 +107,7 @@ function buildRoom(
   backWall.castShadow = true;
   backWall.receiveShadow = true;
   group.add(backWall);
+  wallMeshes.push(backWall);
 
   // Side walls
   const sideGeo = new THREE.BoxGeometry(0.5, wallHeight, roomDepth);
@@ -111,12 +116,16 @@ function buildRoom(
   leftWall.castShadow = true;
   leftWall.receiveShadow = true;
   group.add(leftWall);
+  wallMeshes.push(leftWall);
 
   const rightWall = new THREE.Mesh(sideGeo, assets.wallMat);
   rightWall.position.set(roomWidth / 2, wallHeight / 2, 0);
   rightWall.castShadow = true;
   rightWall.receiveShadow = true;
   group.add(rightWall);
+  wallMeshes.push(rightWall);
+
+  return wallMeshes;
 }
 
 // ---------------------------------------------------------------------------
@@ -409,8 +418,8 @@ export function createDungeonInterior(config: DungeonConfig): DungeonObjects {
 
   const assets = createSharedAssets(config);
 
-  // Room shell
-  buildRoom(group, config, assets);
+  // Room shell (returns only wall meshes for collision)
+  const wallMeshes = buildRoom(group, config, assets);
 
   // Lighting
   addLighting(group, config);
@@ -433,6 +442,7 @@ export function createDungeonInterior(config: DungeonConfig): DungeonObjects {
 
   return {
     group,
+    wallMeshes,
     enemySpawnPoints,
     chestPosition: chestPos,
     exitPortalPosition: portalPos,

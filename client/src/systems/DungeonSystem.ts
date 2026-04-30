@@ -266,15 +266,11 @@ export class DungeonSystem {
 
     // 5. Swap collision BEFORE teleporting the player so overworld bodies
     //    don't push the player out of the dungeon origin.
+    //    Only use wall meshes — the floor/ceiling planes have huge AABBs that
+    //    would push the player to the room edge.
     if (this.collisionSystem) {
       this.savedOverworldCollidables = this.collisionSystem.saveCollidables();
-      const dungeonMeshes: THREE.Object3D[] = [];
-      this.activeDungeon.group.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          dungeonMeshes.push(child);
-        }
-      });
-      this.collisionSystem.setCollidables(dungeonMeshes);
+      this.collisionSystem.setCollidables(this.activeDungeon.wallMeshes);
     }
 
     // 6. Dungeon fog

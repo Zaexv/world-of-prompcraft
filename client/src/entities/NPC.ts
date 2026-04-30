@@ -205,8 +205,13 @@ export class NPC {
 
   /**
    * Update wandering AI — call every frame with delta and a terrain height callback.
+   * Optionally accepts a collision system to prevent walking through buildings/trees.
    */
-  updateWander(delta: number, getHeightAt: (x: number, z: number) => number): void {
+  updateWander(
+    delta: number,
+    getHeightAt: (x: number, z: number) => number,
+    collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
+  ): void {
     // Decrement cooldown
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
@@ -216,7 +221,15 @@ export class NPC {
         const dist = Math.random() * this.wanderRadius;
         const tx = this.homePosition.x + Math.cos(angle) * dist;
         const tz = this.homePosition.z + Math.sin(angle) * dist;
-        this.wanderTarget.set(tx, getHeightAt(tx, tz), tz);
+        const ty = getHeightAt(tx, tz);
+
+        // Reject targets inside obstacles
+        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.5)) {
+          this.wanderCooldown = 1 + Math.random() * 2;
+          return;
+        }
+
+        this.wanderTarget.set(tx, ty, tz);
         this.hasWanderTarget = true;
         this.isWandering = true;
         this.animator.play('walk');
@@ -245,9 +258,23 @@ export class NPC {
       const nx = dx / dist;
       const nz = dz / dist;
 
-      this.mesh.position.x += nx * step;
-      this.mesh.position.z += nz * step;
-      this.mesh.position.y = getHeightAt(this.mesh.position.x, this.mesh.position.z);
+      const nextX = this.mesh.position.x + nx * step;
+      const nextZ = this.mesh.position.z + nz * step;
+      const nextY = getHeightAt(nextX, nextZ);
+
+      // Check if next step would collide with a building/tree
+      if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.5)) {
+        // Stop wandering — obstacle in the way
+        this.isWandering = false;
+        this.hasWanderTarget = false;
+        this.wanderCooldown = 2 + Math.random() * 3;
+        this.animator.play('idle');
+        return;
+      }
+
+      this.mesh.position.x = nextX;
+      this.mesh.position.z = nextZ;
+      this.mesh.position.y = nextY;
 
       // Update logical position to match mesh
       this.position.copy(this.mesh.position);

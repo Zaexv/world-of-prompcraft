@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { NPC, NPCConfig } from './NPC';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
+import type { CollisionSystem } from '../systems/CollisionSystem';
 
 /**
  * Central registry for all NPC entities and remote players.
@@ -101,7 +102,7 @@ export class EntityManager {
   }
 
   /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
-  update(delta: number, getHeightAt?: (x: number, z: number) => number): void {
+  update(delta: number, getHeightAt?: (x: number, z: number) => number, collisionSystem?: CollisionSystem): void {
     for (const npc of this.npcs.values()) {
       const dx = npc.position.x - this.playerX;
       const dz = npc.position.z - this.playerZ;
@@ -118,7 +119,7 @@ export class EntityManager {
       if (distSq < this.UPDATE_RADIUS_SQ) {
         npc.update(delta);
         if (getHeightAt) {
-          npc.updateWander(delta, getHeightAt);
+          npc.updateWander(delta, getHeightAt, collisionSystem);
         }
       }
     }

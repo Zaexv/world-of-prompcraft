@@ -122,10 +122,38 @@ export class CollisionSystem {
     return this.statics.length + this.dynamicBodies.size;
   }
 
+  /**
+   * Test whether a position (with a given half-extent radius) overlaps
+   * any static collidable. Used by NPCs to avoid walking into walls/trees.
+   */
+  isPositionBlocked(x: number, y: number, z: number, halfExtent = 0.5): boolean {
+    const minX = x - halfExtent;
+    const maxX = x + halfExtent;
+    const minY = y;
+    const maxY = y + halfExtent * 4; // rough height for NPC
+    const minZ = z - halfExtent;
+    const maxZ = z + halfExtent;
+
+    for (const entry of this.statics) {
+      if (!entry.obj.visible) continue;
+      const bMin = entry.body.aabb.lowerBound;
+      const bMax = entry.body.aabb.upperBound;
+
+      if (
+        maxX > bMin.x && minX < bMax.x &&
+        maxY > bMin.y && minY < bMax.y &&
+        maxZ > bMin.z && minZ < bMax.z
+      ) {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // ── Resolution ────────────────────────────────────────────────────────
 
   resolveMovement(
-    _currentPos: THREE.Vector3,
+    currentPos: THREE.Vector3,
     desiredPos: THREE.Vector3,
     _scene: THREE.Scene,
   ): THREE.Vector3 {
@@ -135,7 +163,6 @@ export class CollisionSystem {
     this.syncDynamicBodies();
 
     // Position the player body at the desired location.
-    // Offset by PLAYER_HY (1.0) so the box center sits at chest height for the player model.
     const py = desiredPos.y + this.PLAYER_HY;
     this.playerBody.position.set(desiredPos.x, py, desiredPos.z);
     this.playerBody.updateAABB();
@@ -143,13 +170,72 @@ export class CollisionSystem {
     // Check contacts against all bodies and push out
     this.resolveOverlaps();
 
-    // Read corrected position from physics body, stripping the PLAYER_HY offset
-    // so the returned Y is in the same coordinate space as desiredPos (feet level).
+    // Read corrected position
     this._result.x = this.playerBody.position.x;
     this._result.z = this.playerBody.position.z;
     this._result.y = this.playerBody.position.y - this.PLAYER_HY;
 
+    // If still overlapping after resolution, try axis-independent sliding
+    if (this.hasAnyOverlap()) {
+      // Try X-only movement (slide along Z wall)
+      this.playerBody.position.set(desiredPos.x, py, currentPos.z);
+      this.playerBody.updateAABB();
+      this.resolveOverlaps();
+      if (!this.hasAnyOverlap()) {
+        this._result.x = this.playerBody.position.x;
+        this._result.z = currentPos.z;
+        this._result.y = this.playerBody.position.y - this.PLAYER_HY;
+        return this._result;
+      }
+
+      // Try Z-only movement (slide along X wall)
+      this.playerBody.position.set(currentPos.x, py, desiredPos.z);
+      this.playerBody.updateAABB();
+      this.resolveOverlaps();
+      if (!this.hasAnyOverlap()) {
+        this._result.x = currentPos.x;
+        this._result.z = this.playerBody.position.z;
+        this._result.y = this.playerBody.position.y - this.PLAYER_HY;
+        return this._result;
+      }
+
+      // All directions blocked — stay at current position
+      this._result.copy(currentPos);
+    }
+
     return this._result;
+  }
+
+  /** Quick check: does the player currently overlap any static or dynamic body? */
+  private hasAnyOverlap(): boolean {
+    const pMin = this.playerBody.aabb.lowerBound;
+    const pMax = this.playerBody.aabb.upperBound;
+
+    for (const entry of this.statics) {
+      if (!entry.obj.visible) continue;
+      const bMin = entry.body.aabb.lowerBound;
+      const bMax = entry.body.aabb.upperBound;
+      if (
+        pMax.x > bMin.x && pMin.x < bMax.x &&
+        pMax.y > bMin.y && pMin.y < bMax.y &&
+        pMax.z > bMin.z && pMin.z < bMax.z
+      ) {
+        return true;
+      }
+    }
+    for (const [obj, body] of this.dynamicBodies) {
+      if (!obj.visible) continue;
+      const bMin = body.aabb.lowerBound;
+      const bMax = body.aabb.upperBound;
+      if (
+        pMax.x > bMin.x && pMin.x < bMax.x &&
+        pMax.y > bMin.y && pMin.y < bMax.y &&
+        pMax.z > bMin.z && pMin.z < bMax.z
+      ) {
+        return true;
+      }
+    }
+    return false;
   }
 
   // ── Overlap resolution ────────────────────────────────────────────────
@@ -219,13 +305,20 @@ export class CollisionSystem {
 
     if (minOverlapX <= 0 || minOverlapZ <= 0) return false;
 
+    // Small margin to prevent re-entry on the next frame
+    const PUSH_EPSILON = 0.01;
+
     if (minOverlapX < minOverlapZ) {
       // Push along X
-      const pushX = overlapX1 < overlapX2 ? -overlapX1 : overlapX2;
+      const pushX = overlapX1 < overlapX2
+        ? -(overlapX1 + PUSH_EPSILON)
+        : (overlapX2 + PUSH_EPSILON);
       this.playerBody.position.x += pushX;
     } else {
       // Push along Z
-      const pushZ = overlapZ1 < overlapZ2 ? -overlapZ1 : overlapZ2;
+      const pushZ = overlapZ1 < overlapZ2
+        ? -(overlapZ1 + PUSH_EPSILON)
+        : (overlapZ2 + PUSH_EPSILON);
       this.playerBody.position.z += pushZ;
     }
 

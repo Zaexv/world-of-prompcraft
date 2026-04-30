@@ -303,26 +303,66 @@ export class PlayerController {
   //  Helpers
   // ----------------------------------------------------------------
 
+  // Reusable objects for camera computation (avoid per-frame allocations)
+  private _camOffset = new THREE.Vector3();
+  private _camPitchQ = new THREE.Quaternion();
+  private _camYawQ = new THREE.Quaternion();
+  private _camTarget = new THREE.Vector3();
+  private static readonly _pitchAxis = new THREE.Vector3(1, 0, 0);
+  private static readonly _yawAxis = new THREE.Vector3(0, 1, 0);
+  /** Minimum clearance above terrain for the camera. */
+  private readonly cameraTerrainClearance = 1.5;
+  /** Number of sample points along the player→camera ray for terrain collision. */
+  private readonly cameraRaySamples = 8;
+
   private computeCameraTarget(): THREE.Vector3 {
     // Offset behind player, rotated by yaw and pitched
-    const offset = new THREE.Vector3(0, this.cameraHeight, -this.zoomDistance);
-    // Apply pitch
-    const pitchQ = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(1, 0, 0),
-      this.pitch,
-    );
-    offset.applyQuaternion(pitchQ);
-    // Apply yaw
-    const yawQ = new THREE.Quaternion().setFromAxisAngle(
-      new THREE.Vector3(0, 1, 0),
-      this.yaw,
-    );
-    offset.applyQuaternion(yawQ);
+    this._camOffset.set(0, this.cameraHeight, -this.zoomDistance);
+    this._camPitchQ.setFromAxisAngle(PlayerController._pitchAxis, this.pitch);
+    this._camOffset.applyQuaternion(this._camPitchQ);
+    this._camYawQ.setFromAxisAngle(PlayerController._yawAxis, this.yaw);
+    this._camOffset.applyQuaternion(this._camYawQ);
 
-    return new THREE.Vector3(
-      this.position.x + offset.x,
-      this.position.y + offset.y,
-      this.position.z + offset.z,
+    this._camTarget.set(
+      this.position.x + this._camOffset.x,
+      this.position.y + this._camOffset.y,
+      this.position.z + this._camOffset.z,
     );
+
+    // --- Terrain collision along player→camera ray ---
+    // Sample terrain heights between the player and the desired camera position.
+    // If terrain is above the ray at any sample, pull the camera closer to the player.
+    const playerHeadY = this.position.y + this.cameraHeight;
+    let safeFraction = 1.0;
+    for (let i = 1; i <= this.cameraRaySamples; i++) {
+      const t = i / this.cameraRaySamples;
+      const sampleX = this.position.x + this._camOffset.x * t;
+      const sampleZ = this.position.z + this._camOffset.z * t;
+      const sampleY = this.position.y + this._camOffset.y * t;
+      const terrainY = this.getHeightAt(sampleX, sampleZ) + this.cameraTerrainClearance;
+      if (sampleY < terrainY) {
+        // This sample is underground — pull camera to just before this point
+        const prevT = (i - 1) / this.cameraRaySamples;
+        safeFraction = Math.min(safeFraction, Math.max(prevT, 0.1));
+        break;
+      }
+    }
+
+    if (safeFraction < 1.0) {
+      this._camTarget.set(
+        this.position.x + this._camOffset.x * safeFraction,
+        playerHeadY + (this._camOffset.y - this.cameraHeight) * safeFraction,
+        this.position.z + this._camOffset.z * safeFraction,
+      );
+    }
+
+    // Final clamp: ensure camera is always above terrain at its final position
+    const terrainAtCamera = this.getHeightAt(this._camTarget.x, this._camTarget.z);
+    const minY = terrainAtCamera + this.cameraTerrainClearance;
+    if (this._camTarget.y < minY) {
+      this._camTarget.y = minY;
+    }
+
+    return this._camTarget;
   }
 }
