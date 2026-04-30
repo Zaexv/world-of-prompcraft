@@ -8,6 +8,7 @@ venv/
 # Environment
 .env
 .env.local
+.env.*.local
 
 # Build
 client/dist/
@@ -18,7 +19,14 @@ client/dist/
 .idea/
 *.swp
 *.swo
+
+# OS
 .DS_Store
+
+# Caches
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
 
 # Logs
 *.log
