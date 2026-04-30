@@ -156,7 +156,7 @@ export class CombatHUD {
   }
 
   updatePlayerHP(hp: number, maxHp: number): void {
-    const pct = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+    const pct = maxHp > 0 ? Math.min(100, Math.max(0, (hp / maxHp) * 100)) : 0;
     this.playerHpFill.style.width = `${pct}%`;
     this.playerHpFill.style.background = this.hpGradient(pct);
     this.playerHpText.textContent = `HP: ${hp}/${maxHp}`;
@@ -164,13 +164,13 @@ export class CombatHUD {
   }
 
   updatePlayerMana(mana: number, maxMana: number): void {
-    const pct = maxMana > 0 ? (mana / maxMana) * 100 : 0;
+    const pct = maxMana > 0 ? Math.min(100, Math.max(0, (mana / maxMana) * 100)) : 0;
     this.playerManaFill.style.width = `${pct}%`;
     this.playerManaText.textContent = `MP: ${mana}/${maxMana}`;
   }
 
   updateNpcHP(hp: number, maxHp: number): void {
-    const pct = maxHp > 0 ? (hp / maxHp) * 100 : 0;
+    const pct = maxHp > 0 ? Math.min(100, Math.max(0, (hp / maxHp) * 100)) : 0;
     this.npcHpFill.style.width = `${pct}%`;
     this.npcHpFill.style.background = this.hpGradient(pct);
     this.npcHpText.textContent = `HP: ${hp}/${maxHp}`;

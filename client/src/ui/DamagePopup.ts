@@ -81,11 +81,14 @@ export class DamagePopup {
   ): { x: number; y: number } | null {
     const projected = position.clone().project(camera);
 
-    // Behind camera check
-    if (projected.z > 1) return null;
+    // Behind camera or beyond far plane check
+    if (projected.z < -1 || projected.z > 1) return null;
 
     const x = (projected.x * 0.5 + 0.5) * width;
     const y = (-projected.y * 0.5 + 0.5) * height;
+
+    // Reject positions far outside viewport
+    if (x < -50 || x > width + 50 || y < -50 || y > height + 50) return null;
 
     return { x, y };
   }

@@ -424,11 +424,14 @@ export class LoginScreen {
 
   hide(): void {
     this.overlay.style.opacity = '0';
+    this.running = false;
+    cancelAnimationFrame(this.animationId);
+    window.removeEventListener('resize', this.handleResize);
     setTimeout(() => {
-      this.running = false;
-      cancelAnimationFrame(this.animationId);
-      window.removeEventListener('resize', this.handleResize);
-      this.overlay.remove();
+      // Only remove if still in the DOM and still hidden
+      if (this.overlay.parentNode && this.overlay.style.opacity === '0') {
+        this.overlay.remove();
+      }
     }, 800);
   }
 

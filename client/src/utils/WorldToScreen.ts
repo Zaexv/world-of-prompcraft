@@ -22,8 +22,14 @@ export function worldToScreen(
   _projected.copy(worldPos);
   _projected.project(camera);
 
-  // Behind camera check
-  if (_projected.z > 1) return null;
+  // Behind camera or beyond far plane check
+  if (_projected.z < -1 || _projected.z > 1) return null;
+
+  const x = (_projected.x * 0.5 + 0.5) * width;
+  const y = (-_projected.y * 0.5 + 0.5) * height;
+
+  // Reject positions outside viewport bounds (with small margin)
+  if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return null;
 
   return {
     x: (_projected.x * 0.5 + 0.5) * width,
@@ -45,7 +51,12 @@ export function worldToScreenWithOffset(
   _projected.set(worldPos.x, worldPos.y + yOffset, worldPos.z);
   _projected.project(camera);
 
-  if (_projected.z > 1) return null;
+  if (_projected.z < -1 || _projected.z > 1) return null;
+
+  const x = (_projected.x * 0.5 + 0.5) * width;
+  const y = (-_projected.y * 0.5 + 0.5) * height;
+
+  if (x < -100 || x > width + 100 || y < -100 || y > height + 100) return null;
 
   return {
     x: (_projected.x * 0.5 + 0.5) * width,

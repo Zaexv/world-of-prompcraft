@@ -40,11 +40,11 @@ export class Water {
     this.water.rotation.x = -Math.PI / 2;
     this.water.position.y = Water.LEVEL;
 
-    // Tint the water material slightly
+    // Prevent z-fighting with shoreline terrain
     const mat = this.water.material as THREE.ShaderMaterial;
-    if (mat.uniforms['eye']) {
-      // Water shader has an alpha uniform in some versions
-    }
+    mat.polygonOffset = true;
+    mat.polygonOffsetFactor = 1;
+    mat.polygonOffsetUnits = 1;
 
     this.mesh = this.water;
     scene.add(this.water);

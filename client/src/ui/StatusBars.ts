@@ -131,13 +131,13 @@ export class StatusBars {
   }
 
   update(state: PlayerState): void {
-    // HP
-    const hpPct = state.maxHp > 0 ? (state.hp / state.maxHp) * 100 : 0;
+    // HP (clamped to 0-100%)
+    const hpPct = state.maxHp > 0 ? Math.min(100, Math.max(0, (state.hp / state.maxHp) * 100)) : 0;
     this.hpFill.style.width = `${hpPct}%`;
     this.hpText.textContent = `${state.hp} / ${state.maxHp}`;
 
-    // Mana
-    const manaPct = state.maxMana > 0 ? (state.mana / state.maxMana) * 100 : 0;
+    // Mana (clamped to 0-100%)
+    const manaPct = state.maxMana > 0 ? Math.min(100, Math.max(0, (state.mana / state.maxMana) * 100)) : 0;
     this.manaFill.style.width = `${manaPct}%`;
     this.manaText.textContent = `${state.mana} / ${state.maxMana}`;
 

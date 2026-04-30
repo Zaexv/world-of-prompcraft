@@ -116,7 +116,10 @@ export class Minimap {
     const dx = playerX - this.lastDrawX;
     const dz = playerZ - this.lastDrawZ;
     const moved = isNaN(this.lastDrawX) || (dx * dx + dz * dz) > 4;
-    const rotated = isNaN(this.lastDrawAngle) || Math.abs(playerAngle - this.lastDrawAngle) > 0.05;
+    // Wrap angle difference to handle ±π discontinuity
+    let angleDiff = playerAngle - this.lastDrawAngle;
+    angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
+    const rotated = isNaN(this.lastDrawAngle) || Math.abs(angleDiff) > 0.05;
     if (!moved && !rotated && this.frameSkip < 3) return;
     this.frameSkip = 0;
     this.lastDrawX = playerX;

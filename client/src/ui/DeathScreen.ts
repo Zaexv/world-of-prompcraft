@@ -166,7 +166,10 @@ export class DeathScreen {
     this.stopPulse();
     this.element.style.opacity = '0';
     setTimeout(() => {
-      this.element.style.display = 'none';
+      // Only hide if still faded out (guards against show/hide race)
+      if (this.element.style.opacity === '0') {
+        this.element.style.display = 'none';
+      }
     }, 1000);
   }
 
