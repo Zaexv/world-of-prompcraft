@@ -53,7 +53,9 @@
       "Bash(/Users/eduardo.pertierrapuche/Library/Python/3.10/bin/ruff format:*)",
       "Bash(/Users/eduardo.pertierrapuche/Library/Python/3.10/bin/pytest tests/ -x)",
       "Bash(/tmp/check_bugs.txt:*)",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(uvicorn src.main:app --reload --port 8000)",
+      "Bash(python -m uvicorn src.main:app --reload --port 8000)"
     ]
   },
   "hooks": {

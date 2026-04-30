@@ -401,9 +401,7 @@ async def _handle_chat_message(
     if _registry is not None:
         nearby_npcs = _world_state.get_nearby_npcs(player.position, 50.0)
         for npc in nearby_npcs:
-            task = asyncio.create_task(
-                _npc_react_to_chat(npc, player_id, text, player, manager)
-            )
+            task = asyncio.create_task(_npc_react_to_chat(npc, player_id, text, player, manager))
             _background_tasks.add(task)
             task.add_done_callback(_background_tasks.discard)
 
@@ -444,7 +442,8 @@ async def _npc_react_to_chat(
     except Exception:
         return
 
-    dialogue = result.content.strip() if hasattr(result, "content") else ""
+    raw_content = result.content if hasattr(result, "content") else ""
+    dialogue = raw_content.strip() if isinstance(raw_content, str) else ""
     if not dialogue or dialogue == "..." or len(dialogue) < 2:
         return
 
@@ -467,9 +466,7 @@ async def _npc_react_to_chat(
 
 async def _handle_interaction(data: dict, websocket: WebSocket, manager: ConnectionManager) -> dict:
     npc_id = data.get("npcId", data.get("npc_id", "unknown"))
-    player_id = (
-        data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
-    )
+    player_id = data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
     prompt = data.get("prompt", "")
     player_state_raw = data.get("playerState", data.get("player_state", {}))
 
@@ -675,9 +672,9 @@ async def _handle_interaction(data: dict, websocket: WebSocket, manager: Connect
     _BROADCAST_KINDS = {"damage", "move_npc", "emote", "spawn_effect"}  # noqa: N806
     if npc_for_broadcast is not None:
         broadcast_actions = [
-            a for a in all_actions
-            if a.get("kind") in _BROADCAST_KINDS
-            and a.get("params", {}).get("target") != "player"
+            a
+            for a in all_actions
+            if a.get("kind") in _BROADCAST_KINDS and a.get("params", {}).get("target") != "player"
         ]
         if broadcast_actions or npc_state:
             await manager.broadcast_nearby(
@@ -745,7 +742,7 @@ async def _handle_player_move(
                 # Build broadcast list that includes the moving player so
                 # other clients can see them move.
                 moving_player = _world_state.get_player(player_id)
-                broadcast_list = [moving_player.to_public_dict()] + nearby_list
+                broadcast_list = [moving_player.to_public_dict(), *nearby_list]
                 await manager.broadcast_nearby(
                     {
                         "type": "world_update",

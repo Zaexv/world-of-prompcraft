@@ -1,43 +1,137 @@
 from __future__ import annotations
 
 import re
+from typing import TYPE_CHECKING
 
-from ..agent_state import NPCAgentState
+if TYPE_CHECKING:
+    from ..agent_state import NPCAgentState
 
 # ── Keyword sets for heuristic analysis ──────────────────────────────────────
 
-_HOSTILE_WORDS = frozenset({
-    "attack", "kill", "destroy", "fight", "hit", "strike", "slash", "stab",
-    "punch", "kick", "murder", "slay", "crush", "smash", "die", "burn",
-    "hate", "loathe", "despise",
-})
+_HOSTILE_WORDS = frozenset(
+    {
+        "attack",
+        "kill",
+        "destroy",
+        "fight",
+        "hit",
+        "strike",
+        "slash",
+        "stab",
+        "punch",
+        "kick",
+        "murder",
+        "slay",
+        "crush",
+        "smash",
+        "die",
+        "burn",
+        "hate",
+        "loathe",
+        "despise",
+    }
+)
 
-_INSULT_WORDS = frozenset({
-    "stupid", "idiot", "fool", "dumb", "ugly", "worthless", "pathetic",
-    "weak", "coward", "trash", "scum", "useless", "insult", "mock",
-    "humiliate", "taunt", "loser", "moron",
-})
+_INSULT_WORDS = frozenset(
+    {
+        "stupid",
+        "idiot",
+        "fool",
+        "dumb",
+        "ugly",
+        "worthless",
+        "pathetic",
+        "weak",
+        "coward",
+        "trash",
+        "scum",
+        "useless",
+        "insult",
+        "mock",
+        "humiliate",
+        "taunt",
+        "loser",
+        "moron",
+    }
+)
 
-_FRIENDLY_WORDS = frozenset({
-    "hello", "hi", "hey", "friend", "thanks", "thank", "please", "help",
-    "love", "appreciate", "kind", "wonderful", "great", "amazing", "sorry",
-    "forgive", "gift", "trade", "buy", "offer", "share", "teach", "learn",
-})
+_FRIENDLY_WORDS = frozenset(
+    {
+        "hello",
+        "hi",
+        "hey",
+        "friend",
+        "thanks",
+        "thank",
+        "please",
+        "help",
+        "love",
+        "appreciate",
+        "kind",
+        "wonderful",
+        "great",
+        "amazing",
+        "sorry",
+        "forgive",
+        "gift",
+        "trade",
+        "buy",
+        "offer",
+        "share",
+        "teach",
+        "learn",
+    }
+)
 
-_HAPPY_TRIGGERS = frozenset({
-    "compliment", "praise", "joke", "laugh", "dance", "celebrate",
-    "cheer", "hug", "smile", "happy", "wonderful", "beautiful",
-})
+_HAPPY_TRIGGERS = frozenset(
+    {
+        "compliment",
+        "praise",
+        "joke",
+        "laugh",
+        "dance",
+        "celebrate",
+        "cheer",
+        "hug",
+        "smile",
+        "happy",
+        "wonderful",
+        "beautiful",
+    }
+)
 
-_SAD_TRIGGERS = frozenset({
-    "sad", "cry", "mourn", "lost", "death", "dead", "miss", "grieve",
-    "sorry", "farewell", "goodbye", "alone", "lonely",
-})
+_SAD_TRIGGERS = frozenset(
+    {
+        "sad",
+        "cry",
+        "mourn",
+        "lost",
+        "death",
+        "dead",
+        "miss",
+        "grieve",
+        "sorry",
+        "farewell",
+        "goodbye",
+        "alone",
+        "lonely",
+    }
+)
 
-_FEAR_TRIGGERS = frozenset({
-    "threat", "threaten", "scare", "fear", "terrify", "warn", "danger",
-    "flee", "run", "escape",
-})
+_FEAR_TRIGGERS = frozenset(
+    {
+        "threat",
+        "threaten",
+        "scare",
+        "fear",
+        "terrify",
+        "warn",
+        "danger",
+        "flee",
+        "run",
+        "escape",
+    }
+)
 
 
 def _tokenize(text: str) -> set[str]:
@@ -114,8 +208,7 @@ def _build_personality_note(
     notes = existing_notes or ""
 
     has_attacks = any(
-        a.get("kind") == "damage" and a.get("params", {}).get("target") != "player"
-        for a in actions
+        a.get("kind") == "damage" and a.get("params", {}).get("target") != "player" for a in actions
     )
     has_gifts = any(a.get("kind") in ("give_item", "offer_item") for a in actions)
     has_quests = any(a.get("kind") in ("start_quest", "complete_quest") for a in actions)

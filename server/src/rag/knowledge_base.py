@@ -4,6 +4,8 @@
 Each entry has topic, category, and content fields for retrieval.
 """
 
+from __future__ import annotations
+
 KNOWLEDGE_BASE: list[dict] = [
     # ═══════════════════════════════════════════════════════════════
     # RACES & FACTIONS

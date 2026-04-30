@@ -269,7 +269,9 @@ NPC_PERSONALITIES: dict[str, dict] = {
             "- You always recommend visitors try the espetos at the chiringuito and "
             "watch the sunset from La Farola (the lighthouse).\n"
             "- You know the Alcazaba is haunted by ancient Moorish ghosts but you think "
-            "they're 'pretty chill dudes, bro, they just vibe up there'.\n\n" + _TOOL_RULES_PREAMBLE + "\n"
+            "they're 'pretty chill dudes, bro, they just vibe up there'.\n\n"
+            + _TOOL_RULES_PREAMBLE
+            + "\n"
             "EL TITO-SPECIFIC TOOL RULES:\n"
             "- ALWAYS use spawn_effect('smoke') on every interaction.\n"
             "- Use emote('laugh') on most interactions.\n"
@@ -436,9 +438,7 @@ NPC_PERSONALITIES: dict[str, dict] = {
             "'a frozen truth', 'patience is the first frost').\n"
             "- You are wise but emotionally distant. You observe more than you act.\n"
             "- You value patience, discipline, and self-control above all else.\n"
-            "- You have a subtle, dry sense of humor.\n\n"
-            + _TOOL_RULES_PREAMBLE
-            + "\n"
+            "- You have a subtle, dry sense of humor.\n\n" + _TOOL_RULES_PREAMBLE + "\n"
             "CRYOMANCER-SPECIFIC TOOL RULES:\n"
             "- Use spawn_effect('sparkle') with icy descriptions on interactions.\n"
             "- When healing: heal_target('player', 25) — you can freeze wounds to heal them.\n"

@@ -361,25 +361,39 @@ export class InteractionPanel {
     this.npcId = "";
   }
 
-  addMessage(sender: "player" | "npc", text: string): void {
+  addMessage(sender: "player" | "npc" | "system", text: string): void {
     const bubble = document.createElement("div");
     const isPlayer = sender === "player";
+    const isSystem = sender === "system";
+
+    const bgMap = {
+      player: "rgba(100, 160, 220, 0.25)",
+      npc: "rgba(160, 120, 50, 0.3)",
+      system: "rgba(200, 60, 60, 0.25)",
+    } as const;
+    const borderMap = {
+      player: "1px solid rgba(100, 160, 220, 0.4)",
+      npc: "1px solid rgba(197, 165, 90, 0.35)",
+      system: "1px solid rgba(200, 60, 60, 0.35)",
+    } as const;
+    const colorMap = {
+      player: "#b8d8f8",
+      npc: "#e8d8b8",
+      system: "#f8b8b8",
+    } as const;
 
     Object.assign(bubble.style, {
       maxWidth: "80%",
       padding: "8px 12px",
       borderRadius: "8px",
-      fontSize: "13px",
+      fontSize: isSystem ? "12px" : "13px",
       lineHeight: "1.45",
       wordBreak: "break-word",
+      fontStyle: isSystem ? "italic" : "normal",
       alignSelf: isPlayer ? "flex-end" : "flex-start",
-      background: isPlayer
-        ? "rgba(100, 160, 220, 0.25)"
-        : "rgba(160, 120, 50, 0.3)",
-      border: isPlayer
-        ? "1px solid rgba(100, 160, 220, 0.4)"
-        : "1px solid rgba(197, 165, 90, 0.35)",
-      color: isPlayer ? "#b8d8f8" : "#e8d8b8",
+      background: bgMap[sender],
+      border: borderMap[sender],
+      color: colorMap[sender],
     } as CSSStyleDeclaration);
 
     bubble.textContent = text;

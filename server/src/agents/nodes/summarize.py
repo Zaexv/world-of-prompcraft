@@ -5,10 +5,10 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
 
-from ..agent_state import NPCAgentState
-
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
+
+    from ..agent_state import NPCAgentState
 
 logger = logging.getLogger(__name__)
 
@@ -31,7 +31,8 @@ def _should_summarize(state: NPCAgentState) -> str:
     """Conditional edge: summarize only when enough messages have accumulated."""
     messages = state.get("messages", [])
     human_count = sum(
-        1 for m in messages
+        1
+        for m in messages
         if (hasattr(m, "type") and m.type == "human")
         or (isinstance(m, dict) and m.get("role") == "human")
     )

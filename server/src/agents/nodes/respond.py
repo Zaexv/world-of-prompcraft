@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from ..agent_state import NPCAgentState
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from ..agent_state import NPCAgentState
 
 
 async def respond_node(state: NPCAgentState) -> dict:

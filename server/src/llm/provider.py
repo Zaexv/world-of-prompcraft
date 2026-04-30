@@ -1,8 +1,14 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from langchain_anthropic import ChatAnthropic
-from langchain_core.language_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
-from ..config import Settings
+if TYPE_CHECKING:
+    from langchain_core.language_models import BaseChatModel
+
+    from ..config import Settings
 
 
 def get_llm(settings: Settings) -> BaseChatModel:

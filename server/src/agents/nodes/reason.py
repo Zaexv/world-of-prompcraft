@@ -6,11 +6,12 @@ from typing import TYPE_CHECKING, Any
 from langchain_core.messages import SystemMessage
 
 from ...rag.retriever import get_retriever
-from ..agent_state import NPCAgentState
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
+
+    from ..agent_state import NPCAgentState
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
@@ -36,14 +37,16 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     if recent_events:
         parts.append(f"- Recent events: {'; '.join(recent_events[-5:])}")
 
-    parts.extend([
-        "",
-        "## Player State",
-        f"- HP: {player.get('hp', '?')}/{player.get('max_hp', '?')}",
-        f"- Mana: {player.get('mana', '?')}/{player.get('max_mana', '?')}",
-        f"- Level: {player.get('level', '?')}",
-        f"- Inventory: {json.dumps(player.get('inventory', []))}",
-    ])
+    parts.extend(
+        [
+            "",
+            "## Player State",
+            f"- HP: {player.get('hp', '?')}/{player.get('max_hp', '?')}",
+            f"- Mana: {player.get('mana', '?')}/{player.get('max_mana', '?')}",
+            f"- Level: {player.get('level', '?')}",
+            f"- Inventory: {json.dumps(player.get('inventory', []))}",
+        ]
+    )
 
     # ── Memory & Relationship (enrichment from reflect/summarize) ────────
     summary = state.get("conversation_summary", "")
@@ -75,13 +78,15 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         parts.append("")
         parts.append(f"## Personal Notes: {notes}")
 
-    parts.extend([
-        "",
-        "## Instructions",
-        "Respond to the player's prompt. Use tools to take actions in the world.",
-        "Be creative and stay in character. Keep your responses concise but flavourful.",
-        "Your mood, relationship, and memories should naturally colour your dialogue.",
-    ])
+    parts.extend(
+        [
+            "",
+            "## Instructions",
+            "Respond to the player's prompt. Use tools to take actions in the world.",
+            "Be creative and stay in character. Keep your responses concise but flavourful.",
+            "Your mood, relationship, and memories should naturally colour your dialogue.",
+        ]
+    )
 
     # Include recent chat from other players so NPCs are aware of world conversations
     recent_chat = world.get("recent_chat", [])
