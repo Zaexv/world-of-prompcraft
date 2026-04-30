@@ -16,6 +16,19 @@ A 3D multiplayer RPG built entirely around **natural language**. Type anything �
 
 </div>
 
+<div align="center">
+<table>
+<tr>
+<td><img src="docs/images/promptcraft-2.png" alt="Trading with Thornby the Merchant" width="480"/></td>
+<td><img src="docs/images/promptcraft-1.png" alt="Combat with Zara the Pyromancer" width="480"/></td>
+</tr>
+<tr>
+<td align="center"><i>💬 Trading — "Hey, I want to buy a sword!"</i></td>
+<td align="center"><i>⚔️ Combat — "Attack Zara right in the face with my sword"</i></td>
+</tr>
+</table>
+</div>
+
 ---
 
 ## ✨ What Makes This Different
