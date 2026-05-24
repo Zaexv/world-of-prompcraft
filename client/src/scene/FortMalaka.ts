@@ -70,11 +70,13 @@ export class FortMalaka {
 
     // Paseo Marítimo — stone promenade along the beach edge
     this.createPromenade(scene, terrain);
+    this.createMageDistrictGarden(scene, terrain);
+    this.createCoastalPlaza(scene, terrain);
 
     // Palm trees — along promenade and beach
     const palmPositions: [number, number][] = [
       [-25, -160], [-15, -162], [-5, -161], [5, -163],
-      [15, -161], [25, -160], [35, -158], [-35, -157],
+      [15, -161], [24, -166], [36, -168], [-35, -157],
       [-20, -170], [0, -172], [20, -170], [10, -175],
       [-10, -174],
     ];
@@ -114,23 +116,62 @@ export class FortMalaka {
     return mesh;
   }
 
+  private createPatternTexture(base: number, accent: number, cell = 64): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = cell;
+    canvas.height = cell;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      const fallback = new THREE.CanvasTexture(canvas);
+      fallback.colorSpace = THREE.SRGBColorSpace;
+      return fallback;
+    }
+
+    const baseHex = `#${new THREE.Color(base).getHexString()}`;
+    const accentHex = `#${new THREE.Color(accent).getHexString()}`;
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, cell, cell);
+
+    for (let y = 0; y < cell; y += 8) {
+      for (let x = 0; x < cell; x += 8) {
+        const jitter = ((x * 13 + y * 17) % 7) / 7;
+        ctx.fillStyle = jitter > 0.45 ? accentHex : baseHex;
+        ctx.fillRect(x, y, 8, 8);
+      }
+    }
+
+    for (let i = 0; i < 24; i++) {
+      const px = (i * 11) % cell;
+      const py = (i * 19) % cell;
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      ctx.fillRect(px, py, 5, 2);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2, 2);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private createTexturedMaterial(base: number, accent: number, roughness: number, metalness = 0): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial({
+      color: base,
+      map: this.createPatternTexture(base, accent),
+      roughness,
+      metalness,
+    });
+  }
+
   // ----------------------------------------------------------------
   // Grand Mage Tower: massive arcane spire at the district center
   // ----------------------------------------------------------------
   private createGrandMageTower(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const darkStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.DARK_STONE,
-      roughness: 0.4,
-      metalness: 0.2,
-    });
-
-    const lightStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.LIGHT_STONE,
-      roughness: 0.5,
-      metalness: 0.1,
-    });
+    const darkStoneMat = this.createTexturedMaterial(FortMalaka.DARK_STONE, 0x3a3a4f, 0.45, 0.2);
+    const lightStoneMat = this.createTexturedMaterial(FortMalaka.LIGHT_STONE, 0xa3a3ba, 0.5, 0.1);
 
     // Broad base
     const baseGeo = new THREE.CylinderGeometry(5, 6, 6, 8);
@@ -517,11 +558,7 @@ export class FortMalaka {
   private createAlcazaba(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const warmStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WARM_STONE,
-      roughness: 0.7,
-      metalness: 0.05,
-    });
+    const warmStoneMat = this.createTexturedMaterial(FortMalaka.WARM_STONE, 0xa48856, 0.72, 0.05);
 
     // Main fortress wall — keep castShadow
     const wallGeo = new THREE.BoxGeometry(18, 8, 12);
@@ -609,11 +646,7 @@ export class FortMalaka {
   private createCasitaBlanca(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WHITE_WALL,
-      roughness: 0.8,
-      metalness: 0.0,
-    });
+    const whiteMat = this.createTexturedMaterial(FortMalaka.WHITE_WALL, 0xd9d3c8, 0.82, 0.0);
 
     // White walls
     const wallGeo = new THREE.BoxGeometry(4, 3.5, 4);
@@ -749,11 +782,7 @@ export class FortMalaka {
   private createLighthouse(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WHITE_WALL,
-      roughness: 0.5,
-      metalness: 0.05,
-    });
+    const whiteMat = this.createTexturedMaterial(FortMalaka.WHITE_WALL, 0xd8d2c5, 0.55, 0.05);
 
     // Tapered cylindrical tower — keep castShadow
     const towerGeo = new THREE.CylinderGeometry(1.2, 1.8, 16, 6);
@@ -949,6 +978,84 @@ export class FortMalaka {
     scene.add(group);
     this.groups.push(group);
     this.footprints.push({ x, z, radius: 2 });
+  }
+
+  private createMageDistrictGarden(scene: THREE.Scene, terrain: Terrain): void {
+    const gx = -4;
+    const gz = -112;
+    const gy = getAnchoredTerrainY(terrain, gx, gz, 8);
+    const group = new THREE.Group();
+
+    const borderMat = this.createTexturedMaterial(0x3a3a46, 0x58586f, 0.6, 0.15);
+    const soilMat = new THREE.MeshStandardMaterial({ color: 0x2f2b30, roughness: 0.95 });
+
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.8, 0.8, 10), soilMat);
+    bed.position.y = 0.4;
+    bed.receiveShadow = true;
+    group.add(bed);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(6.4, 0.25, 6, 20), borderMat);
+    ring.position.y = 0.85;
+    ring.rotation.x = Math.PI / 2;
+    ring.userData.isCollider = true;
+    group.add(ring);
+
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const crystal = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 1.4 + (i % 3) * 0.2, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0x6f7dff,
+          emissive: 0x4455aa,
+          emissiveIntensity: 0.9,
+          roughness: 0.3,
+        }),
+      );
+      crystal.position.set(Math.cos(angle) * 4.6, 1.0, Math.sin(angle) * 4.6);
+      group.add(crystal);
+    }
+
+    group.position.set(gx, gy, gz);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x: gx, z: gz, radius: 7 });
+  }
+
+  private createCoastalPlaza(scene: THREE.Scene, terrain: Terrain): void {
+    const px = -6;
+    const pz = -151;
+    const py = getAnchoredTerrainY(terrain, px, pz, 10);
+    const group = new THREE.Group();
+
+    const tileMat = this.createTexturedMaterial(0xc2b192, 0xa68f6d, 0.75, 0.03);
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(10, 10.5, 0.5, 24), tileMat);
+    plaza.position.y = 0.25;
+    plaza.receiveShadow = true;
+    group.add(plaza);
+
+    const fountainMat = this.createTexturedMaterial(0x7b7f92, 0x5f6374, 0.55, 0.12);
+    const fountain = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 1.0, 12), fountainMat);
+    fountain.position.y = 0.5;
+    fountain.userData.isCollider = true;
+    group.add(fountain);
+
+    const water = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.3, 1.3, 0.12, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x3caad8,
+        emissive: 0x2d6ca1,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    );
+    water.position.y = 1.02;
+    group.add(water);
+
+    group.position.set(px, py, pz);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x: px, z: pz, radius: 10.5 });
   }
 
   // ----------------------------------------------------------------

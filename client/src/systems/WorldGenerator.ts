@@ -15,6 +15,7 @@ const CHUNK_SIZE = 64;
 
 // ── Water level — skip objects below this height ───────────────────────────
 const WATER_LEVEL = -4;
+type ExclusionFootprint = { x: number; z: number; radius: number };
 
 // ── NPC name pools ─────────────────────────────────────────────────────────
 const FRIENDLY_NAMES = [
@@ -142,6 +143,7 @@ export class WorldGenerator {
   private minimap: Minimap | null = null;
   private dungeonSystem: DungeonSystem | null = null;
   private collisionSystem: CollisionSystem | null = null;
+  private exclusionFootprints: ExclusionFootprint[] = [];
 
   /** Track spawned scene objects per chunk for cleanup on unload. */
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
@@ -285,6 +287,21 @@ export class WorldGenerator {
     this.collisionSystem = cs;
   }
 
+  /** Prevent procedural spawns inside authored city/structure footprints. */
+  setExclusionFootprints(footprints: ExclusionFootprint[]): void {
+    this.exclusionFootprints = [...footprints];
+  }
+
+  private isInExclusionFootprint(x: number, z: number, padding = 2.5): boolean {
+    for (const fp of this.exclusionFootprints) {
+      const dx = x - fp.x;
+      const dz = z - fp.z;
+      const r = fp.radius + padding;
+      if (dx * dx + dz * dz <= r * r) return true;
+    }
+    return false;
+  }
+
   // ── Biome-specific materials (lazy-created) ────────────────────────────────
   private biomeMaterials: Map<BiomeType, { trunk: THREE.MeshStandardMaterial; canopy: THREE.MeshStandardMaterial[] }> = new Map();
 
@@ -384,6 +401,7 @@ export class WorldGenerator {
       const ty = this.terrain.getHeightAt(tx, tz);
 
       if (ty < WATER_LEVEL) continue;
+      if (this.isInExclusionFootprint(tx, tz)) continue;
 
       const scale = 0.5 + Math.random();
       const shape = pick(allowedShapes);
@@ -704,6 +722,7 @@ export class WorldGenerator {
         name,
         position,
         color,
+        behavior: 'friendly',
       });
       this.trackNPC(townKey, npcId);
 
@@ -744,7 +763,7 @@ export class WorldGenerator {
     const roll = Math.random();
     let name: string;
     let color: number;
-    let behavior: string;
+    let behavior: 'friendly' | 'neutral' | 'hostile';
 
     switch (biome) {
       case BiomeType.EmberWastes:
@@ -819,6 +838,7 @@ export class WorldGenerator {
       name,
       position,
       color,
+      behavior,
     });
     this.trackNPC(npcKey, npcId);
 

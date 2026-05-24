@@ -25,6 +25,7 @@ export class Player {
   private cloak: THREE.Mesh | null;
   private walkPhase = 0;
   private swimPhase = 0;
+  private fallbackPhase = Math.random() * Math.PI * 2;
 
   /** Current body tilt for swim transition (radians, 0 = upright). */
   private bodyTilt = 0;
@@ -109,6 +110,8 @@ export class Player {
 
       // Cloak flows behind
       if (this.cloak) this.cloak.rotation.x = Math.sin(this.swimPhase * 0.5) * 0.2 + 0.3;
+      this.visualRoot.position.y = Math.sin(this.swimPhase * 0.6) * 0.03;
+      this.visualRoot.rotation.z = Math.sin(this.swimPhase * 0.3) * 0.03;
     } else {
       // ---- Land animation ----
       this.swimPhase = 0;
@@ -143,6 +146,12 @@ export class Player {
         // Let walkPhase dampen toward 0 to avoid animation jerks on stop
         this.walkPhase *= 0.85;
       }
+
+      this.fallbackPhase += delta * (isMoving ? 8 : 2.5);
+      const bob = Math.sin(this.fallbackPhase) * (isMoving ? 0.045 : 0.025);
+      const sway = Math.sin(this.fallbackPhase * 0.5) * (isMoving ? 0.035 : 0.015);
+      this.visualRoot.position.y = bob;
+      this.visualRoot.rotation.z = sway;
     }
 
     // --- Face movement direction ---

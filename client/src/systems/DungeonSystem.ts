@@ -259,6 +259,7 @@ export class DungeonSystem {
         name: config.enemyNames[i],
         position: spawnPoints[i].clone(),
         color: config.enemyColor,
+        behavior: 'hostile',
       });
       npc.wanderRadius = 0;
       this.dungeonEnemyIds.push(enemyId);

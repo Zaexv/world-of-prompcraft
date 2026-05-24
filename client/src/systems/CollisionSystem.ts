@@ -31,6 +31,15 @@ interface SweepResult {
   normalZ: number;
 }
 
+interface ObstacleVolume {
+  minX: number;
+  maxX: number;
+  minY: number;
+  maxY: number;
+  minZ: number;
+  maxZ: number;
+}
+
 /** Skin width added to push the player slightly away from contact surfaces. */
 const SKIN = 0.005;
 
@@ -44,6 +53,9 @@ export class CollisionSystem {
   /** Dynamic source for NPC bodies. */
   private dynamicSource: (() => THREE.Object3D[]) | null = null;
   private dynamicBodies: Map<THREE.Object3D, CANNON.Body> = new Map();
+  private obstacleGrid: Map<string, ObstacleVolume[]> = new Map();
+  private obstacleGridDirty = true;
+  private readonly OBSTACLE_CELL_SIZE = 4;
 
   // Reusable
   private _result = new THREE.Vector3();
@@ -82,6 +94,7 @@ export class CollisionSystem {
     if (body) {
       this.world.addBody(body);
       this.statics.push({ obj, body });
+      this.markObstacleGridDirty();
     }
   }
 
@@ -120,6 +133,7 @@ export class CollisionSystem {
       if (body) {
         this.world.addBody(body);
         this.statics.push({ obj: child, body });
+        this.markObstacleGridDirty();
       }
     }
   }
@@ -134,6 +148,7 @@ export class CollisionSystem {
     if (idx !== -1) {
       this.world.removeBody(this.statics[idx].body);
       this.statics.splice(idx, 1);
+      this.markObstacleGridDirty();
       return;
     }
 
@@ -151,12 +166,14 @@ export class CollisionSystem {
       this.world.removeBody(this.statics[children[i]].body);
       this.statics.splice(children[i], 1);
     }
+    if (children.length > 0) this.markObstacleGridDirty();
   }
 
   removeCollidablesWhere(predicate: (obj: THREE.Object3D) => boolean): void {
     const toRemove = this.statics.filter((e) => predicate(e.obj));
     for (const entry of toRemove) this.world.removeBody(entry.body);
     this.statics = this.statics.filter((e) => !predicate(e.obj));
+    if (toRemove.length > 0) this.markObstacleGridDirty();
   }
 
   setDynamicSource(source: () => THREE.Object3D[]): void {
@@ -167,6 +184,7 @@ export class CollisionSystem {
     for (const entry of this.statics) this.world.removeBody(entry.body);
     this.statics = [];
     for (const obj of objs) this.addCollidable(obj);
+    this.markObstacleGridDirty();
   }
 
   saveCollidables(): PhysicsEntry[] {
@@ -181,6 +199,7 @@ export class CollisionSystem {
         this.world.addBody(entry.body);
       }
     }
+    this.markObstacleGridDirty();
   }
 
   getCollidableCount(): number {
@@ -208,25 +227,75 @@ export class CollisionSystem {
     const maxY = y + halfExtent * 5 + 0.6;
     const minZ = z - halfExtent;
     const maxZ = z + halfExtent;
+    const candidates = this.getObstacleCandidates(minX, maxX, minZ, maxZ);
+    for (const volume of candidates) {
+      if (
+        maxX > volume.minX - obstacleInset && minX < volume.maxX + obstacleInset &&
+        maxY > volume.minY && minY < volume.maxY &&
+        maxZ > volume.minZ - obstacleInset && minZ < volume.maxZ + obstacleInset
+      ) return true;
+    }
+    return false;
+  }
+
+  private markObstacleGridDirty(): void {
+    this.obstacleGridDirty = true;
+  }
+
+  private getObstacleCandidates(minX: number, maxX: number, minZ: number, maxZ: number): ObstacleVolume[] {
+    this.rebuildObstacleGridIfNeeded();
+
+    const minCellX = Math.floor(minX / this.OBSTACLE_CELL_SIZE);
+    const maxCellX = Math.floor(maxX / this.OBSTACLE_CELL_SIZE);
+    const minCellZ = Math.floor(minZ / this.OBSTACLE_CELL_SIZE);
+    const maxCellZ = Math.floor(maxZ / this.OBSTACLE_CELL_SIZE);
+    const out: ObstacleVolume[] = [];
+
+    for (let cx = minCellX; cx <= maxCellX; cx++) {
+      for (let cz = minCellZ; cz <= maxCellZ; cz++) {
+        const bucket = this.obstacleGrid.get(`${cx},${cz}`);
+        if (!bucket) continue;
+        out.push(...bucket);
+      }
+    }
+    return out;
+  }
+
+  private rebuildObstacleGridIfNeeded(): void {
+    if (!this.obstacleGridDirty) return;
+    this.obstacleGrid.clear();
 
     for (const entry of this.statics) {
       if (!entry.obj.visible) continue;
       const bMin = entry.body.aabb.lowerBound;
       const bMax = entry.body.aabb.upperBound;
-      const bxMin = bMin.x - obstacleInset;
-      const bxMax = bMax.x + obstacleInset;
-      const bzMin = bMin.z - obstacleInset;
-      const bzMax = bMax.z + obstacleInset;
+      const volume: ObstacleVolume = {
+        minX: bMin.x,
+        maxX: bMax.x,
+        minY: bMin.y,
+        maxY: bMax.y,
+        minZ: bMin.z,
+        maxZ: bMax.z,
+      };
 
-      if (
-        maxX > bxMin && minX < bxMax &&
-        maxY > bMin.y && minY < bMax.y &&
-        maxZ > bzMin && minZ < bzMax
-      ) {
-        return true;
+      const minCellX = Math.floor(volume.minX / this.OBSTACLE_CELL_SIZE);
+      const maxCellX = Math.floor(volume.maxX / this.OBSTACLE_CELL_SIZE);
+      const minCellZ = Math.floor(volume.minZ / this.OBSTACLE_CELL_SIZE);
+      const maxCellZ = Math.floor(volume.maxZ / this.OBSTACLE_CELL_SIZE);
+
+      for (let cx = minCellX; cx <= maxCellX; cx++) {
+        for (let cz = minCellZ; cz <= maxCellZ; cz++) {
+          const key = `${cx},${cz}`;
+          let bucket = this.obstacleGrid.get(key);
+          if (!bucket) {
+            bucket = [];
+            this.obstacleGrid.set(key, bucket);
+          }
+          bucket.push(volume);
+        }
       }
     }
-    return false;
+    this.obstacleGridDirty = false;
   }
 
   // ── Resolution ────────────────────────────────────────────────────────

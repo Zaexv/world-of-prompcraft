@@ -245,7 +245,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
         "name": "El Tito",
         "archetype": "friendly_stoner",
         "initial_hp": 420,
-        "position": [5, 0, -120],
+        "position": [22, 0, -112],
         "system_prompt": (
             "You are El Tito, the most chill dude in all of Fort Malaka. You live in "
             "the Blasted Suarezlands, the mage district of this Mediterranean coastal "

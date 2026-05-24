@@ -55,7 +55,7 @@ NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "eltito_01": {
         "id": "eltito_01",
         "name": NPC_PERSONALITIES["eltito_01"]["name"],
-        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [5, 0, -120]
+        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [22, 0, -112]
         "initial_hp": NPC_PERSONALITIES["eltito_01"]["initial_hp"],  # 420
         "personality_key": "eltito_01",
     },

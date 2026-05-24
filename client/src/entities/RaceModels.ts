@@ -37,6 +37,12 @@ export function buildHumanModel(): THREE.Group {
   body.castShadow = true;
   group.add(body);
 
+  const chestGeo = new THREE.BoxGeometry(0.42, 0.55, 0.22);
+  const chestMat = new THREE.MeshStandardMaterial({ color: 0x9a8262 });
+  const chest = new THREE.Mesh(chestGeo, chestMat);
+  chest.position.set(0, 1.58, 0.18);
+  group.add(chest);
+
   // Head
   const headGeo = new THREE.SphereGeometry(0.22, 12, 10);
   const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
@@ -45,6 +51,13 @@ export function buildHumanModel(): THREE.Group {
   head.position.y = 2.3;
   head.castShadow = true;
   group.add(head);
+
+  const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.18), new THREE.MeshStandardMaterial({ color: 0x3f2a20 }));
+  leftBoot.position.set(-0.14, 0.1, 0);
+  group.add(leftBoot);
+  const rightBoot = leftBoot.clone();
+  rightBoot.position.x = 0.14;
+  group.add(rightBoot);
 
   // Hair (short box)
   const hairGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
@@ -84,6 +97,15 @@ export function buildHumanModel(): THREE.Group {
   rightArm.position.set(0.38, 1.65, 0);
   rightArm.castShadow = true;
   group.add(rightArm);
+
+  const shoulderPadGeo = new THREE.BoxGeometry(0.12, 0.18, 0.12);
+  const shoulderPadMat = new THREE.MeshStandardMaterial({ color: 0x7b5f98 });
+  const leftPad = new THREE.Mesh(shoulderPadGeo, shoulderPadMat);
+  leftPad.position.set(-0.23, 2.02, 0.02);
+  group.add(leftPad);
+  const rightPad = leftPad.clone();
+  rightPad.position.x = 0.23;
+  group.add(rightPad);
 
   // Cape (blue)
   const cloakGeo = new THREE.PlaneGeometry(0.55, 1.2, 1, 4);
@@ -236,6 +258,17 @@ export function buildOrcModel(): THREE.Group {
   jaw.position.set(0, 2.1, 0.08);
   group.add(jaw);
 
+  const tuskGeo = new THREE.ConeGeometry(0.03, 0.14, 4);
+  const tuskMat = new THREE.MeshStandardMaterial({ color: 0xe8d2b0 });
+  const leftTusk = new THREE.Mesh(tuskGeo, tuskMat);
+  leftTusk.position.set(-0.08, 2.02, 0.16);
+  leftTusk.rotation.z = Math.PI * 0.3;
+  group.add(leftTusk);
+  const rightTusk = leftTusk.clone();
+  rightTusk.position.x = 0.08;
+  rightTusk.rotation.z = -Math.PI * 0.3;
+  group.add(rightTusk);
+
   // Top-knot hair
   const hairGeo = new THREE.ConeGeometry(0.08, 0.35, 6);
   const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
@@ -288,6 +321,16 @@ export function buildOrcModel(): THREE.Group {
   rightArm.position.set(0.42, 1.65, 0);
   rightArm.castShadow = true;
   group.add(rightArm);
+
+  const bracerGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 6);
+  const bracerMat = new THREE.MeshStandardMaterial({ color: 0x372d20 });
+  const leftBracer = new THREE.Mesh(bracerGeo, bracerMat);
+  leftBracer.rotation.z = Math.PI / 2;
+  leftBracer.position.set(-0.42, 1.5, 0);
+  group.add(leftBracer);
+  const rightBracer = leftBracer.clone();
+  rightBracer.position.x = 0.42;
+  group.add(rightBracer);
 
   // Loincloth (red plane in front)
   const cloakGeo = new THREE.PlaneGeometry(0.4, 0.5, 1, 2);
@@ -394,6 +437,12 @@ export function buildUndeadModel(): THREE.Group {
   cloak.position.set(0, 1.35, -0.18);
   cloak.castShadow = true;
   group.add(cloak);
+
+  const ribGeo = new THREE.BoxGeometry(0.18, 0.28, 0.04);
+  const ribMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d });
+  const rib = new THREE.Mesh(ribGeo, ribMat);
+  rib.position.set(0, 1.95, 0.16);
+  group.add(rib);
 
   return group;
 }

@@ -275,7 +275,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
     { id: 'sage_01', name: 'Elyria the Sage', position: new THREE.Vector3(-40, 5, -30), color: 0x6644cc },
     { id: 'guard_01', name: 'Captain Aldric', position: new THREE.Vector3(15, 0, 2), color: 0x888888 },
     { id: 'healer_01', name: 'Sister Mira', position: new THREE.Vector3(-5, 0, 12), color: 0xeedd88 },
-    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(5, 0, -120), color: 0x44cc44 },
+    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(22, 0, -112), color: 0x44cc44 },
     { id: 'mage_01', name: 'Archmage Malakov', position: new THREE.Vector3(-15, 0, -115), color: 0xaa44ff },
     { id: 'mage_02', name: 'Zara the Pyromancer', position: new THREE.Vector3(12, 0, -130), color: 0xff4422 },
     { id: 'mage_03', name: 'Frostweaver Nyx', position: new THREE.Vector3(-10, 0, -105), color: 0x44ccff },
@@ -396,8 +396,8 @@ async function initGame(username: string, race: string, faction: string, skin: s
 
   // ── Network ───────────────────────────────────────────────────────────────
   loadingOverlay.setMessage('Connecting to server...');
-  const wsHost = window.location.hostname || 'localhost';
-  const ws = new WebSocketClient(`ws://${wsHost}:8000/ws`);
+  const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
+  const ws = new WebSocketClient(`${wsProto}://${window.location.host}/ws`);
 
   ws.onConnectionChange = (connected) => {
     console.warn(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
@@ -480,6 +480,10 @@ async function initGame(username: string, race: string, faction: string, skin: s
   const worldGenerator = new WorldGenerator(scene, terrain, entityManager, ws);
   worldGenerator.setMinimap(uiManager.minimap);
   worldGenerator.setCollisionSystem(collisionSystem);
+  worldGenerator.setExclusionFootprints([
+    ...sceneManager.buildings.footprints,
+    ...sceneManager.fortMalaka.footprints,
+  ]);
   terrain.onChunkLoaded = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
   terrain.onChunkUnloaded = (cx, cz) => worldGenerator.onChunkUnloaded(cx, cz);
 
