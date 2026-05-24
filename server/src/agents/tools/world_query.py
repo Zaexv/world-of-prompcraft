@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_core.tools import tool
 
 
-def create_world_query_tools(pending_actions: list, world_state: dict) -> list:
+def create_world_query_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
     """Create world-query tools closed over shared state.
 
     Args:

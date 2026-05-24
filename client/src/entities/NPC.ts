@@ -1,13 +1,20 @@
 import * as THREE from 'three';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { NPCAnimator } from './NPCAnimator';
+import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
+import { getNPCModelPath } from './NPCModels';
+import type { AssetLoader } from '../utils/AssetLoader';
 
 export interface NPCConfig {
   id: string;
   name: string;
   position: THREE.Vector3;
   color?: number;
+  behavior?: NPCMotionSource['behavior'];
+  movementStyle?: NPCMotionSource['movementStyle'];
+  wanderRadius?: number;
 }
 
 /**
@@ -28,23 +35,31 @@ export class NPC {
   /** How far from home the NPC will wander. */
   public wanderRadius = 8;
 
+  private readonly motionProfile: NPCMotionProfile;
   private wanderTarget: THREE.Vector3 = new THREE.Vector3();
   private hasWanderTarget = false;
-  private wanderTimer = 0;
   private wanderCooldown: number;
   private isWandering = false;
+  private patrolTargets: THREE.Vector3[] = [];
+  private patrolIndex = 0;
+  private readonly patrolSeed: number;
 
   /** Stores original emissive colours so highlights can be toggled. */
   private materials: THREE.MeshStandardMaterial[] = [];
   /** Original emissive hex values, captured on first highlight. */
   private originalEmissives: number[] = [];
+  /** True when the mesh has been replaced with a GLTF scene. */
+  private gltfMode = false;
 
   constructor(config: NPCConfig) {
     this.id = config.id;
     this.name = config.name;
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
-    this.wanderCooldown = 3 + Math.random() * 5; // initial random cooldown 3-8s
+    this.motionProfile = createNPCMotionProfile(config);
+    this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
+    this.wanderCooldown = this.motionProfile.pauseMin + Math.random() * (this.motionProfile.pauseMax - this.motionProfile.pauseMin);
+    this.patrolSeed = hashString(this.id);
     this.mesh = new THREE.Group();
 
     const color = config.color ?? 0xcc6633;
@@ -133,7 +148,74 @@ export class NPC {
     this.mesh.position.copy(this.position);
 
     // Animator
-    this.animator = new NPCAnimator(this.mesh);
+    this.animator = new NPCAnimator(this.mesh, this.motionProfile);
+  }
+
+  /**
+   * Create an NPC, optionally upgrading to a GLTF model if one is available.
+   * Falls back to the procedural mesh silently on any load error.
+   */
+  static async create(config: NPCConfig, assetLoader?: AssetLoader): Promise<NPC> {
+    const npc = new NPC(config);
+    if (assetLoader) {
+      const modelPath = getNPCModelPath(config.id, config.name);
+      if (modelPath) {
+        try {
+          const gltf = await assetLoader.loadGLTF(modelPath);
+          npc.replaceWithGLTF(gltf);
+        } catch {
+          // GLTF unavailable — keep procedural mesh
+        }
+      }
+    }
+    return npc;
+  }
+
+  /** Swap out procedural geometry for a loaded GLTF scene. */
+  private replaceWithGLTF(gltf: GLTF): void {
+    // Remove procedural meshes but keep sprites (nameplate, actionIcon)
+    const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
+    for (const child of toRemove) this.mesh.remove(child);
+
+    // Scale the GLTF so it roughly matches the procedural NPC height (~2.5 units)
+    const gltfScene = gltf.scene.clone();
+    const box = new THREE.Box3().setFromObject(gltfScene);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const scale = 2.5 / Math.max(size.x, size.y, size.z, 0.001);
+    gltfScene.scale.setScalar(scale);
+    // Sit on the ground
+    gltfScene.position.y = -box.min.y * scale;
+
+    gltfScene.traverse((child) => {
+      child.userData.npcId = this.id;
+      child.userData.npcName = this.name;
+      if (child instanceof THREE.Mesh) child.castShadow = true;
+    });
+
+    this.mesh.add(gltfScene);
+    this.materials = [];
+    this.originalEmissives = [];
+    this.gltfMode = true;
+
+    if (gltf.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(gltfScene);
+      this.animator.setMixer(mixer, gltf.animations);
+    }
+  }
+
+  /** Collect all MeshStandardMaterial instances from the current mesh tree. */
+  private collectStdMaterials(): THREE.MeshStandardMaterial[] {
+    const result: THREE.MeshStandardMaterial[] = [];
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshStandardMaterial) result.push(mat);
+        }
+      }
+    });
+    return result;
   }
 
   /** Call every frame. */
@@ -186,19 +268,17 @@ export class NPC {
 
   /** Toggle hover/highlight by adding emissive colour. */
   setHighlight(on: boolean): void {
+    const mats = this.gltfMode ? this.collectStdMaterials() : this.materials;
     if (on) {
-      // Store original emissive values on first highlight
       if (this.originalEmissives.length === 0) {
-        this.originalEmissives = this.materials.map((mat) => mat.emissive.getHex());
+        this.originalEmissives = mats.map((mat) => mat.emissive.getHex());
       }
-      for (const mat of this.materials) {
+      for (const mat of mats) {
         mat.emissive.setHex(mat.emissive.getHex() | 0x444444);
       }
     } else {
-      // Restore original emissive values
-      for (let i = 0; i < this.materials.length; i++) {
-        const original = this.originalEmissives[i] ?? 0x000000;
-        this.materials[i].emissive.setHex(original);
+      for (let i = 0; i < mats.length; i++) {
+        mats[i].emissive.setHex(this.originalEmissives[i] ?? 0x000000);
       }
     }
   }
@@ -212,24 +292,36 @@ export class NPC {
     getHeightAt: (x: number, z: number) => number,
     collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
   ): void {
+    if (this.wanderRadius <= 0) return;
+
+    const pathBlocked = (fromX: number, fromZ: number, toX: number, toZ: number, halfExtent: number): boolean => {
+      if (!collisionSystem) return false;
+      const dx = toX - fromX;
+      const dz = toZ - fromZ;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      const steps = Math.max(1, Math.ceil(distance / 0.08));
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const sx = fromX + dx * t;
+        const sz = fromZ + dz * t;
+        const sy = getHeightAt(sx, sz);
+        if (collisionSystem.isPositionBlocked(sx, sy, sz, halfExtent)) return true;
+      }
+      return false;
+    };
+
     // Decrement cooldown
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
       if (this.wanderCooldown <= 0) {
-        // Pick a random point within wanderRadius of homePosition
-        const angle = Math.random() * Math.PI * 2;
-        const dist = Math.random() * this.wanderRadius;
-        const tx = this.homePosition.x + Math.cos(angle) * dist;
-        const tz = this.homePosition.z + Math.sin(angle) * dist;
-        const ty = getHeightAt(tx, tz);
-
-        // Reject targets inside obstacles
-        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.4)) {
-          this.wanderCooldown = 1 + Math.random() * 2;
+        const nextTarget = this.pickWanderTarget(getHeightAt, collisionSystem);
+        if (!nextTarget) {
+          this.wanderCooldown = this.nextCooldown();
           return;
         }
 
-        this.wanderTarget.set(tx, ty, tz);
+        this.wanderTarget.copy(nextTarget);
         this.hasWanderTarget = true;
         this.isWandering = true;
         this.animator.play('walk');
@@ -247,29 +339,50 @@ export class NPC {
         // Reached target
         this.isWandering = false;
         this.hasWanderTarget = false;
-        this.wanderCooldown = 3 + Math.random() * 5;
+        this.wanderCooldown = this.nextCooldown();
         this.animator.play('idle');
         return;
       }
 
       const dist = Math.sqrt(distSq);
-      const speed = 2; // units per second
+      const speed = this.motionProfile.moveSpeed;
       const step = Math.min(speed * delta, dist);
       const nx = dx / dist;
       const nz = dz / dist;
 
-      const nextX = this.mesh.position.x + nx * step;
-      const nextZ = this.mesh.position.z + nz * step;
-      const nextY = getHeightAt(nextX, nextZ);
+      let nextX = this.mesh.position.x + nx * step;
+      let nextZ = this.mesh.position.z + nz * step;
+      let nextY = getHeightAt(nextX, nextZ);
 
-      // Check if next step would collide with a building/tree
-      if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.4)) {
-        // Stop wandering — obstacle in the way
-        this.isWandering = false;
-        this.hasWanderTarget = false;
-        this.wanderCooldown = 2 + Math.random() * 3;
-        this.animator.play('idle');
-        return;
+      // If blocked, try short detours (10 steering probes) before giving up.
+      if (pathBlocked(this.mesh.position.x, this.mesh.position.z, nextX, nextZ, 0.55)) {
+        const heading = Math.atan2(nz, nx);
+        let foundDetour = false;
+
+        for (let probe = 1; probe <= 10; probe++) {
+          const side = probe % 2 === 0 ? -1 : 1;
+          const stepBand = Math.ceil(probe / 2);
+          const detourAngle = heading + side * stepBand * 0.18;
+          const probeX = this.mesh.position.x + Math.cos(detourAngle) * step;
+          const probeZ = this.mesh.position.z + Math.sin(detourAngle) * step;
+          const probeY = getHeightAt(probeX, probeZ);
+
+          if (!pathBlocked(this.mesh.position.x, this.mesh.position.z, probeX, probeZ, 0.55)) {
+            nextX = probeX;
+            nextZ = probeZ;
+            nextY = probeY;
+            foundDetour = true;
+            break;
+          }
+        }
+
+        if (!foundDetour) {
+          this.isWandering = false;
+          this.hasWanderTarget = false;
+          this.wanderCooldown = this.nextCooldown();
+          this.animator.play('idle');
+          return;
+        }
       }
 
       this.mesh.position.x = nextX;
@@ -281,14 +394,68 @@ export class NPC {
 
       // Face walking direction (smooth rotation)
       const targetAngle = Math.atan2(nx, nz);
-      let angleDiff = targetAngle - this.mesh.rotation.y;
-      // Normalize angle difference to [-PI, PI] without while loops
-      angleDiff = ((angleDiff + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
-      this.mesh.rotation.y += angleDiff * Math.min(1, 8 * delta);
+      this.mesh.rotation.y = lerpAngle(this.mesh.rotation.y, targetAngle, Math.min(1, this.motionProfile.turnSpeed * delta));
 
       // Update animator baseY so idle bob works at new height
       this.animator.setBaseY(this.mesh.position.y);
     }
+  }
+
+  private nextCooldown(): number {
+    return this.motionProfile.pauseMin + Math.random() * (this.motionProfile.pauseMax - this.motionProfile.pauseMin);
+  }
+
+  private pickWanderTarget(
+    getHeightAt: (x: number, z: number) => number,
+    collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
+  ): THREE.Vector3 | null {
+    if (this.motionProfile.style === 'patrol') {
+      return this.pickPatrolTarget(getHeightAt, collisionSystem);
+    }
+
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const angle = Math.random() * Math.PI * 2;
+      const dist = Math.random() * this.wanderRadius;
+      const tx = this.homePosition.x + Math.cos(angle) * dist;
+      const tz = this.homePosition.z + Math.sin(angle) * dist;
+      const ty = getHeightAt(tx, tz);
+
+      if (
+        collisionSystem?.isPositionBlocked(tx, ty, tz, 0.55)
+      ) {
+        continue;
+      }
+
+      return new THREE.Vector3(tx, ty, tz);
+    }
+
+    return null;
+  }
+
+  private pickPatrolTarget(
+    getHeightAt: (x: number, z: number) => number,
+    collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
+  ): THREE.Vector3 | null {
+    if (this.patrolTargets.length === 0) {
+      const points = Math.max(2, this.motionProfile.patrolPoints);
+      const rng = seededRandom(this.patrolSeed);
+      const baseAngle = rng() * Math.PI * 2;
+      for (let i = 0; i < points; i++) {
+        const angle = baseAngle + (i / points) * Math.PI * 2;
+        const radius = this.wanderRadius * (0.55 + rng() * 0.35);
+        const tx = this.homePosition.x + Math.cos(angle) * radius;
+        const tz = this.homePosition.z + Math.sin(angle) * radius;
+        const ty = getHeightAt(tx, tz);
+        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.55)) continue;
+        this.patrolTargets.push(new THREE.Vector3(tx, ty, tz));
+      }
+    }
+
+    if (this.patrolTargets.length === 0) return null;
+
+    const target = this.patrolTargets[this.patrolIndex % this.patrolTargets.length];
+    this.patrolIndex = (this.patrolIndex + 1) % this.patrolTargets.length;
+    return target.clone();
   }
 
   /**
@@ -380,4 +547,30 @@ function darken(hex: number, amount: number): number {
   const c = new THREE.Color(hex);
   c.multiplyScalar(1 - amount);
   return c.getHex();
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandom(seed: number): () => number {
+  let state = seed || 1;
+  return () => {
+    state = Math.imul(state ^ (state >>> 15), 2246822519);
+    state = Math.imul(state ^ (state >>> 13), 3266489917);
+    state ^= state >>> 16;
+    return (state >>> 0) / 4294967296;
+  };
+}
+
+function lerpAngle(a: number, b: number, t: number): number {
+  let diff = b - a;
+  while (diff > Math.PI) diff -= Math.PI * 2;
+  while (diff < -Math.PI) diff += Math.PI * 2;
+  return a + diff * t;
 }

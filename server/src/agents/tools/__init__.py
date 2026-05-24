@@ -32,7 +32,7 @@ _CATEGORY_FACTORIES: dict[str, Callable[..., list[Any]]] = {
 
 
 def get_tools_by_category(
-    category: str, pending_actions: list, world_state: dict
+    category: str, pending_actions: list[Any], world_state: dict[str, Any]
 ) -> list[BaseTool]:
     """Instantiate and return tools for a specific category.
 
@@ -57,8 +57,8 @@ def get_tools_by_category(
 
 
 def get_all_tools(
-    pending_actions: list | None = None,
-    world_state: dict | None = None,
+    pending_actions: list[Any] | None = None,
+    world_state: dict[str, Any] | None = None,
 ) -> list[BaseTool]:
     """Return all registered NPC tools, closed over shared mutable state.
 

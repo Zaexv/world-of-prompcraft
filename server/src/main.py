@@ -15,7 +15,7 @@ from .llm.provider import get_llm
 from .world.world_state import WorldState
 from .ws import handler as _handler_module
 from .ws.connection_manager import ConnectionManager
-from .ws.handler import cleanup_player_equipment, handle_message, init_handler
+from .ws.handler import cleanup_player_equipment, cleanup_player_locks, handle_message, init_handler
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -56,7 +56,11 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
     try:
         while True:
-            data: dict[str, Any] = await websocket.receive_json()
+            try:
+                data: dict[str, Any] = await websocket.receive_json()
+            except ValueError:
+                await websocket.send_json({"type": "error", "message": "Invalid JSON"})
+                continue
             response = await handle_message(data, websocket, manager)
             if response is not None:
                 await websocket.send_json(response)
@@ -69,6 +73,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 world_state.players.pop(player_id, None)
             # Bug 16: Clean up equipment dict on disconnect
             cleanup_player_equipment(player_id)
+            cleanup_player_locks(player_id)
             # Broadcast player_left
             await manager.broadcast(
                 {"type": "player_left", "playerId": player_id},

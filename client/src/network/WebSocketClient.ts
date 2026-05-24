@@ -20,7 +20,9 @@ export class WebSocketClient {
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
-  constructor(url = "ws://localhost:8000/ws") {
+  constructor(
+    url = `${window.location.protocol === "https:" ? "wss" : "ws"}://${window.location.host}/ws`,
+  ) {
     this.url = url;
     this.connect();
   }

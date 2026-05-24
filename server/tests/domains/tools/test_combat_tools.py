@@ -70,12 +70,15 @@ def test_defend() -> None:
 
 def test_flee() -> None:
     actions: list = []
-    world: dict = {}
+    world: dict = {"self_position": [10.0, 0.0, 5.0]}
     tools = create_combat_tools(actions, world)
     flee = tools[2]
 
     result = flee.invoke({"direction": "north"})
     assert len(actions) == 1
     assert actions[0]["kind"] == "move_npc"
-    assert actions[0]["params"]["direction"] == "north"
+    # flee now encodes a target position (not a direction string)
+    pos = actions[0]["params"]["position"]
+    assert isinstance(pos, list) and len(pos) == 3
+    assert pos[2] < world["self_position"][2]  # north reduces Z
     assert "north" in result

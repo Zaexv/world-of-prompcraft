@@ -23,7 +23,7 @@ class NPCData:
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     mood: str = "neutral"
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "npc_id": self.npc_id,
             "name": self.name,
@@ -84,7 +84,7 @@ class WorldState:
             self.players[player_id] = PlayerData()
         return self.players[player_id]
 
-    async def update_player(self, player_id: str, updates: dict) -> None:
+    async def update_player(self, player_id: str, updates: dict[str, Any]) -> None:
         async with self._lock:
             player = self.get_player(player_id)
             for key, value in updates.items():
@@ -143,7 +143,7 @@ class WorldState:
 
     # ---- Context ----
 
-    def get_context_for_npc(self, npc_id: str, player_id: str) -> dict:
+    def get_context_for_npc(self, npc_id: str, player_id: str) -> dict[str, Any]:
         """Build a world-context snapshot for an NPC interaction."""
         self.get_player(player_id)  # Ensure player exists
         npc = self.npcs.get(npc_id)
@@ -152,7 +152,7 @@ class WorldState:
         zone_name = get_zone(npc_pos)
 
         # Gather nearby entities (NPCs within 50 units)
-        nearby: list[dict] = []
+        nearby: list[dict[str, Any]] = []
         for other_id, other_npc in self.npcs.items():
             if other_id == npc_id:
                 continue
@@ -174,7 +174,7 @@ class WorldState:
 
     # ---- Actions ----
 
-    async def apply_actions(self, actions: list[dict]) -> None:
+    async def apply_actions(self, actions: list[dict[str, Any]]) -> None:
         """Mutate world state based on a list of action dicts."""
         async with self._lock:
             for action in actions:

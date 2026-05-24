@@ -34,9 +34,9 @@ def create_npc_agent(
     npc_config: dict[str, Any],
     llm: BaseChatModel,
     tools: list[BaseTool],
-    shared_pending_actions: list,
+    shared_pending_actions: list[Any],
     world_state: WorldState,
-) -> CompiledGraph:
+) -> CompiledGraph:  # type: ignore[type-arg]
     """Build and compile a LangGraph agent for a single NPC.
 
     Graph flow:

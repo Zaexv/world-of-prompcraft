@@ -24,6 +24,8 @@ const CHUNK_SIZE = 64;          // world-units per chunk side
 const CHUNK_SEGMENTS = 32;      // vertex subdivisions per chunk side
 const VIEW_RADIUS = 3;          // chunks visible in each direction (7x7 = 49 chunks)
 const UNLOAD_RADIUS = VIEW_RADIUS + 2; // buffer before disposal
+const INITIAL_PRELOAD_RADIUS = 1; // smaller warm-up to reduce initial hitch
+const CHUNK_LOADS_PER_UPDATE = 3; // throttle mesh generation per frame
 
 // ── Shared material (created once, reused for every chunk) ───────────────────
 let sharedMaterial: THREE.MeshStandardMaterial | null = null;
@@ -33,7 +35,7 @@ function getSharedMaterial(): THREE.MeshStandardMaterial {
 
   sharedMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
-    roughness: 0.92,
+    roughness: 0.82,
     metalness: 0.0,
     flatShading: false,
     emissive: new THREE.Color(0x000000),
@@ -86,6 +88,8 @@ interface ChunkData {
 export class Terrain {
   private scene: THREE.Scene;
   private chunks: Map<string, ChunkData> = new Map();
+  private chunkLoadQueue: Array<{ cx: number; cz: number; key: string }> = [];
+  private queuedChunkKeys: Set<string> = new Set();
 
   /** Called whenever a new chunk is created. Args: (chunkX, chunkZ, worldX, worldZ). */
   public onChunkLoaded: ((chunkX: number, chunkZ: number, worldX: number, worldZ: number) => void) | null = null;
@@ -104,9 +108,11 @@ export class Terrain {
     // Register the beach blend function so Biomes can use it for sand colors
     registerBeachBlend(Terrain.getBeachBlend);
 
-    // Pre-load chunks around the origin so everything placed at startup
-    // (buildings, vegetation, NPCs) has terrain underneath.
-    this.update(0, 0);
+    // Lightweight warm-up near spawn; remaining chunks stream in across frames.
+    this.lastPlayerCX = 0;
+    this.lastPlayerCZ = 0;
+    this.queueChunksAround(0, 0, INITIAL_PRELOAD_RADIUS);
+    this.processChunkQueue(CHUNK_LOADS_PER_UPDATE * 2);
   }
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -129,28 +135,63 @@ export class Terrain {
   update(playerX: number, playerZ: number): void {
     const cx = Math.floor(playerX / CHUNK_SIZE);
     const cz = Math.floor(playerZ / CHUNK_SIZE);
+    const chunkChanged = cx !== this.lastPlayerCX || cz !== this.lastPlayerCZ;
 
-    // Skip work if the player is still in the same chunk.
-    if (cx === this.lastPlayerCX && cz === this.lastPlayerCZ) return;
-    this.lastPlayerCX = cx;
-    this.lastPlayerCZ = cz;
+    if (chunkChanged) {
+      this.lastPlayerCX = cx;
+      this.lastPlayerCZ = cz;
 
-    // --- Load missing chunks within view radius ---
-    for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
-      for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
-        const key = `${cx + dx},${cz + dz}`;
-        if (!this.chunks.has(key)) {
-          this.loadChunk(cx + dx, cz + dz);
+      // Rebuild and prioritize queue around the new center chunk so zone
+      // transitions fill nearby terrain first and avoid visible holes.
+      this.chunkLoadQueue = [];
+      this.queuedChunkKeys.clear();
+      this.queueChunksAround(cx, cz, VIEW_RADIUS);
+    }
+
+    // Stream a small batch each frame to avoid long main-thread stalls.
+    this.processChunkQueue(chunkChanged ? CHUNK_LOADS_PER_UPDATE * 3 : CHUNK_LOADS_PER_UPDATE);
+
+    if (chunkChanged) {
+      // --- Unload chunks outside unload radius ---
+      for (const [key, chunk] of this.chunks) {
+        const dx = chunk.cx - cx;
+        const dz = chunk.cz - cz;
+        if (Math.abs(dx) > UNLOAD_RADIUS || Math.abs(dz) > UNLOAD_RADIUS) {
+          this.unloadChunk(key, chunk);
         }
       }
     }
+  }
 
-    // --- Unload chunks outside unload radius ---
-    for (const [key, chunk] of this.chunks) {
-      const dx = chunk.cx - cx;
-      const dz = chunk.cz - cz;
-      if (Math.abs(dx) > UNLOAD_RADIUS || Math.abs(dz) > UNLOAD_RADIUS) {
-        this.unloadChunk(key, chunk);
+  private enqueueChunkLoad(cx: number, cz: number): void {
+    const key = `${cx},${cz}`;
+    if (this.chunks.has(key) || this.queuedChunkKeys.has(key)) return;
+    this.queuedChunkKeys.add(key);
+    this.chunkLoadQueue.push({ cx, cz, key });
+  }
+
+  private queueChunksAround(centerCX: number, centerCZ: number, radius: number): void {
+    const candidates: Array<{ cx: number; cz: number; distSq: number }> = [];
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const cx = centerCX + dx;
+        const cz = centerCZ + dz;
+        candidates.push({ cx, cz, distSq: dx * dx + dz * dz });
+      }
+    }
+    candidates.sort((a, b) => a.distSq - b.distSq);
+    for (const candidate of candidates) {
+      this.enqueueChunkLoad(candidate.cx, candidate.cz);
+    }
+  }
+
+  private processChunkQueue(maxLoads = CHUNK_LOADS_PER_UPDATE): void {
+    for (let i = 0; i < maxLoads && this.chunkLoadQueue.length > 0; i++) {
+      const next = this.chunkLoadQueue.shift();
+      if (!next) break;
+      this.queuedChunkKeys.delete(next.key);
+      if (!this.chunks.has(next.key)) {
+        this.loadChunk(next.cx, next.cz);
       }
     }
   }
@@ -240,14 +281,8 @@ export class Terrain {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
 
-    // LOD: fewer segments for distant chunks (saves ~65% terrain triangles)
-    const distFromPlayer = Math.max(
-      Math.abs(cx - this.lastPlayerCX),
-      Math.abs(cz - this.lastPlayerCZ),
-    );
-    const segments = distFromPlayer <= 1 ? CHUNK_SEGMENTS
-                   : distFromPlayer <= 3 ? 16
-                   : 8;
+    // Use a single subdivision density for all chunks to avoid LOD edge cracks.
+    const segments = CHUNK_SEGMENTS;
 
     const geometry = new THREE.PlaneGeometry(
       CHUNK_SIZE,
@@ -276,11 +311,45 @@ export class Terrain {
     }
 
     positions.needsUpdate = true;
-    geometry.computeVertexNormals();
+
+    // World-space normal reconstruction (central differences) keeps lighting
+    // continuous across chunk borders, avoiding visible seam lines.
+    const normalValues = new Float32Array(vertexCount * 3);
+    const normalSampleStep = 0.75;
+    for (let i = 0; i < vertexCount; i++) {
+      const vx = positions.getX(i);
+      const vz = positions.getZ(i);
+      const hL = Terrain.computeHeight(vx - normalSampleStep, vz);
+      const hR = Terrain.computeHeight(vx + normalSampleStep, vz);
+      const hD = Terrain.computeHeight(vx, vz - normalSampleStep);
+      const hU = Terrain.computeHeight(vx, vz + normalSampleStep);
+
+      const dX = (hR - hL) / (2 * normalSampleStep);
+      const dZ = (hU - hD) / (2 * normalSampleStep);
+
+      let nx = -dX;
+      let ny = 1.0;
+      let nz = -dZ;
+      const invLen = 1 / Math.hypot(nx, ny, nz);
+      nx *= invLen;
+      ny *= invLen;
+      nz *= invLen;
+
+      normalValues[i * 3] = nx;
+      normalValues[i * 3 + 1] = ny;
+      normalValues[i * 3 + 2] = nz;
+    }
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normalValues, 3));
 
     // --- Vertex colors (biome-blended palette) ---
     const colors = new Float32Array(vertexCount * 3);
     const emissiveColors = new Float32Array(vertexCount * 3);
+    const normals = geometry.attributes.normal as THREE.BufferAttribute;
+
+    // Rock color for steep faces (warm gray-brown)
+    const rockR = 0x52 / 255;
+    const rockG = 0x4a / 255;
+    const rockB = 0x42 / 255;
 
     for (let i = 0; i < vertexCount; i++) {
       const vx = positions.getX(i);
@@ -288,17 +357,43 @@ export class Terrain {
       const vz = positions.getZ(i);
       const t = THREE.MathUtils.clamp((vy + 3) / 25, 0, 1);
 
+      // Steepness from vertex normal Y component (1=flat, 0=vertical cliff)
+      const normalY = normals.getY(i);
+      const steepness = THREE.MathUtils.clamp((0.7 - normalY) / 0.5, 0, 1);
+
       // --- Base color (biome-blended) ---
       const color = getBiomeColor(vx, vz, vy, t);
-      colors[i * 3] = color.r;
-      colors[i * 3 + 1] = color.g;
-      colors[i * 3 + 2] = color.b;
+      let r = color.r;
+      let g = color.g;
+      let b = color.b;
 
-      // --- Per-vertex emissive (biome-specific glow) ---
+      // Blend toward rock color on steep faces
+      r += (rockR - r) * steepness;
+      g += (rockG - g) * steepness;
+      b += (rockB - b) * steepness;
+
+      // Fake AO: darken valleys up to 20%
+      const ao = 1.0 - THREE.MathUtils.clamp((-vy - 2) / 8, 0, 0.20);
+      r *= ao;
+      g *= ao;
+      b *= ao;
+
+      // Micro-noise: subtle color variation to break up flat areas
+      const noise = (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02;
+      r = THREE.MathUtils.clamp(r + noise, 0, 1);
+      g = THREE.MathUtils.clamp(g + noise * 0.8, 0, 1);
+      b = THREE.MathUtils.clamp(b + noise * 0.6, 0, 1);
+
+      colors[i * 3] = r;
+      colors[i * 3 + 1] = g;
+      colors[i * 3 + 2] = b;
+
+      // --- Per-vertex emissive — suppressed on steep rock faces ---
       const emissive = getBiomeEmissive(vx, vz, vy, t);
-      emissiveColors[i * 3] = emissive.r;
-      emissiveColors[i * 3 + 1] = emissive.g;
-      emissiveColors[i * 3 + 2] = emissive.b;
+      const emissiveScale = 1.0 - steepness;
+      emissiveColors[i * 3] = emissive.r * emissiveScale;
+      emissiveColors[i * 3 + 1] = emissive.g * emissiveScale;
+      emissiveColors[i * 3 + 2] = emissive.b * emissiveScale;
     }
 
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));

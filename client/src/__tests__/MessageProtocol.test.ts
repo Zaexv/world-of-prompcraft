@@ -16,6 +16,19 @@ describe('MessageProtocol shapes', () => {
     expect(msg.prompt).toBeTruthy();
   });
 
+  it('JoinRequest includes skin and position', () => {
+    const msg = {
+      type: 'join' as const,
+      username: 'Hero',
+      race: 'human',
+      faction: 'alliance',
+      skin: 'skin-2',
+      position: [0, 0, 0] as [number, number, number],
+    };
+    expect(msg.skin).toBe('skin-2');
+    expect(msg.position).toHaveLength(3);
+  });
+
   it('AgentResponse action structure', () => {
     const response = {
       type: 'agent_response' as const,
@@ -30,5 +43,20 @@ describe('MessageProtocol shapes', () => {
     expect(response.actions).toHaveLength(2);
     expect(response.actions[0].kind).toBe('emote');
     expect(response.actions[1].params.amount).toBe(10);
+  });
+
+  it('RemotePlayerData carries skin', () => {
+    const player = {
+      playerId: 'p1',
+      username: 'Hero',
+      position: [0, 0, 0] as [number, number, number],
+      race: 'human',
+      faction: 'alliance',
+      skin: 'skin-1',
+      hp: 100,
+      maxHp: 100,
+      yaw: 0,
+    };
+    expect(player.skin).toBe('skin-1');
   });
 });

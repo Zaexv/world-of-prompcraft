@@ -264,7 +264,12 @@ stateDiagram-v2
 
     act --> reason: Tool results fed back
 
-    respond --> [*]: Extract dialogue,<br/>return pending_actions
+    respond --> reflect: Always
+
+    reflect --> summarize: human_count ≥ 10 AND count % 3 == 0
+    reflect --> [*]: Otherwise
+
+    summarize --> [*]: Updated conversation_summary
 
     state reason {
         [*] --> BuildSystemPrompt
@@ -286,9 +291,34 @@ stateDiagram-v2
         ExtractContent --> SetResponseText
         SetResponseText --> [*]
     }
+
+    state reflect {
+        [*] --> AnalyzeTokens
+        AnalyzeTokens --> UpdateMood
+        UpdateMood --> UpdateRelationshipScore
+        UpdateRelationshipScore --> UpdatePersonalityNotes
+        UpdatePersonalityNotes --> [*]
+    }
+
+    state summarize {
+        [*] --> BuildTranscript
+        BuildTranscript --> LLMSummarize
+        LLMSummarize --> StoreConversationSummary
+        StoreConversationSummary --> [*]
+    }
 ```
 
-The conditional edge `_should_act_or_respond` checks whether the last AI message contains `tool_calls`. If so, it routes to `act` which executes the tools and loops back to `reason`. This allows multi-step reasoning (e.g., check player state, then decide to heal). When the LLM produces a plain text response, `respond` extracts the dialogue and the graph terminates.
+**Node responsibilities:**
+
+| Node | LLM Call | Purpose |
+|------|----------|---------|
+| `reason` | Yes | Build system prompt from personality + world context + memory, invoke LLM with tools |
+| `act` | No | Execute tool calls, harvest `pending_actions` from the shared closure list |
+| `respond` | No | Extract final dialogue text from the last AI message |
+| `reflect` | No (heuristic) | Update mood, relationship score, and personality notes from conversation tokens |
+| `summarize` | Yes (conditional) | Generate a rolling 2-3 sentence memory summary every ~3 exchanges after the 10th |
+
+The conditional edge `_should_act_or_respond` checks whether the last AI message contains `tool_calls`. If so, it routes to `act` which executes the tools and loops back to `reason`. This allows multi-step reasoning (e.g., check player state, then decide to heal). When the LLM produces a plain text response, `respond` extracts the dialogue, then `reflect` runs a zero-cost heuristic analysis, and `summarize` fires conditionally to keep memory bounded.
 
 **Agent State Schema (`NPCAgentState`):**
 

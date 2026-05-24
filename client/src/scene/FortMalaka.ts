@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Terrain } from './Terrain';
+import { getAnchoredTerrainY, smoothHeightSeries } from './TerrainPlacement';
 
 /**
  * Fort Malaka — Málaga-inspired coastal city with the Blasted Suarezlands
@@ -25,9 +26,6 @@ export class FortMalaka {
   private static readonly DARK_STONE = 0x2a2a3a;
   private static readonly LIGHT_STONE = 0x888899;
   private static readonly RUNE_GLOW = 0x6644ff;
-  private static readonly FROST_BLUE = 0x88ccff;
-  private static readonly FIRE_ORANGE = 0xff6622;
-
   // Málaga / Mediterranean palette
   private static readonly WHITE_WALL = 0xf0ece0;
   private static readonly TERRACOTTA = 0xb85c38;
@@ -38,28 +36,74 @@ export class FortMalaka {
   private static readonly WOOD_BROWN = 0x5c3a1e;
 
   constructor(scene: THREE.Scene, terrain: Terrain) {
+    const suarezCenterX = -140;
+    const suarezCenterZ = -245;
+
     // ── Mage District (Blasted Suarezlands) ──────────────────────────────
-    this.createGrandMageTower(scene, 0, -120, terrain.getHeightAt(0, -120));
-    this.createArcaneGateway(scene, 0, -88, terrain.getHeightAt(0, -88));
-    this.createRunicCircle(scene, 0, -120, terrain.getHeightAt(0, -120));
+    this.createGrandMageTower(
+      scene,
+      suarezCenterX,
+      suarezCenterZ,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ, 8),
+    );
+    this.createArcaneGateway(
+      scene,
+      suarezCenterX,
+      suarezCenterZ + 32,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ + 32, 8),
+    );
+    this.createRunicCircle(
+      scene,
+      suarezCenterX,
+      suarezCenterZ,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ, 8),
+    );
 
     const pylonPositions = [
       [-20, -110], [20, -110], [-20, -135], [20, -135], [-8, -100], [8, -145],
     ];
     for (const [px, pz] of pylonPositions) {
-      this.createArcanePylon(scene, px, pz, terrain.getHeightAt(px, pz));
+      const wx = suarezCenterX + px;
+      const wz = suarezCenterZ + (pz + 120);
+      this.createArcanePylon(scene, wx, wz, getAnchoredTerrainY(terrain, wx, wz, 3));
     }
 
     // Mage houses (arcane-themed)
-    this.createMageHouse(scene, -22, -125, terrain.getHeightAt(-22, -125), 0xff6622);
-    this.createMageHouse(scene, 18, -108, terrain.getHeightAt(18, -108), 0x88ccff);
-    this.createMageHouse(scene, -25, -105, terrain.getHeightAt(-25, -105), 0x8833dd);
-    this.createMageHouse(scene, 22, -140, terrain.getHeightAt(22, -140), 0x6644ff);
+    this.createMageHouse(
+      scene,
+      suarezCenterX - 22,
+      suarezCenterZ - 5,
+      getAnchoredTerrainY(terrain, suarezCenterX - 22, suarezCenterZ - 5, 4),
+      0xff6622,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX + 18,
+      suarezCenterZ + 12,
+      getAnchoredTerrainY(terrain, suarezCenterX + 18, suarezCenterZ + 12, 4),
+      0x88ccff,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX - 25,
+      suarezCenterZ + 15,
+      getAnchoredTerrainY(terrain, suarezCenterX - 25, suarezCenterZ + 15, 4),
+      0x8833dd,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX + 22,
+      suarezCenterZ - 20,
+      getAnchoredTerrainY(terrain, suarezCenterX + 22, suarezCenterZ - 20, 4),
+      0x6644ff,
+    );
+    this.createMageDistrictGarden(scene, terrain, suarezCenterX - 4, suarezCenterZ + 8);
+    this.createSuarezlandsRift(scene, terrain, suarezCenterX + 30, suarezCenterZ + 10);
 
     // ── Málaga Mediterranean structures ──────────────────────────────────
 
     // La Alcazaba — Moorish fortress overlooking the beach
-    this.createAlcazaba(scene, 30, -152, terrain.getHeightAt(30, -152));
+    this.createAlcazaba(scene, 30, -152, getAnchoredTerrainY(terrain, 30, -152, 14));
 
     // White Mediterranean houses (casitas blancas) — between district and beach
     const casitaPositions: [number, number][] = [
@@ -67,32 +111,33 @@ export class FortMalaka {
       [-30, -158], [28, -160], [-15, -152], [15, -155],
     ];
     for (const [cx, cz] of casitaPositions) {
-      this.createCasitaBlanca(scene, cx, cz, terrain.getHeightAt(cx, cz));
+      this.createCasitaBlanca(scene, cx, cz, getAnchoredTerrainY(terrain, cx, cz, 4));
     }
 
     // Paseo Marítimo — stone promenade along the beach edge
     this.createPromenade(scene, terrain);
+    this.createCoastalPlaza(scene, terrain);
 
     // Palm trees — along promenade and beach
     const palmPositions: [number, number][] = [
       [-25, -160], [-15, -162], [-5, -161], [5, -163],
-      [15, -161], [25, -160], [35, -158], [-35, -157],
+      [15, -161], [24, -166], [36, -168], [-35, -157],
       [-20, -170], [0, -172], [20, -170], [10, -175],
       [-10, -174],
     ];
     for (const [px, pz] of palmPositions) {
-      this.createPalmTree(scene, px, pz, terrain.getHeightAt(px, pz));
+      this.createPalmTree(scene, px, pz, getAnchoredTerrainY(terrain, px, pz, 2));
     }
 
     // La Farola — lighthouse at the east end of the beach
-    this.createLighthouse(scene, 40, -175, terrain.getHeightAt(40, -175));
+    this.createLighthouse(scene, 40, -175, getAnchoredTerrainY(terrain, 40, -175, 4));
 
     // Chiringuito — beach bar
-    this.createChiringuito(scene, -15, -172, terrain.getHeightAt(-15, -172));
+    this.createChiringuito(scene, -15, -172, getAnchoredTerrainY(terrain, -15, -172, 6));
 
     // Espeto stands — sardine grills on the beach
-    this.createEspetoStand(scene, -5, -178, terrain.getHeightAt(-5, -178));
-    this.createEspetoStand(scene, 10, -176, terrain.getHeightAt(10, -176));
+    this.createEspetoStand(scene, -5, -178, getAnchoredTerrainY(terrain, -5, -178, 2));
+    this.createEspetoStand(scene, 10, -176, getAnchoredTerrainY(terrain, 10, -176, 2));
   }
 
   // ----------------------------------------------------------------
@@ -116,23 +161,62 @@ export class FortMalaka {
     return mesh;
   }
 
+  private createPatternTexture(base: number, accent: number, cell = 64): THREE.CanvasTexture {
+    const canvas = document.createElement('canvas');
+    canvas.width = cell;
+    canvas.height = cell;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) {
+      const fallback = new THREE.CanvasTexture(canvas);
+      fallback.colorSpace = THREE.SRGBColorSpace;
+      return fallback;
+    }
+
+    const baseHex = `#${new THREE.Color(base).getHexString()}`;
+    const accentHex = `#${new THREE.Color(accent).getHexString()}`;
+    ctx.fillStyle = baseHex;
+    ctx.fillRect(0, 0, cell, cell);
+
+    for (let y = 0; y < cell; y += 8) {
+      for (let x = 0; x < cell; x += 8) {
+        const jitter = ((x * 13 + y * 17) % 7) / 7;
+        ctx.fillStyle = jitter > 0.45 ? accentHex : baseHex;
+        ctx.fillRect(x, y, 8, 8);
+      }
+    }
+
+    for (let i = 0; i < 24; i++) {
+      const px = (i * 11) % cell;
+      const py = (i * 19) % cell;
+      ctx.fillStyle = 'rgba(0,0,0,0.08)';
+      ctx.fillRect(px, py, 5, 2);
+    }
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.wrapS = THREE.RepeatWrapping;
+    texture.wrapT = THREE.RepeatWrapping;
+    texture.repeat.set(2, 2);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    return texture;
+  }
+
+  private createTexturedMaterial(base: number, accent: number, roughness: number, metalness = 0): THREE.MeshStandardMaterial {
+    return new THREE.MeshStandardMaterial({
+      color: base,
+      map: this.createPatternTexture(base, accent),
+      roughness,
+      metalness,
+    });
+  }
+
   // ----------------------------------------------------------------
   // Grand Mage Tower: massive arcane spire at the district center
   // ----------------------------------------------------------------
   private createGrandMageTower(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const darkStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.DARK_STONE,
-      roughness: 0.4,
-      metalness: 0.2,
-    });
-
-    const lightStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.LIGHT_STONE,
-      roughness: 0.5,
-      metalness: 0.1,
-    });
+    const darkStoneMat = this.createTexturedMaterial(FortMalaka.DARK_STONE, 0x3a3a4f, 0.45, 0.2);
+    const lightStoneMat = this.createTexturedMaterial(FortMalaka.LIGHT_STONE, 0xa3a3ba, 0.5, 0.1);
 
     // Broad base
     const baseGeo = new THREE.CylinderGeometry(5, 6, 6, 8);
@@ -519,11 +603,7 @@ export class FortMalaka {
   private createAlcazaba(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const warmStoneMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WARM_STONE,
-      roughness: 0.7,
-      metalness: 0.05,
-    });
+    const warmStoneMat = this.createTexturedMaterial(FortMalaka.WARM_STONE, 0xa48856, 0.72, 0.05);
 
     // Main fortress wall — keep castShadow
     const wallGeo = new THREE.BoxGeometry(18, 8, 12);
@@ -611,11 +691,7 @@ export class FortMalaka {
   private createCasitaBlanca(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WHITE_WALL,
-      roughness: 0.8,
-      metalness: 0.0,
-    });
+    const whiteMat = this.createTexturedMaterial(FortMalaka.WHITE_WALL, 0xd9d3c8, 0.82, 0.0);
 
     // White walls
     const wallGeo = new THREE.BoxGeometry(4, 3.5, 4);
@@ -742,6 +818,7 @@ export class FortMalaka {
 
     group.position.set(x, y, z);
     scene.add(group);
+    this.groups.push(group);
     this.footprints.push({ x, z, radius: 2 });
   }
 
@@ -751,11 +828,7 @@ export class FortMalaka {
   private createLighthouse(scene: THREE.Scene, x: number, z: number, y: number): void {
     const group = new THREE.Group();
 
-    const whiteMat = new THREE.MeshStandardMaterial({
-      color: FortMalaka.WHITE_WALL,
-      roughness: 0.5,
-      metalness: 0.05,
-    });
+    const whiteMat = this.createTexturedMaterial(FortMalaka.WHITE_WALL, 0xd8d2c5, 0.55, 0.05);
 
     // Tapered cylindrical tower — keep castShadow
     const towerGeo = new THREE.CylinderGeometry(1.2, 1.8, 16, 6);
@@ -909,6 +982,7 @@ export class FortMalaka {
     });
     const pit = new THREE.Mesh(pitGeo, pitMat);
     pit.position.y = 0.15;
+    pit.userData.isCollider = true;
     group.add(pit);
 
     // Glowing embers — emissive replaces PointLight
@@ -948,7 +1022,136 @@ export class FortMalaka {
 
     group.position.set(x, y, z);
     scene.add(group);
+    this.groups.push(group);
     this.footprints.push({ x, z, radius: 2 });
+  }
+
+  private createMageDistrictGarden(scene: THREE.Scene, terrain: Terrain, gx: number, gz: number): void {
+    const gy = getAnchoredTerrainY(terrain, gx, gz, 8);
+    const group = new THREE.Group();
+
+    const borderMat = this.createTexturedMaterial(0x3a3a46, 0x58586f, 0.6, 0.15);
+    const soilMat = new THREE.MeshStandardMaterial({ color: 0x2f2b30, roughness: 0.95 });
+
+    const bed = new THREE.Mesh(new THREE.CylinderGeometry(6.2, 6.8, 0.8, 10), soilMat);
+    bed.position.y = 0.4;
+    bed.receiveShadow = true;
+    group.add(bed);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(6.4, 0.25, 6, 20), borderMat);
+    ring.position.y = 0.85;
+    ring.rotation.x = Math.PI / 2;
+    ring.userData.isCollider = true;
+    group.add(ring);
+
+    for (let i = 0; i < 12; i++) {
+      const angle = (i / 12) * Math.PI * 2;
+      const crystal = new THREE.Mesh(
+        new THREE.ConeGeometry(0.22, 1.4 + (i % 3) * 0.2, 6),
+        new THREE.MeshStandardMaterial({
+          color: 0x6f7dff,
+          emissive: 0x4455aa,
+          emissiveIntensity: 0.9,
+          roughness: 0.3,
+        }),
+      );
+      crystal.position.set(Math.cos(angle) * 4.6, 1.0, Math.sin(angle) * 4.6);
+      group.add(crystal);
+    }
+
+    group.position.set(gx, gy, gz);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x: gx, z: gz, radius: 7 });
+  }
+
+  private createSuarezlandsRift(scene: THREE.Scene, terrain: Terrain, x: number, z: number): void {
+    const y = getAnchoredTerrainY(terrain, x, z, 9);
+    const group = new THREE.Group();
+    const basalt = this.createTexturedMaterial(0x2e2a38, 0x4a405e, 0.7, 0.2);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.45, 8, 28), basalt);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.5;
+    ring.userData.isCollider = true;
+    group.add(ring);
+
+    const pool = new THREE.Mesh(
+      new THREE.CylinderGeometry(6.8, 7.2, 0.25, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x332255,
+        emissive: 0x5a3cff,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    );
+    pool.position.y = 0.3;
+    group.add(pool);
+
+    for (let i = 0; i < 7; i++) {
+      const angle = (i / 7) * Math.PI * 2;
+      const monolith = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.5, 1.1), basalt);
+      monolith.position.set(Math.cos(angle) * 8.4, 2.25, Math.sin(angle) * 8.4);
+      monolith.rotation.y = angle + 0.3;
+      monolith.userData.isCollider = true;
+      group.add(monolith);
+
+      const rune = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.45, 1.8),
+        new THREE.MeshStandardMaterial({
+          color: 0x7c70ff,
+          emissive: 0x7c70ff,
+          emissiveIntensity: 1.8,
+          side: THREE.DoubleSide,
+        }),
+      );
+      rune.position.set(Math.cos(angle) * 8.4, 2.4, Math.sin(angle) * 8.4);
+      rune.lookAt(0, 2.4, 0);
+      group.add(rune);
+    }
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x, z, radius: 10 });
+  }
+
+  private createCoastalPlaza(scene: THREE.Scene, terrain: Terrain): void {
+    const px = -6;
+    const pz = -151;
+    const py = getAnchoredTerrainY(terrain, px, pz, 10);
+    const group = new THREE.Group();
+
+    const tileMat = this.createTexturedMaterial(0xc2b192, 0xa68f6d, 0.75, 0.03);
+    const plaza = new THREE.Mesh(new THREE.CylinderGeometry(10, 10.5, 0.5, 24), tileMat);
+    plaza.position.y = 0.25;
+    plaza.receiveShadow = true;
+    group.add(plaza);
+
+    const fountainMat = this.createTexturedMaterial(0x7b7f92, 0x5f6374, 0.55, 0.12);
+    const fountain = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.9, 1.0, 12), fountainMat);
+    fountain.position.y = 0.5;
+    fountain.userData.isCollider = true;
+    group.add(fountain);
+
+    const water = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.3, 1.3, 0.12, 12),
+      new THREE.MeshStandardMaterial({
+        color: 0x3caad8,
+        emissive: 0x2d6ca1,
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    );
+    water.position.y = 1.02;
+    group.add(water);
+
+    group.position.set(px, py, pz);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x: px, z: pz, radius: 10.5 });
   }
 
   // ----------------------------------------------------------------
@@ -956,9 +1159,6 @@ export class FortMalaka {
   // Consolidated into single slabs + 3 lamp posts (emissive only)
   // ----------------------------------------------------------------
   private createPromenade(scene: THREE.Scene, terrain: Terrain): void {
-    const pz = -160;
-    const py = terrain.getHeightAt(0, pz);
-
     const stoneMat = new THREE.MeshStandardMaterial({
       color: 0xb8a890,
       roughness: 0.7,
@@ -966,22 +1166,35 @@ export class FortMalaka {
     });
 
     const group = new THREE.Group();
+    const pz = -160;
+    const startX = -35;
+    const endX = 35;
+    const segmentLength = 5;
+    const centers: number[] = [];
+    const rawHeights: number[] = [];
 
-    // ONE long stone slab for the entire promenade (X: -35 to +35)
-    const slabGeo = new THREE.BoxGeometry(70, 0.2, 3);
-    const slab = new THREE.Mesh(slabGeo, stoneMat);
-    slab.position.y = 0.1;
-    slab.receiveShadow = true;
-    group.add(slab);
+    for (let x = startX; x < endX; x += segmentLength) {
+      const cx = x + segmentLength * 0.5;
+      centers.push(cx);
+      rawHeights.push(terrain.getHeightAt(cx, pz));
+    }
+    const heights = smoothHeightSeries(rawHeights, 10, 0.35);
 
-    // ONE long railing on the beach side
-    const railGeo = new THREE.BoxGeometry(70, 0.6, 0.3);
-    const rail = new THREE.Mesh(railGeo, stoneMat);
-    rail.position.set(0, 0.5, 1.5);
-    rail.userData.isCollider = true;
-    group.add(rail);
+    for (let i = 0; i < centers.length; i++) {
+      const cx = centers[i];
+      const cy = heights[i];
 
-    group.position.set(0, py, pz);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(segmentLength, 0.24, 3), stoneMat);
+      slab.position.set(cx, cy + 0.12, pz);
+      slab.receiveShadow = true;
+      group.add(slab);
+
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(segmentLength, 0.7, 0.32), stoneMat);
+      rail.position.set(cx, cy + 0.45, pz + 1.5);
+      rail.userData.isCollider = true;
+      group.add(rail);
+    }
+
     scene.add(group);
     this.groups.push(group);
     this.footprints.push({ x: 0, z: pz, radius: 38 });
@@ -996,6 +1209,7 @@ export class FortMalaka {
       const postGeo = new THREE.CylinderGeometry(0.08, 0.1, 4, 6);
       const post = new THREE.Mesh(postGeo, postMat);
       post.position.y = 2;
+      post.userData.isCollider = true;
       lampGroup.add(post);
 
       // Lamp arm
@@ -1020,6 +1234,8 @@ export class FortMalaka {
 
       lampGroup.position.set(lx, lpy, -159);
       scene.add(lampGroup);
+      this.groups.push(lampGroup);
+      this.footprints.push({ x: lx, z: -159, radius: 1.2 });
     }
   }
 }

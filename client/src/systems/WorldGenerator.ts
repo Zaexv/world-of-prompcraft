@@ -15,6 +15,7 @@ const CHUNK_SIZE = 64;
 
 // ── Water level — skip objects below this height ───────────────────────────
 const WATER_LEVEL = -4;
+type ExclusionFootprint = { x: number; z: number; radius: number };
 
 // ── NPC name pools ─────────────────────────────────────────────────────────
 const FRIENDLY_NAMES = [
@@ -142,6 +143,7 @@ export class WorldGenerator {
   private minimap: Minimap | null = null;
   private dungeonSystem: DungeonSystem | null = null;
   private collisionSystem: CollisionSystem | null = null;
+  private exclusionFootprints: ExclusionFootprint[] = [];
 
   /** Track spawned scene objects per chunk for cleanup on unload. */
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
@@ -285,6 +287,21 @@ export class WorldGenerator {
     this.collisionSystem = cs;
   }
 
+  /** Prevent procedural spawns inside authored city/structure footprints. */
+  setExclusionFootprints(footprints: ExclusionFootprint[]): void {
+    this.exclusionFootprints = [...footprints];
+  }
+
+  private isInExclusionFootprint(x: number, z: number, padding = 2.5): boolean {
+    for (const fp of this.exclusionFootprints) {
+      const dx = x - fp.x;
+      const dz = z - fp.z;
+      const r = fp.radius + padding;
+      if (dx * dx + dz * dz <= r * r) return true;
+    }
+    return false;
+  }
+
   // ── Biome-specific materials (lazy-created) ────────────────────────────────
   private biomeMaterials: Map<BiomeType, { trunk: THREE.MeshStandardMaterial; canopy: THREE.MeshStandardMaterial[] }> = new Map();
 
@@ -384,6 +401,7 @@ export class WorldGenerator {
       const ty = this.terrain.getHeightAt(tx, tz);
 
       if (ty < WATER_LEVEL) continue;
+      if (this.isInExclusionFootprint(tx, tz)) continue;
 
       const scale = 0.5 + Math.random();
       const shape = pick(allowedShapes);
@@ -418,8 +436,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.coneCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.5;
         canopy.scale.set(scale, scale, scale);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 36;
         tree.add(canopy);
         break;
       }
@@ -428,8 +448,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.roundCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.5;
         canopy.scale.set(scale * 1.2, scale * 0.9, scale * 1.2);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 36;
         tree.add(canopy);
         break;
       }
@@ -441,8 +463,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.tallCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 3 + scale * 1.5;
         canopy.scale.set(scale, scale, scale);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 40;
         tree.add(canopy);
         break;
       }
@@ -452,7 +476,9 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.weepingCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.0;
         canopy.scale.set(scale * 1.3, scale, scale * 1.3);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 34;
         tree.add(canopy);
         // Hanging vine strands (reuse shared geo+mat)
         for (let v = 0; v < 5; v++) {
@@ -491,7 +517,9 @@ export class WorldGenerator {
             -Math.cos(angle) * 0.6,
           );
           branch.scale.set(scale, scale, scale);
-          branch.castShadow = true;
+          branch.castShadow = false;
+          branch.userData.distanceShadowCaster = true;
+          branch.userData.shadowDistance = 28;
           tree.add(branch);
         }
         break;
@@ -515,7 +543,9 @@ export class WorldGenerator {
           );
           small.scale.set(scale * 0.4, scale * 0.6, scale * 0.4);
           small.rotation.z = (Math.random() - 0.5) * 0.5;
-          small.castShadow = true;
+          small.castShadow = false;
+          small.userData.distanceShadowCaster = true;
+          small.userData.shadowDistance = 30;
           tree.add(small);
         }
         break;
@@ -531,8 +561,10 @@ export class WorldGenerator {
         const cap = new THREE.Mesh(this.mushroomCapGeo, pick(mats.canopy));
         cap.position.y = scale * 1.2;
         cap.scale.set(scale, scale * 0.5, scale);
-        cap.castShadow = true;
+        cap.castShadow = false;
         cap.receiveShadow = true;
+        cap.userData.distanceShadowCaster = true;
+        cap.userData.shadowDistance = 24;
         tree.add(cap);
         break;
       }
@@ -690,6 +722,7 @@ export class WorldGenerator {
         name,
         position,
         color,
+        behavior: 'friendly',
       });
       this.trackNPC(townKey, npcId);
 
@@ -730,7 +763,7 @@ export class WorldGenerator {
     const roll = Math.random();
     let name: string;
     let color: number;
-    let behavior: string;
+    let behavior: 'friendly' | 'neutral' | 'hostile';
 
     switch (biome) {
       case BiomeType.EmberWastes:
@@ -805,6 +838,7 @@ export class WorldGenerator {
       name,
       position,
       color,
+      behavior,
     });
     this.trackNPC(npcKey, npcId);
 

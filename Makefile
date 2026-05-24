@@ -21,7 +21,7 @@ typecheck-client:
 	cd client && npx tsc --noEmit
 
 typecheck-server:
-	cd server && python -m mypy src
+	cd server && $(if $(filter Darwin,$(shell uname)),arch -arm64 python -m mypy src,python -m mypy src)
 
 # ── Tests ───────────────────────────────────────────────
 test: test-client test-server
@@ -30,7 +30,7 @@ test-client:
 	cd client && npx vitest run
 
 test-server:
-	cd server && python -m pytest tests/ -v
+	cd server && $(if $(filter Darwin,$(shell uname)),arch -arm64 python -m pytest tests,python -m pytest tests)/ -v
 
 # ── Formatting (auto-fix) ──────────────────────────────
 format:

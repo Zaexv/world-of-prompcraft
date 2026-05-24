@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 
@@ -165,7 +166,7 @@ def _analyze_mood(tokens: set[str], current_mood: str) -> str:
     return current_mood if current_mood else "neutral"
 
 
-def _compute_relationship_delta(tokens: set[str], actions: list[dict]) -> int:
+def _compute_relationship_delta(tokens: set[str], actions: list[dict[str, Any]]) -> int:
     """Compute relationship score change from conversation + actions."""
     delta = 0
 
@@ -198,7 +199,7 @@ def _compute_relationship_delta(tokens: set[str], actions: list[dict]) -> int:
 
 def _build_personality_note(
     tokens: set[str],
-    actions: list[dict],
+    actions: list[dict[str, Any]],
     existing_notes: str,
     relationship_score: int,
 ) -> str:
@@ -228,14 +229,14 @@ def _build_personality_note(
             notes += " "
         notes += " ".join(new_observations)
 
-    # Cap notes length to avoid prompt bloat
+    # Cap notes length to avoid prompt bloat — keep oldest observations
     if len(notes) > 300:
-        notes = notes[-300:]
+        notes = notes[:300]
 
     return notes
 
 
-async def reflect_node(state: NPCAgentState) -> dict:
+async def reflect_node(state: NPCAgentState) -> dict[str, Any]:
     """Analyze the conversation to update mood, relationship, and personality notes.
 
     Uses heuristics (no LLM call) to keep latency and costs low.

@@ -36,7 +36,7 @@ Follow these patterns strictly when extending the world:
 - Snap all objects to terrain height using `Terrain.getHeightAt(x, z)` — never hardcode Y positions
 - Avoid placing objects inside building footprints or water areas
 - Keep triangle counts reasonable: use simple geometry (boxes, cylinders, cones, spheres) composed together
-- Add new objects to the collision system in `client/src/systems/CollisionSystem.ts` if they should block the player
+- **Collider-first default**: when adding world geometry, make it collidable by default (`userData.isCollider = true`) and register it with the collision system. Only skip colliders for clearly decorative/non-blocking pieces.
 
 ### Visual Style
 - **Color palette**: Deep purples (0x2a0845), teals (0x00ffaa), moonlit blues (0x8899ff), bioluminescent greens (0x44ff88)
@@ -71,4 +71,4 @@ When adding a new NPC, you must update both client and server:
 
 The user wants to add: **$ARGUMENTS**
 
-Implement this addition following all the rules above. Show the user what you plan to add before writing code. After implementation, verify the code compiles by checking for TypeScript errors.
+Implement this addition following all the rules above. Show the user what you plan to add before writing code. By default, include colliders for new structures/objects unless they are explicitly decorative. After implementation, verify the code compiles by checking for TypeScript errors.
