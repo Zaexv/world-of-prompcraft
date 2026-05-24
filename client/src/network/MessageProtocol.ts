@@ -24,6 +24,8 @@ export interface JoinRequest {
   username: string;
   race: string;
   faction: string;
+  skin: string;
+  position: [number, number, number];
 }
 
 export interface ChatMessage {
@@ -181,6 +183,7 @@ export interface PlayerStateData {
   maxMana: number;
   inventory: string[];
   level: number;
+  skin: string;
 }
 
 export interface NPCStateData {
@@ -206,6 +209,7 @@ export interface RemotePlayerData {
   position: [number, number, number];
   race: string;
   faction: string;
+  skin: string;
   hp: number;
   maxHp: number;
   yaw: number;

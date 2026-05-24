@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { GLTF_CLIP_MAP } from './NPCModels';
 
 export type AnimationName = 'idle' | 'walk' | 'attack' | 'emote';
 
 /**
- * Simple procedural animation controller for an NPC mesh group.
- * Drives bob, leg oscillation, lunge, and scale-pulse without skeletal data.
+ * Animation controller for an NPC.
+ * Runs procedural bone-free animations by default.
+ * Call setMixer() after GLTF load to switch to skeletal AnimationMixer mode.
  */
 export class NPCAnimator {
   private group: THREE.Group;
@@ -16,6 +18,10 @@ export class NPCAnimator {
   private attackTimer = 0;
   private emoteTimer = 0;
 
+  // GLTF mode — set via setMixer()
+  private mixer: THREE.AnimationMixer | null = null;
+  private clips: Map<string, THREE.AnimationClip> = new Map();
+
   constructor(group: THREE.Group) {
     this.group = group;
     this.baseY = group.position.y;
@@ -23,6 +29,19 @@ export class NPCAnimator {
     // Try to find leg meshes by name (set during NPC construction)
     this.leftLeg = group.getObjectByName('leftLeg') ?? null;
     this.rightLeg = group.getObjectByName('rightLeg') ?? null;
+  }
+
+  /**
+   * Switch to GLTF skeletal animation mode.
+   * Plays the idle clip immediately if one is found.
+   */
+  setMixer(mixer: THREE.AnimationMixer, animations: THREE.AnimationClip[]): void {
+    this.mixer = mixer;
+    this.clips.clear();
+    for (const clip of animations) {
+      this.clips.set(clip.name, clip);
+    }
+    this.playGLTFClip('idle');
   }
 
   /** Update the base Y position (e.g. after the NPC moves to new terrain height). */
@@ -37,9 +56,17 @@ export class NPCAnimator {
     this.phase = 0;
     this.attackTimer = 0;
     this.emoteTimer = 0;
+    if (this.mixer) {
+      this.playGLTFClip(name);
+    }
   }
 
   update(delta: number): void {
+    if (this.mixer) {
+      this.mixer.update(delta);
+      return;
+    }
+
     this.phase += delta;
     if (this.phase > 628) this.phase -= 628;
 
@@ -57,6 +84,15 @@ export class NPCAnimator {
         this.animateEmote(delta);
         break;
     }
+  }
+
+  private playGLTFClip(name: AnimationName): void {
+    if (!this.mixer) return;
+    const clipName = GLTF_CLIP_MAP[name] ?? name;
+    const clip = this.clips.get(clipName) ?? this.clips.values().next().value;
+    if (!clip) return;
+    this.mixer.stopAllAction();
+    this.mixer.clipAction(clip).reset().fadeIn(0.2).play();
   }
 
   // --- Idle: gentle vertical bob ---

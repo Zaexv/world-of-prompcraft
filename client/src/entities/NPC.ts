@@ -1,7 +1,10 @@
 import * as THREE from 'three';
+import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { NPCAnimator } from './NPCAnimator';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
+import { NPC_MODEL_MAP } from './NPCModels';
+import type { AssetLoader } from '../utils/AssetLoader';
 
 export interface NPCConfig {
   id: string;
@@ -30,7 +33,6 @@ export class NPC {
 
   private wanderTarget: THREE.Vector3 = new THREE.Vector3();
   private hasWanderTarget = false;
-  private wanderTimer = 0;
   private wanderCooldown: number;
   private isWandering = false;
 
@@ -38,6 +40,8 @@ export class NPC {
   private materials: THREE.MeshStandardMaterial[] = [];
   /** Original emissive hex values, captured on first highlight. */
   private originalEmissives: number[] = [];
+  /** True when the mesh has been replaced with a GLTF scene. */
+  private gltfMode = false;
 
   constructor(config: NPCConfig) {
     this.id = config.id;
@@ -136,6 +140,73 @@ export class NPC {
     this.animator = new NPCAnimator(this.mesh);
   }
 
+  /**
+   * Create an NPC, optionally upgrading to a GLTF model if one is available.
+   * Falls back to the procedural mesh silently on any load error.
+   */
+  static async create(config: NPCConfig, assetLoader?: AssetLoader): Promise<NPC> {
+    const npc = new NPC(config);
+    if (assetLoader) {
+      const modelPath = NPC_MODEL_MAP[config.id];
+      if (modelPath) {
+        try {
+          const gltf = await assetLoader.loadGLTF(modelPath);
+          npc.replaceWithGLTF(gltf);
+        } catch {
+          // GLTF unavailable — keep procedural mesh
+        }
+      }
+    }
+    return npc;
+  }
+
+  /** Swap out procedural geometry for a loaded GLTF scene. */
+  private replaceWithGLTF(gltf: GLTF): void {
+    // Remove procedural meshes but keep sprites (nameplate, actionIcon)
+    const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
+    for (const child of toRemove) this.mesh.remove(child);
+
+    // Scale the GLTF so it roughly matches the procedural NPC height (~2.5 units)
+    const gltfScene = gltf.scene.clone();
+    const box = new THREE.Box3().setFromObject(gltfScene);
+    const size = new THREE.Vector3();
+    box.getSize(size);
+    const scale = 2.5 / Math.max(size.x, size.y, size.z, 0.001);
+    gltfScene.scale.setScalar(scale);
+    // Sit on the ground
+    gltfScene.position.y = -box.min.y * scale;
+
+    gltfScene.traverse((child) => {
+      child.userData.npcId = this.id;
+      child.userData.npcName = this.name;
+      if (child instanceof THREE.Mesh) child.castShadow = true;
+    });
+
+    this.mesh.add(gltfScene);
+    this.materials = [];
+    this.originalEmissives = [];
+    this.gltfMode = true;
+
+    if (gltf.animations.length > 0) {
+      const mixer = new THREE.AnimationMixer(gltfScene);
+      this.animator.setMixer(mixer, gltf.animations);
+    }
+  }
+
+  /** Collect all MeshStandardMaterial instances from the current mesh tree. */
+  private collectStdMaterials(): THREE.MeshStandardMaterial[] {
+    const result: THREE.MeshStandardMaterial[] = [];
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const mats = Array.isArray(child.material) ? child.material : [child.material];
+        for (const mat of mats) {
+          if (mat instanceof THREE.MeshStandardMaterial) result.push(mat);
+        }
+      }
+    });
+    return result;
+  }
+
   /** Call every frame. */
   update(delta: number): void {
     this.animator.update(delta);
@@ -186,19 +257,17 @@ export class NPC {
 
   /** Toggle hover/highlight by adding emissive colour. */
   setHighlight(on: boolean): void {
+    const mats = this.gltfMode ? this.collectStdMaterials() : this.materials;
     if (on) {
-      // Store original emissive values on first highlight
       if (this.originalEmissives.length === 0) {
-        this.originalEmissives = this.materials.map((mat) => mat.emissive.getHex());
+        this.originalEmissives = mats.map((mat) => mat.emissive.getHex());
       }
-      for (const mat of this.materials) {
+      for (const mat of mats) {
         mat.emissive.setHex(mat.emissive.getHex() | 0x444444);
       }
     } else {
-      // Restore original emissive values
-      for (let i = 0; i < this.materials.length; i++) {
-        const original = this.originalEmissives[i] ?? 0x000000;
-        this.materials[i].emissive.setHex(original);
+      for (let i = 0; i < mats.length; i++) {
+        mats[i].emissive.setHex(this.originalEmissives[i] ?? 0x000000);
       }
     }
   }

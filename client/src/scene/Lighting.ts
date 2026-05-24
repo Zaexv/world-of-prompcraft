@@ -1,63 +1,52 @@
 import * as THREE from 'three';
 
 /**
- * Teldrassil moonlit atmosphere: silver-blue directional moonlight,
- * hemisphere fill with purple undertones, purple ambient point light, and
- * deep purple-blue exponential fog.
+ * Moonlit night lighting tuned for an image-based skybox:
+ * - one shadowed key light (moon)
+ * - broad hemisphere fill + subtle ambient
+ * - soft non-shadowed rim directional for silhouette readability
  */
 export class Lighting {
   public sun: THREE.DirectionalLight;
   public hemisphere: THREE.HemisphereLight;
+  public ambient: THREE.AmbientLight;
+  public rim: THREE.DirectionalLight;
 
   constructor(scene: THREE.Scene) {
-    // --- Directional "moon" light (brighter silver-blue) ---
-    this.sun = new THREE.DirectionalLight(0xaabbdd, 1.4);
-    this.sun.position.set(80, 140, 50);
+    // --- Key moon light (casts shadows) ---
+    this.sun = new THREE.DirectionalLight(0x9fb9ff, 0.78);
+    this.sun.position.set(95, 130, 45);
     this.sun.castShadow = true;
 
-    this.sun.shadow.mapSize.set(2048, 2048);
+    this.sun.shadow.mapSize.set(512, 512);
     this.sun.shadow.camera.near = 0.5;
     this.sun.shadow.camera.far = 300;
-    this.sun.shadow.camera.left = -80;
-    this.sun.shadow.camera.right = 80;
-    this.sun.shadow.camera.top = 80;
-    this.sun.shadow.camera.bottom = -80;
-    this.sun.shadow.bias = -0.001;
+    this.sun.shadow.camera.left = -76;
+    this.sun.shadow.camera.right = 76;
+    this.sun.shadow.camera.top = 76;
+    this.sun.shadow.camera.bottom = -76;
+    this.sun.shadow.bias = -0.0005;
+    this.sun.shadow.normalBias = 0.02;
+    this.sun.target.position.set(0, 0, 0);
 
     scene.add(this.sun);
     scene.add(this.sun.target);
 
-    // --- Hemisphere light ---
-    // Silver-blue sky from above, dark purple ground from below
-    // Brighter hemisphere: more blue sky fill + warmer purple ground bounce
-    this.hemisphere = new THREE.HemisphereLight(0x8899cc, 0x332244, 0.9);
+    // --- Broad sky/ground fill ---
+    this.hemisphere = new THREE.HemisphereLight(0x5f78a8, 0x111827, 0.50);
     scene.add(this.hemisphere);
 
-    // --- Ambient purple point light (distant, for subtle purple glow) ---
-    const purpleAmbient = new THREE.PointLight(0x7744bb, 0.8, 600, 1.5);
-    purpleAmbient.position.set(-80, 60, -100);
-    scene.add(purpleAmbient);
+    // --- Low-cost base ambient for dark areas ---
+    this.ambient = new THREE.AmbientLight(0x111522, 0.12);
+    scene.add(this.ambient);
 
-    // --- Moonbeam spotlights (simulating light breaking through canopy) ---
-    const moonbeamColor = 0x8899cc;
-    const moonbeamConfigs = [
-      { x: 20, z: -15 },
-      { x: -35, z: 25 },
-      { x: 50, z: 40 },
-    ];
-
-    for (const cfg of moonbeamConfigs) {
-      const beam = new THREE.SpotLight(moonbeamColor, 0.8, 250, Math.PI / 8, 0.6, 1.2);
-      beam.position.set(cfg.x, 80, cfg.z);
-      beam.target.position.set(cfg.x, 0, cfg.z);
-      beam.castShadow = false; // Spotlights without shadows for performance
-      scene.add(beam);
-      scene.add(beam.target);
-    }
+    // --- Rim/fill directional (no shadows, cheap readability boost) ---
+    this.rim = new THREE.DirectionalLight(0x7b88c5, 0.18);
+    this.rim.position.set(-70, 42, -80);
+    this.rim.castShadow = false;
+    scene.add(this.rim);
 
     // --- Fog (exponential) ---
-    // Deep purple-blue for mysterious Teldrassil depth
-    // Lighter fog — still purple but much less dense so colors come through
-    scene.fog = new THREE.FogExp2(0x1a1133, 0.004);
+    scene.fog = new THREE.FogExp2(0x0b1222, 0.0038);
   }
 }

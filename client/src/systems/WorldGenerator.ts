@@ -418,8 +418,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.coneCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.5;
         canopy.scale.set(scale, scale, scale);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 36;
         tree.add(canopy);
         break;
       }
@@ -428,8 +430,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.roundCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.5;
         canopy.scale.set(scale * 1.2, scale * 0.9, scale * 1.2);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 36;
         tree.add(canopy);
         break;
       }
@@ -441,8 +445,10 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.tallCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 3 + scale * 1.5;
         canopy.scale.set(scale, scale, scale);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
         canopy.receiveShadow = true;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 40;
         tree.add(canopy);
         break;
       }
@@ -452,7 +458,9 @@ export class WorldGenerator {
         const canopy = new THREE.Mesh(this.weepingCanopyGeo, pick(mats.canopy));
         canopy.position.y = scale * 2 + scale * 1.0;
         canopy.scale.set(scale * 1.3, scale, scale * 1.3);
-        canopy.castShadow = true;
+        canopy.castShadow = false;
+        canopy.userData.distanceShadowCaster = true;
+        canopy.userData.shadowDistance = 34;
         tree.add(canopy);
         // Hanging vine strands (reuse shared geo+mat)
         for (let v = 0; v < 5; v++) {
@@ -491,7 +499,9 @@ export class WorldGenerator {
             -Math.cos(angle) * 0.6,
           );
           branch.scale.set(scale, scale, scale);
-          branch.castShadow = true;
+          branch.castShadow = false;
+          branch.userData.distanceShadowCaster = true;
+          branch.userData.shadowDistance = 28;
           tree.add(branch);
         }
         break;
@@ -515,7 +525,9 @@ export class WorldGenerator {
           );
           small.scale.set(scale * 0.4, scale * 0.6, scale * 0.4);
           small.rotation.z = (Math.random() - 0.5) * 0.5;
-          small.castShadow = true;
+          small.castShadow = false;
+          small.userData.distanceShadowCaster = true;
+          small.userData.shadowDistance = 30;
           tree.add(small);
         }
         break;
@@ -531,8 +543,10 @@ export class WorldGenerator {
         const cap = new THREE.Mesh(this.mushroomCapGeo, pick(mats.canopy));
         cap.position.y = scale * 1.2;
         cap.scale.set(scale, scale * 0.5, scale);
-        cap.castShadow = true;
+        cap.castShadow = false;
         cap.receiveShadow = true;
+        cap.userData.distanceShadowCaster = true;
+        cap.userData.shadowDistance = 24;
         tree.add(cap);
         break;
       }

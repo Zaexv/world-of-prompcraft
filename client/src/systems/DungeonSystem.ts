@@ -156,7 +156,7 @@ export class DungeonSystem {
     if (this.activeDungeon) {
       this.tryInteractInDungeon();
     } else if (this.nearestEntrance) {
-      this.enterDungeon(this.nearestEntrance);
+      void this.enterDungeon(this.nearestEntrance);
     }
   }
 
@@ -221,7 +221,7 @@ export class DungeonSystem {
 
   // ── Enter dungeon ────────────────────────────────────────────────────────
 
-  private enterDungeon(entranceId: string): void {
+  private async enterDungeon(entranceId: string): Promise<void> {
     const entrance = this.entrances.get(entranceId);
     if (!entrance) return;
     const config = DUNGEONS[entrance.dungeonId];
@@ -254,7 +254,7 @@ export class DungeonSystem {
     const spawnPoints = this.activeDungeon.enemySpawnPoints;
     for (let i = 0; i < spawnPoints.length && i < config.enemyNames.length; i++) {
       const enemyId = `dungeon_enemy_${entrance.dungeonId}_${i}`;
-      const npc = this.entityManager.addNPC({
+      const npc = await this.entityManager.addNPC({
         id: enemyId,
         name: config.enemyNames[i],
         position: spawnPoints[i].clone(),

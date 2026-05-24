@@ -17,6 +17,7 @@ import { LoginScreen } from './ui/LoginScreen';
 import { DamagePopup } from './ui/DamagePopup';
 import { ZoneTracker } from './systems/ZoneTracker';
 import { DungeonSystem } from './systems/DungeonSystem';
+import { AssetLoader } from './utils/AssetLoader';
 
 // ── Hostile NPC set (those that trigger the combat HUD) ──────────────────────
 const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
@@ -25,29 +26,227 @@ const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
 let localPlayerId = 'default';
 let joinedServer = false;
 
+interface LoadingOverlayController {
+  setMessage(message: string): void;
+  hide(): void;
+}
+
+function createLoadingOverlay(container: HTMLElement): LoadingOverlayController {
+  const overlay = document.createElement('div');
+  overlay.style.position = 'absolute';
+  overlay.style.inset = '0';
+  overlay.style.display = 'flex';
+  overlay.style.flexDirection = 'column';
+  overlay.style.alignItems = 'center';
+  overlay.style.justifyContent = 'center';
+  overlay.style.gap = '14px';
+  overlay.style.background = 'radial-gradient(circle at center, rgba(12,16,28,0.92), rgba(4,6,12,0.98))';
+  overlay.style.backdropFilter = 'blur(2px)';
+  overlay.style.color = '#c8d6ff';
+  overlay.style.fontFamily = 'system-ui, sans-serif';
+  overlay.style.fontSize = '16px';
+  overlay.style.zIndex = '9999';
+
+  const spinner = document.createElement('div');
+  spinner.style.width = '28px';
+  spinner.style.height = '28px';
+  spinner.style.border = '3px solid rgba(160, 184, 255, 0.2)';
+  spinner.style.borderTopColor = '#9fb9ff';
+  spinner.style.borderRadius = '50%';
+  spinner.style.animation = 'promptcraft-spin 0.85s linear infinite';
+
+  const message = document.createElement('div');
+  message.textContent = 'Loading world...';
+  message.style.letterSpacing = '0.3px';
+
+  const style = document.createElement('style');
+  style.textContent = `
+    @keyframes promptcraft-spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  overlay.appendChild(spinner);
+  overlay.appendChild(message);
+  container.appendChild(overlay);
+
+  return {
+    setMessage(nextMessage: string) {
+      message.textContent = nextMessage;
+    },
+    hide() {
+      overlay.remove();
+    },
+  };
+}
+
+function createArcaneMouseVfx(): void {
+  if (document.getElementById('promptcraft-game-cursor')) return;
+
+  const style = document.createElement('style');
+  style.id = 'promptcraft-hide-system-cursor';
+  style.textContent = `
+    html, body, #app, #app * { cursor: none !important; }
+    @keyframes promptcraft-thunder-flicker {
+      0%, 100% { opacity: 0.14; transform: scaleY(0.78); }
+      28% { opacity: 0.86; transform: scaleY(1.08); }
+      62% { opacity: 0.46; transform: scaleY(0.9); }
+    }
+  `;
+  document.head.appendChild(style);
+
+  const cursor = document.createElement('div');
+  cursor.id = 'promptcraft-game-cursor';
+  cursor.style.position = 'fixed';
+  cursor.style.left = '-100px';
+  cursor.style.top = '-100px';
+  cursor.style.width = '22px';
+  cursor.style.height = '30px';
+  cursor.style.pointerEvents = 'none';
+  cursor.style.zIndex = '2147483647';
+  cursor.style.opacity = '0';
+  cursor.style.transform = 'translate(-20%, -6%)';
+  cursor.style.willChange = 'transform, left, top, opacity';
+
+  const pointer = document.createElement('div');
+  pointer.style.position = 'absolute';
+  pointer.style.inset = '0';
+  pointer.style.clipPath = 'polygon(0 0, 0 100%, 31% 72%, 45% 100%, 59% 93%, 45% 64%, 100% 64%)';
+  pointer.style.background = 'linear-gradient(150deg, #cfdcff 0%, #7fa4ef 40%, #40559b 100%)';
+  pointer.style.border = '1px solid rgba(10, 14, 30, 0.96)';
+  pointer.style.boxShadow = '0 0 8px rgba(92, 136, 240, 0.5), 0 0 16px rgba(77, 48, 140, 0.4)';
+
+  const pointerInner = document.createElement('div');
+  pointerInner.style.position = 'absolute';
+  pointerInner.style.inset = '2px 3px 3px 2px';
+  pointerInner.style.clipPath = 'polygon(0 0, 0 100%, 30% 72%, 45% 100%, 56% 93%, 43% 63%, 100% 63%)';
+  pointerInner.style.background = 'linear-gradient(152deg, rgba(236,242,255,0.95) 0%, rgba(146,182,250,0.9) 48%, rgba(74,102,188,0.65) 100%)';
+  pointerInner.style.filter = 'drop-shadow(0 0 2px rgba(160, 195, 255, 0.55))';
+
+  const pointerSpine = document.createElement('div');
+  pointerSpine.style.position = 'absolute';
+  pointerSpine.style.left = '7px';
+  pointerSpine.style.top = '5px';
+  pointerSpine.style.width = '1px';
+  pointerSpine.style.height = '12px';
+  pointerSpine.style.background = 'linear-gradient(to bottom, rgba(255,255,255,0.9), rgba(188,208,255,0.1))';
+
+  const boltA = document.createElement('div');
+  boltA.style.position = 'absolute';
+  boltA.style.left = '5px';
+  boltA.style.top = '-3px';
+  boltA.style.width = '2px';
+  boltA.style.height = '20px';
+  boltA.style.background = 'linear-gradient(to bottom, rgba(170,186,255,0), rgba(170,186,255,0.9), rgba(98,124,231,0))';
+  boltA.style.filter = 'drop-shadow(0 0 3px rgba(122, 144, 255, 0.72))';
+  boltA.style.animation = 'promptcraft-thunder-flicker 165ms steps(2, end) infinite';
+  boltA.style.transformOrigin = 'top center';
+
+  const boltB = document.createElement('div');
+  boltB.style.position = 'absolute';
+  boltB.style.left = '11px';
+  boltB.style.top = '5px';
+  boltB.style.width = '2px';
+  boltB.style.height = '15px';
+  boltB.style.background = 'linear-gradient(to bottom, rgba(163,175,255,0), rgba(151,181,255,0.86), rgba(84,110,209,0))';
+  boltB.style.filter = 'drop-shadow(0 0 3px rgba(102, 138, 255, 0.64))';
+  boltB.style.animation = 'promptcraft-thunder-flicker 220ms steps(2, end) infinite';
+  boltB.style.animationDelay = '60ms';
+  boltB.style.transformOrigin = 'top center';
+
+  cursor.appendChild(pointer);
+  cursor.appendChild(pointerInner);
+  cursor.appendChild(pointerSpine);
+  cursor.appendChild(boltA);
+  cursor.appendChild(boltB);
+  document.body.appendChild(cursor);
+
+  let x = -100;
+  let y = -100;
+  let hiddenByMouseLook = false;
+
+  const showCursor = () => {
+    cursor.style.opacity = '1';
+  };
+  const hideCursor = () => {
+    cursor.style.opacity = '0';
+  };
+
+  window.addEventListener('mousemove', (e: MouseEvent) => {
+    x = e.clientX;
+    y = e.clientY;
+    if (hiddenByMouseLook) return;
+    cursor.style.left = `${x}px`;
+    cursor.style.top = `${y}px`;
+    const tilt = Math.max(-14, Math.min(14, e.movementX * 0.7));
+    cursor.style.transform = `translate(-20%, -6%) rotate(${tilt}deg)`;
+    showCursor();
+  });
+
+  window.addEventListener('mousedown', (e: MouseEvent) => {
+    if (e.button === 0 || e.button === 2) {
+      hiddenByMouseLook = true;
+      hideCursor();
+    }
+  });
+
+  window.addEventListener('mouseup', (e: MouseEvent) => {
+    if (e.button === 0 || e.button === 2) {
+      hiddenByMouseLook = false;
+      cursor.style.left = `${x}px`;
+      cursor.style.top = `${y}px`;
+      showCursor();
+    }
+  });
+
+  document.addEventListener('pointerlockchange', () => {
+    const locked = document.pointerLockElement !== null;
+    hiddenByMouseLook = locked;
+    if (locked) {
+      hideCursor();
+      return;
+    }
+    cursor.style.left = `${x}px`;
+    cursor.style.top = `${y}px`;
+    showCursor();
+  });
+
+  window.addEventListener('mouseleave', () => {
+    hideCursor();
+  });
+}
+
 // ── Login / Title screen ────────────────────────────────────────────────────
 const loginScreen = new LoginScreen();
 loginScreen.show();
 
-loginScreen.onEnterWorld = (username: string, race: string, faction: string) => {
-  initGame(username, race, faction);
+loginScreen.onEnterWorld = (username: string, race: string, faction: string, skin: string) => {
+  void initGame(username, race, faction, skin);
 };
 
 // ── Game initialisation (runs after "Enter World") ──────────────────────────
-function initGame(username: string, race: string, faction: string) {
+async function initGame(username: string, race: string, faction: string, skin: string): Promise<void> {
   // ── Core scene ────────────────────────────────────────────────────────────
   const app = document.getElementById('app')!;
+  const loadingOverlay = createLoadingOverlay(app);
+  loadingOverlay.setMessage('Initializing renderer...');
   const sceneManager = new SceneManager(app);
   const { scene, camera, renderer, terrain } = sceneManager;
+  createArcaneMouseVfx();
 
   // ── State ─────────────────────────────────────────────────────────────────
   const playerState = PlayerState.getInstance();
   playerState.race = race;
   playerState.faction = faction;
+  playerState.skin = skin;
   const npcStateStore = new NPCStateStore();
   const worldState = new WorldState(playerState, npcStateStore);
 
   // ── Player ────────────────────────────────────────────────────────────────
+  const assetLoader = new AssetLoader();
+
   // Height function — returns dungeon floor when inside a dungeon,
   // otherwise queries the terrain as usual.
   let inDungeonOverride = false;
@@ -61,11 +260,13 @@ function initGame(username: string, race: string, faction: string) {
     renderer.domElement,
     heightFn,
   );
-  const player = new Player(race);
+  loadingOverlay.setMessage('Loading character skin...');
+  const player = await Player.create(race, skin, assetLoader);
   scene.add(player.group);
 
   // ── NPCs ──────────────────────────────────────────────────────────────────
-  const entityManager = new EntityManager(scene);
+  loadingOverlay.setMessage('Loading entities...');
+  const entityManager = new EntityManager(scene, assetLoader);
 
   // Mirror the backend NPC definitions (positions match server/src/world/npc_definitions.py)
   const NPC_CONFIGS = [
@@ -86,13 +287,16 @@ function initGame(username: string, race: string, faction: string) {
     npcNameMap.set(cfg.id, cfg.name);
   }
 
-  for (const cfg of NPC_CONFIGS) {
-    // Snap NPC Y to terrain height
-    cfg.position.y = terrain.getHeightAt(cfg.position.x, cfg.position.z);
-    entityManager.addNPC(cfg);
-  }
+  // Load all NPCs in parallel — falls back to procedural mesh if GLTF is missing
+  await Promise.all(
+    NPC_CONFIGS.map(async (cfg) => {
+      cfg.position.y = terrain.getHeightAt(cfg.position.x, cfg.position.z);
+      await entityManager.addNPC(cfg);
+    }),
+  );
 
   // ── Collision (AABB-based) ───────────────────────────────────────────────
+  loadingOverlay.setMessage('Preparing collisions...');
   const collisionSystem = new CollisionSystem();
 
   // Buildings (static — filtered to solid structural elements only)
@@ -145,7 +349,6 @@ function initGame(username: string, race: string, faction: string) {
     playerState.respawn();
     playerController.position.set(0, terrain.getHeightAt(0, 0), 0);
     uiManager.hideDeathScreen();
-    renderer.domElement.requestPointerLock();
   };
 
   // ── Chat bubbles ──────────────────────────────────────────────────────────
@@ -165,15 +368,6 @@ function initGame(username: string, race: string, faction: string) {
 
     if (e.code === "KeyI") {
       uiManager.toggleInventory();
-
-      // Release pointer lock when inventory opens; re-acquire when it closes
-      if (uiManager.inventoryPanel.isVisible) {
-        if (document.pointerLockElement) {
-          document.exitPointerLock();
-        }
-      } else {
-        renderer.domElement.requestPointerLock();
-      }
     }
 
     if (e.code === "KeyM") {
@@ -192,37 +386,30 @@ function initGame(username: string, race: string, faction: string) {
     if (e.code === "Enter" && !uiManager.chatPanel.isFocused) {
       e.preventDefault();
       uiManager.chatPanel.focusInput();
-      if (document.pointerLockElement) {
-        document.exitPointerLock();
-      }
     }
 
-    // Escape in chat to blur and re-acquire pointer lock
+    // Escape in chat to blur
     if (e.code === "Escape" && uiManager.chatPanel.isFocused) {
       e.preventDefault();
-      // The ChatPanel input handles blur internally, but also re-acquire lock
-      renderer.domElement.requestPointerLock();
     }
   });
 
-  uiManager.inventoryPanel.onClose = () => {
-    renderer.domElement.requestPointerLock();
-  };
-
   // ── Network ───────────────────────────────────────────────────────────────
+  loadingOverlay.setMessage('Connecting to server...');
   const wsHost = window.location.hostname || 'localhost';
   const ws = new WebSocketClient(`ws://${wsHost}:8000/ws`);
 
   ws.onConnectionChange = (connected) => {
     console.warn(`WebSocket ${connected ? 'connected' : 'disconnected'}`);
     if (connected) {
+      loadingOverlay.setMessage('Joining world...');
       // BUG-3: Send initial position in join so other players see correct spawn
       const initPos: [number, number, number] = [
         playerController.position.x,
         playerController.position.y,
         playerController.position.z,
       ];
-      ws.send({ type: 'join', username, race, faction, position: initPos });
+      ws.send({ type: 'join', username, race, faction, skin, position: initPos });
     } else {
       // Reset join flag on disconnect so player_move is not sent on the new
       // WebSocket before the server re-registers us via a fresh join handshake.
@@ -349,10 +536,6 @@ function initGame(username: string, race: string, faction: string) {
       uiManager.combatHUD.updatePlayerMana(playerState.mana, playerState.maxMana);
     }
 
-    // Exit pointer lock so the player can type
-    if (document.pointerLockElement) {
-      document.exitPointerLock();
-    }
   };
 
   uiManager.interactionPanel.onSendMessage = (prompt: string) => {
@@ -381,8 +564,6 @@ function initGame(username: string, race: string, faction: string) {
     activeNpcId = null;
     uiManager.hideInteractionPanel();
     uiManager.hideCombatHUD();
-    // Re-enter pointer lock for game controls
-    renderer.domElement.requestPointerLock();
   };
 
   // ── Server response handling ──────────────────────────────────────────────
@@ -394,6 +575,7 @@ function initGame(username: string, race: string, faction: string) {
       joinedServer = true; // BUG-1: Now safe to send player_move
       playerState.playerId = data.playerId;
       loginScreen.hide();
+      loadingOverlay.hide();
       uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${username}!`);
 
       // Spawn existing players
@@ -409,6 +591,7 @@ function initGame(username: string, race: string, faction: string) {
 
     // ── Join Error ─────────────────────────────────────────────────────────
     if (data.type === 'join_error') {
+      loadingOverlay.hide();
       loginScreen.showError(data.message);
       return;
     }
@@ -694,7 +877,13 @@ function initGame(username: string, race: string, faction: string) {
     if (!playerState.isDead) {
       playerController.update(delta);
       player.group.position.copy(playerController.position);
-      player.update(delta, playerController.isMoving, playerController.velocity, playerController.isSwimming);
+      player.update(
+        delta,
+        playerController.isMoving,
+        playerController.velocity,
+        playerController.isSwimming,
+        playerController.facingYawOverride,
+      );
 
       // Sync position to playerState
       playerState.position = [playerController.position.x, playerController.position.y, playerController.position.z];
@@ -744,5 +933,5 @@ function initGame(username: string, race: string, faction: string) {
 
   animate();
 
-  console.warn('World of Promptcraft initialized — WASD to move, click NPCs to interact');
+  console.warn('World of Promptcraft initialized — WASD move, hold LMB/RMB to rotate camera, wheel to zoom');
 }

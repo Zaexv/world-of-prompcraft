@@ -23,6 +23,7 @@ export class PlayerState {
   playerId: string = '';
   race: string = 'human';
   faction: string = 'alliance';
+  skin: string = 'skin-1';
 
   hp: number;
   maxHp: number;
@@ -78,6 +79,7 @@ export class PlayerState {
     if (update.maxMana !== undefined) this.maxMana = update.maxMana;
     if (update.level !== undefined) this.level = update.level;
     if (update.inventory !== undefined) this.inventory = [...update.inventory];
+    if (update.skin !== undefined) this.skin = update.skin;
     let questChanged = false;
     if (update.activeQuests !== undefined) {
       this.activeQuests = update.activeQuests.map((q) => ({

@@ -239,6 +239,9 @@ export class CollisionSystem {
     desiredPos: THREE.Vector3,
     _scene: THREE.Scene,
   ): THREE.Vector3 {
+    this.playerBody.position.set(currentPos.x, currentPos.y + this.PLAYER_HY, currentPos.z);
+    this.playerBody.updateAABB();
+
     // Sync NPC bodies before sweep
     this.syncDynamicBodies();
 
@@ -309,6 +312,16 @@ export class CollisionSystem {
     const pMinZ = cz - pHZ;
     const pMaxZ = cz + pHZ;
 
+    // Broad-phase in XZ: skip any body that cannot possibly intersect this frame's swept box.
+    const endMinX = pMinX + vx;
+    const endMaxX = pMaxX + vx;
+    const endMinZ = pMinZ + vz;
+    const endMaxZ = pMaxZ + vz;
+    const sweepMinX = Math.min(pMinX, endMinX) - SKIN;
+    const sweepMaxX = Math.max(pMaxX, endMaxX) + SKIN;
+    const sweepMinZ = Math.min(pMinZ, endMinZ) - SKIN;
+    const sweepMaxZ = Math.max(pMaxZ, endMaxZ) + SKIN;
+
     let bestT = 1.0;
     let bestNX = 0;
     let bestNZ = 0;
@@ -319,6 +332,10 @@ export class CollisionSystem {
     for (const body of allBodies) {
       const bMin = body.aabb.lowerBound;
       const bMax = body.aabb.upperBound;
+
+      if (bMax.x < sweepMinX || bMin.x > sweepMaxX || bMax.z < sweepMinZ || bMin.z > sweepMaxZ) {
+        continue;
+      }
 
       // Y overlap test (static, we don't move vertically here)
       if (pMaxY <= bMin.y || pMinY >= bMax.y) continue;

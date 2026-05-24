@@ -104,7 +104,7 @@ export class Vegetation {
     this.mediumCanopies = new THREE.InstancedMesh(medCanopyGeo, medCanopyMat, medTreeCount);
     this.mediumTrunks.castShadow = true;
     this.mediumTrunks.receiveShadow = true;
-    this.mediumCanopies.castShadow = true;
+    this.mediumCanopies.castShadow = false;
     this.mediumCanopies.receiveShadow = true;
 
     let medPlaced = 0;
@@ -374,7 +374,9 @@ export class Vegetation {
         canopyBaseY + rand() * 10,
         Math.sin(angle) * dist,
       );
-      canopy.castShadow = true;
+      canopy.castShadow = false;
+      canopy.userData.distanceShadowCaster = true;
+      canopy.userData.shadowDistance = 52;
       group.add(canopy);
     }
 
@@ -390,7 +392,9 @@ export class Vegetation {
         canopyBaseY + 5 + rand() * 10,
         (rand() - 0.5) * 5,
       );
-      cone.castShadow = true;
+      cone.castShadow = false;
+      cone.userData.distanceShadowCaster = true;
+      cone.userData.shadowDistance = 52;
       group.add(cone);
     }
 

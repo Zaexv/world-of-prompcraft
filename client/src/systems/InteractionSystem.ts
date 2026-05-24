@@ -4,9 +4,9 @@ import { EntityManager } from '../entities/EntityManager';
 /**
  * Handles raycaster-based NPC interaction (click) and hover highlighting.
  *
- * - Left-click works when pointer lock is OFF (cursor visible).
- * - Right-click always works for NPC interaction regardless of pointer lock state.
- * - Hover highlight is only active when pointer lock is OFF.
+ * - Left-click selects/interacts with NPCs when it was a click (not a camera drag).
+ * - Hover highlights NPCs while the cursor is over them.
+ * - Left/right mouse drag are reserved for camera orbit (WoW-style controls).
  */
 export class InteractionSystem {
   /** Set this callback to be notified when an NPC is clicked. */
@@ -28,26 +28,29 @@ export class InteractionSystem {
     this.domElement = domElement;
     this.entityManager = entityManager;
 
-    // Left-click (only when cursor is free / no pointer lock)
+    // Left-click interaction
     this.domElement.addEventListener('click', (e: MouseEvent) => {
-      if (document.pointerLockElement) return; // pointer locked — ignore left click
+      if (this.wasCameraDrag()) return;
       this.handleClick(e);
     });
 
-    // Right-click (always works)
-    this.domElement.addEventListener('contextmenu', (e: MouseEvent) => {
-      e.preventDefault();
-      this.handleClick(e);
-    });
-
-    // Hover (only when cursor is free)
+    // Hover
     this.domElement.addEventListener('mousemove', (e: MouseEvent) => {
-      if (document.pointerLockElement) {
+      // Suppress hover raycasts while mouse-drag camera orbit is active.
+      if ((e.buttons & 3) !== 0) {
         this.clearHighlight();
         return;
       }
       this.handleHover(e);
     });
+  }
+
+  // ----------------------------------------------------------------
+
+  private wasCameraDrag(): boolean {
+    if (this.domElement.dataset.cameraDrag === '1') return true;
+    const ts = Number(this.domElement.dataset.justCameraDragged ?? '0');
+    return Number.isFinite(ts) && ts > 0 && (performance.now() - ts) < 140;
   }
 
   // ----------------------------------------------------------------

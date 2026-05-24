@@ -226,6 +226,7 @@ _agent_semaphore = asyncio.Semaphore(10)
 # Valid races and factions for join validation
 _VALID_RACES = {"human", "night_elf", "orc", "undead"}
 _VALID_FACTIONS = {"alliance", "horde"}
+_VALID_SKINS = {"skin-1", "skin-2", "skin-3", "skin-4"}
 
 # Allowed fields from client player state (security whitelist)
 # We sync inventory and hp so the server can score attacks properly
@@ -296,6 +297,7 @@ async def _handle_join(
     username = (data.get("username") or "").strip()
     race = data.get("race", "human")
     faction = data.get("faction", "alliance")
+    skin = data.get("skin", "skin-1")
 
     # Validate username: 1-20 alphanumeric/underscore characters
     if not username or len(username) > 20 or not re.match(r"^[a-zA-Z0-9_]+$", username):
@@ -311,6 +313,8 @@ async def _handle_join(
         race = "human"
     if faction not in _VALID_FACTIONS:
         faction = "alliance"
+    if skin not in _VALID_SKINS:
+        skin = "skin-1"
 
     # Register websocket with manager
     manager.register(websocket, username)
@@ -332,6 +336,7 @@ async def _handle_join(
         player.username = username
         player.race = race
         player.faction = faction
+        player.skin = skin
         player.position = initial_position
 
     # Build list of current players (excluding the joining player)

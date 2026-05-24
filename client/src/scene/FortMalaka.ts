@@ -25,9 +25,6 @@ export class FortMalaka {
   private static readonly DARK_STONE = 0x2a2a3a;
   private static readonly LIGHT_STONE = 0x888899;
   private static readonly RUNE_GLOW = 0x6644ff;
-  private static readonly FROST_BLUE = 0x88ccff;
-  private static readonly FIRE_ORANGE = 0xff6622;
-
   // Málaga / Mediterranean palette
   private static readonly WHITE_WALL = 0xf0ece0;
   private static readonly TERRACOTTA = 0xb85c38;

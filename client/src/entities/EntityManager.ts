@@ -3,6 +3,7 @@ import { NPC, NPCConfig } from './NPC';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
 import type { CollisionSystem } from '../systems/CollisionSystem';
+import type { AssetLoader } from '../utils/AssetLoader';
 
 /**
  * Central registry for all NPC entities and remote players.
@@ -13,16 +14,22 @@ export class EntityManager {
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
   private scene: THREE.Scene;
+  private assetLoader?: AssetLoader;
 
-  constructor(scene: THREE.Scene) {
+  constructor(scene: THREE.Scene, assetLoader?: AssetLoader) {
     this.scene = scene;
+    this.assetLoader = assetLoader;
   }
 
   // ── NPC management ──────────────────────────────────────────────────────────
 
-  /** Create and register an NPC, adding it to the scene. */
-  addNPC(config: NPCConfig): NPC {
-    const npc = new NPC(config);
+  /**
+   * Create and register an NPC, adding it to the scene.
+   * Tries to load a GLTF model if an AssetLoader was provided;
+   * falls back to the procedural mesh silently on error.
+   */
+  async addNPC(config: NPCConfig): Promise<NPC> {
+    const npc = await NPC.create(config, this.assetLoader);
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     return npc;
@@ -56,7 +63,7 @@ export class EntityManager {
     if (this.remotePlayers.has(data.playerId)) {
       this.removeRemotePlayer(data.playerId);
     }
-    const remote = new RemotePlayer(data, this.scene);
+    const remote = new RemotePlayer(data, this.scene, this.assetLoader);
     this.remotePlayers.set(data.playerId, remote);
     return remote;
   }

@@ -20,6 +20,7 @@ export class Water {
   constructor(scene: THREE.Scene) {
     // Large water plane — repositioned each frame to follow the player
     const geometry = new THREE.PlaneGeometry(2048, 2048, 1, 1);
+    const reflectionResolution = window.devicePixelRatio > 1 ? 384 : 512;
 
     // Generate a simple normal map procedurally
     const normalCanvas = this.generateNormalMap(512);
@@ -27,14 +28,15 @@ export class Water {
     normalTexture.wrapS = normalTexture.wrapT = THREE.RepeatWrapping;
 
     this.water = new ThreeWater(geometry, {
-      textureWidth: 256,
-      textureHeight: 256,
+      textureWidth: reflectionResolution,
+      textureHeight: reflectionResolution,
       waterNormals: normalTexture,
       sunDirection: new THREE.Vector3(0.3, 1.0, 0.5).normalize(),
       sunColor: 0x8899bb,
       waterColor: 0x0a3a3a,
       distortionScale: 2.5,
       fog: true,
+      clipBias: 0.003,
     });
 
     this.water.rotation.x = -Math.PI / 2;

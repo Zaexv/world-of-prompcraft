@@ -4,6 +4,7 @@ export type { NPCConfig } from './NPC';
 export { NPC } from './NPC';
 export type { AnimationName } from './NPCAnimator';
 export { NPCAnimator } from './NPCAnimator';
+export { CharacterAnimator } from './CharacterAnimator';
 export { Player } from './Player';
 export { PlayerController } from './PlayerController';
 export {

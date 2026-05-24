@@ -4,8 +4,8 @@ import { Water } from '../scene/Water';
 import { CollisionSystem } from '../systems/CollisionSystem';
 
 /**
- * First/Third-person player controller with pointer-lock mouse look,
- * WASD movement, jumping, swimming, and third-person camera follow.
+ * Third-person player controller with WoW-style orbit camera:
+ * left/right mouse drag to rotate, wheel zoom, WASD movement.
  *
  * When terrain drops below water level the player transitions to swimming:
  * reduced speed, buoyancy instead of gravity, and a different animation state.
@@ -17,8 +17,10 @@ export class PlayerController {
   public yaw = 0;
   /** Camera pitch in radians. */
   public pitch = 0;
-  /** Whether pointer lock is currently active. */
-  public isPointerLocked = false;
+  /** Whether the camera is currently being rotated by mouse drag. */
+  public isRotatingCamera = false;
+  /** Character-facing override while RMB orbit is active. */
+  public facingYawOverride: number | null = null;
   /** Whether the player is currently swimming. */
   public isSwimming = false;
 
@@ -57,14 +59,17 @@ export class PlayerController {
   private readonly zoomMin = 2;
   private readonly zoomMax = 20;
   /** Height above character feet for the orbit center (character head). */
-  private readonly lookAtHeight = 1.6;
-  /** Fixed vertical offset for the camera above the look-at point.
-   *  Creates a comfortable over-the-shoulder view at pitch=0. */
-  private readonly cameraArmHeight = 2.0;
+  private readonly lookAtHeight = 1.7;
 
   // --- Input state ---
   private keys: Record<string, boolean> = {};
-  private mouseSensitivity = 0.002;
+  private mouseSensitivity = 0.0032;
+  private readonly minPitch = -75 * THREE.MathUtils.DEG2RAD;
+  private readonly maxPitch = 80 * THREE.MathUtils.DEG2RAD;
+  private activeOrbitButton: 0 | 2 | null = null;
+  private pendingOrbitButton: 0 | 2 | null = null;
+  private dragDistance = 0;
+  private pointerLocked = false;
 
   private camera: THREE.PerspectiveCamera;
   private domElement: HTMLElement;
@@ -87,33 +92,93 @@ export class PlayerController {
 
     // Initialise camera at desired orbit position
     this.cameraPos.copy(this.computeCameraTarget(0));
+    this.effectiveDistance = this.zoomDistance;
 
-    this.initPointerLock();
+    this.initMouseOrbit();
     this.initKeyboard();
     this.initMouseWheel();
   }
 
   // ----------------------------------------------------------------
-  //  Pointer Lock
+  //  Mouse orbit
   // ----------------------------------------------------------------
 
-  private initPointerLock(): void {
-    this.domElement.addEventListener('click', () => {
-      if (!this.isPointerLocked) {
-        this.domElement.requestPointerLock();
+  private initMouseOrbit(): void {
+    document.addEventListener('pointerlockchange', () => {
+      this.pointerLocked = document.pointerLockElement === this.domElement;
+      if (!this.pointerLocked && this.isRotatingCamera) {
+        this.endOrbitDrag();
       }
     });
 
-    document.addEventListener('pointerlockchange', () => {
-      this.isPointerLocked = document.pointerLockElement === this.domElement;
+    this.domElement.addEventListener('contextmenu', (e: MouseEvent) => {
+      e.preventDefault();
     });
 
-    document.addEventListener('mousemove', (e: MouseEvent) => {
-      if (!this.isPointerLocked) return;
+    this.domElement.addEventListener('mousedown', (e: MouseEvent) => {
+      if (e.button !== 0 && e.button !== 2) return;
+      if (e.button === 2) e.preventDefault();
+      this.pendingOrbitButton = e.button as 0 | 2;
+      this.dragDistance = 0;
+    });
+
+    window.addEventListener('mouseup', (e: MouseEvent) => {
+      if (this.isRotatingCamera) {
+        if (this.activeOrbitButton !== e.button) return;
+        this.endOrbitDrag();
+        if (this.pointerLocked && document.pointerLockElement === this.domElement) {
+          document.exitPointerLock();
+        }
+        return;
+      }
+
+      // Not a drag, so preserve normal click behavior (NPC selection).
+      if (this.pendingOrbitButton === e.button) {
+        this.pendingOrbitButton = null;
+      }
+    });
+
+    window.addEventListener('blur', () => {
+      this.endOrbitDrag();
+      this.pendingOrbitButton = null;
+      if (this.pointerLocked && document.pointerLockElement === this.domElement) {
+        document.exitPointerLock();
+      }
+    });
+
+    window.addEventListener('mousemove', (e: MouseEvent) => {
+      if (!this.isRotatingCamera && this.pendingOrbitButton !== null) {
+        this.dragDistance += Math.abs(e.movementX) + Math.abs(e.movementY);
+        if (this.dragDistance > 2) {
+          this.activeOrbitButton = this.pendingOrbitButton;
+          this.pendingOrbitButton = null;
+          this.isRotatingCamera = true;
+          this.domElement.dataset.cameraDrag = '1';
+          this.domElement.style.cursor = 'none';
+          this.domElement.requestPointerLock();
+        }
+      }
+      if (!this.isRotatingCamera) return;
+      this.dragDistance += Math.abs(e.movementX) + Math.abs(e.movementY);
       this.yaw -= e.movementX * this.mouseSensitivity;
       this.pitch -= e.movementY * this.mouseSensitivity;
-      this.pitch = clamp(this.pitch, -80 * THREE.MathUtils.DEG2RAD, 80 * THREE.MathUtils.DEG2RAD);
+      this.pitch = clamp(this.pitch, this.minPitch, this.maxPitch);
+      if (this.activeOrbitButton === 2) {
+        this.facingYawOverride = this.yaw;
+      }
     });
+  }
+
+  private endOrbitDrag(): void {
+    this.isRotatingCamera = false;
+    this.activeOrbitButton = null;
+    this.pendingOrbitButton = null;
+    this.facingYawOverride = null;
+    if (this.dragDistance > 2) {
+      this.domElement.dataset.justCameraDragged = String(performance.now());
+    }
+    this.domElement.dataset.cameraDrag = '0';
+    this.domElement.style.cursor = '';
   }
 
   // ----------------------------------------------------------------
@@ -151,11 +216,6 @@ export class PlayerController {
   private terrainWaterMargin(x: number, z: number): number {
     const terrainY = this.getHeightAt(x, z);
     return terrainY - Water.getWaterLevel();
-  }
-
-  /** Whether the terrain at (x, z) is below the water surface. */
-  private isWaterAt(x: number, z: number): boolean {
-    return this.getHeightAt(x, z) < Water.getWaterLevel();
   }
 
   // ----------------------------------------------------------------
@@ -311,16 +371,11 @@ export class PlayerController {
   // ----------------------------------------------------------------
 
   // Reusable objects for camera computation (avoid per-frame allocations)
-  private _camOffset = new THREE.Vector3();
-  private _camPitchQ = new THREE.Quaternion();
-  private _camYawQ = new THREE.Quaternion();
   private _camTarget = new THREE.Vector3();
   private _lookTarget = new THREE.Vector3();
   private _rayOrigin = new THREE.Vector3();
   private _rayDir = new THREE.Vector3();
   private _raycaster = new THREE.Raycaster();
-  private static readonly _pitchAxis = new THREE.Vector3(1, 0, 0);
-  private static readonly _yawAxis = new THREE.Vector3(0, 1, 0);
   /** Minimum clearance above terrain for the camera. */
   private readonly cameraTerrainClearance = 0.5;
   /** Buffer distance from raycast hit to prevent Z-fighting. */
@@ -332,8 +387,7 @@ export class PlayerController {
    * WoW-style third-person camera.
    *
    * 1. Orbit center is the character's head (position + lookAtHeight).
-   * 2. Camera offset = spherical arm from pitch/yaw, length = zoomDistance,
-   *    plus a small fixed upward bias (cameraArmHeight).
+   * 2. Camera offset = spherical arm from pitch/yaw, length = zoomDistance.
    * 3. Collision check:
    *    a. Binary-search terrain height along the ray.
    *    b. Three.js Raycaster against all collidable scene objects.
@@ -347,17 +401,14 @@ export class PlayerController {
     const orbitY = this.position.y + this.lookAtHeight;
     this._rayOrigin.set(this.position.x, orbitY, this.position.z);
 
-    // Camera arm: behind the character, with a vertical bias.
-    // At pitch=0 the camera sits cameraArmHeight above + zoomDistance behind.
-    this._camOffset.set(0, this.cameraArmHeight, -this.zoomDistance);
-    this._camPitchQ.setFromAxisAngle(PlayerController._pitchAxis, this.pitch);
-    this._camOffset.applyQuaternion(this._camPitchQ);
-    this._camYawQ.setFromAxisAngle(PlayerController._yawAxis, this.yaw);
-    this._camOffset.applyQuaternion(this._camYawQ);
-
-    // Direction and total arm length
-    const armLength = this._camOffset.length();
-    this._rayDir.copy(this._camOffset).divideScalar(armLength || 1);
+    // WoW-like orbit direction from yaw/pitch and zoom distance.
+    const cosPitch = Math.cos(this.pitch);
+    const armLength = this.zoomDistance;
+    this._rayDir.set(
+      -Math.sin(this.yaw) * cosPitch,
+      Math.sin(this.pitch),
+      -Math.cos(this.yaw) * cosPitch,
+    ).normalize();
 
     // ── Collision: find max allowed distance ────────────────────────────
 

@@ -22,18 +22,18 @@ flowchart TD
 
     subgraph Tools["🔧 Tool System"]
         TC["closure: get_all_tools(\n  pending_actions, world_state\n)"]
-        TK["14 @tool functions:\ncombat · dialogue · trade\nenvironment · world_query · quest"]
+        TK["17 @tool functions:\ncombat · dialogue · trade\nenvironment · world_query · quest"]
     end
 
     subgraph World["🌍 World Layer"]
-        WS2["WorldState (singleton)\nasyncio.Lock\nNPCData · PlayerData\nweather · zones"]
-        PD["PlayerData (dataclass)\nhp · mana · level · inventory\nposition · quests"]
-        ND["NPCData (dataclass)\nhp · position · personality\nmood · relationship_score"]
+        WS2["WorldState (singleton)\nasyncio.Lock\nNPCData · PlayerData\nweather · time_of_day · zones"]
+        PD["PlayerData (dataclass)\nhp · mana · level · inventory\nposition · race/faction/skin\nquests · yaw"]
+        ND["NPCData (dataclass)\nhp · position · personality\nmood"]
     end
 
     subgraph Knowledge["📚 Knowledge Layer"]
-        RAG["LoreRetriever\nkeyword scoring over 50 entries\ntop-3 inject into system prompt"]
-        KB["knowledge_base.py\n50 WoW lore entries\n(zone, faction, lore dicts)"]
+        RAG["LoreRetriever\nkeyword scoring over 47 entries\ntop-3 inject into system prompt"]
+        KB["knowledge_base.py\n47 WoW lore entries\n(races, locations, characters)"]
     end
 
     subgraph LLM["🤖 LLM Provider"]
@@ -66,7 +66,7 @@ sequenceDiagram
     UV->>MA: startup
     MA->>WS: WorldState() — load NPC definitions + zone boundaries
     MA->>AR: AgentRegistry(world_state) — compile one StateGraph per NPC
-    Note over AR: For each NPC:<br/>1. pending_actions = []<br/>2. world_snapshot = {}<br/>3. build 14 tools (closed over above)<br/>4. compile LangGraph with MemorySaver
+    Note over AR: For each NPC:<br/>1. pending_actions = []<br/>2. world_snapshot = {}<br/>3. build 17 tools (closed over above)<br/>4. compile LangGraph with MemorySaver
     MA->>CM: ConnectionManager()
     MA-->>UV: app ready — /health + /ws active
 
@@ -306,7 +306,7 @@ flowchart TD
 flowchart LR
     prompt["Player prompt"]
     tokenize["Keyword tokenization\nlowercase alphanum tokens"]
-    score["Score all 50 lore entries\noverlap + 3× topic boost\n+ 1 category bonus"]
+    score["Score all 47 lore entries\noverlap + 3× topic boost\n+ 1 category bonus"]
     top3["Top-3 entries"]
     inject["Inject as\n'## World Lore'\ninto system prompt"]
 
@@ -316,7 +316,7 @@ flowchart LR
     style inject fill:#27ae60,color:#fff,stroke:#1a7a42
 ```
 
-Sub-millisecond keyword retrieval — no vector DB, no embeddings. Covers 50 WoW lore entries spanning zones (Teldrassil, Ember Peaks, Crystal Lake), factions (Night Elves, Horde), and characters (Elune, Ignathar, El Tito).
+Sub-millisecond keyword retrieval — no vector DB, no embeddings. Covers 47 WoW lore entries spanning races, locations, and characters.
 
 ---
 
@@ -326,8 +326,8 @@ Sub-millisecond keyword retrieval — no vector DB, no embeddings. Covers 50 WoW
 flowchart TD
     subgraph WorldState["WorldState (asyncio.Lock protected)"]
         PD["players: dict[str, PlayerData]\nhp · mana · level · position\ninventory · active_quests"]
-        ND["npcs: dict[str, NPCData]\nhp · position · personality\nmood · relationship_score_per_player"]
-        WE["weather: str\n'clear' | 'stormy' | 'foggy'"]
+        ND["npcs: dict[str, NPCData]\nhp · position · personality\nmood"]
+        WE["weather: str\nclear, rain, storm, fog, snow"]
         ZN["zones: list[ZoneBoundary]\nname · min/max XZ coords"]
     end
 
@@ -424,7 +424,7 @@ flowchart LR
     end
 
     subgraph Binding["llm_with_tools"]
-        BT["llm.bind_tools(tools)\nall 14 tools attached"]
+        BT["llm.bind_tools(tools)\nall 17 tools attached"]
     end
 
     CFG -->|"LLM_PROVIDER env var"| Providers
