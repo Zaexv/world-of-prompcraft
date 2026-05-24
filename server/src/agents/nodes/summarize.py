@@ -44,7 +44,7 @@ def _should_summarize(state: NPCAgentState) -> str:
 def make_summarize_node(llm: BaseChatModel) -> Any:
     """Return a summarize node function closed over the given LLM."""
 
-    async def summarize_node(state: NPCAgentState) -> dict:
+    async def summarize_node(state: NPCAgentState) -> dict[str, Any]:
         """Generate a rolling conversation summary using the LLM."""
         previous_summary = state.get("conversation_summary", "") or ""
         messages = state.get("messages", [])

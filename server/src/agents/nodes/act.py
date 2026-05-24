@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
 
-def make_act_node(tools: list[BaseTool], shared_pending_actions: list) -> Any:
+def make_act_node(tools: list[BaseTool], shared_pending_actions: list[Any]) -> Any:
     """Return an act node function closed over the available tools.
 
     Args:
@@ -20,7 +20,9 @@ def make_act_node(tools: list[BaseTool], shared_pending_actions: list) -> Any:
     """
     tool_map = {t.name: t for t in tools}
 
-    async def act_node(state: NPCAgentState) -> dict:
+    async def act_node(state: NPCAgentState) -> dict[str, Any]:
+        if not state["messages"]:
+            return {}
         last_message = state["messages"][-1]
         tool_calls = getattr(last_message, "tool_calls", [])
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from .npc_definitions import NPC_DEFINITIONS
 from .quest_definitions import QUEST_DEFINITIONS
@@ -15,7 +16,7 @@ class PlayerData:
     level: int = 1
     inventory: list[str] = field(default_factory=list)
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
-    active_quests: list[dict] = field(default_factory=list)
+    active_quests: list[dict[str, Any]] = field(default_factory=list)
     completed_quests: list[str] = field(default_factory=list)
     kill_count: int = 0
     username: str = ""
@@ -23,7 +24,7 @@ class PlayerData:
     faction: str = "alliance"
     yaw: float = 0.0
 
-    def to_public_dict(self) -> dict:
+    def to_public_dict(self) -> dict[str, Any]:
         """Return minimal data suitable for broadcasting to other players."""
         return {
             "playerId": self.username or "",
@@ -36,7 +37,7 @@ class PlayerData:
             "yaw": self.yaw,
         }
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "hp": self.hp,
             "maxHp": self.max_hp,
@@ -83,7 +84,7 @@ class PlayerData:
             return
         npc_def = NPC_DEFINITIONS.get(quest_def.giver_npc)
         giver_name = npc_def["name"] if npc_def else quest_def.giver_npc
-        quest_entry: dict = {
+        quest_entry: dict[str, Any] = {
             "id": quest_def.id,
             "name": quest_def.name,
             "description": quest_def.description,

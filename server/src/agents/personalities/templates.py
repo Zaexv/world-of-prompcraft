@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 # ── Shared tool-usage preamble injected into every NPC prompt ─────────────
 _TOOL_RULES_PREAMBLE = (
     "TOOL USAGE RULES (CRITICAL -- follow these exactly):\n"
@@ -15,7 +17,7 @@ _TOOL_RULES_PREAMBLE = (
     "- NEVER just respond with text alone -- always pair dialogue with actions.\n"
 )
 
-NPC_PERSONALITIES: dict[str, dict] = {
+NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
     # ------------------------------------------------------------------
     # Ignathar the Ancient  --  hostile boss dragon
     # ------------------------------------------------------------------

@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_core.tools import tool
 
 
-def create_combat_tools(pending_actions: list, world_state: dict) -> list:
+def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
     """Create combat-related tools closed over shared state.
 
     Args:
@@ -70,10 +72,20 @@ def create_combat_tools(pending_actions: list, world_state: dict) -> list:
         Args:
             direction: The direction to flee ("away", "north", "south", "east", "west").
         """
+        npc_pos = world_state.get("self_position", [0, 0, 0])
+        direction_offsets: dict[str, tuple[float, float]] = {
+            "north": (0.0, -20.0),
+            "south": (0.0, 20.0),
+            "east": (20.0, 0.0),
+            "west": (-20.0, 0.0),
+            "away": (0.0, 20.0),
+        }
+        dx, dz = direction_offsets.get(direction, (0.0, 20.0))
+        target_pos = [float(npc_pos[0]) + dx, 0.0, float(npc_pos[2]) + dz]
         pending_actions.append(
             {
                 "kind": "move_npc",
-                "params": {"direction": direction, "distance": 20},
+                "params": {"position": target_pos},
             }
         )
         return f"Fled {direction}"

@@ -10,10 +10,17 @@
 
 ## Quick Start
 
+Run both services in separate terminals:
+
 ```bash
+# Terminal 1 — backend (http://localhost:8000)
+cd server && pip install -e ".[dev]" && python -m uvicorn src.main:app --reload --port 8000
+
+# Terminal 2 — frontend (http://localhost:5173)
 cd client && npm install && npm run dev
-cd server && pip install -e ".[dev]" && uvicorn src.main:app --reload --port 8000
 ```
+
+Then open **http://localhost:5173** in a browser. The client connects to the server via WebSocket on port 8000.
 
 ## Project Structure
 
@@ -66,16 +73,21 @@ make format                             # Auto-fix lint issues
 ## Conventions
 
 ### TypeScript (Client)
-- Strict mode, ESLint with `@typescript-eslint`
+- Strict mode + `noUnusedLocals`, `noImplicitReturns`, `noFallthroughCasesInSwitch` in `tsconfig.json`
+- ESLint with `@typescript-eslint`
 - No `any` — prefer `unknown` + type guards
 - Classes for entities/systems, interfaces for data shapes
 - Reuse Three.js vectors/matrices to avoid GC pressure
+- Unused private class members must be prefixed with `_` or removed; TypeScript will error otherwise
 
 ### Python (Server)
 - `from __future__ import annotations` in every file
-- Ruff for linting/formatting, mypy for type checking (strict)
+- Ruff for linting/formatting, mypy `strict = True` (see `server/mypy.ini`)
+- All bare `dict` / `list` generics must be parameterized: `dict[str, Any]`, `list[Any]`, etc.
+- LangGraph's `CompiledStateGraph` requires `# type: ignore[type-arg]` — its stubs don't ship type params
 - `@dataclass` for data containers, Pydantic `BaseModel` for API schemas
 - Tools use factory/closure pattern: `create_X_tools(pending_actions, world_state)` → `@tool` functions
+- Run server with `python -m uvicorn` (the `uvicorn` binary may not be on `$PATH` in all envs)
 
 ### Testing
 - **Client**: Vitest — tests in `client/src/__tests__/`

@@ -6,6 +6,7 @@ No ML models needed — uses term frequency matching for fast retrieval.
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from .knowledge_base import KNOWLEDGE_BASE
 
@@ -27,7 +28,7 @@ class LoreRetriever:
         """Split text into lowercase alphanumeric tokens."""
         return re.findall(r"[a-z0-9']+", text.lower())
 
-    def retrieve(self, query: str, top_k: int = 3) -> list[dict]:
+    def retrieve(self, query: str, top_k: int = 3) -> list[dict[str, Any]]:
         """Find the most relevant lore entries for a query.
 
         Uses keyword overlap scoring: each matching token adds 1 point,

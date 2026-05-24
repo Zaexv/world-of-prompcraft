@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_core.tools import tool
 
 VALID_WEATHER = frozenset(["clear", "rain", "storm", "fog", "snow"])
@@ -10,7 +12,7 @@ VALID_EFFECTS = frozenset(
 )
 
 
-def create_environment_tools(pending_actions: list, world_state: dict) -> list:
+def create_environment_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
     """Create environment-related tools closed over shared state.
 
     Args:

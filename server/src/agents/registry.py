@@ -23,7 +23,7 @@ class AgentRegistry:
     def __init__(self, llm: BaseChatModel, world_state: WorldState) -> None:
         self._llm = llm
         self._world_state = world_state
-        self._agents: dict[str, CompiledGraph] = {}
+        self._agents: dict[str, CompiledGraph] = {}  # type: ignore[type-arg]
         # Each NPC gets its own shared pending_actions list and world_state snapshot dict
         # so that tool closures can write into them during invocation.
         self._shared_state: dict[str, dict[str, Any]] = {}
@@ -38,8 +38,8 @@ class AgentRegistry:
             }
 
             # Each NPC gets its own mutable containers for the tool closure
-            pending_actions: list = []
-            world_snapshot: dict = {}
+            pending_actions: list[Any] = []
+            world_snapshot: dict[str, Any] = {}
 
             tools = get_all_tools(
                 pending_actions=pending_actions,
@@ -68,8 +68,8 @@ class AgentRegistry:
             return
 
         npc_config = {"name": npc_data.name, "personality": npc_data.personality}
-        pending_actions: list = []
-        world_snapshot: dict = {}
+        pending_actions: list[Any] = []
+        world_snapshot: dict[str, Any] = {}
         tools = get_all_tools(pending_actions=pending_actions, world_state=world_snapshot)
 
         agent = create_npc_agent(
@@ -100,7 +100,7 @@ class AgentRegistry:
         snapshot["self_position"] = list(npc.position) if npc else [0, 0, 0]
 
         # Provide NPC data as dicts for the world_query tools
-        npcs_dict: dict[str, dict] = {}
+        npcs_dict: dict[str, dict[str, Any]] = {}
         for oid, odata in self._world_state.npcs.items():
             npcs_dict[oid] = {
                 "name": odata.name,
@@ -115,7 +115,7 @@ class AgentRegistry:
         npc_id: str,
         player_id: str,
         prompt: str,
-        player_state: dict,
+        player_state: dict[str, Any],
     ) -> dict[str, Any]:
         """Invoke the agent for a given NPC with the player's prompt."""
         agent = self._agents.get(npc_id)

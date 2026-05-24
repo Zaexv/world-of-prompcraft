@@ -131,8 +131,10 @@ cp .env.example .env   # ← Add your API key here
 ```bash
 cd server
 pip install -e ".[dev]"
-uvicorn src.main:app --reload --port 8000
+python -m uvicorn src.main:app --reload --port 8000
 ```
+
+> Runs at **http://localhost:8000** (WebSocket endpoint at `ws://localhost:8000/ws`)
 
 ### 3. Start the client
 
@@ -141,6 +143,8 @@ cd client
 npm install
 npm run dev
 ```
+
+> Runs at **http://localhost:5173**
 
 ### 4. Play
 
@@ -229,7 +233,7 @@ Server Test ─┘
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **3D Engine** | [Three.js](https://threejs.org/) + TypeScript | Procedural terrain, water, skybox, bloom post-processing |
+| **3D Engine** | [Three.js](https://threejs.org/) + TypeScript | Procedural terrain, reflective water, adaptive resolution scaling, distance-based shadow casting |
 | **Bundler** | [Vite](https://vitejs.dev/) | Hot-reload dev server, optimized production builds |
 | **Physics** | [cannon-es](https://pmndrs.github.io/cannon-es/) | Swept AABB collision, tag-based filtering, WoW-style camera |
 | **Server** | [FastAPI](https://fastapi.tiangolo.com/) | Async WebSocket server with lifespan management |

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 # ── Client → Server models ─────────────────────────────────────────────────────
@@ -10,7 +12,7 @@ class PlayerInteraction(BaseModel):
     npc_id: str = Field(alias="npcId")
     prompt: str
     player_id: str = Field(default="default", alias="playerId")
-    player_state: dict = Field(default_factory=dict, alias="playerState")
+    player_state: dict[str, Any] = Field(default_factory=dict, alias="playerState")
 
     model_config = {"populate_by_name": True}
 
@@ -44,7 +46,7 @@ class EquipItem(BaseModel):
 class ExploreArea(BaseModel):
     type: str = "explore_area"
     position: list[float]
-    npcs: list[dict] = Field(default_factory=list)
+    npcs: list[dict[str, Any]] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 
@@ -80,7 +82,7 @@ class QuestUpdate(BaseModel):
 
 class Action(BaseModel):
     kind: str
-    params: dict = Field(default_factory=dict)
+    params: dict[str, Any] = Field(default_factory=dict)
 
 
 # ── Server → Client models ─────────────────────────────────────────────────────
@@ -91,8 +93,8 @@ class AgentResponse(BaseModel):
     npc_id: str = Field(alias="npcId")
     dialogue: str
     actions: list[Action] = []
-    player_state_update: dict | None = Field(default=None, alias="playerStateUpdate")
-    npc_state_update: dict | None = Field(default=None, alias="npcStateUpdate")
+    player_state_update: dict[str, Any] | None = Field(default=None, alias="playerStateUpdate")
+    npc_state_update: dict[str, Any] | None = Field(default=None, alias="npcStateUpdate")
 
     model_config = {"populate_by_name": True, "ser_json_by_alias": True}  # type: ignore[typeddict-unknown-key]
 
@@ -102,7 +104,7 @@ class UseItemResult(BaseModel):
     success: bool
     message: str
     actions: list[Action] = []
-    player_state_update: dict | None = Field(default=None, alias="playerStateUpdate")
+    player_state_update: dict[str, Any] | None = Field(default=None, alias="playerStateUpdate")
 
     model_config = {"populate_by_name": True, "ser_json_by_alias": True}  # type: ignore[typeddict-unknown-key]
 

@@ -1,5 +1,16 @@
 # 📚 Documentation Index
 
+## Running Locally
+
+| Service | Command | URL |
+|---------|---------|-----|
+| **Backend** | `cd server && python -m uvicorn src.main:app --reload --port 8000` | http://localhost:8000 |
+| **Frontend** | `cd client && npm run dev` | http://localhost:5173 |
+
+Use `make check` from the repo root to run lint + typecheck + tests for both sides before committing.
+
+Latest in-progress handoff/state is tracked in [`../state.md`](../state.md).
+
 ## Architecture & Design
 
 | Document | Description |
@@ -7,12 +18,14 @@
 | [Architecture](./architecture.md) | High-level system overview with Mermaid diagrams — all 14 subsystems |
 | [Architecture Blueprint](./architecture-blueprint.md) | Complete engine-agnostic technical spec — every system, algorithm, data structure, and protocol |
 | [Backend Guide](./backend_guide.md) | Server architecture deep-dive: WebSocket layer, agent system, world state |
+| [Client Architecture](../client/ARCHITECTURE.md) | **Frontend deep-dive** — render loop, entity system, collision (cannon-es swept AABB), procedural world, WebSocket layer, UI layer, state management, ReactionSystem |
+| [Server Architecture](../server/ARCHITECTURE.md) | **Backend deep-dive** — FastAPI lifespan, WebSocket layer, LangGraph StateGraph, tool system, NPC isolation, RAG lore, WorldState, LLM provider |
 
 ## Agentic System
 
 | Document | Description |
 |----------|-------------|
-| [Agentic Workflow](./agentic-workflow.md) | **LangGraph pipeline reference** — all 5 nodes (reason, act, respond, reflect, summarize), agent state schema, tool system, memory/relationship model, cost strategy, and extension guides |
+| [Agentic Workflow](./agentic-workflow.md) | **LangGraph pipeline reference** — all 5 nodes, agent state schema, full tool system (all 14 tools with args + lifecycle), end-to-end tool call sequence diagram, concrete attack example trace, memory/relationship model, cost strategy, and extension guides |
 
 ## Protocol Contract
 

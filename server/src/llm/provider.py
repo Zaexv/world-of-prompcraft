@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import httpx
 from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 
@@ -10,6 +11,8 @@ if TYPE_CHECKING:
 
     from ..config import Settings
 
+_HTTP_TIMEOUT = 20.0
+
 
 def get_llm(settings: Settings) -> BaseChatModel:
     """Factory that returns a chat model based on the configured provider."""
@@ -17,6 +20,7 @@ def get_llm(settings: Settings) -> BaseChatModel:
         return ChatAnthropic(
             model=settings.anthropic_model,  # type: ignore[call-arg]
             api_key=settings.anthropic_api_key,  # type: ignore[arg-type]
+            http_client=httpx.AsyncClient(timeout=_HTTP_TIMEOUT),
         )
     if settings.llm_provider == "openai":
         return ChatOpenAI(
@@ -25,5 +29,6 @@ def get_llm(settings: Settings) -> BaseChatModel:
             base_url=settings.openai_api_base,
             temperature=settings.llm_temperature,
             max_tokens=settings.max_tokens,  # type: ignore[call-arg]
+            request_timeout=_HTTP_TIMEOUT,
         )
     raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")

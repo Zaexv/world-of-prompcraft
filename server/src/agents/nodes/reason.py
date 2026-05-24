@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
@@ -11,6 +12,8 @@ from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects a
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
+
+logger = logging.getLogger(__name__)
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
@@ -97,8 +100,11 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
 
     # RAG: retrieve relevant lore based on the player's prompt
     if player_prompt:
-        retriever = get_retriever()
-        lore_entries = retriever.retrieve(player_prompt, top_k=3)
+        try:
+            lore_entries = get_retriever().retrieve(player_prompt, top_k=3)
+        except Exception:
+            logger.warning("RAG retrieval failed", exc_info=True)
+            lore_entries = []
         if lore_entries:
             parts.append("")
             parts.append("## World Lore (use to enrich your responses)")
@@ -112,7 +118,7 @@ def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
     """Return a reason node function closed over the given LLM and tools."""
     llm_with_tools = llm.bind_tools(tools) if tools else llm
 
-    async def reason_node(state: NPCAgentState) -> dict:
+    async def reason_node(state: NPCAgentState) -> dict[str, Any]:
         # Extract latest player message for RAG retrieval
         player_prompt = ""
         for msg in reversed(state["messages"]):

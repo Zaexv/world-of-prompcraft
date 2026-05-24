@@ -6,9 +6,11 @@ references a template in ``agents.personalities.templates.NPC_PERSONALITIES``.
 
 from __future__ import annotations
 
+from typing import Any
+
 from ..agents.personalities.templates import NPC_PERSONALITIES
 
-NPC_DEFINITIONS: dict[str, dict] = {
+NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     # --- Ignathar the Ancient --- Ember Peaks ---
     "dragon_01": {
         "id": "dragon_01",

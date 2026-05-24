@@ -215,6 +215,14 @@ _registry: AgentRegistry | None = None
 _world_state: WorldState | None = None
 _manager: ConnectionManager | None = None
 
+# Per-player interaction locks — prevents concurrent interactions from the same client
+_interaction_locks: dict[str, asyncio.Lock] = {}
+
+# Global cap on concurrent LLM agent invocations.
+# Additional requests wait in the asyncio queue (backpressure) rather than
+# creating unbounded parallelism that would exhaust LLM API rate limits.
+_agent_semaphore = asyncio.Semaphore(10)
+
 # Valid races and factions for join validation
 _VALID_RACES = {"human", "night_elf", "orc", "undead"}
 _VALID_FACTIONS = {"alliance", "horde"}
@@ -236,8 +244,8 @@ def init_handler(
 
 
 async def handle_message(
-    data: dict, websocket: WebSocket, manager: ConnectionManager
-) -> dict | None:
+    data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
+) -> dict[str, Any] | None:
     """Route incoming WebSocket messages to appropriate handlers."""
     msg_type = data.get("type")
 
@@ -250,9 +258,6 @@ async def handle_message(
     # All other message types require registration
     if manager.get_player_id(websocket) is None:
         return None  # silently drop — client will re-join after reconnect
-
-    if msg_type == "join":
-        return await _handle_join(data, websocket, manager)
 
     if msg_type == "interaction":
         return await _handle_interaction(data, websocket, manager)
@@ -281,13 +286,12 @@ async def handle_message(
     if msg_type == "quest_update":
         return await _handle_quest_update(data)
 
-    if msg_type == "ping":
-        return {"type": "pong"}
-
     return {"type": "error", "message": f"Unknown message type: {msg_type}"}
 
 
-async def _handle_join(data: dict, websocket: WebSocket, manager: ConnectionManager) -> dict:
+async def _handle_join(
+    data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
+) -> dict[str, Any]:
     """Handle a player joining the game."""
     username = (data.get("username") or "").strip()
     race = data.get("race", "human")
@@ -331,14 +335,14 @@ async def _handle_join(data: dict, websocket: WebSocket, manager: ConnectionMana
         player.position = initial_position
 
     # Build list of current players (excluding the joining player)
-    current_players: list[dict] = []
+    current_players: list[dict[str, Any]] = []
     if _world_state is not None:
         for pid, p in _world_state.players.items():
             if pid != username and pid in manager.active_connections:
                 current_players.append(p.to_public_dict())
 
     # Build NPC list
-    npc_list: list[dict] = []
+    npc_list: list[dict[str, Any]] = []
     if _world_state is not None:
         for npc in _world_state.npcs.values():
             npc_list.append(npc.to_dict())
@@ -363,8 +367,8 @@ async def _handle_join(data: dict, websocket: WebSocket, manager: ConnectionMana
 
 
 async def _handle_chat_message(
-    data: dict, websocket: WebSocket, manager: ConnectionManager
-) -> dict | None:
+    data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
+) -> dict[str, Any] | None:
     """Handle a chat message from a player — broadcast to nearby players."""
     player_id = manager.get_player_id(websocket)
     if player_id is None:
@@ -434,11 +438,15 @@ async def _npc_react_to_chat(
         "Respond with a SHORT reaction (1 sentence max, 15 words max). "
         "Stay in character. If the message isn't relevant to you, respond with just '...' and nothing else."
     )
+    # Respect the global LLM call cap — chat reactions are lower-priority than interactions
+    if _agent_semaphore.locked():
+        return  # drop silently when server is saturated; chat reactions are best-effort
     try:
-        result = await asyncio.wait_for(
-            llm.ainvoke([SystemMessage(content=prompt), HumanMessage(content=text)]),
-            timeout=8.0,
-        )
+        async with _agent_semaphore:
+            result = await asyncio.wait_for(
+                llm.ainvoke([SystemMessage(content=prompt), HumanMessage(content=text)]),
+                timeout=8.0,
+            )
     except Exception:
         return
 
@@ -464,7 +472,9 @@ async def _npc_react_to_chat(
     )
 
 
-async def _handle_interaction(data: dict, websocket: WebSocket, manager: ConnectionManager) -> dict:
+async def _handle_interaction(
+    data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
+) -> dict[str, Any]:
     npc_id = data.get("npcId", data.get("npc_id", "unknown"))
     player_id = data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
     prompt = data.get("prompt", "")
@@ -510,7 +520,7 @@ async def _handle_interaction(data: dict, websocket: WebSocket, manager: Connect
         player = _world_state.get_player(player_id)
 
     # ── Apply player attack damage before agent invocation ──────────────
-    player_damage_actions: list[dict] = []
+    player_damage_actions: list[dict[str, Any]] = []
     if _is_attack_prompt(prompt):
         # Use the client-sent inventory and equipped items for scoring
         client_inventory = player_state_raw.get("inventory", []) if player_state_raw else []
@@ -573,26 +583,41 @@ async def _handle_interaction(data: dict, websocket: WebSocket, manager: Connect
     player_dict["completed_quests"] = list(player.completed_quests)
     player_dict["kill_count"] = player.kill_count
 
-    try:
-        result = await asyncio.wait_for(
-            _registry.invoke(
-                npc_id=npc_id,
-                player_id=player_id,
-                prompt=prompt,
-                player_state=player_dict,
-            ),
-            timeout=30.0,
-        )
-    except TimeoutError:
-        logger.warning("Agent invocation timed out for NPC %s", npc_id)
-        return {
-            "type": "agent_response",
-            "npcId": npc_id,
-            "dialogue": "The NPC seems distracted and doesn't respond...",
-            "actions": player_damage_actions,
-            "playerStateUpdate": None,
-            "npcStateUpdate": None,
-        }
+    # Per-player lock + global semaphore:
+    #   lock  → serializes rapid clicks from the same player (prevents double-damage)
+    #   semaphore → caps total concurrent LLM calls (backpressure against API rate limits)
+    lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
+    async with lock, _agent_semaphore:
+        try:
+            result = await asyncio.wait_for(
+                _registry.invoke(
+                    npc_id=npc_id,
+                    player_id=player_id,
+                    prompt=prompt,
+                    player_state=player_dict,
+                ),
+                timeout=30.0,
+            )
+        except TimeoutError:
+            logger.warning("Agent invocation timed out for NPC %s", npc_id)
+            return {
+                "type": "agent_response",
+                "npcId": npc_id,
+                "dialogue": "The NPC seems distracted and doesn't respond...",
+                "actions": player_damage_actions,
+                "playerStateUpdate": None,
+                "npcStateUpdate": None,
+            }
+        except Exception:
+            logger.exception("Agent invocation failed for NPC %s player %s", npc_id, player_id)
+            return {
+                "type": "agent_response",
+                "npcId": npc_id,
+                "dialogue": "The NPC seems confused and doesn't respond.",
+                "actions": player_damage_actions,
+                "playerStateUpdate": None,
+                "npcStateUpdate": None,
+            }
 
     # Merge player damage actions before agent actions
     all_actions = player_damage_actions + result.get("actions", [])
@@ -703,8 +728,8 @@ async def _handle_interaction(data: dict, websocket: WebSocket, manager: Connect
 
 
 async def _handle_player_move(
-    data: dict, websocket: WebSocket, manager: ConnectionManager
-) -> dict | None:
+    data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
+) -> dict[str, Any] | None:
     # BUG-2: Always use server-side WebSocket registration as authoritative player ID
     player_id = manager.get_player_id(websocket)
     if not player_id:
@@ -759,7 +784,7 @@ async def _handle_player_move(
     return None
 
 
-async def _handle_explore_area(data: dict) -> dict:
+async def _handle_explore_area(data: dict[str, Any]) -> dict[str, Any]:
     """Handle area exploration — create dynamic NPC agents for generated NPCs."""
     npcs = data.get("npcs", [])
     for npc_data in npcs:
@@ -859,7 +884,7 @@ def _get_generated_personality(name: str, behavior: str) -> str:
         )
 
 
-async def _handle_use_item(data: dict) -> dict:
+async def _handle_use_item(data: dict[str, Any]) -> dict[str, Any]:
     """Handle item usage from the player's inventory."""
     if _world_state is None:
         return {"type": "use_item_result", "success": False, "message": "World not ready"}
@@ -883,7 +908,7 @@ async def _handle_use_item(data: dict) -> dict:
     player.inventory.remove(item_name)
 
     # Apply effects based on item type
-    actions: list[dict] = []
+    actions: list[dict[str, Any]] = []
     message = f"Used {item_name}"
 
     lower = item_name.lower()
@@ -992,7 +1017,12 @@ def cleanup_player_equipment(player_id: str) -> None:
     _player_equipment.pop(player_id, None)
 
 
-async def _handle_equip_item(data: dict) -> dict:
+def cleanup_player_locks(player_id: str) -> None:
+    """Remove per-player interaction lock on disconnect."""
+    _interaction_locks.pop(player_id, None)
+
+
+async def _handle_equip_item(data: dict[str, Any]) -> dict[str, Any]:
     """Handle equipment changes from the client."""
     player_id = data.get("playerId", "default")
     item_name = data.get("item", "")
@@ -1006,7 +1036,7 @@ async def _handle_equip_item(data: dict) -> dict:
     return {"type": "ack", "status": "ok"}
 
 
-async def _handle_dungeon_enter(data: dict) -> dict:
+async def _handle_dungeon_enter(data: dict[str, Any]) -> dict[str, Any]:
     """Handle a player entering a dungeon — advance enter_dungeon quest objectives."""
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
@@ -1014,7 +1044,7 @@ async def _handle_dungeon_enter(data: dict) -> dict:
     player_id = data.get("playerId", data.get("player_id", "default"))
     dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
     player = _world_state.get_player(player_id)
-    actions: list[dict] = []
+    actions: list[dict[str, Any]] = []
 
     # Check active quests for "enter_dungeon" objectives matching this dungeon
     for quest in player.active_quests:
@@ -1043,7 +1073,7 @@ async def _handle_dungeon_enter(data: dict) -> dict:
     }
 
 
-async def _handle_dungeon_exit(data: dict) -> dict:
+async def _handle_dungeon_exit(data: dict[str, Any]) -> dict[str, Any]:
     """Handle a player exiting a dungeon — add loot and advance collect_item objectives."""
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
@@ -1052,7 +1082,7 @@ async def _handle_dungeon_exit(data: dict) -> dict:
     dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
     loot: list[str] = data.get("loot", [])
     player = _world_state.get_player(player_id)
-    actions: list[dict] = []
+    actions: list[dict[str, Any]] = []
 
     # Add loot items to player inventory
     for item in loot:
@@ -1093,7 +1123,7 @@ async def _handle_dungeon_exit(data: dict) -> dict:
     }
 
 
-async def _handle_quest_update(data: dict) -> dict:
+async def _handle_quest_update(data: dict[str, Any]) -> dict[str, Any]:
     """Handle generic quest objective advancement (e.g. kill tracking)."""
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
@@ -1102,7 +1132,7 @@ async def _handle_quest_update(data: dict) -> dict:
     quest_id = data.get("questId", data.get("quest_id", ""))
     objective_id = data.get("objectiveId", data.get("objective_id", ""))
     player = _world_state.get_player(player_id)
-    actions: list[dict] = []
+    actions: list[dict[str, Any]] = []
 
     # Find the matching quest and objective
     for quest in player.active_quests:

@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from langchain_core.tools import tool
 
 from ...world.quest_definitions import QUEST_DEFINITIONS
 
 
-def create_quest_tools(pending_actions: list, world_state: dict) -> list:
+def create_quest_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
     """Create quest-related tools closed over shared state.
 
     Args:
