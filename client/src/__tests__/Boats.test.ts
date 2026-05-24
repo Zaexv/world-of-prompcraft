@@ -17,7 +17,7 @@ describe('Boats', () => {
 
     expect(boats.groups).toHaveLength(1);
     expect(scene.children).toContain(boats.groups[0]);
-    expect(boats.groups[0].position.y).toBeCloseTo(Water.LEVEL + 0.25, 5);
+    expect(boats.groups[0].position.y).toBeCloseTo(Water.LEVEL + 0.7, 5);
   });
 
   it('does not spawn a boat when no water spawn point is found', () => {

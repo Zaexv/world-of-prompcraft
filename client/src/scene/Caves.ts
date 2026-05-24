@@ -68,6 +68,7 @@ export function createCaveEntrance(
   leftPillar.rotation.z = 0.1;
   leftPillar.castShadow = true;
   leftPillar.receiveShadow = true;
+  leftPillar.userData.isCollider = true;
   group.add(leftPillar);
 
   // Right rock pillar
@@ -77,6 +78,7 @@ export function createCaveEntrance(
   rightPillar.rotation.z = -0.12;
   rightPillar.castShadow = true;
   rightPillar.receiveShadow = true;
+  rightPillar.userData.isCollider = true;
   group.add(rightPillar);
 
   // Arch top (torus arc connecting pillars)
@@ -85,6 +87,7 @@ export function createCaveEntrance(
   arch.position.set(0, 5.5, 0);
   arch.rotation.set(0, 0, 0);
   arch.castShadow = true;
+  arch.userData.isCollider = true;
   group.add(arch);
 
   // Rock slabs around entrance for natural look
@@ -106,6 +109,7 @@ export function createCaveEntrance(
       (Math.random() - 0.5) * 0.3,
     );
     slab.castShadow = true;
+    slab.userData.isCollider = true;
     group.add(slab);
   }
 
@@ -117,6 +121,7 @@ export function createCaveEntrance(
   });
   const interior = new THREE.Mesh(interiorGeo, interiorMat);
   interior.position.set(0, 2.5, -3);
+  interior.userData.noCollision = true;
   group.add(interior);
 
   // Glowing crystals/runes inside the cave
@@ -143,6 +148,7 @@ export function createCaveEntrance(
       Math.random() * Math.PI,
       (Math.random() - 0.5) * 1.0,
     );
+    crystal.userData.noCollision = true;
     group.add(crystal);
   }
 

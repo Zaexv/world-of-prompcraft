@@ -18,6 +18,7 @@ import { DamagePopup } from './ui/DamagePopup';
 import { ZoneTracker } from './systems/ZoneTracker';
 import { DungeonSystem } from './systems/DungeonSystem';
 import { AssetLoader } from './utils/AssetLoader';
+import { getWorldHeightAt } from './scene/VerticalTerrain';
 
 // ── Hostile NPC set (those that trigger the combat HUD) ──────────────────────
 const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
@@ -252,7 +253,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
   let inDungeonOverride = false;
   const heightFn = (x: number, z: number): number => {
     if (inDungeonOverride) return 0; // Dungeon floor at Y=0 (above water)
-    return terrain.getHeightAt(x, z);
+    return getWorldHeightAt(terrain, x, z);
   };
 
   const playerController = new PlayerController(
@@ -290,7 +291,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
   // Load all NPCs in parallel — falls back to procedural mesh if GLTF is missing
   await Promise.all(
     NPC_CONFIGS.map(async (cfg) => {
-      cfg.position.y = terrain.getHeightAt(cfg.position.x, cfg.position.z);
+      cfg.position.y = getWorldHeightAt(terrain, cfg.position.x, cfg.position.z);
       await entityManager.addNPC(cfg);
     }),
   );
@@ -512,7 +513,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
     const saved = dungeonSystem.getSavedPlayerPosition();
     if (saved) {
       playerController.position.copy(saved);
-      playerController.position.y = terrain.getHeightAt(saved.x, saved.z);
+      playerController.position.y = getWorldHeightAt(terrain, saved.x, saved.z);
     }
   };
 
@@ -866,7 +867,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
   // Reusable vector for camera direction (avoids per-frame allocation)
   const _camDir = new THREE.Vector3();
   // Cache terrain height callback to avoid creating a closure each frame
-  const getTerrainHeight = (x: number, z: number) => terrain.getHeightAt(x, z);
+  const getTerrainHeight = (x: number, z: number) => getWorldHeightAt(terrain, x, z);
 
   // Position broadcast timer (10Hz)
   let moveSendTimer = 0;

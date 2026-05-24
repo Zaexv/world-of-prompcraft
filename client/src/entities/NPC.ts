@@ -2,10 +2,12 @@ import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
+import { addOutlineShell } from './ModelStyling';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
-import { getNPCModelPath } from './NPCModels';
+import { getNPCModelPath, getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
 import type { AssetLoader } from '../utils/AssetLoader';
+import { Water } from '../scene/Water';
 
 export interface NPCConfig {
   id: string;
@@ -36,6 +38,7 @@ export class NPC {
   public wanderRadius = 8;
 
   private readonly motionProfile: NPCMotionProfile;
+  private readonly placeholderStyle: NPCPlaceholderStyle;
   private wanderTarget: THREE.Vector3 = new THREE.Vector3();
   private hasWanderTarget = false;
   private wanderCooldown: number;
@@ -43,6 +46,9 @@ export class NPC {
   private patrolTargets: THREE.Vector3[] = [];
   private patrolIndex = 0;
   private readonly patrolSeed: number;
+  private waterHoverPhase = Math.random() * Math.PI * 2;
+  private readonly waterHoverHeight = 0.9;
+  private readonly waterHoverAmplitude = 0.08;
 
   /** Stores original emissive colours so highlights can be toggled. */
   private materials: THREE.MeshStandardMaterial[] = [];
@@ -57,78 +63,123 @@ export class NPC {
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
     this.motionProfile = createNPCMotionProfile(config);
+    this.placeholderStyle = getNPCPlaceholderStyle(config.id, config.name, config.behavior);
     this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
     this.wanderCooldown = this.motionProfile.pauseMin + Math.random() * (this.motionProfile.pauseMax - this.motionProfile.pauseMin);
     this.patrolSeed = hashString(this.id);
     this.mesh = new THREE.Group();
 
     const color = config.color ?? 0xcc6633;
+    const appearance = getPlaceholderAppearance(this.placeholderStyle);
 
     // ----- Body (taller cylinder to match improved player) -----
-    const bodyGeo = new THREE.CylinderGeometry(0.3, 0.35, 1.4, 10);
-    const bodyMat = new THREE.MeshStandardMaterial({ color });
+    const bodyGeo = new THREE.CylinderGeometry(
+      appearance.bodyTopRadius,
+      appearance.bodyBottomRadius,
+      appearance.bodyHeight,
+      appearance.bodySegments,
+    );
+    const bodyMat = new THREE.MeshStandardMaterial({
+      color: appearance.bodyColor ?? color,
+      flatShading: true,
+      roughness: 0.95,
+      metalness: 0.02,
+    });
     const body = new THREE.Mesh(bodyGeo, bodyMat);
-    body.position.y = 1.5;
+    body.name = 'body';
+    body.position.y = appearance.bodyY;
     body.castShadow = true;
     this.mesh.add(body);
     this.materials.push(bodyMat);
 
     // ----- Shoulders (small spheres on each side) -----
-    const shoulderGeo = new THREE.SphereGeometry(0.14, 8, 6);
-    const shoulderMat = new THREE.MeshStandardMaterial({ color: darken(color, 0.15) });
+    const shoulderGeo = new THREE.SphereGeometry(appearance.shoulderRadius, 8, 6);
+    const shoulderMat = new THREE.MeshStandardMaterial({
+      color: darken(appearance.bodyColor ?? color, 0.15),
+      flatShading: true,
+      roughness: 0.9,
+      metalness: 0.03,
+    });
     const leftShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
-    leftShoulder.position.set(-0.34, 2.05, 0);
+    leftShoulder.name = 'leftShoulder';
+    leftShoulder.position.set(-appearance.shoulderOffset, appearance.shoulderY, 0);
     this.mesh.add(leftShoulder);
 
     const rightShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
-    rightShoulder.position.set(0.34, 2.05, 0);
+    rightShoulder.name = 'rightShoulder';
+    rightShoulder.position.set(appearance.shoulderOffset, appearance.shoulderY, 0);
     this.mesh.add(rightShoulder);
     this.materials.push(shoulderMat);
 
     // ----- Belt (thin torus around waist) -----
-    const beltGeo = new THREE.TorusGeometry(0.33, 0.04, 6, 16);
-    const beltMat = new THREE.MeshStandardMaterial({ color: 0x8b6914 });
+    const beltGeo = new THREE.TorusGeometry(appearance.beltRadius, appearance.beltTube, 6, 16);
+    const beltMat = new THREE.MeshStandardMaterial({
+      color: appearance.beltColor,
+      flatShading: true,
+      roughness: 0.72,
+      metalness: 0.06,
+    });
     const belt = new THREE.Mesh(beltGeo, beltMat);
-    belt.position.y = 1.1;
+    belt.name = 'belt';
+    belt.position.y = appearance.beltY;
     belt.rotation.x = Math.PI / 2;
     this.mesh.add(belt);
     this.materials.push(beltMat);
 
     // ----- Head -----
-    const headGeo = new THREE.SphereGeometry(0.25, 12, 10);
-    const headMat = new THREE.MeshStandardMaterial({ color: 0xf5cba7 });
+    const headGeo = new THREE.SphereGeometry(appearance.headRadius, 12, 10);
+    const headMat = new THREE.MeshStandardMaterial({
+      color: appearance.headColor,
+      flatShading: true,
+      roughness: 0.98,
+      metalness: 0.0,
+    });
     const head = new THREE.Mesh(headGeo, headMat);
-    head.position.y = 2.42;
+    head.name = 'head';
+    head.position.y = appearance.headY;
     head.castShadow = true;
     this.mesh.add(head);
     this.materials.push(headMat);
 
     // ----- Legs (slightly longer) -----
-    const legGeo = new THREE.BoxGeometry(0.16, 0.65, 0.16);
-    const legMat = new THREE.MeshStandardMaterial({ color: 0x5d4037 });
+    const legGeo = new THREE.BoxGeometry(appearance.legWidth, appearance.legHeight, appearance.legDepth);
+    const legMat = new THREE.MeshStandardMaterial({
+      color: appearance.legColor,
+      flatShading: true,
+      roughness: 0.96,
+      metalness: 0.01,
+    });
 
     const leftLeg = new THREE.Mesh(legGeo, legMat);
-    leftLeg.position.set(-0.13, 0.42, 0);
     leftLeg.name = 'leftLeg';
+    leftLeg.position.set(-appearance.legOffset, appearance.legY, 0);
     this.mesh.add(leftLeg);
 
     const rightLeg = new THREE.Mesh(legGeo, legMat);
-    rightLeg.position.set(0.13, 0.42, 0);
     rightLeg.name = 'rightLeg';
+    rightLeg.position.set(appearance.legOffset, appearance.legY, 0);
     this.mesh.add(rightLeg);
 
     this.materials.push(legMat);
 
     // ----- Hat / cone -----
-    const hatGeo = new THREE.ConeGeometry(0.18, 0.35, 8);
-    const hatMat = new THREE.MeshStandardMaterial({ color: darken(color, 0.4) });
+    const hatGeo = new THREE.ConeGeometry(appearance.hatRadius, appearance.hatHeight, 8);
+    const hatMat = new THREE.MeshStandardMaterial({
+      color: appearance.hatColor ?? darken(color, 0.4),
+      flatShading: true,
+      roughness: 0.88,
+      metalness: 0.03,
+    });
     const hat = new THREE.Mesh(hatGeo, hatMat);
-    hat.position.y = 2.78;
+    hat.name = 'hat';
+    hat.position.y = appearance.hatY;
     this.mesh.add(hat);
     this.materials.push(hatMat);
 
     // ----- Role-based accessories -----
-    this.addRoleAccessory(color);
+    this.addPlaceholderAccessory(this.placeholderStyle);
+    this.applyFlatShading();
+    this.addVisualOutline(this.placeholderStyle);
 
     // ----- Floating nameplate -----
     this.nameplate = new Nameplate(this.name);
@@ -158,7 +209,7 @@ export class NPC {
   static async create(config: NPCConfig, assetLoader?: AssetLoader): Promise<NPC> {
     const npc = new NPC(config);
     if (assetLoader) {
-      const modelPath = getNPCModelPath(config.id, config.name);
+      const modelPath = getNPCModelPath(config.id, config.name, config.behavior);
       if (modelPath) {
         try {
           const gltf = await assetLoader.loadGLTF(modelPath);
@@ -220,8 +271,16 @@ export class NPC {
 
   /** Call every frame. */
   update(delta: number): void {
+    this.waterHoverPhase += delta * 1.7;
     this.animator.update(delta);
     this.actionIcon.update(delta);
+    if (this.mesh.position.y < Water.LEVEL + 0.2) {
+      const hoverY = Water.LEVEL
+        + this.waterHoverHeight
+        + Math.sin(this.waterHoverPhase) * this.waterHoverAmplitude;
+      this.mesh.position.y = THREE.MathUtils.lerp(this.mesh.position.y, hoverY, Math.min(1, delta * 6));
+      this.animator.setBaseY(this.mesh.position.y);
+    }
     // Always keep the logical position in sync with the mesh
     this.position.copy(this.mesh.position);
   }
@@ -294,22 +353,7 @@ export class NPC {
   ): void {
     if (this.wanderRadius <= 0) return;
 
-    const pathBlocked = (fromX: number, fromZ: number, toX: number, toZ: number, halfExtent: number): boolean => {
-      if (!collisionSystem) return false;
-      const dx = toX - fromX;
-      const dz = toZ - fromZ;
-      const distance = Math.sqrt(dx * dx + dz * dz);
-      const steps = Math.max(1, Math.ceil(distance / 0.08));
-
-      for (let i = 1; i <= steps; i++) {
-        const t = i / steps;
-        const sx = fromX + dx * t;
-        const sz = fromZ + dz * t;
-        const sy = getHeightAt(sx, sz);
-        if (collisionSystem.isPositionBlocked(sx, sy, sz, halfExtent)) return true;
-      }
-      return false;
-    };
+    this.tryResolveStuckPosition(getHeightAt, collisionSystem);
 
     // Decrement cooldown
     if (!this.isWandering) {
@@ -355,7 +399,7 @@ export class NPC {
       let nextY = getHeightAt(nextX, nextZ);
 
       // If blocked, try short detours (10 steering probes) before giving up.
-      if (pathBlocked(this.mesh.position.x, this.mesh.position.z, nextX, nextZ, 0.55)) {
+      if (this.isPathBlocked(this.mesh.position.x, this.mesh.position.z, nextX, nextZ, 0.55, getHeightAt, collisionSystem)) {
         const heading = Math.atan2(nz, nx);
         let foundDetour = false;
 
@@ -367,7 +411,7 @@ export class NPC {
           const probeZ = this.mesh.position.z + Math.sin(detourAngle) * step;
           const probeY = getHeightAt(probeX, probeZ);
 
-          if (!pathBlocked(this.mesh.position.x, this.mesh.position.z, probeX, probeZ, 0.55)) {
+          if (!this.isPathBlocked(this.mesh.position.x, this.mesh.position.z, probeX, probeZ, 0.55, getHeightAt, collisionSystem)) {
             nextX = probeX;
             nextZ = probeZ;
             nextY = probeY;
@@ -377,12 +421,23 @@ export class NPC {
         }
 
         if (!foundDetour) {
+          const reTarget = this.pickWanderTarget(getHeightAt, collisionSystem);
+          if (reTarget) {
+            this.wanderTarget.copy(reTarget);
+            return;
+          }
           this.isWandering = false;
           this.hasWanderTarget = false;
-          this.wanderCooldown = this.nextCooldown();
+          this.wanderCooldown = Math.min(0.5, this.nextCooldown());
           this.animator.play('idle');
           return;
         }
+      }
+
+      if (nextY < Water.LEVEL + 0.05) {
+        nextY = Water.LEVEL
+          + this.waterHoverHeight
+          + Math.sin(this.waterHoverPhase) * this.waterHoverAmplitude;
       }
 
       this.mesh.position.x = nextX;
@@ -413,7 +468,7 @@ export class NPC {
       return this.pickPatrolTarget(getHeightAt, collisionSystem);
     }
 
-    for (let attempt = 0; attempt < 6; attempt++) {
+    for (let attempt = 0; attempt < 12; attempt++) {
       const angle = Math.random() * Math.PI * 2;
       const dist = Math.random() * this.wanderRadius;
       const tx = this.homePosition.x + Math.cos(angle) * dist;
@@ -423,6 +478,9 @@ export class NPC {
       if (
         collisionSystem?.isPositionBlocked(tx, ty, tz, 0.55)
       ) {
+        continue;
+      }
+      if (this.isPathBlocked(this.mesh.position.x, this.mesh.position.z, tx, tz, 0.55, getHeightAt, collisionSystem)) {
         continue;
       }
 
@@ -455,90 +513,298 @@ export class NPC {
 
     const target = this.patrolTargets[this.patrolIndex % this.patrolTargets.length];
     this.patrolIndex = (this.patrolIndex + 1) % this.patrolTargets.length;
+    if (this.isPathBlocked(this.mesh.position.x, this.mesh.position.z, target.x, target.z, 0.55, getHeightAt, collisionSystem)) {
+      return null;
+    }
     return target.clone();
   }
 
-  /**
-   * Add role-specific accessories based on the NPC colour.
-   */
-  private addRoleAccessory(color: number): void {
-    const r = (color >> 16) & 0xff;
-    const g = (color >> 8) & 0xff;
-    const b = color & 0xff;
+  private isPathBlocked(
+    fromX: number,
+    fromZ: number,
+    toX: number,
+    toZ: number,
+    halfExtent: number,
+    getHeightAt: (x: number, z: number) => number,
+    collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
+  ): boolean {
+    if (!collisionSystem) return false;
+    const dx = toX - fromX;
+    const dz = toZ - fromZ;
+    const distance = Math.sqrt(dx * dx + dz * dz);
+    const steps = Math.max(1, Math.ceil(distance / 0.08));
 
-    if (r > 180 && g < 80 && b < 80) {
-      // --- Red NPC (dragon): small wing-like shapes on back ---
-      const wingGeo = new THREE.PlaneGeometry(0.5, 0.6, 1, 1);
-      const wingMat = new THREE.MeshStandardMaterial({
-        color: 0x881111,
-        side: THREE.DoubleSide,
-        transparent: true,
-        opacity: 0.8,
-      });
-
-      const leftWing = new THREE.Mesh(wingGeo, wingMat);
-      leftWing.position.set(-0.35, 1.9, -0.2);
-      leftWing.rotation.y = -0.5;
-      leftWing.rotation.z = 0.3;
-      this.mesh.add(leftWing);
-
-      const rightWing = new THREE.Mesh(wingGeo, wingMat);
-      rightWing.position.set(0.35, 1.9, -0.2);
-      rightWing.rotation.y = 0.5;
-      rightWing.rotation.z = -0.3;
-      this.mesh.add(rightWing);
-    } else if (g > 140 && r < 120 && b < 120) {
-      // --- Green NPC (merchant): backpack ---
-      const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.25);
-      const packMat = new THREE.MeshStandardMaterial({ color: 0x6b4226 });
-      const pack = new THREE.Mesh(packGeo, packMat);
-      pack.position.set(0, 1.65, -0.32);
-      pack.castShadow = true;
-      this.mesh.add(pack);
-    } else if (r > 100 && b > 100 && g < 80) {
-      // --- Purple NPC (sage): staff held to the side ---
-      const staffGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6);
-      const staffMat = new THREE.MeshStandardMaterial({ color: 0x8b7355 });
-      const staff = new THREE.Mesh(staffGeo, staffMat);
-      staff.position.set(0.5, 1.3, 0);
-      this.mesh.add(staff);
-
-      // Staff orb on top
-      const orbGeo = new THREE.SphereGeometry(0.08, 8, 6);
-      const orbMat = new THREE.MeshStandardMaterial({
-        color: 0xaa66ff,
-        emissive: 0x6633aa,
-        emissiveIntensity: 0.8,
-      });
-      const orb = new THREE.Mesh(orbGeo, orbMat);
-      orb.position.set(0.5, 2.45, 0);
-      this.mesh.add(orb);
-    } else if (r < 140 && g < 140 && b < 140 && Math.abs(r - g) < 30 && Math.abs(g - b) < 30) {
-      // --- Gray NPC (guard): shield on one arm ---
-      const shieldGeo = new THREE.CircleGeometry(0.25, 8);
-      const shieldMat = new THREE.MeshStandardMaterial({
-        color: 0x888899,
-        side: THREE.DoubleSide,
-        metalness: 0.6,
-        roughness: 0.3,
-      });
-      const shield = new THREE.Mesh(shieldGeo, shieldMat);
-      shield.position.set(-0.45, 1.4, 0.1);
-      shield.rotation.y = Math.PI / 2;
-      this.mesh.add(shield);
-    } else if (r > 180 && g > 180 && b < 100) {
-      // --- Yellow NPC (healer): halo above head ---
-      const haloGeo = new THREE.TorusGeometry(0.22, 0.03, 6, 24);
-      const haloMat = new THREE.MeshStandardMaterial({
-        color: 0xffdd44,
-        emissive: 0xffdd44,
-        emissiveIntensity: 1.0,
-      });
-      const halo = new THREE.Mesh(haloGeo, haloMat);
-      halo.position.y = 2.85;
-      halo.rotation.x = Math.PI / 2;
-      this.mesh.add(halo);
+    for (let i = 1; i <= steps; i++) {
+      const t = i / steps;
+      const sx = fromX + dx * t;
+      const sz = fromZ + dz * t;
+      const sy = getHeightAt(sx, sz);
+      if (collisionSystem.isPositionBlocked(sx, sy, sz, halfExtent)) return true;
     }
+    return false;
+  }
+
+  private tryResolveStuckPosition(
+    getHeightAt: (x: number, z: number) => number,
+    collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
+  ): void {
+    if (!collisionSystem) return;
+    const currentX = this.mesh.position.x;
+    const currentZ = this.mesh.position.z;
+    const currentY = getHeightAt(currentX, currentZ);
+    if (!collisionSystem.isPositionBlocked(currentX, currentY, currentZ, 0.55)) return;
+
+    const angleOffset = (this.patrolSeed % 360) * THREE.MathUtils.DEG2RAD;
+    for (let ring = 1; ring <= 5; ring++) {
+      const radius = ring * 0.5;
+      const samples = 12 + ring * 2;
+      for (let i = 0; i < samples; i++) {
+        const angle = angleOffset + (i / samples) * Math.PI * 2;
+        const nx = currentX + Math.cos(angle) * radius;
+        const nz = currentZ + Math.sin(angle) * radius;
+        const ny = getHeightAt(nx, nz);
+        if (collisionSystem.isPositionBlocked(nx, ny, nz, 0.55)) continue;
+        this.mesh.position.set(nx, ny, nz);
+        this.position.copy(this.mesh.position);
+        this.animator.setBaseY(ny);
+        return;
+      }
+    }
+  }
+
+  /** Add low-poly accessories based on the NPC type name. */
+  private addPlaceholderAccessory(style: NPCPlaceholderStyle): void {
+    switch (style) {
+      case 'dragon': {
+        const wingGeo = new THREE.PlaneGeometry(0.5, 0.6, 1, 1);
+        const wingMat = new THREE.MeshStandardMaterial({
+          color: 0x881111,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.8,
+          flatShading: true,
+        });
+        const leftWing = new THREE.Mesh(wingGeo, wingMat);
+        leftWing.name = 'leftWing';
+        leftWing.position.set(-0.35, 1.9, -0.2);
+        leftWing.rotation.y = -0.5;
+        leftWing.rotation.z = 0.3;
+        this.mesh.add(leftWing);
+        const rightWing = new THREE.Mesh(wingGeo, wingMat);
+        rightWing.name = 'rightWing';
+        rightWing.position.set(0.35, 1.9, -0.2);
+        rightWing.rotation.y = 0.5;
+        rightWing.rotation.z = -0.3;
+        this.mesh.add(rightWing);
+        break;
+      }
+      case 'monster': {
+        const spikeGeo = new THREE.ConeGeometry(0.08, 0.22, 5);
+        const spikeMat = new THREE.MeshStandardMaterial({ color: 0x3a3a2d, flatShading: true });
+        for (let i = 0; i < 4; i++) {
+          const spike = new THREE.Mesh(spikeGeo, spikeMat);
+          spike.name = `spike${i}`;
+          spike.position.set((i - 1.5) * 0.18, 2.02 + (i % 2) * 0.05, -0.1);
+          spike.rotation.z = i % 2 === 0 ? 0.5 : -0.5;
+          this.mesh.add(spike);
+        }
+        const clawGeo = new THREE.ConeGeometry(0.03, 0.16, 4);
+        const clawMat = new THREE.MeshStandardMaterial({ color: 0x1e1e1e, flatShading: true });
+        const leftClaw = new THREE.Mesh(clawGeo, clawMat);
+        leftClaw.name = 'leftClaw';
+        leftClaw.position.set(-0.12, 0.95, 0.18);
+        leftClaw.rotation.z = Math.PI * 0.25;
+        this.mesh.add(leftClaw);
+        const rightClaw = leftClaw.clone();
+        rightClaw.name = 'rightClaw';
+        rightClaw.position.x = 0.12;
+        rightClaw.rotation.z = -Math.PI * 0.25;
+        this.mesh.add(rightClaw);
+        const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: 0xff5533,
+          emissive: 0xff2211,
+          emissiveIntensity: 1.4,
+          flatShading: true,
+        });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.name = 'leftEye';
+        leftEye.position.set(-0.08, 2.36, 0.16);
+        this.mesh.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.name = 'rightEye';
+        rightEye.position.set(0.08, 2.36, 0.16);
+        this.mesh.add(rightEye);
+        break;
+      }
+      case 'merchant': {
+        const packGeo = new THREE.BoxGeometry(0.3, 0.4, 0.25);
+        const packMat = new THREE.MeshStandardMaterial({ color: 0x6b4226, flatShading: true });
+        const pack = new THREE.Mesh(packGeo, packMat);
+        pack.name = 'pack';
+        pack.position.set(0, 1.65, -0.32);
+        pack.castShadow = true;
+        this.mesh.add(pack);
+        break;
+      }
+      case 'guard': {
+        const shieldGeo = new THREE.CircleGeometry(0.25, 8);
+        const shieldMat = new THREE.MeshStandardMaterial({
+          color: 0x888899,
+          side: THREE.DoubleSide,
+          metalness: 0.6,
+          roughness: 0.3,
+          flatShading: true,
+        });
+        const shield = new THREE.Mesh(shieldGeo, shieldMat);
+        shield.name = 'shield';
+        shield.position.set(-0.45, 1.4, 0.1);
+        shield.rotation.y = Math.PI / 2;
+        this.mesh.add(shield);
+        break;
+      }
+      case 'healer': {
+        const haloGeo = new THREE.TorusGeometry(0.22, 0.03, 6, 24);
+        const haloMat = new THREE.MeshStandardMaterial({
+          color: 0xffdd44,
+          emissive: 0xffdd44,
+          emissiveIntensity: 1.0,
+          flatShading: true,
+        });
+        const halo = new THREE.Mesh(haloGeo, haloMat);
+        halo.name = 'halo';
+        halo.position.y = 2.85;
+        halo.rotation.x = Math.PI / 2;
+        this.mesh.add(halo);
+        break;
+      }
+      case 'sage':
+      case 'mage': {
+        const staffGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6);
+        const staffMat = new THREE.MeshStandardMaterial({ color: 0x8b7355, flatShading: true });
+        const staff = new THREE.Mesh(staffGeo, staffMat);
+        staff.name = 'staff';
+        staff.position.set(0.5, 1.3, 0);
+        this.mesh.add(staff);
+        const orbGeo = new THREE.SphereGeometry(0.08, 8, 6);
+        const orbMat = new THREE.MeshStandardMaterial({
+          color: style === 'sage' ? 0xaa66ff : 0x66aaff,
+          emissive: style === 'sage' ? 0x6633aa : 0x224477,
+          emissiveIntensity: 0.8,
+          flatShading: true,
+        });
+        const orb = new THREE.Mesh(orbGeo, orbMat);
+        orb.name = 'orb';
+        orb.position.set(0.5, 2.45, 0);
+        this.mesh.add(orb);
+        break;
+      }
+      case 'orc': {
+        const tuskGeo = new THREE.ConeGeometry(0.03, 0.14, 4);
+        const tuskMat = new THREE.MeshStandardMaterial({ color: 0xe8d2b0, flatShading: true });
+        const leftTusk = new THREE.Mesh(tuskGeo, tuskMat);
+        leftTusk.name = 'leftTusk';
+        leftTusk.position.set(-0.09, 2.08, 0.16);
+        leftTusk.rotation.z = Math.PI * 0.3;
+        this.mesh.add(leftTusk);
+        const rightTusk = leftTusk.clone();
+        rightTusk.name = 'rightTusk';
+        rightTusk.position.x = 0.09;
+        rightTusk.rotation.z = -Math.PI * 0.3;
+        this.mesh.add(rightTusk);
+        break;
+      }
+      case 'undead': {
+        const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: 0x44ffaa,
+          emissive: 0x44ffaa,
+          emissiveIntensity: 1.6,
+          flatShading: true,
+        });
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.name = 'leftEye';
+        leftEye.position.set(-0.07, 2.38, 0.17);
+        this.mesh.add(leftEye);
+        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        rightEye.name = 'rightEye';
+        rightEye.position.set(0.07, 2.38, 0.17);
+        this.mesh.add(rightEye);
+        const cloakGeo = new THREE.PlaneGeometry(0.5, 1.2, 1, 4);
+        const cloakMat = new THREE.MeshStandardMaterial({
+          color: 0x2c2c2c,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.75,
+          flatShading: true,
+        });
+        const cloak = new THREE.Mesh(cloakGeo, cloakMat);
+        cloak.name = 'cloak';
+        cloak.position.set(0, 1.4, -0.18);
+        this.mesh.add(cloak);
+        break;
+      }
+      case 'civilian':
+      default: {
+        const satchelGeo = new THREE.BoxGeometry(0.25, 0.3, 0.18);
+        const satchelMat = new THREE.MeshStandardMaterial({ color: 0x6b4a2b, flatShading: true });
+        const satchel = new THREE.Mesh(satchelGeo, satchelMat);
+        satchel.name = 'satchel';
+        satchel.position.set(0.18, 1.3, -0.26);
+        this.mesh.add(satchel);
+        break;
+      }
+    }
+  }
+
+  private addVisualOutline(style: NPCPlaceholderStyle): void {
+    const outlineNames: readonly string[] = [
+      'body',
+      'head',
+      'leftLeg',
+      'rightLeg',
+      'leftArm',
+      'rightArm',
+      'belt',
+      'hat',
+      'cloak',
+      'leftShoulder',
+      'rightShoulder',
+      'leftWing',
+      'rightWing',
+      'shield',
+      'halo',
+      'staff',
+      'orb',
+      'leftTusk',
+      'rightTusk',
+      'leftEye',
+      'rightEye',
+      'pack',
+      'satchel',
+    ];
+
+    const scale = style === 'dragon' || style === 'monster' ? 1.06 : 1.045;
+    addOutlineShell(this.mesh, {
+      includeNames: outlineNames,
+      scale,
+      opacity: style === 'undead' ? 0.98 : 1,
+    });
+  }
+
+  /** Force the procedural placeholder into a flat-shaded polygon look. */
+  private applyFlatShading(): void {
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        for (const material of materials) {
+          if (material instanceof THREE.MeshStandardMaterial) {
+            material.flatShading = true;
+            material.needsUpdate = true;
+          }
+        }
+      }
+    });
   }
 }
 
@@ -573,4 +839,290 @@ function lerpAngle(a: number, b: number, t: number): number {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
   return a + diff * t;
+}
+
+function getPlaceholderAppearance(style: NPCPlaceholderStyle): {
+  bodyTopRadius: number;
+  bodyBottomRadius: number;
+  bodyHeight: number;
+  bodyY: number;
+  bodySegments: number;
+  bodyColor: number;
+  shoulderRadius: number;
+  shoulderOffset: number;
+  shoulderY: number;
+  beltRadius: number;
+  beltTube: number;
+  beltY: number;
+  beltColor: number;
+  headRadius: number;
+  headY: number;
+  headColor: number;
+  legWidth: number;
+  legHeight: number;
+  legDepth: number;
+  legOffset: number;
+  legY: number;
+  legColor: number;
+  hatRadius: number;
+  hatHeight: number;
+  hatY: number;
+  hatColor?: number;
+} {
+  switch (style) {
+    case 'merchant':
+      return {
+        bodyTopRadius: 0.36,
+        bodyBottomRadius: 0.42,
+        bodyHeight: 1.3,
+        bodyY: 1.45,
+        bodySegments: 10,
+        bodyColor: 0xa67c52,
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.28,
+        shoulderY: 2.0,
+        beltRadius: 0.34,
+        beltTube: 0.04,
+        beltY: 1.05,
+        beltColor: 0x8b6914,
+        headRadius: 0.24,
+        headY: 2.26,
+        headColor: 0xf3cfaf,
+        legWidth: 0.15,
+        legHeight: 0.62,
+        legDepth: 0.15,
+        legOffset: 0.12,
+        legY: 0.42,
+        legColor: 0x5d4037,
+        hatRadius: 0.16,
+        hatHeight: 0.3,
+        hatY: 2.56,
+      };
+    case 'guard':
+      return {
+        bodyTopRadius: 0.42,
+        bodyBottomRadius: 0.46,
+        bodyHeight: 1.55,
+        bodyY: 1.58,
+        bodySegments: 10,
+        bodyColor: 0x8b8f9c,
+        shoulderRadius: 0.16,
+        shoulderOffset: 0.4,
+        shoulderY: 2.15,
+        beltRadius: 0.37,
+        beltTube: 0.045,
+        beltY: 1.18,
+        beltColor: 0x666677,
+        headRadius: 0.26,
+        headY: 2.5,
+        headColor: 0xf2d0b0,
+        legWidth: 0.17,
+        legHeight: 0.72,
+        legDepth: 0.17,
+        legOffset: 0.15,
+        legY: 0.45,
+        legColor: 0x4b4f59,
+        hatRadius: 0.1,
+        hatHeight: 0.18,
+        hatY: 2.96,
+      };
+    case 'healer':
+      return {
+        bodyTopRadius: 0.28,
+        bodyBottomRadius: 0.32,
+        bodyHeight: 1.45,
+        bodyY: 1.5,
+        bodySegments: 10,
+        bodyColor: 0xc8b7a4,
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.28,
+        shoulderY: 2.06,
+        beltRadius: 0.3,
+        beltTube: 0.035,
+        beltY: 1.08,
+        beltColor: 0xffdd66,
+        headRadius: 0.24,
+        headY: 2.42,
+        headColor: 0xf5d8be,
+        legWidth: 0.13,
+        legHeight: 0.68,
+        legDepth: 0.13,
+        legOffset: 0.11,
+        legY: 0.44,
+        legColor: 0x7b6a5c,
+        hatRadius: 0.16,
+        hatHeight: 0.24,
+        hatY: 2.72,
+      };
+    case 'sage':
+    case 'mage':
+      return {
+        bodyTopRadius: 0.3,
+        bodyBottomRadius: 0.34,
+        bodyHeight: 1.5,
+        bodyY: 1.53,
+        bodySegments: 10,
+        bodyColor: 0x4b3f7a,
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.3,
+        shoulderY: 2.08,
+        beltRadius: 0.31,
+        beltTube: 0.035,
+        beltY: 1.1,
+        beltColor: 0x553366,
+        headRadius: 0.24,
+        headY: 2.44,
+        headColor: 0xe4cfbd,
+        legWidth: 0.12,
+        legHeight: 0.68,
+        legDepth: 0.12,
+        legOffset: 0.11,
+        legY: 0.44,
+        legColor: 0x2f254d,
+        hatRadius: 0.17,
+        hatHeight: 0.4,
+        hatY: 2.86,
+      };
+    case 'dragon':
+      return {
+        bodyTopRadius: 0.42,
+        bodyBottomRadius: 0.48,
+        bodyHeight: 1.6,
+        bodyY: 1.6,
+        bodySegments: 10,
+        bodyColor: 0xc46a33,
+        shoulderRadius: 0.16,
+        shoulderOffset: 0.4,
+        shoulderY: 2.16,
+        beltRadius: 0.36,
+        beltTube: 0.04,
+        beltY: 1.14,
+        beltColor: 0x6a2a12,
+        headRadius: 0.27,
+        headY: 2.56,
+        headColor: 0xf1c08d,
+        legWidth: 0.18,
+        legHeight: 0.72,
+        legDepth: 0.18,
+        legOffset: 0.14,
+        legY: 0.45,
+        legColor: 0x5b2414,
+        hatRadius: 0.14,
+        hatHeight: 0.22,
+        hatY: 3.0,
+      };
+    case 'monster':
+      return {
+        bodyTopRadius: 0.48,
+        bodyBottomRadius: 0.54,
+        bodyHeight: 1.48,
+        bodyY: 1.48,
+        bodySegments: 10,
+        bodyColor: 0x5e5a42,
+        shoulderRadius: 0.18,
+        shoulderOffset: 0.42,
+        shoulderY: 2.1,
+        beltRadius: 0.34,
+        beltTube: 0.04,
+        beltY: 1.12,
+        beltColor: 0x2f2f2f,
+        headRadius: 0.23,
+        headY: 2.34,
+        headColor: 0xd8d0b0,
+        legWidth: 0.18,
+        legHeight: 0.68,
+        legDepth: 0.18,
+        legOffset: 0.14,
+        legY: 0.44,
+        legColor: 0x383522,
+        hatRadius: 0.12,
+        hatHeight: 0.2,
+        hatY: 2.82,
+      };
+    case 'orc':
+      return {
+        bodyTopRadius: 0.44,
+        bodyBottomRadius: 0.5,
+        bodyHeight: 1.58,
+        bodyY: 1.58,
+        bodySegments: 10,
+        bodyColor: 0x3d6b2a,
+        shoulderRadius: 0.17,
+        shoulderOffset: 0.42,
+        shoulderY: 2.16,
+        beltRadius: 0.38,
+        beltTube: 0.045,
+        beltY: 1.15,
+        beltColor: 0x5f1f1f,
+        headRadius: 0.27,
+        headY: 2.5,
+        headColor: 0xbda98a,
+        legWidth: 0.18,
+        legHeight: 0.72,
+        legDepth: 0.18,
+        legOffset: 0.15,
+        legY: 0.45,
+        legColor: 0x26491b,
+        hatRadius: 0.1,
+        hatHeight: 0.18,
+        hatY: 2.96,
+      };
+    case 'undead':
+      return {
+        bodyTopRadius: 0.26,
+        bodyBottomRadius: 0.3,
+        bodyHeight: 1.45,
+        bodyY: 1.5,
+        bodySegments: 10,
+        bodyColor: 0x586458,
+        shoulderRadius: 0.11,
+        shoulderOffset: 0.26,
+        shoulderY: 2.02,
+        beltRadius: 0.28,
+        beltTube: 0.03,
+        beltY: 1.06,
+        beltColor: 0x1f1f1f,
+        headRadius: 0.22,
+        headY: 2.36,
+        headColor: 0xbfd0bf,
+        legWidth: 0.11,
+        legHeight: 0.66,
+        legDepth: 0.11,
+        legOffset: 0.1,
+        legY: 0.43,
+        legColor: 0x434f43,
+        hatRadius: 0.16,
+        hatHeight: 0.3,
+        hatY: 2.74,
+      };
+    case 'civilian':
+    default:
+      return {
+        bodyTopRadius: 0.3,
+        bodyBottomRadius: 0.35,
+        bodyHeight: 1.4,
+        bodyY: 1.5,
+        bodySegments: 10,
+        bodyColor: 0xcc6633,
+        shoulderRadius: 0.14,
+        shoulderOffset: 0.34,
+        shoulderY: 2.05,
+        beltRadius: 0.33,
+        beltTube: 0.04,
+        beltY: 1.1,
+        beltColor: 0x8b6914,
+        headRadius: 0.25,
+        headY: 2.42,
+        headColor: 0xf5cba7,
+        legWidth: 0.16,
+        legHeight: 0.65,
+        legDepth: 0.16,
+        legOffset: 0.13,
+        legY: 0.42,
+        legColor: 0x5d4037,
+        hatRadius: 0.18,
+        hatHeight: 0.35,
+        hatY: 2.78,
+      };
+  }
 }

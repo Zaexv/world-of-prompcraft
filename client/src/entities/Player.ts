@@ -6,6 +6,7 @@ import { buildRaceModel } from './RaceModels';
 import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
 import type { AssetLoader } from '../utils/AssetLoader';
 import { lerpAngle } from '../utils/MathHelpers';
+import { createBoatModel } from '../scene/BoatModel';
 
 /**
  * Player character built from race-specific models, with optional rigged GLTF skins.
@@ -17,6 +18,7 @@ export class Player {
   private readonly skin: string;
   private visualRoot: THREE.Object3D;
   private animator: CharacterAnimator | null = null;
+  private readonly boatMount: THREE.Group;
 
   private leftLeg: THREE.Mesh | null;
   private rightLeg: THREE.Mesh | null;
@@ -24,10 +26,12 @@ export class Player {
   private rightArm: THREE.Mesh | null;
   private cloak: THREE.Mesh | null;
   private walkPhase = 0;
-  private swimPhase = 0;
   private fallbackPhase = Math.random() * Math.PI * 2;
+  private boatBob = 0;
+  private boatRoll = 0;
+  private boatPitch = 0;
 
-  /** Current body tilt for swim transition (radians, 0 = upright). */
+  /** Current body tilt (radians, 0 = upright). */
   private bodyTilt = 0;
 
   /** The yaw the model is currently visually facing (radians). */
@@ -40,6 +44,9 @@ export class Player {
 
     this.visualRoot = buildRaceModel(race);
     this.group.add(this.visualRoot);
+    this.boatMount = this.createBoatMount();
+    this.boatMount.visible = false;
+    this.group.add(this.boatMount);
 
     // Look up parts by name (may be null if model is missing a part)
     this.leftLeg = (this.group.getObjectByName('leftLeg') as THREE.Mesh) ?? null;
@@ -74,49 +81,22 @@ export class Player {
     isSwimming = false,
     facingYawOverride: number | null = null,
   ): void {
-    // --- Smooth body tilt transition ---
-    const targetTilt = isSwimming ? Math.PI * 0.35 : 0;
+    this.fallbackPhase += delta * (isMoving ? 8 : 2.5);
+
+    // Keep the player upright even while in water.
+    const targetTilt = 0;
     this.bodyTilt += (targetTilt - this.bodyTilt) * clampedT(delta, 6);
     this.group.rotation.x = this.bodyTilt;
+    this.boatMount.visible = isSwimming;
 
     if (this.animator) {
       const speed = velocity.length();
-      const state = isSwimming
-        ? (isMoving ? 'swim' : 'swim_idle')
-        : (isMoving ? (speed > 10 ? 'run' : 'walk') : 'idle');
+      const state = isMoving ? (speed > 10 ? 'run' : 'walk') : 'idle';
       this.animator.setState(state);
       this.animator.update(delta);
-    } else if (isSwimming) {
-      // ---- Swimming animation ----
-      this.swimPhase += delta * (isMoving ? 6 : 2.5);
-      this.walkPhase = 0;
-
-      // Leg flutter (fast, small kicks)
-      const kick = Math.sin(this.swimPhase * 2) * 0.4;
-      if (this.leftLeg) this.leftLeg.rotation.x = kick;
-      if (this.rightLeg) this.rightLeg.rotation.x = -kick;
-
-      // Arm strokes (alternating breaststroke-like motion)
-      const strokeL = Math.sin(this.swimPhase) * 1.1;
-      const strokeR = Math.sin(this.swimPhase + Math.PI) * 1.1;
-      if (this.leftArm) {
-        this.leftArm.rotation.x = strokeL;
-        this.leftArm.rotation.z = Math.cos(this.swimPhase) * 0.3 + 0.15;
-      }
-      if (this.rightArm) {
-        this.rightArm.rotation.x = strokeR;
-        this.rightArm.rotation.z = -(Math.cos(this.swimPhase + Math.PI) * 0.3 + 0.15);
-      }
-
-      // Cloak flows behind
-      if (this.cloak) this.cloak.rotation.x = Math.sin(this.swimPhase * 0.5) * 0.2 + 0.3;
-      this.visualRoot.position.y = Math.sin(this.swimPhase * 0.6) * 0.03;
-      this.visualRoot.rotation.z = Math.sin(this.swimPhase * 0.3) * 0.03;
     } else {
       // ---- Land animation ----
-      this.swimPhase = 0;
-
-      // Damp arm rotation back to neutral (including Z from swimming)
+      // Damp arm rotation back to neutral.
       if (this.leftArm) {
         this.leftArm.rotation.x *= 0.85;
         this.leftArm.rotation.z *= 0.85;
@@ -147,11 +127,37 @@ export class Player {
         this.walkPhase *= 0.85;
       }
 
-      this.fallbackPhase += delta * (isMoving ? 8 : 2.5);
       const bob = Math.sin(this.fallbackPhase) * (isMoving ? 0.045 : 0.025);
       const sway = Math.sin(this.fallbackPhase * 0.5) * (isMoving ? 0.035 : 0.015);
       this.visualRoot.position.y = bob;
       this.visualRoot.rotation.z = sway;
+    }
+
+    if (isSwimming) {
+      const speed = velocity.length();
+      const targetBob = Math.sin(this.fallbackPhase * 0.9) * 0.045;
+      const targetRoll = Math.sin(this.fallbackPhase * 0.55) * (0.02 + Math.min(speed / 18, 0.04));
+      const targetPitch = -Math.min(speed / 18, 0.07);
+
+      this.boatBob += (targetBob - this.boatBob) * clampedT(delta, 3.2);
+      this.boatRoll += (targetRoll - this.boatRoll) * clampedT(delta, 4.2);
+      this.boatPitch += (targetPitch - this.boatPitch) * clampedT(delta, 4.2);
+
+      this.boatMount.position.y = 0.7 + this.boatBob;
+      this.boatMount.rotation.z = this.boatRoll;
+      this.boatMount.rotation.x = this.boatPitch;
+      this.visualRoot.position.y = 0.34 + this.boatBob * 0.2;
+      this.visualRoot.rotation.z *= 0.6;
+    } else {
+      this.boatBob += (0 - this.boatBob) * clampedT(delta, 6);
+      this.boatRoll += (0 - this.boatRoll) * clampedT(delta, 8);
+      this.boatPitch += (0 - this.boatPitch) * clampedT(delta, 8);
+      this.boatMount.position.y = 0.7 + this.boatBob;
+      this.boatMount.rotation.z = this.boatRoll;
+      this.boatMount.rotation.x = this.boatPitch;
+      if (this.animator) {
+        this.visualRoot.position.y = 0;
+      }
     }
 
     // --- Face movement direction ---
@@ -236,6 +242,15 @@ export class Player {
         }
       }
     });
+  }
+
+  private createBoatMount(): THREE.Group {
+    const boat = createBoatModel({ scale: 0.48, withSail: true, markColliders: false });
+    boat.name = 'playerBoatMount';
+    boat.rotation.y = Math.PI / 2;
+    boat.scale.z *= 1.15;
+    boat.position.y = 0.7;
+    return boat;
   }
 }
 

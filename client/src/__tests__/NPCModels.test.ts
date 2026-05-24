@@ -19,4 +19,8 @@ describe('getNPCModelPath', () => {
     expect(first).toBe(second);
     expect(first).toMatch(/^\/models\/npcs\/(casual|merchant|warrior|mage)\.glb$/);
   });
+
+  it('prefers the monster skin for hostile enemies without a type match', () => {
+    expect(getNPCModelPath('enemy_01', 'Forest Spider', 'hostile')).toBe('/models/npcs/monster.glb');
+  });
 });

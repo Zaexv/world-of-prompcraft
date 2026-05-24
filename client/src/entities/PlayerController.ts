@@ -285,8 +285,10 @@ export class PlayerController {
         const resolved = this.collisionSystem.resolveMovement(currentVec, desiredVec, this.scene);
         this.position.x = resolved.x;
         this.position.z = resolved.z;
-      } catch {
-        // If collision fails, allow movement (don't crash the loop)
+      } catch (error) {
+        console.error('[Collision] resolveMovement failed', error);
+        this.position.x = prevX;
+        this.position.z = prevZ;
       }
     }
 

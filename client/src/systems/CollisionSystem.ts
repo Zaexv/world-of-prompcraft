@@ -56,6 +56,7 @@ export class CollisionSystem {
   private obstacleGrid: Map<string, ObstacleVolume[]> = new Map();
   private obstacleGridDirty = true;
   private readonly OBSTACLE_CELL_SIZE = 4;
+  private readonly DYNAMIC_COLLIDER_RADIUS_SQ = 350 * 350;
 
   // Reusable
   private _result = new THREE.Vector3();
@@ -104,23 +105,32 @@ export class CollisionSystem {
 
   /**
    * Register collision shapes for a group by decomposing it into its tagged
-   * children. Only meshes with `userData.isCollider === true` produce a
-   * collision body. If no children are tagged, falls back to a single AABB
-   * around the entire group (backward compatibility).
+   * children. Tagged colliders (`userData.isCollider === true`) are preferred.
+   * If none are tagged, defaults to per-mesh colliders for all meshes that are
+   * not explicitly marked `userData.noCollision === true`.
    *
-   * This prevents oversized bounding boxes on groups that contain both solid
-   * geometry (trunks, pillars) and decorative geometry (canopies, vines).
+   * This prevents oversized whole-group AABBs and keeps collision precision
+   * stable for authored and procedurally spawned structures.
    */
   addCollidableFiltered(group: THREE.Object3D): void {
+    if (group.userData.noCollision === true) return;
+
     const tagged: THREE.Object3D[] = [];
+    const fallbackMeshes: THREE.Object3D[] = [];
     group.traverse((child) => {
-      if (child.userData.isCollider === true && child !== group) {
+      if (child === group || child.userData.noCollision === true) return;
+      if (
+        child.userData.isCollider === true
+      ) {
         tagged.push(child);
+        return;
       }
+      if (child instanceof THREE.Mesh) fallbackMeshes.push(child);
     });
 
-    if (tagged.length === 0) {
-      // No tagged children — fall back to whole-group AABB
+    const targets = tagged.length > 0 ? tagged : fallbackMeshes;
+    if (targets.length === 0) {
+      // Last resort for non-mesh groups
       this.addCollidable(group);
       return;
     }
@@ -128,7 +138,7 @@ export class CollisionSystem {
     // Ensure world matrices are up-to-date before computing AABBs
     group.updateWorldMatrix(true, true);
 
-    for (const child of tagged) {
+    for (const child of targets) {
       const body = this.createStaticBody(child);
       if (body) {
         this.world.addBody(body);
@@ -229,13 +239,26 @@ export class CollisionSystem {
     const maxZ = z + halfExtent;
     const candidates = this.getObstacleCandidates(minX, maxX, minZ, maxZ);
     for (const volume of candidates) {
-      if (
-        maxX > volume.minX - obstacleInset && minX < volume.maxX + obstacleInset &&
-        maxY > volume.minY && minY < volume.maxY &&
-        maxZ > volume.minZ - obstacleInset && minZ < volume.maxZ + obstacleInset
-      ) return true;
+      if (this.overlapsBounds(minX, maxX, minY, maxY, minZ, maxZ, volume, obstacleInset)) return true;
     }
     return false;
+  }
+
+  private overlapsBounds(
+    minX: number,
+    maxX: number,
+    minY: number,
+    maxY: number,
+    minZ: number,
+    maxZ: number,
+    volume: ObstacleVolume,
+    inset: number,
+  ): boolean {
+    return (
+      maxX > volume.minX - inset && minX < volume.maxX + inset &&
+      maxY > volume.minY && minY < volume.maxY &&
+      maxZ > volume.minZ - inset && minZ < volume.maxZ + inset
+    );
   }
 
   private markObstacleGridDirty(): void {
@@ -532,7 +555,7 @@ export class CollisionSystem {
       // Cull distant NPCs
       const dx = this._worldPos.x - this.playerBody.position.x;
       const dz = this._worldPos.z - this.playerBody.position.z;
-      if (dx * dx + dz * dz > 900) { // 30^2
+      if (dx * dx + dz * dz > this.DYNAMIC_COLLIDER_RADIUS_SQ) {
         const existing = this.dynamicBodies.get(obj);
         if (existing) {
           this.world.removeBody(existing);
