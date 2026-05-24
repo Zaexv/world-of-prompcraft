@@ -275,10 +275,10 @@ async function initGame(username: string, race: string, faction: string, skin: s
     { id: 'sage_01', name: 'Elyria the Sage', position: new THREE.Vector3(-40, 5, -30), color: 0x6644cc },
     { id: 'guard_01', name: 'Captain Aldric', position: new THREE.Vector3(15, 0, 2), color: 0x888888 },
     { id: 'healer_01', name: 'Sister Mira', position: new THREE.Vector3(-5, 0, 12), color: 0xeedd88 },
-    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(22, 0, -112), color: 0x44cc44 },
-    { id: 'mage_01', name: 'Archmage Malakov', position: new THREE.Vector3(-15, 0, -115), color: 0xaa44ff },
-    { id: 'mage_02', name: 'Zara the Pyromancer', position: new THREE.Vector3(12, 0, -130), color: 0xff4422 },
-    { id: 'mage_03', name: 'Frostweaver Nyx', position: new THREE.Vector3(-10, 0, -105), color: 0x44ccff },
+    { id: 'eltito_01', name: 'El Tito', position: new THREE.Vector3(-120, 0, -236), color: 0x44cc44 },
+    { id: 'mage_01', name: 'Archmage Malakov', position: new THREE.Vector3(-155, 0, -240), color: 0xaa44ff },
+    { id: 'mage_02', name: 'Zara the Pyromancer', position: new THREE.Vector3(-128, 0, -255), color: 0xff4422 },
+    { id: 'mage_03', name: 'Frostweaver Nyx', position: new THREE.Vector3(-148, 0, -232), color: 0x44ccff },
   ];
 
   // Build a quick id->name lookup

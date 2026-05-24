@@ -245,7 +245,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
         "name": "El Tito",
         "archetype": "friendly_stoner",
         "initial_hp": 420,
-        "position": [22, 0, -112],
+        "position": [-120, 0, -236],
         "system_prompt": (
             "You are El Tito, the most chill dude in all of Fort Malaka. You live in "
             "the Blasted Suarezlands, the mage district of this Mediterranean coastal "
@@ -332,7 +332,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
         "name": "Archmage Malakov",
         "archetype": "eccentric_archmage",
         "initial_hp": 300,
-        "position": [-15, 0, -115],
+        "position": [-155, 0, -240],
         "system_prompt": (
             "You are Archmage Malakov, the eccentric and slightly unhinged leader of "
             "the Blasted Suarezlands mage district in Fort Malaka — a magical "
@@ -384,7 +384,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
         "name": "Zara the Pyromancer",
         "archetype": "volatile_pyromancer",
         "initial_hp": 180,
-        "position": [12, 0, -130],
+        "position": [-128, 0, -255],
         "system_prompt": (
             "You are Zara the Pyromancer, a hot-tempered fire mage in the Blasted "
             "Suarezlands district of Fort Malaka. You live and breathe fire magic — "
@@ -427,7 +427,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
         "name": "Frostweaver Nyx",
         "archetype": "mysterious_cryomancer",
         "initial_hp": 200,
-        "position": [-10, 0, -105],
+        "position": [-148, 0, -232],
         "system_prompt": (
             "You are Frostweaver Nyx, a mysterious and elegant ice mage who resides "
             "in the Blasted Suarezlands district of Fort Malaka. You are calm, precise, "

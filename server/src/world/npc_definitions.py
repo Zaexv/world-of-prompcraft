@@ -55,7 +55,7 @@ NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "eltito_01": {
         "id": "eltito_01",
         "name": NPC_PERSONALITIES["eltito_01"]["name"],
-        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [22, 0, -112]
+        "position": NPC_PERSONALITIES["eltito_01"]["position"],  # [-120, 0, -236]
         "initial_hp": NPC_PERSONALITIES["eltito_01"]["initial_hp"],  # 420
         "personality_key": "eltito_01",
     },
@@ -63,7 +63,7 @@ NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "mage_01": {
         "id": "mage_01",
         "name": NPC_PERSONALITIES["mage_01"]["name"],
-        "position": NPC_PERSONALITIES["mage_01"]["position"],  # [-15, 0, -115]
+        "position": NPC_PERSONALITIES["mage_01"]["position"],  # [-155, 0, -240]
         "initial_hp": NPC_PERSONALITIES["mage_01"]["initial_hp"],  # 300
         "personality_key": "mage_01",
     },
@@ -71,7 +71,7 @@ NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "mage_02": {
         "id": "mage_02",
         "name": NPC_PERSONALITIES["mage_02"]["name"],
-        "position": NPC_PERSONALITIES["mage_02"]["position"],  # [12, 0, -130]
+        "position": NPC_PERSONALITIES["mage_02"]["position"],  # [-128, 0, -255]
         "initial_hp": NPC_PERSONALITIES["mage_02"]["initial_hp"],  # 180
         "personality_key": "mage_02",
     },
@@ -79,7 +79,7 @@ NPC_DEFINITIONS: dict[str, dict[str, Any]] = {
     "mage_03": {
         "id": "mage_03",
         "name": NPC_PERSONALITIES["mage_03"]["name"],
-        "position": NPC_PERSONALITIES["mage_03"]["position"],  # [-10, 0, -105]
+        "position": NPC_PERSONALITIES["mage_03"]["position"],  # [-148, 0, -232]
         "initial_hp": NPC_PERSONALITIES["mage_03"]["initial_hp"],  # 200
         "personality_key": "mage_03",
     },

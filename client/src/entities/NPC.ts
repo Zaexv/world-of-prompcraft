@@ -4,7 +4,7 @@ import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
-import { NPC_MODEL_MAP } from './NPCModels';
+import { getNPCModelPath } from './NPCModels';
 import type { AssetLoader } from '../utils/AssetLoader';
 
 export interface NPCConfig {
@@ -158,7 +158,7 @@ export class NPC {
   static async create(config: NPCConfig, assetLoader?: AssetLoader): Promise<NPC> {
     const npc = new NPC(config);
     if (assetLoader) {
-      const modelPath = NPC_MODEL_MAP[config.id];
+      const modelPath = getNPCModelPath(config.id, config.name);
       if (modelPath) {
         try {
           const gltf = await assetLoader.loadGLTF(modelPath);

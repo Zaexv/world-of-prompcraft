@@ -36,23 +36,69 @@ export class FortMalaka {
   private static readonly WOOD_BROWN = 0x5c3a1e;
 
   constructor(scene: THREE.Scene, terrain: Terrain) {
+    const suarezCenterX = -140;
+    const suarezCenterZ = -245;
+
     // ── Mage District (Blasted Suarezlands) ──────────────────────────────
-    this.createGrandMageTower(scene, 0, -120, getAnchoredTerrainY(terrain, 0, -120, 8));
-    this.createArcaneGateway(scene, 0, -88, getAnchoredTerrainY(terrain, 0, -88, 8));
-    this.createRunicCircle(scene, 0, -120, getAnchoredTerrainY(terrain, 0, -120, 8));
+    this.createGrandMageTower(
+      scene,
+      suarezCenterX,
+      suarezCenterZ,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ, 8),
+    );
+    this.createArcaneGateway(
+      scene,
+      suarezCenterX,
+      suarezCenterZ + 32,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ + 32, 8),
+    );
+    this.createRunicCircle(
+      scene,
+      suarezCenterX,
+      suarezCenterZ,
+      getAnchoredTerrainY(terrain, suarezCenterX, suarezCenterZ, 8),
+    );
 
     const pylonPositions = [
       [-20, -110], [20, -110], [-20, -135], [20, -135], [-8, -100], [8, -145],
     ];
     for (const [px, pz] of pylonPositions) {
-      this.createArcanePylon(scene, px, pz, getAnchoredTerrainY(terrain, px, pz, 3));
+      const wx = suarezCenterX + px;
+      const wz = suarezCenterZ + (pz + 120);
+      this.createArcanePylon(scene, wx, wz, getAnchoredTerrainY(terrain, wx, wz, 3));
     }
 
     // Mage houses (arcane-themed)
-    this.createMageHouse(scene, -22, -125, getAnchoredTerrainY(terrain, -22, -125, 4), 0xff6622);
-    this.createMageHouse(scene, 18, -108, getAnchoredTerrainY(terrain, 18, -108, 4), 0x88ccff);
-    this.createMageHouse(scene, -25, -105, getAnchoredTerrainY(terrain, -25, -105, 4), 0x8833dd);
-    this.createMageHouse(scene, 22, -140, getAnchoredTerrainY(terrain, 22, -140, 4), 0x6644ff);
+    this.createMageHouse(
+      scene,
+      suarezCenterX - 22,
+      suarezCenterZ - 5,
+      getAnchoredTerrainY(terrain, suarezCenterX - 22, suarezCenterZ - 5, 4),
+      0xff6622,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX + 18,
+      suarezCenterZ + 12,
+      getAnchoredTerrainY(terrain, suarezCenterX + 18, suarezCenterZ + 12, 4),
+      0x88ccff,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX - 25,
+      suarezCenterZ + 15,
+      getAnchoredTerrainY(terrain, suarezCenterX - 25, suarezCenterZ + 15, 4),
+      0x8833dd,
+    );
+    this.createMageHouse(
+      scene,
+      suarezCenterX + 22,
+      suarezCenterZ - 20,
+      getAnchoredTerrainY(terrain, suarezCenterX + 22, suarezCenterZ - 20, 4),
+      0x6644ff,
+    );
+    this.createMageDistrictGarden(scene, terrain, suarezCenterX - 4, suarezCenterZ + 8);
+    this.createSuarezlandsRift(scene, terrain, suarezCenterX + 30, suarezCenterZ + 10);
 
     // ── Málaga Mediterranean structures ──────────────────────────────────
 
@@ -70,7 +116,6 @@ export class FortMalaka {
 
     // Paseo Marítimo — stone promenade along the beach edge
     this.createPromenade(scene, terrain);
-    this.createMageDistrictGarden(scene, terrain);
     this.createCoastalPlaza(scene, terrain);
 
     // Palm trees — along promenade and beach
@@ -773,6 +818,7 @@ export class FortMalaka {
 
     group.position.set(x, y, z);
     scene.add(group);
+    this.groups.push(group);
     this.footprints.push({ x, z, radius: 2 });
   }
 
@@ -980,9 +1026,7 @@ export class FortMalaka {
     this.footprints.push({ x, z, radius: 2 });
   }
 
-  private createMageDistrictGarden(scene: THREE.Scene, terrain: Terrain): void {
-    const gx = -4;
-    const gz = -112;
+  private createMageDistrictGarden(scene: THREE.Scene, terrain: Terrain, gx: number, gz: number): void {
     const gy = getAnchoredTerrainY(terrain, gx, gz, 8);
     const group = new THREE.Group();
 
@@ -1019,6 +1063,58 @@ export class FortMalaka {
     scene.add(group);
     this.groups.push(group);
     this.footprints.push({ x: gx, z: gz, radius: 7 });
+  }
+
+  private createSuarezlandsRift(scene: THREE.Scene, terrain: Terrain, x: number, z: number): void {
+    const y = getAnchoredTerrainY(terrain, x, z, 9);
+    const group = new THREE.Group();
+    const basalt = this.createTexturedMaterial(0x2e2a38, 0x4a405e, 0.7, 0.2);
+
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(8.5, 0.45, 8, 28), basalt);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.5;
+    ring.userData.isCollider = true;
+    group.add(ring);
+
+    const pool = new THREE.Mesh(
+      new THREE.CylinderGeometry(6.8, 7.2, 0.25, 24),
+      new THREE.MeshStandardMaterial({
+        color: 0x332255,
+        emissive: 0x5a3cff,
+        emissiveIntensity: 0.9,
+        transparent: true,
+        opacity: 0.85,
+      }),
+    );
+    pool.position.y = 0.3;
+    group.add(pool);
+
+    for (let i = 0; i < 7; i++) {
+      const angle = (i / 7) * Math.PI * 2;
+      const monolith = new THREE.Mesh(new THREE.BoxGeometry(1.1, 4.5, 1.1), basalt);
+      monolith.position.set(Math.cos(angle) * 8.4, 2.25, Math.sin(angle) * 8.4);
+      monolith.rotation.y = angle + 0.3;
+      monolith.userData.isCollider = true;
+      group.add(monolith);
+
+      const rune = new THREE.Mesh(
+        new THREE.PlaneGeometry(0.45, 1.8),
+        new THREE.MeshStandardMaterial({
+          color: 0x7c70ff,
+          emissive: 0x7c70ff,
+          emissiveIntensity: 1.8,
+          side: THREE.DoubleSide,
+        }),
+      );
+      rune.position.set(Math.cos(angle) * 8.4, 2.4, Math.sin(angle) * 8.4);
+      rune.lookAt(0, 2.4, 0);
+      group.add(rune);
+    }
+
+    group.position.set(x, y, z);
+    scene.add(group);
+    this.groups.push(group);
+    this.footprints.push({ x, z, radius: 10 });
   }
 
   private createCoastalPlaza(scene: THREE.Scene, terrain: Terrain): void {
@@ -1113,6 +1209,7 @@ export class FortMalaka {
       const postGeo = new THREE.CylinderGeometry(0.08, 0.1, 4, 6);
       const post = new THREE.Mesh(postGeo, postMat);
       post.position.y = 2;
+      post.userData.isCollider = true;
       lampGroup.add(post);
 
       // Lamp arm
@@ -1137,6 +1234,8 @@ export class FortMalaka {
 
       lampGroup.position.set(lx, lpy, -159);
       scene.add(lampGroup);
+      this.groups.push(lampGroup);
+      this.footprints.push({ x: lx, z: -159, radius: 1.2 });
     }
   }
 }
