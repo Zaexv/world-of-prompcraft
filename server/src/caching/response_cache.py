@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-import redis
+import redis  # type: ignore[import-not-found]
 
 
 class ResponseCache:
@@ -64,7 +64,7 @@ class ResponseCache:
             key = self._make_key(npc_id, player_id, prompt, temperature)
             cached = self.redis_client.get(key)
             if cached:
-                return json.loads(cached)
+                return json.loads(cached)  # type: ignore[no-any-return]
         except Exception:
             pass
 
@@ -101,7 +101,7 @@ class ResponseCache:
         try:
             keys = self.redis_client.keys(pattern)
             if keys:
-                return self.redis_client.delete(*keys)
+                return self.redis_client.delete(*keys)  # type: ignore[no-any-return]
         except Exception:
             pass
 

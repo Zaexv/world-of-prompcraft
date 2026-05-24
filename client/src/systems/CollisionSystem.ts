@@ -201,10 +201,11 @@ export class CollisionSystem {
    * any static collidable. Used by NPCs to avoid walking into walls/trees.
    */
   isPositionBlocked(x: number, y: number, z: number, halfExtent = 0.5): boolean {
+    const obstacleInset = 0.08;
     const minX = x - halfExtent;
     const maxX = x + halfExtent;
-    const minY = y;
-    const maxY = y + halfExtent * 4;
+    const minY = y - 0.6;
+    const maxY = y + halfExtent * 5 + 0.6;
     const minZ = z - halfExtent;
     const maxZ = z + halfExtent;
 
@@ -212,11 +213,15 @@ export class CollisionSystem {
       if (!entry.obj.visible) continue;
       const bMin = entry.body.aabb.lowerBound;
       const bMax = entry.body.aabb.upperBound;
+      const bxMin = bMin.x - obstacleInset;
+      const bxMax = bMax.x + obstacleInset;
+      const bzMin = bMin.z - obstacleInset;
+      const bzMax = bMax.z + obstacleInset;
 
       if (
-        maxX > bMin.x && minX < bMax.x &&
+        maxX > bxMin && minX < bxMax &&
         maxY > bMin.y && minY < bMax.y &&
-        maxZ > bMin.z && minZ < bMax.z
+        maxZ > bzMin && minZ < bzMax
       ) {
         return true;
       }

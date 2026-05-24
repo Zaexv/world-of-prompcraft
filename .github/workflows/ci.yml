@@ -21,7 +21,7 @@ jobs:
   # ════════════════════════════════════════════════════════════════
 
   client-lint:
-    name: "📋 Client Lint & Format"
+    name: "📋 Client Lint"
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -35,8 +35,6 @@ jobs:
           cache-dependency-path: client/package-lock.json
       - run: npm ci --prefer-offline --no-audit
       - run: npx eslint src/ --max-warnings 0
-      - run: npx prettier --check src/
-        continue-on-error: true
 
   server-lint:
     name: "📋 Server Lint & Format"

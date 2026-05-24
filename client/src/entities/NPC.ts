@@ -281,6 +281,23 @@ export class NPC {
     getHeightAt: (x: number, z: number) => number,
     collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
   ): void {
+    const pathBlocked = (fromX: number, fromZ: number, toX: number, toZ: number, halfExtent: number): boolean => {
+      if (!collisionSystem) return false;
+      const dx = toX - fromX;
+      const dz = toZ - fromZ;
+      const distance = Math.sqrt(dx * dx + dz * dz);
+      const steps = Math.max(1, Math.ceil(distance / 0.08));
+
+      for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        const sx = fromX + dx * t;
+        const sz = fromZ + dz * t;
+        const sy = getHeightAt(sx, sz);
+        if (collisionSystem.isPositionBlocked(sx, sy, sz, halfExtent)) return true;
+      }
+      return false;
+    };
+
     // Decrement cooldown
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
@@ -293,7 +310,10 @@ export class NPC {
         const ty = getHeightAt(tx, tz);
 
         // Reject targets inside obstacles
-        if (collisionSystem?.isPositionBlocked(tx, ty, tz, 0.4)) {
+        if (
+          collisionSystem?.isPositionBlocked(tx, ty, tz, 0.55)
+          || pathBlocked(this.mesh.position.x, this.mesh.position.z, tx, tz, 0.55)
+        ) {
           this.wanderCooldown = 1 + Math.random() * 2;
           return;
         }
@@ -327,18 +347,39 @@ export class NPC {
       const nx = dx / dist;
       const nz = dz / dist;
 
-      const nextX = this.mesh.position.x + nx * step;
-      const nextZ = this.mesh.position.z + nz * step;
-      const nextY = getHeightAt(nextX, nextZ);
+      let nextX = this.mesh.position.x + nx * step;
+      let nextZ = this.mesh.position.z + nz * step;
+      let nextY = getHeightAt(nextX, nextZ);
 
-      // Check if next step would collide with a building/tree
-      if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.4)) {
-        // Stop wandering — obstacle in the way
-        this.isWandering = false;
-        this.hasWanderTarget = false;
-        this.wanderCooldown = 2 + Math.random() * 3;
-        this.animator.play('idle');
-        return;
+      // If blocked, try short detours (10 steering probes) before giving up.
+      if (pathBlocked(this.mesh.position.x, this.mesh.position.z, nextX, nextZ, 0.55)) {
+        const heading = Math.atan2(nz, nx);
+        let foundDetour = false;
+
+        for (let probe = 1; probe <= 10; probe++) {
+          const side = probe % 2 === 0 ? -1 : 1;
+          const stepBand = Math.ceil(probe / 2);
+          const detourAngle = heading + side * stepBand * 0.18;
+          const probeX = this.mesh.position.x + Math.cos(detourAngle) * step;
+          const probeZ = this.mesh.position.z + Math.sin(detourAngle) * step;
+          const probeY = getHeightAt(probeX, probeZ);
+
+          if (!pathBlocked(this.mesh.position.x, this.mesh.position.z, probeX, probeZ, 0.55)) {
+            nextX = probeX;
+            nextZ = probeZ;
+            nextY = probeY;
+            foundDetour = true;
+            break;
+          }
+        }
+
+        if (!foundDetour) {
+          this.isWandering = false;
+          this.hasWanderTarget = false;
+          this.wanderCooldown = 2 + Math.random() * 3;
+          this.animator.play('idle');
+          return;
+        }
       }
 
       this.mesh.position.x = nextX;

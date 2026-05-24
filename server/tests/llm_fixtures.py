@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 import pytest
+from pydantic import Field
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -20,10 +21,10 @@ class MockChatModel(BaseChatModel):
 
     model_name: str = "mock-gpt-4"
     response_template: str = "Mock response to: {input}"
-    tool_calls_data: ClassVar[list[dict[str, Any]]] = []
+    tool_calls_data: list[dict[str, Any]] = Field(default_factory=list)
     call_count: int = 0
-    last_messages: ClassVar[list[BaseMessage]] = []
-    bound_tools: ClassVar[list[Any]] = []
+    last_messages: list[BaseMessage] = Field(default_factory=list)
+    bound_tools: list[Any] = Field(default_factory=list)
 
     def _generate(
         self,

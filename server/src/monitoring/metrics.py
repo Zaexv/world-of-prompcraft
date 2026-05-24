@@ -7,6 +7,7 @@ import contextlib
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
+from typing import Any
 
 
 @dataclass
@@ -31,10 +32,10 @@ class MetricsCollector:
     max_latency_history: int = 1000
 
     # Per-NPC stats
-    npc_stats: dict[str, dict[str, any]] = field(default_factory=dict)
+    npc_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     # Per-player stats
-    player_stats: dict[str, dict[str, any]] = field(default_factory=dict)
+    player_stats: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     # Time window tracking
     window_duration: timedelta = field(default_factory=lambda: timedelta(minutes=5))
@@ -144,7 +145,7 @@ class MetricsCollector:
         index = int(len(sorted_latencies) * 0.99)
         return sorted_latencies[min(index, len(sorted_latencies) - 1)]
 
-    def get_summary(self) -> dict[str, any]:
+    def get_summary(self) -> dict[str, Any]:
         """Get summary of all metrics."""
         return {
             "total_invocations": self.total_agent_invocations,
@@ -210,7 +211,7 @@ class AdaptiveBackpressure:
         # Wait for semaphore
         await self.semaphore.acquire()
         if self.metrics:
-            self.metrics.record_semaphore_depth(self.semaphore._value)  # type: ignore[attr-defined]
+            self.metrics.record_semaphore_depth(self.semaphore._value)
 
     async def _adjust_limits(self) -> None:
         """Adjust semaphore limit based on metrics."""

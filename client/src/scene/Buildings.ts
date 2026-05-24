@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Terrain } from './Terrain';
+import { getAnchoredTerrainY, smoothHeightSeries } from './TerrainPlacement';
 
 /**
  * Teldrassil-themed Night Elf buildings: Moonwell, Tree-house dwelling,
@@ -23,10 +24,11 @@ export class Buildings {
   constructor(scene: THREE.Scene, terrain: Terrain) {
     // Place buildings at roughly the same positions as the originals,
     // snapped to terrain height so they sit correctly on the infinite terrain.
-    this.createMoonwell(scene, 30, 10, terrain.getHeightAt(30, 10));
-    this.createTreeHouse(scene, -40, -25, terrain.getHeightAt(-40, -25));
-    this.createSentinelTower(scene, 15, -35, terrain.getHeightAt(15, -35));
-    this.createMarketPavilion(scene, -20, 20, terrain.getHeightAt(-20, 20));
+    this.createMoonwell(scene, 30, 10, getAnchoredTerrainY(terrain, 30, 10, 10));
+    this.createTreeHouse(scene, -40, -25, getAnchoredTerrainY(terrain, -40, -25, 10));
+    this.createSentinelTower(scene, 15, -35, getAnchoredTerrainY(terrain, 15, -35, 7));
+    this.createMarketPavilion(scene, -20, 20, getAnchoredTerrainY(terrain, -20, 20, 10));
+    this.createStarterDistrict(scene, terrain, 0, 0);
   }
 
   // ----------------------------------------------------------------
@@ -474,5 +476,96 @@ export class Buildings {
     this.groups.push(group);
 
     this.footprints.push({ x, z, radius: 10 });
+  }
+
+  // ----------------------------------------------------------------
+  // Starter district: small houses + paved crossroads near spawn
+  // ----------------------------------------------------------------
+  private createStarterDistrict(scene: THREE.Scene, terrain: Terrain, x: number, z: number): void {
+    const district = new THREE.Group();
+
+    const pathMat = new THREE.MeshStandardMaterial({
+      color: 0x746a60,
+      roughness: 0.9,
+      metalness: 0.0,
+    });
+
+    const pathSegments: Array<{ cx: number; cz: number; sx: number; sz: number }> = [];
+    for (let i = -4; i <= 4; i++) {
+      pathSegments.push({ cx: x + i * 3.2, cz: z, sx: 3.2, sz: 2.6 });
+      pathSegments.push({ cx: x, cz: z + i * 3.2, sx: 2.6, sz: 3.2 });
+    }
+    const pathHeights = smoothHeightSeries(
+      pathSegments.map((segment) => terrain.getHeightAt(segment.cx, segment.cz)),
+      10,
+      0.3,
+    );
+    for (let i = 0; i < pathSegments.length; i++) {
+      const segment = pathSegments[i];
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(segment.sx, 0.24, segment.sz), pathMat);
+      slab.position.set(segment.cx, pathHeights[i] + 0.12, segment.cz);
+      slab.receiveShadow = true;
+      district.add(slab);
+    }
+
+    const housePositions: [number, number][] = [
+      [-11, -8], [-10, 9], [10, -9], [11, 8], [0, -13], [0, 13],
+    ];
+
+    for (const [hx, hz] of housePositions) {
+      const worldX = x + hx;
+      const worldZ = z + hz;
+      const hy = getAnchoredTerrainY(terrain, worldX, worldZ, 3.5);
+      const centerHeight = terrain.getHeightAt(worldX, worldZ);
+
+      const house = new THREE.Group();
+      const foundationHeight = Math.max(0.8, centerHeight - hy + 0.9);
+      const foundation = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.8, 3.2, foundationHeight, 8),
+        new THREE.MeshStandardMaterial({ color: 0x5a5047, roughness: 0.92 }),
+      );
+      foundation.position.y = foundationHeight * 0.5;
+      foundation.receiveShadow = true;
+      house.add(foundation);
+
+      const wall = new THREE.Mesh(
+        new THREE.BoxGeometry(4.5, 3.6, 4.2),
+        new THREE.MeshStandardMaterial({ color: 0x4a3625, roughness: 0.85 }),
+      );
+      wall.position.y = 1.8;
+      wall.castShadow = true;
+      wall.receiveShadow = true;
+      wall.userData.isCollider = true;
+      house.add(wall);
+
+      const roof = new THREE.Mesh(
+        new THREE.ConeGeometry(3.8, 2.4, 4),
+        new THREE.MeshStandardMaterial({ color: Buildings.PURPLE_FABRIC, roughness: 0.65 }),
+      );
+      roof.position.y = 4.7;
+      roof.rotation.y = Math.PI * 0.25;
+      roof.castShadow = true;
+      house.add(roof);
+
+      const runeLantern = new THREE.Mesh(
+        new THREE.SphereGeometry(0.25, 8, 6),
+        new THREE.MeshStandardMaterial({
+          color: Buildings.TEAL_GLOW,
+          emissive: Buildings.TEAL_GLOW,
+          emissiveIntensity: 1.2,
+          roughness: 0.2,
+        }),
+      );
+      runeLantern.position.set(0, 2.3, 2.2);
+      house.add(runeLantern);
+
+      house.position.set(worldX, hy, worldZ);
+      this.footprints.push({ x: worldX, z: worldZ, radius: 3.6 });
+      district.add(house);
+    }
+
+    scene.add(district);
+    this.groups.push(district);
+    this.footprints.push({ x, z, radius: 18 });
   }
 }

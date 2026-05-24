@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Terrain } from './Terrain';
+import { getAnchoredTerrainY, smoothHeightSeries } from './TerrainPlacement';
 
 /**
  * Fort Malaka — Málaga-inspired coastal city with the Blasted Suarezlands
@@ -36,27 +37,27 @@ export class FortMalaka {
 
   constructor(scene: THREE.Scene, terrain: Terrain) {
     // ── Mage District (Blasted Suarezlands) ──────────────────────────────
-    this.createGrandMageTower(scene, 0, -120, terrain.getHeightAt(0, -120));
-    this.createArcaneGateway(scene, 0, -88, terrain.getHeightAt(0, -88));
-    this.createRunicCircle(scene, 0, -120, terrain.getHeightAt(0, -120));
+    this.createGrandMageTower(scene, 0, -120, getAnchoredTerrainY(terrain, 0, -120, 8));
+    this.createArcaneGateway(scene, 0, -88, getAnchoredTerrainY(terrain, 0, -88, 8));
+    this.createRunicCircle(scene, 0, -120, getAnchoredTerrainY(terrain, 0, -120, 8));
 
     const pylonPositions = [
       [-20, -110], [20, -110], [-20, -135], [20, -135], [-8, -100], [8, -145],
     ];
     for (const [px, pz] of pylonPositions) {
-      this.createArcanePylon(scene, px, pz, terrain.getHeightAt(px, pz));
+      this.createArcanePylon(scene, px, pz, getAnchoredTerrainY(terrain, px, pz, 3));
     }
 
     // Mage houses (arcane-themed)
-    this.createMageHouse(scene, -22, -125, terrain.getHeightAt(-22, -125), 0xff6622);
-    this.createMageHouse(scene, 18, -108, terrain.getHeightAt(18, -108), 0x88ccff);
-    this.createMageHouse(scene, -25, -105, terrain.getHeightAt(-25, -105), 0x8833dd);
-    this.createMageHouse(scene, 22, -140, terrain.getHeightAt(22, -140), 0x6644ff);
+    this.createMageHouse(scene, -22, -125, getAnchoredTerrainY(terrain, -22, -125, 4), 0xff6622);
+    this.createMageHouse(scene, 18, -108, getAnchoredTerrainY(terrain, 18, -108, 4), 0x88ccff);
+    this.createMageHouse(scene, -25, -105, getAnchoredTerrainY(terrain, -25, -105, 4), 0x8833dd);
+    this.createMageHouse(scene, 22, -140, getAnchoredTerrainY(terrain, 22, -140, 4), 0x6644ff);
 
     // ── Málaga Mediterranean structures ──────────────────────────────────
 
     // La Alcazaba — Moorish fortress overlooking the beach
-    this.createAlcazaba(scene, 30, -152, terrain.getHeightAt(30, -152));
+    this.createAlcazaba(scene, 30, -152, getAnchoredTerrainY(terrain, 30, -152, 14));
 
     // White Mediterranean houses (casitas blancas) — between district and beach
     const casitaPositions: [number, number][] = [
@@ -64,7 +65,7 @@ export class FortMalaka {
       [-30, -158], [28, -160], [-15, -152], [15, -155],
     ];
     for (const [cx, cz] of casitaPositions) {
-      this.createCasitaBlanca(scene, cx, cz, terrain.getHeightAt(cx, cz));
+      this.createCasitaBlanca(scene, cx, cz, getAnchoredTerrainY(terrain, cx, cz, 4));
     }
 
     // Paseo Marítimo — stone promenade along the beach edge
@@ -78,18 +79,18 @@ export class FortMalaka {
       [-10, -174],
     ];
     for (const [px, pz] of palmPositions) {
-      this.createPalmTree(scene, px, pz, terrain.getHeightAt(px, pz));
+      this.createPalmTree(scene, px, pz, getAnchoredTerrainY(terrain, px, pz, 2));
     }
 
     // La Farola — lighthouse at the east end of the beach
-    this.createLighthouse(scene, 40, -175, terrain.getHeightAt(40, -175));
+    this.createLighthouse(scene, 40, -175, getAnchoredTerrainY(terrain, 40, -175, 4));
 
     // Chiringuito — beach bar
-    this.createChiringuito(scene, -15, -172, terrain.getHeightAt(-15, -172));
+    this.createChiringuito(scene, -15, -172, getAnchoredTerrainY(terrain, -15, -172, 6));
 
     // Espeto stands — sardine grills on the beach
-    this.createEspetoStand(scene, -5, -178, terrain.getHeightAt(-5, -178));
-    this.createEspetoStand(scene, 10, -176, terrain.getHeightAt(10, -176));
+    this.createEspetoStand(scene, -5, -178, getAnchoredTerrainY(terrain, -5, -178, 2));
+    this.createEspetoStand(scene, 10, -176, getAnchoredTerrainY(terrain, 10, -176, 2));
   }
 
   // ----------------------------------------------------------------
@@ -906,6 +907,7 @@ export class FortMalaka {
     });
     const pit = new THREE.Mesh(pitGeo, pitMat);
     pit.position.y = 0.15;
+    pit.userData.isCollider = true;
     group.add(pit);
 
     // Glowing embers — emissive replaces PointLight
@@ -945,6 +947,7 @@ export class FortMalaka {
 
     group.position.set(x, y, z);
     scene.add(group);
+    this.groups.push(group);
     this.footprints.push({ x, z, radius: 2 });
   }
 
@@ -953,9 +956,6 @@ export class FortMalaka {
   // Consolidated into single slabs + 3 lamp posts (emissive only)
   // ----------------------------------------------------------------
   private createPromenade(scene: THREE.Scene, terrain: Terrain): void {
-    const pz = -160;
-    const py = terrain.getHeightAt(0, pz);
-
     const stoneMat = new THREE.MeshStandardMaterial({
       color: 0xb8a890,
       roughness: 0.7,
@@ -963,22 +963,35 @@ export class FortMalaka {
     });
 
     const group = new THREE.Group();
+    const pz = -160;
+    const startX = -35;
+    const endX = 35;
+    const segmentLength = 5;
+    const centers: number[] = [];
+    const rawHeights: number[] = [];
 
-    // ONE long stone slab for the entire promenade (X: -35 to +35)
-    const slabGeo = new THREE.BoxGeometry(70, 0.2, 3);
-    const slab = new THREE.Mesh(slabGeo, stoneMat);
-    slab.position.y = 0.1;
-    slab.receiveShadow = true;
-    group.add(slab);
+    for (let x = startX; x < endX; x += segmentLength) {
+      const cx = x + segmentLength * 0.5;
+      centers.push(cx);
+      rawHeights.push(terrain.getHeightAt(cx, pz));
+    }
+    const heights = smoothHeightSeries(rawHeights, 10, 0.35);
 
-    // ONE long railing on the beach side
-    const railGeo = new THREE.BoxGeometry(70, 0.6, 0.3);
-    const rail = new THREE.Mesh(railGeo, stoneMat);
-    rail.position.set(0, 0.5, 1.5);
-    rail.userData.isCollider = true;
-    group.add(rail);
+    for (let i = 0; i < centers.length; i++) {
+      const cx = centers[i];
+      const cy = heights[i];
 
-    group.position.set(0, py, pz);
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(segmentLength, 0.24, 3), stoneMat);
+      slab.position.set(cx, cy + 0.12, pz);
+      slab.receiveShadow = true;
+      group.add(slab);
+
+      const rail = new THREE.Mesh(new THREE.BoxGeometry(segmentLength, 0.7, 0.32), stoneMat);
+      rail.position.set(cx, cy + 0.45, pz + 1.5);
+      rail.userData.isCollider = true;
+      group.add(rail);
+    }
+
     scene.add(group);
     this.groups.push(group);
     this.footprints.push({ x: 0, z: pz, radius: 38 });

@@ -55,7 +55,11 @@
       "Bash(/tmp/check_bugs.txt:*)",
       "Read(//tmp/**)",
       "Bash(uvicorn src.main:app --reload --port 8000)",
-      "Bash(python -m uvicorn src.main:app --reload --port 8000)"
+      "Bash(python -m uvicorn src.main:app --reload --port 8000)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw --getglobalstate)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw --getblockall)",
+      "Bash(/usr/libexec/ApplicationFirewall/socketfilterfw --listapps)",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 http://192.168.0.148:5173/)"
     ]
   },
   "hooks": {
