@@ -31,26 +31,148 @@ export interface ChatMessage {
   text: string;
 }
 
-export type ClientMessage = PlayerInteraction | PlayerMove | JoinRequest | ChatMessage;
-
-// ── Server → Client Messages ─────────────────────────────────────────────────
-
-export interface Action {
-  kind:
-    | "damage"
-    | "heal"
-    | "give_item"
-    | "take_item"
-    | "emote"
-    | "move_npc"
-    | "spawn_effect"
-    | "change_weather"
-    | "start_quest"
-    | "complete_quest"
-    | "advance_objective";
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  params: Record<string, any>;
+export interface UseItem {
+  type: "use_item";
+  playerId: string;
+  item: string;
 }
+
+export interface EquipItem {
+  type: "equip_item";
+  playerId: string;
+  item: string;
+  slot: string | null;
+  equipped: boolean;
+}
+
+export interface ExploreArea {
+  type: "explore_area";
+  position: [number, number, number];
+  npcs: NPCInitData[];
+}
+
+export interface DungeonEnter {
+  type: "dungeon_enter";
+  dungeonId: string;
+  playerId: string;
+}
+
+export interface DungeonExit {
+  type: "dungeon_exit";
+  dungeonId: string;
+  playerId: string;
+  loot: string[];
+}
+
+export interface QuestUpdate {
+  type: "quest_update";
+  questId: string;
+  objectiveId: string;
+  playerId: string;
+}
+
+export interface PingMessage {
+  type: "ping";
+}
+
+export type ClientMessage =
+  | PlayerInteraction
+  | PlayerMove
+  | JoinRequest
+  | ChatMessage
+  | UseItem
+  | EquipItem
+  | ExploreArea
+  | DungeonEnter
+  | DungeonExit
+  | QuestUpdate
+  | PingMessage;
+
+// ── Action Params (discriminated by kind) ────────────────────────────────────
+// Each action kind carries a typed params object. This makes the client-server
+// contract explicit: adding a new action kind requires updating both sides.
+
+export interface DamageParams {
+  amount: number;
+  target: "player" | "npc";
+  damageType?: "physical" | "fire" | "ice" | "lightning" | "holy" | "dark" | "arcane";
+  effectType?: string;
+}
+
+export interface HealParams {
+  amount: number;
+  target: "player" | "npc";
+}
+
+export interface GiveItemParams {
+  item: string;
+}
+
+export interface TakeItemParams {
+  item: string;
+}
+
+export interface EmoteParams {
+  animation: string;
+}
+
+export interface MoveNpcParams {
+  position: [number, number, number];
+  duration?: number;
+}
+
+export interface SpawnEffectParams {
+  effectType?: string;
+  effect_type?: string; // legacy alias from handler
+  color?: string;
+  count?: number;
+  position?: [number, number, number];
+}
+
+export interface ChangeWeatherParams {
+  weather: string;
+}
+
+export interface StartQuestParams {
+  // From predefined quest tool (quest.py)
+  questId?: string;
+  quest?: string;
+  // From give_quest dialogue tool (dialogue.py)
+  questName?: string;
+  description?: string;
+  objectives?: Array<{
+    id: string;
+    description: string;
+    target: number;
+  }>;
+}
+
+export interface CompleteQuestParams {
+  questId?: string;
+  questName?: string;
+  reward?: string;
+}
+
+export interface AdvanceObjectiveParams {
+  questId: string;
+  objectiveId: string;
+  progress?: number;
+}
+
+export type Action =
+  | { kind: "damage"; params: DamageParams }
+  | { kind: "heal"; params: HealParams }
+  | { kind: "give_item"; params: GiveItemParams }
+  | { kind: "take_item"; params: TakeItemParams }
+  | { kind: "emote"; params: EmoteParams }
+  | { kind: "move_npc"; params: MoveNpcParams }
+  | { kind: "spawn_effect"; params: SpawnEffectParams }
+  | { kind: "change_weather"; params: ChangeWeatherParams }
+  | { kind: "start_quest"; params: StartQuestParams }
+  | { kind: "complete_quest"; params: CompleteQuestParams }
+  | { kind: "advance_objective"; params: AdvanceObjectiveParams };
+
+// ── Shared Data Shapes ────────────────────────────────────────────────────────
 
 export interface PlayerStateData {
   hp: number;
@@ -69,18 +191,13 @@ export interface NPCStateData {
   relationship_score: number;
 }
 
-export interface AgentResponse {
-  type: "agent_response";
-  npcId: string;
-  dialogue: string;
-  actions: Action[];
-  playerStateUpdate?: Partial<PlayerStateData>;
-  npcStateUpdate?: Partial<NPCStateData>;
-}
-
-export interface ErrorResponse {
-  type: "error";
-  message: string;
+export interface NPCInitData {
+  npc_id: string;
+  name: string;
+  hp: number;
+  maxHp: number;
+  position: [number, number, number];
+  mood: string;
 }
 
 export interface RemotePlayerData {
@@ -92,6 +209,35 @@ export interface RemotePlayerData {
   hp: number;
   maxHp: number;
   yaw: number;
+}
+
+// ── Server → Client Messages ─────────────────────────────────────────────────
+
+export interface AgentResponse {
+  type: "agent_response";
+  npcId: string;
+  dialogue: string;
+  actions: Action[];
+  playerStateUpdate?: Partial<PlayerStateData>;
+  npcStateUpdate?: Partial<NPCStateData>;
+}
+
+export interface UseItemResult {
+  type: "use_item_result";
+  success: boolean;
+  message: string;
+  actions: Action[];
+  playerStateUpdate?: Partial<PlayerStateData>;
+}
+
+export interface AckMessage {
+  type: "ack";
+  status: string;
+}
+
+export interface ErrorResponse {
+  type: "error";
+  message: string;
 }
 
 export interface JoinOk {
@@ -137,21 +283,14 @@ export interface NPCDialogue {
   position: [number, number, number];
 }
 
-export interface NPCInitData {
-  npc_id: string;
-  name: string;
-  hp: number;
-  maxHp: number;
-  position: [number, number, number];
-  mood: string;
-}
-
 export interface PongMessage {
   type: "pong";
 }
 
 export type ServerMessage =
   | AgentResponse
+  | UseItemResult
+  | AckMessage
   | ErrorResponse
   | JoinOk
   | JoinError

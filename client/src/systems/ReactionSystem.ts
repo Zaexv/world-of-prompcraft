@@ -185,33 +185,22 @@ export class ReactionSystem {
   // ── Action dispatcher ──────────────────────────────────────────────────────
 
   private processAction(action: Action, npcId: string): void {
-    const p = action.params;
-
-    // Show action icon above the NPC
     const actingNpc = this.entityManager.getNPC(npcId);
-    if (actingNpc?.showAction) {
-      const iconKey = p.animation ?? p.effectType ?? p.damageType ?? action.kind;
-      actingNpc.showAction(iconKey, 3.0);
-    }
 
     switch (action.kind) {
       case "damage": {
-        const amount = p.amount ?? 10;
-        const target: string = p.target ?? "player";
+        const { amount = 10, target = "player", damageType } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
         if (amount < 0) {
-          // Negative damage = healing
           const healAmt = Math.abs(amount);
           this.playerState.heal(healAmt);
-          const pos = this.playerWorldPos();
-          this.createFloatingText(`+${healAmt}`, "#33ff66", pos);
+          this.createFloatingText(`+${healAmt}`, "#33ff66", this.playerWorldPos());
           this.flashScreen("#2d5016");
         } else if (target === "player") {
           this.playerState.takeDamage(amount);
-          const pos = this.playerWorldPos();
-          this.createFloatingText(`-${amount}`, "#ff3333", pos);
+          this.createFloatingText(`-${amount}`, "#ff3333", this.playerWorldPos());
           this.flashScreen("#8b0000");
         } else {
-          // Damage targeting an NPC — show floating text on the NPC
           const targetNpc = this.entityManager.getNPC(target);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
@@ -227,63 +216,59 @@ export class ReactionSystem {
       }
 
       case "heal": {
-        const amount = p.amount ?? 10;
+        const { amount = 10 } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("heal", 3.0);
         if (amount > 0) {
           this.playerState.heal(amount);
-          const pos = this.playerWorldPos();
-          this.createFloatingText(`+${amount}`, "#33ff66", pos);
+          this.createFloatingText(`+${amount}`, "#33ff66", this.playerWorldPos());
           this.flashScreen("#2d5016");
         }
         break;
       }
 
       case "give_item": {
-        const item: string = p.item ?? "Unknown Item";
+        const { item = "Unknown Item" } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("give_item", 3.0);
         this.playerState.addItem(item);
-        const pos = this.playerWorldPos();
-        this.createFloatingText(`+${item}`, "#c5a55a", pos);
+        this.createFloatingText(`+${item}`, "#c5a55a", this.playerWorldPos());
         break;
       }
 
       case "take_item": {
-        const item: string = p.item ?? "";
+        const { item = "" } = action.params;
         this.playerState.removeItem(item);
         break;
       }
 
       case "emote": {
+        const { animation } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction(animation, 3.0);
         const npc = this.entityManager.getNPC(npcId);
-        if (npc?.playEmote) {
-          npc.playEmote(p.emote ?? "wave");
-        }
+        if (npc?.playEmote) npc.playEmote(animation ?? "wave");
         break;
       }
 
       case "move_npc": {
+        if (actingNpc?.showAction) actingNpc.showAction("move_npc", 3.0);
         const npc = this.entityManager.getNPC(npcId);
-        if (
-          npc &&
-          Array.isArray(p.position) &&
-          p.position.length >= 3
-        ) {
-          const target = new THREE.Vector3(
-            p.position[0] as number,
-            p.position[1] as number,
-            p.position[2] as number,
+        const { position, duration = 2 } = action.params;
+        if (npc && Array.isArray(position) && position.length >= 3) {
+          const targetPos = new THREE.Vector3(
+            position[0] as number,
+            position[1] as number,
+            position[2] as number,
           );
           const start = npc.mesh.position.clone();
           let elapsed = 0;
-          const duration = p.duration ?? 2;
-
           this.activeEffects.push({
             update(dt) {
               elapsed += dt;
               const t = Math.min(1, elapsed / duration);
-              npc.mesh.position.lerpVectors(start, target, t);
+              npc.mesh.position.lerpVectors(start, targetPos, t);
               npc.position?.copy(npc.mesh.position);
               if (t >= 1) {
-                npc.mesh.position.copy(target);
-                npc.position?.copy(target);
+                npc.mesh.position.copy(targetPos);
+                npc.position?.copy(targetPos);
                 return false;
               }
               return true;
@@ -294,28 +279,26 @@ export class ReactionSystem {
       }
 
       case "spawn_effect": {
+        const { effectType, effect_type, color, count, position } = action.params;
+        const resolvedType: string = effectType ?? effect_type ?? "sparkle";
+        if (actingNpc?.showAction) actingNpc.showAction(resolvedType, 3.0);
         const pos =
-          Array.isArray(p.position) && p.position.length >= 3
+          Array.isArray(position) && position.length >= 3
             ? new THREE.Vector3(
-                p.position[0] as number,
-                p.position[1] as number,
-                p.position[2] as number,
+                position[0] as number,
+                position[1] as number,
+                position[2] as number,
               )
             : this.playerWorldPos();
-        // Normalize: server sends effectType (NPC tools) or effect_type (handler)
-        const effectType: string = p.effectType ?? p.effect_type ?? "sparkle";
-        const resolved = EFFECT_PRESETS[effectType] ?? EFFECT_PRESETS.sparkle;
-        const color: string = p.color ?? resolved.color;
-        const count: number = p.count ?? resolved.count;
-        this.createParticleBurst(pos, color, count, resolved);
+        const resolved = EFFECT_PRESETS[resolvedType] ?? EFFECT_PRESETS.sparkle;
+        this.createParticleBurst(pos, color ?? resolved.color, count ?? resolved.count, resolved);
         break;
       }
 
       case "change_weather": {
-        const weather: string = p.weather ?? "clear";
+        const { weather = "clear" } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("change_weather", 3.0);
         this.worldState.weather = weather;
-
-        // Adjust scene fog as a visual cue
         if (weather === "fog" || weather === "rain") {
           this.scene.fog = new THREE.FogExp2(0x888888, 0.015);
         } else if (weather === "storm") {
@@ -323,35 +306,37 @@ export class ReactionSystem {
         } else if (weather === "snow") {
           this.scene.fog = new THREE.FogExp2(0xccccdd, 0.008);
         } else {
-          // Restore default Teldrassil fog
           this.scene.fog = new THREE.FogExp2(0x1a1133, 0.004);
         }
         break;
       }
 
       case "start_quest": {
-        const questId: string = p.questId ?? "";
-        const questName: string = p.quest ?? p.name ?? p.questName ?? "Unknown Quest";
-        if (questId) this.playerState.startQuest(questId);
-        this.showQuestBanner(`Quest Started: ${questName}`);
+        const { questId, quest, questName, description } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("start_quest", 3.0);
+        const id = questId ?? "";
+        const name = quest ?? questName ?? description ?? "Unknown Quest";
+        if (id) this.playerState.startQuest(id);
+        this.showQuestBanner(`Quest Started: ${name}`);
         break;
       }
 
       case "advance_objective": {
-        const questId: string = p.questId ?? "";
-        const objectiveId: string = p.objectiveId ?? "";
-        if (questId && objectiveId)
-          this.playerState.advanceObjective(questId, objectiveId);
-        const desc: string = p.description ?? objectiveId;
-        this.showQuestBanner(`Objective Complete: ${desc}`);
+        const { questId = "", objectiveId = "" } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("advance_objective", 3.0);
+        if (questId && objectiveId) this.playerState.advanceObjective(questId, objectiveId);
+        this.showQuestBanner(`Objective Complete: ${objectiveId}`);
         break;
       }
 
       case "complete_quest": {
-        const questId: string = p.questId ?? p.questName ?? "";
-        const questName: string = p.quest ?? p.name ?? questId;
-        if (questId) this.playerState.completeQuest(questId);
-        this.showQuestBanner(`Quest Complete: ${questName}`);
+        const { questId, questName, reward } = action.params;
+        if (actingNpc?.showAction) actingNpc.showAction("complete_quest", 3.0);
+        const id = questId ?? questName ?? "";
+        const name = questName ?? questId ?? "Quest";
+        if (id) this.playerState.completeQuest(id);
+        const banner = reward ? `Quest Complete: ${name} — Reward: ${reward}` : `Quest Complete: ${name}`;
+        this.showQuestBanner(banner);
         break;
       }
     }

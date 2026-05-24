@@ -4,9 +4,21 @@
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](./architecture.md) | High-level system overview with Mermaid diagrams |
+| [Architecture](./architecture.md) | High-level system overview with Mermaid diagrams — all 14 subsystems |
 | [Architecture Blueprint](./architecture-blueprint.md) | Complete engine-agnostic technical spec — every system, algorithm, data structure, and protocol |
 | [Backend Guide](./backend_guide.md) | Server architecture deep-dive: WebSocket layer, agent system, world state |
+
+## Agentic System
+
+| Document | Description |
+|----------|-------------|
+| [Agentic Workflow](./agentic-workflow.md) | **LangGraph pipeline reference** — all 5 nodes (reason, act, respond, reflect, summarize), agent state schema, tool system, memory/relationship model, cost strategy, and extension guides |
+
+## Protocol Contract
+
+| Document | Description |
+|----------|-------------|
+| [Protocol](./protocol.md) | **WebSocket protocol spec** — authoritative contract between TypeScript client and Python server. Every message type, field, and action kind is defined here. Consult this before changing either `MessageProtocol.ts` or `ws/protocol.py` |
 
 ## Code Quality
 

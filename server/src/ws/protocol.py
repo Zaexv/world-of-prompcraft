@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pydantic import BaseModel, Field
 
+# ── Client → Server models ─────────────────────────────────────────────────────
+
 
 class PlayerInteraction(BaseModel):
     type: str = "interaction"
@@ -21,9 +23,33 @@ class PlayerMove(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class DungeonEnter(BaseModel):
-    """Client tells the server the player entered a dungeon."""
+class UseItem(BaseModel):
+    type: str = "use_item"
+    player_id: str = Field(default="default", alias="playerId")
+    item: str
 
+    model_config = {"populate_by_name": True}
+
+
+class EquipItem(BaseModel):
+    type: str = "equip_item"
+    player_id: str = Field(default="default", alias="playerId")
+    item: str
+    slot: str | None = None
+    equipped: bool = True
+
+    model_config = {"populate_by_name": True}
+
+
+class ExploreArea(BaseModel):
+    type: str = "explore_area"
+    position: list[float]
+    npcs: list[dict] = Field(default_factory=list)
+
+    model_config = {"populate_by_name": True}
+
+
+class DungeonEnter(BaseModel):
     type: str = "dungeon_enter"
     dungeon_id: str = Field(alias="dungeonId")
     player_id: str = Field(default="default", alias="playerId")
@@ -32,8 +58,6 @@ class DungeonEnter(BaseModel):
 
 
 class DungeonExit(BaseModel):
-    """Client tells the server the player exited a dungeon (with collected loot)."""
-
     type: str = "dungeon_exit"
     dungeon_id: str = Field(alias="dungeonId")
     player_id: str = Field(default="default", alias="playerId")
@@ -43,8 +67,6 @@ class DungeonExit(BaseModel):
 
 
 class QuestUpdate(BaseModel):
-    """Generic quest objective advancement (e.g. kill tracking)."""
-
     type: str = "quest_update"
     quest_id: str = Field(alias="questId")
     objective_id: str = Field(alias="objectiveId")
@@ -53,9 +75,15 @@ class QuestUpdate(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+# ── Shared data shapes ─────────────────────────────────────────────────────────
+
+
 class Action(BaseModel):
     kind: str
     params: dict = Field(default_factory=dict)
+
+
+# ── Server → Client models ─────────────────────────────────────────────────────
 
 
 class AgentResponse(BaseModel):
@@ -67,3 +95,20 @@ class AgentResponse(BaseModel):
     npc_state_update: dict | None = Field(default=None, alias="npcStateUpdate")
 
     model_config = {"populate_by_name": True, "ser_json_by_alias": True}  # type: ignore[typeddict-unknown-key]
+
+
+class UseItemResult(BaseModel):
+    type: str = "use_item_result"
+    success: bool
+    message: str
+    actions: list[Action] = []
+    player_state_update: dict | None = Field(default=None, alias="playerStateUpdate")
+
+    model_config = {"populate_by_name": True, "ser_json_by_alias": True}  # type: ignore[typeddict-unknown-key]
+
+
+class AckMessage(BaseModel):
+    type: str = "ack"
+    status: str = "ok"
+
+    model_config = {"populate_by_name": True}

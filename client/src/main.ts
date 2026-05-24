@@ -616,15 +616,17 @@ function initGame(username: string, race: string, faction: string) {
         } else if (action.kind === 'give_item') {
           const item = action.params.item ?? 'Unknown Item';
           logCombat(`Received: ${item}`, '#c5a55a');
-        } else if (action.kind === 'start_quest' || action.kind === 'complete_quest') {
-          const quest = action.params.quest ?? action.params.name ?? 'Unknown Quest';
-          const prefix = action.kind === 'start_quest' ? 'Quest Started' : 'Quest Complete';
-          logCombat(`${prefix}: ${quest}`, '#c5a55a');
+        } else if (action.kind === 'start_quest') {
+          const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
+          logCombat(`Quest Started: ${quest}`, '#c5a55a');
+        } else if (action.kind === 'complete_quest') {
+          const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
+          logCombat(`Quest Complete: ${quest}`, '#c5a55a');
         } else if (action.kind === 'advance_objective') {
-          const desc = action.params.description ?? action.params.objectiveId ?? 'objective';
+          const desc = action.params.objectiveId ?? 'objective';
           logCombat(`Objective Complete: ${desc}`, '#c5a55a');
         } else if (action.kind === 'emote') {
-          const animation = action.params.animation ?? action.params.emote ?? 'gesture';
+          const animation = action.params.animation ?? 'gesture';
           logCombat(`${npcName} performs ${animation}`, '#aaaaaa');
         }
       }
