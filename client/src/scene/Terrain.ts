@@ -21,7 +21,7 @@ import {
 
 // ── Chunk constants ──────────────────────────────────────────────────────────
 const CHUNK_SIZE = 64;          // world-units per chunk side
-const CHUNK_SEGMENTS = 48;      // vertex subdivisions per chunk side
+const CHUNK_SEGMENTS = 32;      // vertex subdivisions per chunk side
 const VIEW_RADIUS = 3;          // chunks visible in each direction (7x7 = 49 chunks)
 const UNLOAD_RADIUS = VIEW_RADIUS + 2; // buffer before disposal
 const INITIAL_PRELOAD_RADIUS = 1; // smaller warm-up to reduce initial hitch
@@ -111,11 +111,7 @@ export class Terrain {
     // Lightweight warm-up near spawn; remaining chunks stream in across frames.
     this.lastPlayerCX = 0;
     this.lastPlayerCZ = 0;
-    for (let dx = -INITIAL_PRELOAD_RADIUS; dx <= INITIAL_PRELOAD_RADIUS; dx++) {
-      for (let dz = -INITIAL_PRELOAD_RADIUS; dz <= INITIAL_PRELOAD_RADIUS; dz++) {
-        this.enqueueChunkLoad(dx, dz);
-      }
-    }
+    this.queueChunksAround(0, 0, INITIAL_PRELOAD_RADIUS);
     this.processChunkQueue(CHUNK_LOADS_PER_UPDATE * 2);
   }
 
@@ -145,16 +141,15 @@ export class Terrain {
       this.lastPlayerCX = cx;
       this.lastPlayerCZ = cz;
 
-      // Queue missing chunks within view radius.
-      for (let dx = -VIEW_RADIUS; dx <= VIEW_RADIUS; dx++) {
-        for (let dz = -VIEW_RADIUS; dz <= VIEW_RADIUS; dz++) {
-          this.enqueueChunkLoad(cx + dx, cz + dz);
-        }
-      }
+      // Rebuild and prioritize queue around the new center chunk so zone
+      // transitions fill nearby terrain first and avoid visible holes.
+      this.chunkLoadQueue = [];
+      this.queuedChunkKeys.clear();
+      this.queueChunksAround(cx, cz, VIEW_RADIUS);
     }
 
     // Stream a small batch each frame to avoid long main-thread stalls.
-    this.processChunkQueue();
+    this.processChunkQueue(chunkChanged ? CHUNK_LOADS_PER_UPDATE * 3 : CHUNK_LOADS_PER_UPDATE);
 
     if (chunkChanged) {
       // --- Unload chunks outside unload radius ---
@@ -173,6 +168,21 @@ export class Terrain {
     if (this.chunks.has(key) || this.queuedChunkKeys.has(key)) return;
     this.queuedChunkKeys.add(key);
     this.chunkLoadQueue.push({ cx, cz, key });
+  }
+
+  private queueChunksAround(centerCX: number, centerCZ: number, radius: number): void {
+    const candidates: Array<{ cx: number; cz: number; distSq: number }> = [];
+    for (let dx = -radius; dx <= radius; dx++) {
+      for (let dz = -radius; dz <= radius; dz++) {
+        const cx = centerCX + dx;
+        const cz = centerCZ + dz;
+        candidates.push({ cx, cz, distSq: dx * dx + dz * dz });
+      }
+    }
+    candidates.sort((a, b) => a.distSq - b.distSq);
+    for (const candidate of candidates) {
+      this.enqueueChunkLoad(candidate.cx, candidate.cz);
+    }
   }
 
   private processChunkQueue(maxLoads = CHUNK_LOADS_PER_UPDATE): void {
@@ -271,14 +281,8 @@ export class Terrain {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
 
-    // LOD: fewer segments for distant chunks (saves ~65% terrain triangles)
-    const distFromPlayer = Math.max(
-      Math.abs(cx - this.lastPlayerCX),
-      Math.abs(cz - this.lastPlayerCZ),
-    );
-    const segments = distFromPlayer <= 1 ? CHUNK_SEGMENTS
-                   : distFromPlayer <= 3 ? 16
-                   : 8;
+    // Use a single subdivision density for all chunks to avoid LOD edge cracks.
+    const segments = CHUNK_SEGMENTS;
 
     const geometry = new THREE.PlaneGeometry(
       CHUNK_SIZE,
@@ -307,7 +311,35 @@ export class Terrain {
     }
 
     positions.needsUpdate = true;
-    geometry.computeVertexNormals();
+
+    // World-space normal reconstruction (central differences) keeps lighting
+    // continuous across chunk borders, avoiding visible seam lines.
+    const normalValues = new Float32Array(vertexCount * 3);
+    const normalSampleStep = 0.75;
+    for (let i = 0; i < vertexCount; i++) {
+      const vx = positions.getX(i);
+      const vz = positions.getZ(i);
+      const hL = Terrain.computeHeight(vx - normalSampleStep, vz);
+      const hR = Terrain.computeHeight(vx + normalSampleStep, vz);
+      const hD = Terrain.computeHeight(vx, vz - normalSampleStep);
+      const hU = Terrain.computeHeight(vx, vz + normalSampleStep);
+
+      const dX = (hR - hL) / (2 * normalSampleStep);
+      const dZ = (hU - hD) / (2 * normalSampleStep);
+
+      let nx = -dX;
+      let ny = 1.0;
+      let nz = -dZ;
+      const invLen = 1 / Math.hypot(nx, ny, nz);
+      nx *= invLen;
+      ny *= invLen;
+      nz *= invLen;
+
+      normalValues[i * 3] = nx;
+      normalValues[i * 3 + 1] = ny;
+      normalValues[i * 3 + 2] = nz;
+    }
+    geometry.setAttribute('normal', new THREE.BufferAttribute(normalValues, 3));
 
     // --- Vertex colors (biome-blended palette) ---
     const colors = new Float32Array(vertexCount * 3);

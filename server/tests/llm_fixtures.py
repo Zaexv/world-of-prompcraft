@@ -2,16 +2,17 @@
 
 from __future__ import annotations
 
-from typing import Any, Sequence
-from unittest.mock import AsyncMock, patch
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langchain_core.outputs import LLMResult
 from langchain_core.outputs.generation import Generation
-from langchain_core.tools import BaseTool
-from langchain_core.runnables import Runnable
 
 
 class MockChatModel(BaseChatModel):
@@ -19,10 +20,10 @@ class MockChatModel(BaseChatModel):
 
     model_name: str = "mock-gpt-4"
     response_template: str = "Mock response to: {input}"
-    tool_calls_data: list[dict[str, Any]] = []
+    tool_calls_data: ClassVar[list[dict[str, Any]]] = []
     call_count: int = 0
-    last_messages: list[BaseMessage] = []
-    bound_tools: list[BaseTool] = []
+    last_messages: ClassVar[list[BaseMessage]] = []
+    bound_tools: ClassVar[list[Any]] = []
 
     def _generate(
         self,
@@ -59,9 +60,9 @@ class MockChatModel(BaseChatModel):
 
     def bind_tools(
         self,
-        tools: Sequence[BaseTool] | Sequence[dict] | None = None,
+        tools: Sequence[Any] | Sequence[dict[str, Any]] | None = None,
         **kwargs: Any,
-    ) -> Runnable[Any, AIMessage]:
+    ) -> Any:
         """Bind tools to the model. Returns self for chaining."""
         self.bound_tools = list(tools or [])
         return self
@@ -99,11 +100,12 @@ def mock_llm_with_tool_calls() -> MockChatModel:
             "id": "tool_call_1",
         }
     ]
-    return MockChatModel(
+    model = MockChatModel(
         model_name="mock-gpt-4-tools",
         response_template="Taking action: {input}",
-        tool_calls_data=tool_calls,
     )
+    model.tool_calls_data = tool_calls
+    return model
 
 
 @pytest.fixture()
@@ -126,6 +128,8 @@ def mock_settings():
 @pytest.fixture()
 def patch_llm_provider(mock_llm_openai):
     """Patch the LLM provider factory to return mock."""
+    from unittest.mock import patch
+
     with patch("src.llm.provider.get_llm", return_value=mock_llm_openai):
         yield mock_llm_openai
 
@@ -133,6 +137,8 @@ def patch_llm_provider(mock_llm_openai):
 @pytest.fixture()
 def patch_agent_invoke():
     """Patch AgentRegistry.invoke to return mock response."""
+    from unittest.mock import AsyncMock, patch
+
     mock_response = {
         "dialogue": "NPC mock dialogue",
         "actions": [
@@ -155,6 +161,8 @@ def patch_agent_invoke():
 @pytest.fixture()
 def mock_agent_registry():
     """Create a mock AgentRegistry with deterministic responses."""
+    from unittest.mock import AsyncMock
+
     mock_registry = AsyncMock()
     mock_registry.invoke = AsyncMock(
         return_value={

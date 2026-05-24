@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
-import json
-import asyncio
-from locust import HttpUser, task, between, TaskSet, constant_pacing
+import random
+import subprocess
+from typing import ClassVar
+
+from locust import HttpUser, TaskSet, between, task
 
 
 class GamePlayerTasks(TaskSet):
@@ -12,7 +14,7 @@ class GamePlayerTasks(TaskSet):
 
     def on_start(self) -> None:
         """Initialize player on test start."""
-        self.player_id = f"loadtest_player_{self.user.client.get_id()}"
+        self.player_id = f"loadtest_player_{id(self)}"
         self.npc_id = "warrior_test"
 
     @task(3)
@@ -25,7 +27,6 @@ class GamePlayerTasks(TaskSet):
             "Help me!",
             "Tell me a story",
         ]
-        import random
 
         prompt = random.choice(prompts)
 
@@ -59,11 +60,10 @@ class GamePlayerTasks(TaskSet):
 class GamePlayer(HttpUser):
     """Simulated game player."""
 
-    wait_time = between(1, 5)  # Wait 1-5 seconds between tasks
-    tasks = [GamePlayerTasks]
+    wait_time: ClassVar = between(1, 5)  # Wait 1-5 seconds between tasks
+    tasks: ClassVar = [GamePlayerTasks]
 
 
-# Configuration for load test
 def run_load_test(
     url: str = "http://localhost:8000",
     users: int = 50,
@@ -71,8 +71,6 @@ def run_load_test(
     run_time: str = "5m",
 ) -> None:
     """Run load test with Locust."""
-    import subprocess
-
     cmd = [
         "locust",
         "-f",

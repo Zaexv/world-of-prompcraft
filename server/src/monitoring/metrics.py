@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
-from typing import Callable
 
 
 @dataclass
@@ -31,10 +31,10 @@ class MetricsCollector:
     max_latency_history: int = 1000
 
     # Per-NPC stats
-    npc_stats: dict[str, dict] = field(default_factory=dict)
+    npc_stats: dict[str, dict[str, any]] = field(default_factory=dict)
 
     # Per-player stats
-    player_stats: dict[str, dict] = field(default_factory=dict)
+    player_stats: dict[str, dict[str, any]] = field(default_factory=dict)
 
     # Time window tracking
     window_duration: timedelta = field(default_factory=lambda: timedelta(minutes=5))
@@ -132,7 +132,9 @@ class MetricsCollector:
 
     def get_avg_latency(self) -> float:
         """Get average latency in milliseconds."""
-        return sum(self.agent_latencies) / len(self.agent_latencies) if self.agent_latencies else 0.0
+        return (
+            sum(self.agent_latencies) / len(self.agent_latencies) if self.agent_latencies else 0.0
+        )
 
     def get_p99_latency(self) -> float:
         """Get 99th percentile latency."""
@@ -142,7 +144,7 @@ class MetricsCollector:
         index = int(len(sorted_latencies) * 0.99)
         return sorted_latencies[min(index, len(sorted_latencies) - 1)]
 
-    def get_summary(self) -> dict:
+    def get_summary(self) -> dict[str, any]:
         """Get summary of all metrics."""
         return {
             "total_invocations": self.total_agent_invocations,
@@ -162,7 +164,19 @@ class MetricsCollector:
 
     def reset(self) -> None:
         """Reset metrics (for testing or new window)."""
-        self.__init__()  # type: ignore[misc]
+        self.total_agent_invocations = 0
+        self.total_agent_timeouts = 0
+        self.total_agent_errors = 0
+        self.total_cache_hits = 0
+        self.total_cache_misses = 0
+        self.current_semaphore_depth = 0
+        self.max_semaphore_depth = 0
+        self.current_concurrent_agents = 0
+        self.max_concurrent_agents = 0
+        self.agent_latencies = []
+        self.npc_stats = {}
+        self.player_stats = {}
+        self.last_reset = datetime.now()
 
 
 class AdaptiveBackpressure:
@@ -174,7 +188,7 @@ class AdaptiveBackpressure:
         metrics: MetricsCollector | None = None,
     ):
         """Initialize adaptive backpressure controller.
-        
+
         Args:
             initial_semaphore_size: Starting concurrency limit
             metrics: Optional metrics collector to monitor
@@ -196,9 +210,7 @@ class AdaptiveBackpressure:
         # Wait for semaphore
         await self.semaphore.acquire()
         if self.metrics:
-            self.metrics.record_semaphore_depth(
-                self.semaphore._value  # type: ignore[attr-defined]
-            )
+            self.metrics.record_semaphore_depth(self.semaphore._value)  # type: ignore[attr-defined]
 
     async def _adjust_limits(self) -> None:
         """Adjust semaphore limit based on metrics."""
@@ -233,10 +245,8 @@ class AdaptiveBackpressure:
         elif difference < 0:
             # Remove permits (acquire them)
             for _ in range(abs(difference)):
-                try:
-                    self.semaphore.acquire_nowait()
-                except ValueError:
-                    pass  # Already depleted
+                with contextlib.suppress(AttributeError, ValueError):
+                    self.semaphore._value -= 1
         self.current_limit = new_limit
 
     def release(self) -> None:

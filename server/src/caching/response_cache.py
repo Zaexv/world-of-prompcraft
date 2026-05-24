@@ -19,7 +19,7 @@ class ResponseCache:
         enabled: bool = True,
     ):
         """Initialize response cache.
-        
+
         Args:
             redis_url: Redis connection URL
             default_ttl: Default TTL in seconds

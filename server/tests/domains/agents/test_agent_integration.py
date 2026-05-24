@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 import pytest
 from langchain_core.messages import HumanMessage
 
-from tests.llm_fixtures import MockChatModel
+if TYPE_CHECKING:
+    from tests.llm_fixtures import MockChatModel
 
 
 @pytest.mark.asyncio

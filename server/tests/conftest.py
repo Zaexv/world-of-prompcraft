@@ -26,5 +26,6 @@ def npc_data() -> NPCData:
         position=[10.0, 0.0, 20.0],
     )
 
+
 # Import LLM fixtures
 pytest_plugins = ["tests.llm_fixtures"]
