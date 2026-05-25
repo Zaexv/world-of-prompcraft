@@ -507,6 +507,7 @@ export class CollisionSystem {
   // ── Body creation ─────────────────────────────────────────────────────
 
   private createStaticBody(obj: THREE.Object3D): CANNON.Body | null {
+    obj.updateWorldMatrix(true, true);
     this._box3.setFromObject(obj);
     if (this._box3.isEmpty()) return null;
 

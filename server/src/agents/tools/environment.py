@@ -77,7 +77,8 @@ def create_environment_tools(pending_actions: list[Any], world_state: dict[str, 
         pending_actions.append(
             {
                 "kind": "move_npc",
-                "params": {"position": [destination_x, 0, destination_z]},
+                # Y is null so the client snaps the NPC to terrain height.
+                "params": {"position": [destination_x, None, destination_z]},
             }
         )
         return f"Moving to position ({destination_x}, {destination_z})"

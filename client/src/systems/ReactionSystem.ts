@@ -3,6 +3,8 @@ import type { AgentResponse, Action } from "../network/MessageProtocol";
 import type { PlayerState } from "../state/PlayerState";
 import type { NPCStateStore } from "../state/NPCState";
 import type { WorldState } from "../state/WorldState";
+import type { WorldBuilder } from "./WorldBuilder";
+import type { Terrain } from "../scene/Terrain";
 
 // ── Effect-type presets ────────────────────────────────────────────────────
 // Maps server effect types to visual parameters so each effect looks distinct.
@@ -72,6 +74,8 @@ export class ReactionSystem {
   private npcStateStore: NPCStateStore;
   private worldState: WorldState;
   private entityManager: EntityManagerLike;
+  private worldBuilder: WorldBuilder | null = null;
+  private terrain: Terrain | null = null;
 
   /** Active tween-like updates to run each frame via `tick()`. */
   private activeEffects: Array<{
@@ -92,7 +96,22 @@ export class ReactionSystem {
     this.entityManager = entityManager;
   }
 
+  setWorldBuilder(wb: WorldBuilder): void {
+    this.worldBuilder = wb;
+  }
+
+  setTerrain(t: Terrain): void {
+    this.terrain = t;
+  }
+
   // ── Main entry point ───────────────────────────────────────────────────────
+
+  /** Process a list of actions without a full AgentResponse context (e.g. world_modify_response). */
+  processActions(actions: Action[]): void {
+    for (const action of actions) {
+      this.processAction(action, "");
+    }
+  }
 
   handleResponse(response: AgentResponse): void {
     // Determine which state fields will be touched by individual actions
@@ -253,11 +272,14 @@ export class ReactionSystem {
         const npc = this.entityManager.getNPC(npcId);
         const { position, duration = 2 } = action.params;
         if (npc && Array.isArray(position) && position.length >= 3) {
-          const targetPos = new THREE.Vector3(
-            position[0] as number,
-            position[1] as number,
-            position[2] as number,
-          );
+          const destX = position[0] as number;
+          const destZ = position[2] as number;
+          // Snap Y to terrain height — server sends null for Y when it doesn't
+          // know the terrain height (e.g. move_npc tool in environment.py).
+          const destY = (position[1] != null && (position[1] as number) !== 0)
+            ? (position[1] as number)
+            : (this.terrain ? this.terrain.getHeightAt(destX, destZ) : 0);
+          const targetPos = new THREE.Vector3(destX, destY, destZ);
           const start = npc.mesh.position.clone();
           let elapsed = 0;
           this.activeEffects.push({
@@ -337,6 +359,16 @@ export class ReactionSystem {
         if (id) this.playerState.completeQuest(id);
         const banner = reward ? `Quest Complete: ${name} — Reward: ${reward}` : `Quest Complete: ${name}`;
         this.showQuestBanner(banner);
+        break;
+      }
+
+      case "world_spawn": {
+        this.worldBuilder?.spawnObject(action.params);
+        break;
+      }
+
+      case "world_remove": {
+        this.worldBuilder?.removeObject(action.params.objectId);
         break;
       }
     }

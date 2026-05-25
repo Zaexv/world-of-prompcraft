@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+// Config will be used gradually as systems migrate to centralized constants
+// import { GameConfig, AssetPaths, UIConfig, NetworkConfig } from './config';
 import { SceneManager } from './scene/SceneManager';
 import { PlayerController } from './entities/PlayerController';
 import { Player } from './entities/Player';
@@ -16,9 +18,12 @@ import { WorldGenerator } from './systems/WorldGenerator';
 import { LoginScreen } from './ui/LoginScreen';
 import { DamagePopup } from './ui/DamagePopup';
 import { ZoneTracker } from './systems/ZoneTracker';
+import { ZoneAtmosphere } from './systems/ZoneAtmosphere';
 import { DungeonSystem } from './systems/DungeonSystem';
 import { AssetLoader } from './utils/AssetLoader';
 import { getWorldHeightAt } from './scene/VerticalTerrain';
+import { WorldBuilder } from './systems/WorldBuilder';
+import { WorldBuilderPanel } from './ui/WorldBuilderPanel';
 
 // ── Hostile NPC set (those that trigger the combat HUD) ──────────────────────
 const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
@@ -237,6 +242,14 @@ async function initGame(username: string, race: string, faction: string, skin: s
   const { scene, camera, renderer, terrain } = sceneManager;
   createArcaneMouseVfx();
 
+  // ── Zone atmosphere (fog + lighting transitions) ──────────────────────────
+  const zoneAtmosphere = new ZoneAtmosphere(
+    scene,
+    sceneManager.lighting.sun,
+    sceneManager.lighting.hemisphere,
+    sceneManager.lighting.ambient,
+  );
+
   // ── State ─────────────────────────────────────────────────────────────────
   const playerState = PlayerState.getInstance();
   playerState.race = race;
@@ -264,6 +277,116 @@ async function initGame(username: string, race: string, faction: string, skin: s
   loadingOverlay.setMessage('Loading character skin...');
   const player = await Player.create(race, skin, assetLoader);
   scene.add(player.group);
+
+  // ── Intro cinematic (POC) ────────────────────────────────────────────────
+  const INTRO_CINEMATIC_DURATION_SEC = 8;
+  let introCinematicActive = false;
+  let introCinematicHasPlayed = false;
+  let introCinematicStartMs = 0;
+  let introOverlay: HTMLDivElement | null = null;
+  const introStart = new THREE.Vector3();
+  const introEnd = new THREE.Vector3();
+  const introCameraPos = new THREE.Vector3();
+  const introLookAt = new THREE.Vector3();
+  let removeIntroSkipHandlers: (() => void) | null = null;
+
+  const stopIntroCinematic = () => {
+    introCinematicActive = false;
+    if (removeIntroSkipHandlers) {
+      removeIntroSkipHandlers();
+      removeIntroSkipHandlers = null;
+    }
+    introOverlay?.remove();
+    introOverlay = null;
+  };
+
+  const updateIntroCinematic = () => {
+    if (!introCinematicActive) return;
+
+    const elapsedSec = (performance.now() - introCinematicStartMs) / 1000;
+    const t = Math.min(elapsedSec / INTRO_CINEMATIC_DURATION_SEC, 1);
+    const eased = 1 - Math.pow(1 - t, 3);
+
+    const baseX = THREE.MathUtils.lerp(introStart.x, introEnd.x, eased);
+    const baseY = THREE.MathUtils.lerp(introStart.y, introEnd.y, eased);
+    const baseZ = THREE.MathUtils.lerp(introStart.z, introEnd.z, eased);
+    const orbitRadius = THREE.MathUtils.lerp(18, 4, eased);
+    const orbitAngle = eased * Math.PI * 1.5;
+
+    introCameraPos.set(
+      baseX + Math.cos(orbitAngle) * orbitRadius,
+      baseY + Math.sin(eased * Math.PI) * 4,
+      baseZ + Math.sin(orbitAngle) * orbitRadius,
+    );
+    camera.position.copy(introCameraPos);
+
+    introLookAt.set(
+      playerController.position.x,
+      playerController.position.y + 2,
+      playerController.position.z,
+    );
+    camera.lookAt(introLookAt);
+
+    if (t >= 1) {
+      stopIntroCinematic();
+    }
+  };
+
+  const startIntroCinematic = () => {
+    if (introCinematicHasPlayed) return;
+    introCinematicHasPlayed = true;
+    introCinematicActive = true;
+    introCinematicStartMs = performance.now();
+
+    introStart.set(
+      playerController.position.x + 70,
+      playerController.position.y + 38,
+      playerController.position.z + 60,
+    );
+    introEnd.set(
+      playerController.position.x + 16,
+      playerController.position.y + 14,
+      playerController.position.z + 20,
+    );
+
+    const appRoot = document.getElementById('app');
+    if (appRoot) {
+      introOverlay = document.createElement('div');
+      Object.assign(introOverlay.style, {
+        position: 'absolute',
+        left: '50%',
+        bottom: '28px',
+        transform: 'translateX(-50%)',
+        padding: '8px 14px',
+        borderRadius: '999px',
+        fontFamily: "'Cinzel', Georgia, serif",
+        fontSize: '12px',
+        letterSpacing: '0.08em',
+        color: '#d6dfef',
+        background: 'rgba(8, 12, 22, 0.62)',
+        border: '1px solid rgba(133, 163, 227, 0.45)',
+        textShadow: '0 0 8px rgba(120,160,255,0.35)',
+        zIndex: '10001',
+        pointerEvents: 'none',
+      } as CSSStyleDeclaration);
+      introOverlay.textContent = 'Cinematic intro • click or press Space to skip';
+      appRoot.appendChild(introOverlay);
+    }
+
+    const skip = () => stopIntroCinematic();
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.code === 'Space' || e.code === 'Enter' || e.code === 'Escape') {
+        skip();
+      }
+    };
+    const onPointerDown = () => skip();
+    window.addEventListener('keydown', onKeyDown);
+    renderer.domElement.addEventListener('pointerdown', onPointerDown);
+    removeIntroSkipHandlers = () => {
+      window.removeEventListener('keydown', onKeyDown);
+      renderer.domElement.removeEventListener('pointerdown', onPointerDown);
+    };
+  };
 
   // ── NPCs ──────────────────────────────────────────────────────────────────
   loadingOverlay.setMessage('Loading entities...');
@@ -319,6 +442,27 @@ async function initGame(username: string, race: string, faction: string, skin: s
   // ── Systems ───────────────────────────────────────────────────────────────
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
   const reactionSystem = new ReactionSystem(scene, playerState, npcStateStore, worldState, entityManager);
+
+  // ── WorldBuilder ──────────────────────────────────────────────────────────
+  const worldBuilder = new WorldBuilder(scene, terrain);
+  worldBuilder.setCollisionSystem(collisionSystem);
+  reactionSystem.setWorldBuilder(worldBuilder);
+  reactionSystem.setTerrain(terrain);
+
+  const worldBuilderPanel = new WorldBuilderPanel(app, (prompt: string) => {
+    if (!joinedServer) {
+      worldBuilderPanel.setResponse('Connect to the server first.');
+      worldBuilderPanel.setReady();
+      return;
+    }
+    const pos = playerController.position;
+    ws.send({
+      type: 'world_modify',
+      prompt,
+      playerId: localPlayerId,
+      position: [pos.x, pos.y, pos.z],
+    });
+  });
 
   // ── UI ────────────────────────────────────────────────────────────────────
   const uiManager = new UIManager();
@@ -381,6 +525,10 @@ async function initGame(username: string, race: string, faction: string, skin: s
 
     if (e.code === "KeyE") {
       dungeonSystem.tryEnter();
+    }
+
+    if (e.code === "KeyB") {
+      worldBuilderPanel.toggle();
     }
 
     // Enter to focus chat (if not already focused)
@@ -498,6 +646,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
   // Zone display callback
   zoneTracker.onZoneChange = (name, desc) => {
     uiManager.showZoneTransition(name, desc);
+    zoneAtmosphere.enterZone(name);
   };
 
   // Dungeon zone override + player teleport
@@ -524,6 +673,35 @@ async function initGame(username: string, race: string, faction: string, skin: s
 
   // ── Interaction wiring ────────────────────────────────────────────────────
   let activeNpcId: string | null = null;
+  const dialogFocusTarget = new THREE.Vector3();
+  const dialogFocusLookTarget = new THREE.Vector3();
+  const dialogFocusForward = new THREE.Vector3();
+  const dialogFocusSide = new THREE.Vector3();
+  const dialogFocusUp = new THREE.Vector3(0, 1, 0);
+  const updateDialogFocus = (delta: number): boolean => {
+    if (!activeNpcId || introCinematicActive) return false;
+    const npc = entityManager.getNPC(activeNpcId);
+    if (!npc) return false;
+
+    dialogFocusForward.subVectors(npc.mesh.position, playerController.position);
+    dialogFocusForward.y = 0;
+    const horizontalDistance = dialogFocusForward.length();
+    if (horizontalDistance < 0.001) return false;
+    dialogFocusForward.divideScalar(horizontalDistance);
+
+    dialogFocusSide.crossVectors(dialogFocusUp, dialogFocusForward).normalize();
+    dialogFocusTarget.set(
+      playerController.position.x - dialogFocusForward.x * 2.2 + dialogFocusSide.x * 0.85,
+      playerController.position.y + 1.9,
+      playerController.position.z - dialogFocusForward.z * 2.2 + dialogFocusSide.z * 0.85,
+    );
+    camera.position.lerp(dialogFocusTarget, 1 - Math.exp(-10 * delta));
+
+    dialogFocusLookTarget.set(npc.mesh.position.x, npc.mesh.position.y + 1.55, npc.mesh.position.z);
+    camera.lookAt(dialogFocusLookTarget);
+    playerController.facingYawOverride = Math.atan2(dialogFocusForward.x, dialogFocusForward.z);
+    return true;
+  };
 
   interactionSystem.onNPCClick = (npcId: string, npcName: string) => {
     if (playerState.isDead) return;
@@ -567,6 +745,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
 
   uiManager.interactionPanel.onClose = () => {
     activeNpcId = null;
+    playerController.facingYawOverride = null;
     uiManager.hideInteractionPanel();
     uiManager.hideCombatHUD();
   };
@@ -581,6 +760,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
       playerState.playerId = data.playerId;
       loginScreen.hide();
       loadingOverlay.hide();
+      startIntroCinematic();
       uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${username}!`);
 
       // Spawn existing players
@@ -861,11 +1041,21 @@ async function initGame(username: string, race: string, faction: string, skin: s
         }
       }
     }
+
+    // ── World Modify Response ────────────────────────────────────────────────
+    if (data.type === 'world_modify_response') {
+      const dialogue: string = data.dialogue ?? '';
+      const actions = data.actions ?? [];
+      worldBuilderPanel.setResponse(dialogue);
+      worldBuilderPanel.setReady();
+      reactionSystem.processActions(actions);
+    }
   };
 
   // ── Main loop ─────────────────────────────────────────────────────────────
   // Reusable vector for camera direction (avoids per-frame allocation)
   const _camDir = new THREE.Vector3();
+  const _idleVelocity = new THREE.Vector3();
   // Cache terrain height callback to avoid creating a closure each frame
   const getTerrainHeight = (x: number, z: number) => getWorldHeightAt(terrain, x, z);
 
@@ -877,21 +1067,30 @@ async function initGame(username: string, race: string, faction: string, skin: s
     requestAnimationFrame(animate);
 
     const delta = sceneManager.tick();
+    const dialogFocusActive = updateDialogFocus(delta);
 
     // Player (skip movement when dead)
     if (!playerState.isDead) {
-      playerController.update(delta);
+      if (!introCinematicActive && !dialogFocusActive) {
+        playerController.update(delta);
+      }
       player.group.position.copy(playerController.position);
       player.update(
         delta,
-        playerController.isMoving,
-        playerController.velocity,
+        !introCinematicActive && !dialogFocusActive && playerController.isMoving,
+        (introCinematicActive || dialogFocusActive) ? _idleVelocity : playerController.velocity,
         playerController.isSwimming,
         playerController.facingYawOverride,
       );
 
       // Sync position to playerState
       playerState.position = [playerController.position.x, playerController.position.y, playerController.position.z];
+    }
+
+    if (introCinematicActive) {
+      updateIntroCinematic();
+    } else if (!dialogFocusActive) {
+      playerController.facingYawOverride = null;
     }
 
     // Capture position AFTER playerController.update so all systems use current-frame data
@@ -911,6 +1110,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
 
     // Zone tracking & dungeon proximity
     zoneTracker.update(px, pz);
+    zoneAtmosphere.update(delta);
     dungeonSystem.setPlayerPosition(playerController.position);
     dungeonSystem.update(player.group.position);
 

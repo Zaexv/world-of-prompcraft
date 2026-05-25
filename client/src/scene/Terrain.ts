@@ -8,6 +8,7 @@ import {
   getBiomeSurfaceNoise,
   registerBeachBlend,
 } from './Biomes';
+import { getVerticalLiftAt } from './VerticalTerrain';
 
 /**
  * Infinite procedural terrain with chunk-based loading and biome blending.
@@ -121,12 +122,12 @@ export class Terrain {
   // ────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns the deterministic terrain height at any world (x, z).
+   * Returns the full world height at any (x, z): terrain noise + vertical lift.
    * Does NOT depend on loaded chunks — pure math.
-   * Includes biome height modifications.
+   * This is the authoritative height used by PlayerController and all placement code.
    */
   getHeightAt(x: number, z: number): number {
-    return Terrain.computeHeight(x, z);
+    return Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
   }
 
   /**
@@ -308,7 +309,9 @@ export class Terrain {
       const lz = positions.getZ(i) + worldZ + CHUNK_SIZE * 0.5;
       positions.setX(i, lx);
       positions.setZ(i, lz);
-      positions.setY(i, Terrain.computeHeight(lx, lz));
+      // Use full world height (terrain noise + vertical lift) so the mesh
+      // visually matches the height used by PlayerController.
+      positions.setY(i, Terrain.computeHeight(lx, lz) + getVerticalLiftAt(lx, lz));
     }
 
     positions.needsUpdate = true;
@@ -320,10 +323,11 @@ export class Terrain {
     for (let i = 0; i < vertexCount; i++) {
       const vx = positions.getX(i);
       const vz = positions.getZ(i);
-      const hL = Terrain.computeHeight(vx - normalSampleStep, vz);
-      const hR = Terrain.computeHeight(vx + normalSampleStep, vz);
-      const hD = Terrain.computeHeight(vx, vz - normalSampleStep);
-      const hU = Terrain.computeHeight(vx, vz + normalSampleStep);
+      // Sample full world height (noise + lift) for accurate slope normals on hills.
+      const hL = Terrain.computeHeight(vx - normalSampleStep, vz) + getVerticalLiftAt(vx - normalSampleStep, vz);
+      const hR = Terrain.computeHeight(vx + normalSampleStep, vz) + getVerticalLiftAt(vx + normalSampleStep, vz);
+      const hD = Terrain.computeHeight(vx, vz - normalSampleStep) + getVerticalLiftAt(vx, vz - normalSampleStep);
+      const hU = Terrain.computeHeight(vx, vz + normalSampleStep) + getVerticalLiftAt(vx, vz + normalSampleStep);
 
       const dX = (hR - hL) / (2 * normalSampleStep);
       const dZ = (hU - hD) / (2 * normalSampleStep);

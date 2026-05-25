@@ -1,14 +1,31 @@
 from __future__ import annotations
 
+# ── Zone design rules ────────────────────────────────────────────────────────
+# 1. Zones are checked in order — list from most-specific (smallest area) to
+#    least-specific (largest / catch-all).
+# 2. Exclusive upper bounds (< max) are used on all zones except the final
+#    catch-all so that a coordinate sitting exactly on a shared edge is always
+#    claimed by the zone that defines it as its *lower* bound.
+# 3. Sub-zones (e.g. Blasted Suarezlands) must be listed BEFORE their parent
+#    zone (e.g. Fort Malaka) and their boundaries must be fully contained
+#    within the parent to avoid gaps.
+# 4. Coordinate reference:
+#    - Mountain / mage district centroid : (-140, -245)
+#    - Mountain outerRadius = 74  →  footprint ≈ x ∈ [-214, -66], z ∈ [-319, -171]
+#    - Blasted Suarezlands covers the mage district with a small safety margin.
+# ─────────────────────────────────────────────────────────────────────────────
+
 ZONES: list[dict[str, object]] = [
     # ── Specific small zones (checked first — highest priority) ─────────────
     {
         "name": "Blasted Suarezlands",
         "description": "The mage district of Fort Malaka, a chaotic quarter crackling with arcane energy. Rogue spellcasters, eccentric wizards, and mystical scholars fill the streets. Glowing pylons hum with power and runic circles pulse underfoot.",
-        "min_x": -80.0,
-        "max_x": 80.0,
-        "min_z": -155.0,
-        "max_z": -90.0,
+        # Encompasses the mountain (center -140, -245; outer radius 74) and
+        # surrounding mage structures with a comfortable margin.
+        "min_x": -220.0,
+        "max_x": -60.0,
+        "min_z": -325.0,
+        "max_z": -160.0,
     },
     {
         "name": "Fort Malaka",
@@ -95,32 +112,45 @@ ZONES: list[dict[str, object]] = [
 ]
 
 
+# ── Runtime helpers ───────────────────────────────────────────────────────────
+
+
+def _zone_area(zone: dict[str, object]) -> float:
+    """Compute the finite area of a zone rectangle for priority sorting."""
+    w = min(float(zone["max_x"]), 9999.0) - max(float(zone["min_x"]), -9999.0)  # type: ignore[arg-type]
+    h = min(float(zone["max_z"]), 9999.0) - max(float(zone["min_z"]), -9999.0)  # type: ignore[arg-type]
+    return max(0.0, w) * max(0.0, h)
+
+
+# Pre-sort at module load: smallest area first so the most-specific zone wins
+# without relying on manual list ordering.  Teldrassil Wilds (largest) sorts last.
+ZONES.sort(key=_zone_area)
+
+
 def get_zone(position: list[float]) -> str:
     """Return the zone name for a given world position.
 
-    Zones are checked in order — more specific zones (smaller areas)
-    are listed first so they take priority over the larger catch-all zone.
-    Uses exclusive upper bounds (< on max) to prevent overlapping matches
-    on shared edges, except for the last zone (Teldrassil Wilds) which
-    uses inclusive bounds as the catch-all.
+    Zones are checked from smallest to largest area so the most-specific zone
+    always wins.  Exclusive upper bounds (< max) are used on all zones except
+    the final catch-all, preventing double-matches on shared edges.
     Falls back to 'Wilderness' if no zone matches.
     """
-    x = position[0] if len(position) > 0 else 0.0
-    z = position[2] if len(position) > 2 else 0.0
+    x = float(position[0]) if len(position) > 0 else 0.0
+    z = float(position[2]) if len(position) > 2 else 0.0
 
     last_idx = len(ZONES) - 1
     for i, zone in enumerate(ZONES):
-        min_x = zone["min_x"]
-        max_x = zone["max_x"]
-        min_z = zone["min_z"]
-        max_z = zone["max_z"]
+        min_x = float(zone["min_x"])  # type: ignore[arg-type]
+        max_x = float(zone["max_x"])  # type: ignore[arg-type]
+        min_z = float(zone["min_z"])  # type: ignore[arg-type]
+        max_z = float(zone["max_z"])  # type: ignore[arg-type]
         if i < last_idx:
-            # Exclusive upper bounds to avoid overlap on shared edges
-            if min_x <= x < max_x and min_z <= z < max_z:  # type: ignore[operator]
+            # Exclusive upper bounds — boundary belongs to the smaller zone.
+            if min_x <= x < max_x and min_z <= z < max_z:
                 return str(zone["name"])
         else:
-            # Last zone (catch-all): inclusive upper bounds
-            if min_x <= x <= max_x and min_z <= z <= max_z:  # type: ignore[operator]
+            # Final catch-all: inclusive so no coordinate escapes.
+            if min_x <= x <= max_x and min_z <= z <= max_z:
                 return str(zone["name"])
 
     return "Wilderness"

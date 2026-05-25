@@ -1,9 +1,13 @@
 /**
  * Tracks the player's current zone based on world coordinates.
  *
- * Mirrors the 9 zones from server/src/world/zones.py exactly.
- * Zones are checked in order — specific (smaller) zones first so they
- * take priority over the larger ecosystem zones.
+ * Mirrors the zones from server/src/world/zones.py exactly.
+ * Zones are checked from smallest area to largest so the most-specific zone
+ * always wins — this matches the server's ZONES.sort(key=_zone_area) logic.
+ *
+ * Boundary semantics:
+ * - All zones except the last use exclusive max bounds (< max).
+ * - The final catch-all zone uses inclusive max bounds (<= max).
  */
 
 export interface ZoneData {
@@ -16,19 +20,23 @@ export interface ZoneData {
 }
 
 /**
- * Mirror of server/src/world/zones.py — checked in order (specific zones first).
- * "Elders' Village" must come before "Teldrassil Wilds" because the village
- * bounding box is entirely contained within the wilds.
+ * Mirror of server/src/world/zones.py ZONES list.
  *
- * Boundary semantics match the server:
- * - all zones except the last use an exclusive max bound (< max)
- * - the final catch-all zone uses inclusive max bounds (<= max)
+ * Coordinate notes:
+ * - Blasted Suarezlands: covers the mage district centred at (-140, -245)
+ *   with outerRadius 74 → zone x ∈ [-220,-60], z ∈ [-325,-160].
+ * - Fort Malaka: broader city zone containing the mage district sub-zone.
+ * - All others remain unchanged.
+ *
+ * This array is sorted by ascending finite area at module load to match
+ * the server's automatic sort order (see getZone below).
  */
 export const ZONES: ZoneData[] = [
   {
     name: "Blasted Suarezlands",
     description: "The mage district of Fort Malaka — crackling with arcane energy. Rogue spellcasters and eccentric wizards fill the streets between glowing pylons and runic circles.",
-    minX: -80, maxX: 80, minZ: -155, maxZ: -90,
+    // Encompasses mountain (center -140, -245; outerRadius 74) + surrounding mage structures.
+    minX: -220, maxX: -60, minZ: -325, maxZ: -160,
   },
   {
     name: "Fort Malaka",
@@ -82,6 +90,17 @@ export const ZONES: ZoneData[] = [
   },
 ];
 
+/** Finite area of a zone rectangle (capped at ±9999 to handle sentinel bounds). */
+function zoneArea(z: ZoneData): number {
+  const w = Math.min(z.maxX, 9999) - Math.max(z.minX, -9999);
+  const h = Math.min(z.maxZ, 9999) - Math.max(z.minZ, -9999);
+  return Math.max(0, w) * Math.max(0, h);
+}
+
+// Sort ascending by area so the most-specific zone is checked first — mirrors
+// the server-side ZONES.sort(key=_zone_area) call in zones.py.
+ZONES.sort((a, b) => zoneArea(a) - zoneArea(b));
+
 export class ZoneTracker {
   private currentZone = "";
   onZoneChange?: (zoneName: string, description: string) => void;
@@ -115,7 +134,9 @@ export class ZoneTracker {
   private getZone(x: number, z: number): string {
     const lastIndex = ZONES.length - 1;
     for (let i = 0; i < ZONES.length; i++) {
-      const zone = ZONES[i];
+      const zone = ZONES[i]!;
+      // Exclusive upper bounds on all zones except the final catch-all so that
+      // a coordinate on a shared edge belongs to the smaller zone only.
       const inBounds = i < lastIndex
         ? (x >= zone.minX && x < zone.maxX && z >= zone.minZ && z < zone.maxZ)
         : (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ);

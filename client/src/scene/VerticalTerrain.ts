@@ -44,5 +44,7 @@ export function getVerticalLiftAt(x: number, z: number): number {
 }
 
 export function getWorldHeightAt(terrain: Terrain, x: number, z: number): number {
-  return terrain.getHeightAt(x, z) + getVerticalLiftAt(x, z);
+  // terrain.getHeightAt already includes vertical lift — this function is a
+  // clean alias kept for call-site readability.
+  return terrain.getHeightAt(x, z);
 }

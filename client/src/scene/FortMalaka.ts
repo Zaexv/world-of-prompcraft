@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { Terrain } from './Terrain';
 import { getAnchoredTerrainY, smoothHeightSeries } from './TerrainPlacement';
-import { VERTICAL_PLACES, getVerticalLiftAt } from './VerticalTerrain';
+import { VERTICAL_PLACES } from './VerticalTerrain';
 
 /**
  * Fort Malaka — Málaga-inspired coastal city with the Blasted Suarezlands
@@ -47,7 +47,7 @@ export class FortMalaka {
     const suarezCenterX = suarezMountain.centerX;
     const suarezCenterZ = suarezMountain.centerZ;
     const suarezY = (x: number, z: number, radius: number): number =>
-      getAnchoredTerrainY(terrain, x, z, radius) + getVerticalLiftAt(x, z);
+      getAnchoredTerrainY(terrain, x, z, radius);
     this.createSuarezlandsMountain(scene, terrain, suarezMountain);
 
     // ── Mage District (Blasted Suarezlands) ──────────────────────────────
@@ -108,8 +108,8 @@ export class FortMalaka {
       suarezY(suarezCenterX + 22, suarezCenterZ - 20, 4),
       0x6644ff,
     );
-    this.createMageDistrictGarden(scene, terrain, suarezCenterX - 4, suarezCenterZ + 8, getVerticalLiftAt(suarezCenterX - 4, suarezCenterZ + 8));
-    this.createSuarezlandsRift(scene, terrain, suarezCenterX + 30, suarezCenterZ + 10, getVerticalLiftAt(suarezCenterX + 30, suarezCenterZ + 10));
+    this.createMageDistrictGarden(scene, terrain, suarezCenterX - 4, suarezCenterZ + 8, 0);
+    this.createSuarezlandsRift(scene, terrain, suarezCenterX + 30, suarezCenterZ + 10, 0);
 
     // ── Málaga Mediterranean structures ──────────────────────────────────
 
@@ -1055,10 +1055,11 @@ export class FortMalaka {
   ): void {
     const baseY = terrain.getHeightAt(place.centerX, place.centerZ);
     const group = new THREE.Group();
-    group.userData.noCollision = true;
     const rockMat = this.createTexturedMaterial(0x3f3746, 0x5b4f68, 0.8, 0.08);
     const soilMat = this.createTexturedMaterial(0x4b3e36, 0x655144, 0.9, 0);
 
+    // Lower skirt — wide solid cylinder forming the hill base; collidable so
+    // players cannot walk through the mountain sides.
     const lower = new THREE.Mesh(
       new THREE.CylinderGeometry(place.outerRadius - 8, place.outerRadius + 2, place.height * 0.45, 24),
       soilMat,
@@ -1066,9 +1067,10 @@ export class FortMalaka {
     lower.position.y = place.height * 0.225;
     lower.castShadow = true;
     lower.receiveShadow = true;
-    lower.userData.noCollision = true;
+    lower.userData.isCollider = true;
     group.add(lower);
 
+    // Upper cone — narrows to the plateau peak; collidable for lateral clipping.
     const upper = new THREE.Mesh(
       new THREE.CylinderGeometry(place.innerRadius + 6, place.outerRadius - 10, place.height * 0.55, 24),
       rockMat,
@@ -1076,11 +1078,12 @@ export class FortMalaka {
     upper.position.y = place.height * 0.725;
     upper.castShadow = true;
     upper.receiveShadow = true;
-    upper.userData.noCollision = true;
+    upper.userData.isCollider = true;
     group.add(upper);
 
     for (let i = 0; i < 10; i++) {
       const angle = (i / 10) * Math.PI * 2;
+      // Buttresses are thin decorative pillars — mark explicitly non-collidable.
       const buttress = new THREE.Mesh(new THREE.BoxGeometry(5.2, 7.2, 3.6), rockMat);
       buttress.position.set(
         Math.cos(angle) * (place.innerRadius + 8),

@@ -19,6 +19,7 @@ export class SceneManager {
   public buildings: Buildings;
   public fortMalaka: FortMalaka;
   public vegetation: Vegetation;
+  public lighting!: Lighting;
 
   private clock: THREE.Clock;
   private water: Water;
@@ -92,7 +93,7 @@ export class SceneManager {
 
     // --- World systems (order matters: lighting first, then geometry) ---
     new Skybox(this.scene);
-    new Lighting(this.scene);
+    this.lighting = new Lighting(this.scene);
 
     this.terrain = new Terrain(this.scene);
     this.water = new Water(this.scene);
