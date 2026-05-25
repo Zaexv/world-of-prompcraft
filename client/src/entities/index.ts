@@ -16,3 +16,4 @@ export {
   buildUndeadModel,
 } from './RaceModels';
 export { RemotePlayer } from './RemotePlayer';
+export { getPlaceholderAppearance, buildProceduralMesh, darken, type AppearanceData } from "./NPCAppearance";
