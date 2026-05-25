@@ -20,7 +20,7 @@ import { DamagePopup } from './ui/DamagePopup';
 import { ZoneTracker } from './systems/ZoneTracker';
 import { ZoneAtmosphere } from './systems/ZoneAtmosphere';
 import { DungeonSystem } from './systems/DungeonSystem';
-import { AssetLoader } from './utils/AssetLoader';
+import { AssetLoader } from './utils/asset/AssetLoader';
 import { getWorldHeightAt } from './scene/VerticalTerrain';
 import { WorldBuilder } from './systems/WorldBuilder';
 import { WorldBuilderPanel } from './ui/WorldBuilderPanel';

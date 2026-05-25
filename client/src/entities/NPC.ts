@@ -7,7 +7,7 @@ import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
 import { getNPCModelPath, getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
 import { buildProceduralMesh, getPlaceholderAppearance } from './NPCAppearance';
-import type { AssetLoader } from '../utils/AssetLoader';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
 import { Water } from '../scene/Water';
 
 export interface NPCConfig {

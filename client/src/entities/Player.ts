@@ -4,8 +4,8 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { CharacterAnimator } from './CharacterAnimator';
 import { buildRaceModel } from './RaceModels';
 import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
-import type { AssetLoader } from '../utils/AssetLoader';
-import { lerpAngle } from '../utils/MathHelpers';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
+import { lerpAngle } from '../utils/math/MathHelpers';
 import { createBoatModel } from '../scene/BoatModel';
 
 /**

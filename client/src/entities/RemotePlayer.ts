@@ -6,7 +6,7 @@ import { buildRaceModel } from './RaceModels';
 import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
 import { Nameplate } from '../ui/Nameplate';
 import type { RemotePlayerData } from '../network/MessageProtocol';
-import type { AssetLoader } from '../utils/AssetLoader';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
 
 /**
  * Represents another player in the world, rendered with race model and nameplate.

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { clamp, lerp } from '../utils/MathHelpers';
+import { clamp, lerp } from '../utils/math/MathHelpers';
 import { Water } from '../scene/Water';
 import { CollisionSystem } from '../systems/CollisionSystem';
 

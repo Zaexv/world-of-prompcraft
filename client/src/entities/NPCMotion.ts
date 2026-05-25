@@ -1,4 +1,4 @@
-import { lerp } from '../utils/MathHelpers';
+import { lerp } from '../utils/math/MathHelpers';
 
 export type NPCBehavior = 'friendly' | 'neutral' | 'hostile';
 export type NPCMovementStyle = 'stroll' | 'patrol' | 'prowl' | 'float' | 'swagger' | 'stomp';

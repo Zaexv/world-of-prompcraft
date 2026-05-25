@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { lerp, clamp, lerpAngle, smoothDamp } from '../utils/MathHelpers';
+import { lerp, clamp, lerpAngle, smoothDamp } from '../utils/math/MathHelpers';
 
 describe('lerp', () => {
   it('returns a when t=0', () => {

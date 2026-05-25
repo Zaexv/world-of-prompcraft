@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { describe, expect, it, vi } from 'vitest';
-import { AssetLoader } from '../utils/AssetLoader';
+import { AssetLoader } from '../utils/asset/AssetLoader';
 
 interface MockGLTFLoader {
   load(

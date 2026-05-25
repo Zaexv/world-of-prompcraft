@@ -3,7 +3,7 @@ import { NPC, NPCConfig } from './NPC';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
 import type { CollisionSystem } from '../systems/CollisionSystem';
-import type { AssetLoader } from '../utils/AssetLoader';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
 
 /**
  * Central registry for all NPC entities and remote players.

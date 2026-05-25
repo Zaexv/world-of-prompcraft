@@ -6,7 +6,7 @@
 
 import type { NPC } from './NPC';
 import type { NPCConfig } from './NPC';
-import type { AssetLoader } from '../utils/AssetLoader';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
 
 /**
  * Factory for creating NPC instances.
