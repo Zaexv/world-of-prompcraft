@@ -580,26 +580,212 @@ export class NPC {
   private addPlaceholderAccessory(style: NPCPlaceholderStyle): void {
     switch (style) {
       case 'dragon': {
-        const wingGeo = new THREE.PlaneGeometry(0.5, 0.6, 1, 1);
-        const wingMat = new THREE.MeshStandardMaterial({
-          color: 0x881111,
-          side: THREE.DoubleSide,
-          transparent: true,
-          opacity: 0.8,
+        const dragonGreen = 0x1f4520;
+        const darkGreen   = 0x0e2010;
+        const boneBlack   = 0x0a1808;
+
+        // ── Neck ──────────────────────────────────────────────────────────────
+        const neckGeo = new THREE.CylinderGeometry(0.21, 0.3, 0.55, 8);
+        const neckMat = new THREE.MeshStandardMaterial({ color: dragonGreen, flatShading: true });
+        const neck = new THREE.Mesh(neckGeo, neckMat);
+        neck.name = 'neck';
+        neck.position.set(0, 2.48, 0.06);
+        neck.rotation.x = -0.18;
+        this.mesh.add(neck);
+
+        // ── Snout (box extending forward from head) ────────────────────────
+        const snoutGeo = new THREE.BoxGeometry(0.3, 0.2, 0.42);
+        const snoutMat = new THREE.MeshStandardMaterial({ color: 0x2d5a24, flatShading: true });
+        const snout = new THREE.Mesh(snoutGeo, snoutMat);
+        snout.name = 'snout';
+        snout.position.set(0, 2.64, 0.34);
+        this.mesh.add(snout);
+
+        // Lower jaw
+        const jawGeo = new THREE.BoxGeometry(0.26, 0.1, 0.3);
+        const jaw = new THREE.Mesh(jawGeo, snoutMat);
+        jaw.name = 'jaw';
+        jaw.position.set(0, 2.52, 0.3);
+        this.mesh.add(jaw);
+
+        // ── Glowing eyes ──────────────────────────────────────────────────
+        const eyeGeo = new THREE.SphereGeometry(0.055, 8, 6);
+        const eyeMat = new THREE.MeshStandardMaterial({
+          color: 0xff8800,
+          emissive: 0xff4400,
+          emissiveIntensity: 2.2,
           flatShading: true,
         });
-        const leftWing = new THREE.Mesh(wingGeo, wingMat);
+        const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+        leftEye.name = 'leftEye';
+        leftEye.position.set(-0.1, 2.73, 0.24);
+        this.mesh.add(leftEye);
+        const rightEye = leftEye.clone();
+        rightEye.name = 'rightEye';
+        rightEye.position.set(0.1, 2.73, 0.24);
+        this.mesh.add(rightEye);
+
+        // ── Back horns (two large prominent cones) ─────────────────────────
+        const hornGeo = new THREE.ConeGeometry(0.07, 0.5, 6);
+        const hornMat = new THREE.MeshStandardMaterial({ color: boneBlack, flatShading: true });
+        const leftHorn = new THREE.Mesh(hornGeo, hornMat);
+        leftHorn.name = 'leftHorn';
+        leftHorn.position.set(-0.13, 3.04, -0.06);
+        leftHorn.rotation.z = -0.28;
+        leftHorn.rotation.x = -0.12;
+        this.mesh.add(leftHorn);
+        const rightHorn = new THREE.Mesh(hornGeo, hornMat);
+        rightHorn.name = 'rightHorn';
+        rightHorn.position.set(0.13, 3.04, -0.06);
+        rightHorn.rotation.z = 0.28;
+        rightHorn.rotation.x = -0.12;
+        this.mesh.add(rightHorn);
+
+        // ── Spine ridge spikes ─────────────────────────────────────────────
+        const ridgeMat = new THREE.MeshStandardMaterial({ color: boneBlack, flatShading: true });
+        const spineData = [
+          { y: 2.55, z: -0.25, s: 0.22 },
+          { y: 2.32, z: -0.26, s: 0.2  },
+          { y: 2.08, z: -0.27, s: 0.18 },
+          { y: 1.82, z: -0.27, s: 0.16 },
+          { y: 1.55, z: -0.26, s: 0.13 },
+        ];
+        for (const [i, d] of spineData.entries()) {
+          const sGeo = new THREE.ConeGeometry(0.038, d.s, 5);
+          const spike = new THREE.Mesh(sGeo, ridgeMat);
+          spike.name = `spineSpike${i}`;
+          spike.position.set(0, d.y, d.z);
+          spike.rotation.x = -0.38;
+          this.mesh.add(spike);
+        }
+
+        // ── Tail (four tapering cylinder segments + tip spike) ─────────────
+        const tailMat = new THREE.MeshStandardMaterial({ color: dragonGreen, flatShading: true });
+        const tailData = [
+          { rT: 0.17, rB: 0.22, h: 0.52, y: 0.92, z: -0.46, rx: 0.75 },
+          { rT: 0.11, rB: 0.17, h: 0.5,  y: 0.5,  z: -0.9,  rx: 1.05 },
+          { rT: 0.06, rB: 0.11, h: 0.44, y: 0.19, z: -1.22, rx: 0.65 },
+          { rT: 0.02, rB: 0.06, h: 0.34, y: 0.06, z: -1.5,  rx: 0.22 },
+        ];
+        for (const [i, d] of tailData.entries()) {
+          const tGeo = new THREE.CylinderGeometry(d.rT, d.rB, d.h, 8);
+          const seg = new THREE.Mesh(tGeo, tailMat);
+          seg.name = `tail${i}`;
+          seg.position.set(0, d.y, d.z);
+          seg.rotation.x = d.rx;
+          this.mesh.add(seg);
+        }
+        const tailSpikeGeo = new THREE.ConeGeometry(0.04, 0.3, 4);
+        const tailSpike = new THREE.Mesh(tailSpikeGeo, ridgeMat);
+        tailSpike.name = 'tailSpike';
+        tailSpike.position.set(0, 0.0, -1.65);
+        tailSpike.rotation.x = Math.PI * 0.72;
+        this.mesh.add(tailSpike);
+
+        // ── Bat wings (custom ShapeGeometry) ──────────────────────────────
+        const wingMat = new THREE.MeshStandardMaterial({
+          color: 0x0c2a0e,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.9,
+          flatShading: true,
+        });
+
+        // Left wing shape (local XY plane; attachment at 0,0)
+        const lwShape = new THREE.Shape();
+        lwShape.moveTo(0, 0);
+        lwShape.lineTo(-1.5, 0.75);  // primary wingtip
+        lwShape.lineTo(-1.1, 0.08);  // first notch
+        lwShape.lineTo(-1.55, -0.38); // middle finger
+        lwShape.lineTo(-1.05, -0.58); // second notch
+        lwShape.lineTo(-0.65, -0.82); // lower finger
+        lwShape.lineTo(-0.1, -0.52); // base lower
+        lwShape.lineTo(0, 0);
+        const lwGeo = new THREE.ShapeGeometry(lwShape);
+        const leftWing = new THREE.Mesh(lwGeo, wingMat);
         leftWing.name = 'leftWing';
-        leftWing.position.set(-0.35, 1.9, -0.2);
-        leftWing.rotation.y = -0.5;
-        leftWing.rotation.z = 0.3;
+        leftWing.position.set(-0.42, 2.2, 0.0);
+        leftWing.rotation.y = 0.25;
+        leftWing.rotation.x = 0.12;
         this.mesh.add(leftWing);
-        const rightWing = new THREE.Mesh(wingGeo, wingMat);
+
+        // Right wing (mirror of left)
+        const rwShape = new THREE.Shape();
+        rwShape.moveTo(0, 0);
+        rwShape.lineTo(1.5, 0.75);
+        rwShape.lineTo(1.1, 0.08);
+        rwShape.lineTo(1.55, -0.38);
+        rwShape.lineTo(1.05, -0.58);
+        rwShape.lineTo(0.65, -0.82);
+        rwShape.lineTo(0.1, -0.52);
+        rwShape.lineTo(0, 0);
+        const rwGeo = new THREE.ShapeGeometry(rwShape);
+        const rightWing = new THREE.Mesh(rwGeo, wingMat);
         rightWing.name = 'rightWing';
-        rightWing.position.set(0.35, 1.9, -0.2);
-        rightWing.rotation.y = 0.5;
-        rightWing.rotation.z = -0.3;
+        rightWing.position.set(0.42, 2.2, 0.0);
+        rightWing.rotation.y = -0.25;
+        rightWing.rotation.x = 0.12;
         this.mesh.add(rightWing);
+
+        // Wing bones — three fingers per wing (cylindrical spars)
+        const wbMat = new THREE.MeshStandardMaterial({ color: boneBlack, flatShading: true });
+        // [angle from attachment, length] for each finger
+        const wbData: Array<[number, number]> = [
+          [2.65, 1.0],  // primary (up-left)
+          [3.0,  0.88], // mid (left)
+          [3.35, 0.72], // lower (down-left)
+        ];
+        for (const [i, [angle, len]] of wbData.entries()) {
+          const bGeo = new THREE.CylinderGeometry(0.018, 0.032, len, 5);
+          // Left bone
+          const lb = new THREE.Mesh(bGeo, wbMat);
+          lb.name = `leftWingBone${i}`;
+          lb.position.set(
+            -0.42 + Math.cos(angle) * len * 0.5,
+            2.2   + Math.sin(angle) * len * 0.5,
+            0.0,
+          );
+          lb.rotation.z = -angle + Math.PI * 0.5;
+          this.mesh.add(lb);
+          // Right bone (mirror)
+          const rb = new THREE.Mesh(bGeo, wbMat);
+          rb.name = `rightWingBone${i}`;
+          rb.position.set(
+            0.42 - Math.cos(angle) * len * 0.5,
+            2.2  + Math.sin(angle) * len * 0.5,
+            0.0,
+          );
+          rb.rotation.z = angle - Math.PI * 0.5;
+          this.mesh.add(rb);
+        }
+
+        // ── Belly scale plates (flattened ellipsoids along front of torso) ──
+        const bellyMat = new THREE.MeshStandardMaterial({ color: 0x3a6830, flatShading: true });
+        for (let i = 0; i < 5; i++) {
+          const bsGeo = new THREE.SphereGeometry(0.13, 6, 4);
+          bsGeo.scale(1.1, 0.28, 1.0);
+          const bs = new THREE.Mesh(bsGeo, bellyMat);
+          bs.name = `bellyScale${i}`;
+          bs.position.set(0, 1.1 + i * 0.28, 0.4);
+          this.mesh.add(bs);
+        }
+
+        // ── Claws (tiny cone tips on each leg) ────────────────────────────
+        const clawMat = new THREE.MeshStandardMaterial({ color: boneBlack, flatShading: true });
+        for (const side of [-1, 1]) {
+          for (let c = 0; c < 3; c++) {
+            const cGeo = new THREE.ConeGeometry(0.025, 0.12, 4);
+            const claw = new THREE.Mesh(cGeo, clawMat);
+            claw.name = `claw_${side > 0 ? 'r' : 'l'}${c}`;
+            claw.position.set(side * (0.14 + c * 0.05), 0.1, 0.08 - c * 0.06);
+            claw.rotation.x = -0.6;
+            claw.rotation.z = side * c * 0.2;
+            this.mesh.add(claw);
+          }
+        }
+
+        // Suppress unused-var lint for darkGreen (used implicitly via tailMat + neckMat)
+        void darkGreen;
         break;
       }
       case 'monster': {
@@ -796,33 +982,141 @@ export class NPC {
         break;
       }
       case 'undead': {
-        const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
+        const bonePale   = 0xc8d0b8;
+        const boneWhite  = 0xdde4cc;
+        const soulGreen  = 0x44ffaa;
+
+        // ── Skull dome (wide flat cylinder on top of head) ─────────────────
+        const domeGeo = new THREE.CylinderGeometry(0.22, 0.24, 0.08, 10);
+        const domeMat = new THREE.MeshStandardMaterial({ color: bonePale, flatShading: true });
+        const dome = new THREE.Mesh(domeGeo, domeMat);
+        dome.name = 'skullDome';
+        dome.position.set(0, 2.72, 0);
+        this.mesh.add(dome);
+
+        // ── Jaw (box protruding below the head) ───────────────────────────
+        const jawGeo = new THREE.BoxGeometry(0.3, 0.12, 0.28);
+        const jaw = new THREE.Mesh(jawGeo, domeMat);
+        jaw.name = 'jaw';
+        jaw.position.set(0, 2.3, 0.1);
+        this.mesh.add(jaw);
+
+        // Skull teeth (4 small boxes along jaw)
+        const toothMat = new THREE.MeshStandardMaterial({ color: boneWhite, flatShading: true });
+        for (let i = 0; i < 4; i++) {
+          const tGeo = new THREE.BoxGeometry(0.05, 0.07, 0.04);
+          const tooth = new THREE.Mesh(tGeo, toothMat);
+          tooth.name = `tooth${i}`;
+          tooth.position.set(-0.09 + i * 0.06, 2.25, 0.23);
+          this.mesh.add(tooth);
+        }
+
+        // ── Glowing hollow eye sockets ─────────────────────────────────────
+        const eyeGeo = new THREE.SphereGeometry(0.055, 8, 6);
         const eyeMat = new THREE.MeshStandardMaterial({
-          color: 0x44ffaa,
-          emissive: 0x44ffaa,
-          emissiveIntensity: 1.6,
+          color: soulGreen,
+          emissive: soulGreen,
+          emissiveIntensity: 2.2,
           flatShading: true,
         });
         const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
         leftEye.name = 'leftEye';
-        leftEye.position.set(-0.07, 2.38, 0.17);
+        leftEye.position.set(-0.08, 2.5, 0.18);
         this.mesh.add(leftEye);
-        const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+        const rightEye = leftEye.clone();
         rightEye.name = 'rightEye';
-        rightEye.position.set(0.07, 2.38, 0.17);
+        rightEye.position.set(0.08, 2.5, 0.18);
         this.mesh.add(rightEye);
-        const cloakGeo = new THREE.PlaneGeometry(0.5, 1.2, 1, 4);
+
+        // ── Rib cage (4 pairs of curved bone strips) ──────────────────────
+        const ribMat = new THREE.MeshStandardMaterial({ color: bonePale, flatShading: true });
+        for (let r = 0; r < 4; r++) {
+          const ribY = 1.9 + r * 0.17;
+          for (const side of [-1, 1]) {
+            const rGeo = new THREE.BoxGeometry(0.26, 0.04, 0.06);
+            const rib = new THREE.Mesh(rGeo, ribMat);
+            rib.name = `rib${r}${side > 0 ? 'r' : 'l'}`;
+            rib.position.set(side * 0.15, ribY, 0.1);
+            rib.rotation.z = side * -0.5;
+            rib.rotation.y = side * 0.35;
+            this.mesh.add(rib);
+          }
+        }
+
+        // ── Visible spine knobs along back ────────────────────────────────
+        const knobMat = new THREE.MeshStandardMaterial({ color: 0xb8c0a8, flatShading: true });
+        for (let k = 0; k < 5; k++) {
+          const kGeo = new THREE.SphereGeometry(0.04, 6, 4);
+          const knob = new THREE.Mesh(kGeo, knobMat);
+          knob.name = `spineKnob${k}`;
+          knob.position.set(0, 1.1 + k * 0.25, -0.22);
+          this.mesh.add(knob);
+        }
+
+        // ── Soul fire — glowing orb inside chest (visible through gaps) ───
+        const soulGeo = new THREE.SphereGeometry(0.1, 8, 6);
+        const soulMat = new THREE.MeshStandardMaterial({
+          color: soulGreen,
+          emissive: 0x22cc88,
+          emissiveIntensity: 2.0,
+          transparent: true,
+          opacity: 0.7,
+        });
+        const soul = new THREE.Mesh(soulGeo, soulMat);
+        soul.name = 'soulFire';
+        soul.position.set(0, 1.82, 0);
+        this.mesh.add(soul);
+
+        // ── Wisp orbs — small emissive spheres orbiting the figure ────────
+        const wispMat = new THREE.MeshStandardMaterial({
+          color: 0x88ffcc,
+          emissive: 0x44ffaa,
+          emissiveIntensity: 2.0,
+          transparent: true,
+          opacity: 0.65,
+        });
+        const wispPositions: Array<[number, number, number]> = [
+          [ 0.38,  2.7,  0.18],
+          [-0.32,  2.1,  0.12],
+          [ 0.2,   1.4, -0.28],
+        ];
+        for (const [i, [wx, wy, wz]] of wispPositions.entries()) {
+          const wGeo = new THREE.SphereGeometry(0.05, 6, 4);
+          const wisp = new THREE.Mesh(wGeo, wispMat);
+          wisp.name = `wisp${i}`;
+          wisp.position.set(wx, wy, wz);
+          this.mesh.add(wisp);
+        }
+
+        // ── Main cloak (large, back-facing plane) ─────────────────────────
         const cloakMat = new THREE.MeshStandardMaterial({
-          color: 0x2c2c2c,
+          color: 0x1a1e1a,
           side: THREE.DoubleSide,
           transparent: true,
-          opacity: 0.75,
+          opacity: 0.82,
           flatShading: true,
         });
+        const cloakGeo = new THREE.PlaneGeometry(0.64, 1.45, 1, 5);
         const cloak = new THREE.Mesh(cloakGeo, cloakMat);
         cloak.name = 'cloak';
-        cloak.position.set(0, 1.4, -0.18);
+        cloak.position.set(0, 1.45, -0.25);
         this.mesh.add(cloak);
+
+        // Secondary inner cloak layer (slightly narrower, different tint)
+        const cloakInnerMat = new THREE.MeshStandardMaterial({
+          color: 0x2a3a2a,
+          side: THREE.DoubleSide,
+          transparent: true,
+          opacity: 0.6,
+          flatShading: true,
+        });
+        const cloakInnerGeo = new THREE.PlaneGeometry(0.44, 1.2, 1, 4);
+        const cloakInner = new THREE.Mesh(cloakInnerGeo, cloakInnerMat);
+        cloakInner.name = 'cloakInner';
+        cloakInner.position.set(0, 1.5, -0.22);
+        cloakInner.rotation.y = 0.05;
+        this.mesh.add(cloakInner);
+
         break;
       }
       case 'civilian':
@@ -840,29 +1134,18 @@ export class NPC {
 
   private addVisualOutline(style: NPCPlaceholderStyle): void {
     const outlineNames: readonly string[] = [
-      'body',
-      'head',
-      'leftLeg',
-      'rightLeg',
-      'leftArm',
-      'rightArm',
-      'belt',
-      'hat',
-      'cloak',
-      'leftShoulder',
-      'rightShoulder',
-      'leftWing',
-      'rightWing',
-      'shield',
-      'halo',
-      'staff',
-      'orb',
-      'leftTusk',
-      'rightTusk',
-      'leftEye',
-      'rightEye',
-      'pack',
-      'satchel',
+      'body', 'head', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm',
+      'belt', 'hat', 'cloak', 'cloakInner',
+      'leftShoulder', 'rightShoulder',
+      // dragon
+      'neck', 'snout', 'jaw', 'leftWing', 'rightWing',
+      // undead
+      'skullDome', 'soulFire',
+      // shared accessories
+      'shield', 'halo', 'staff', 'orb',
+      'leftTusk', 'rightTusk',
+      'leftEye', 'rightEye',
+      'pack', 'satchel',
     ];
 
     const scale = style === 'dragon' || style === 'monster' ? 1.06 : 1.045;
@@ -1066,31 +1349,32 @@ function getPlaceholderAppearance(style: NPCPlaceholderStyle): {
       };
     case 'dragon':
       return {
-        bodyTopRadius: 0.42,
-        bodyBottomRadius: 0.48,
-        bodyHeight: 1.6,
-        bodyY: 1.6,
-        bodySegments: 10,
-        bodyColor: 0xc46a33,
-        shoulderRadius: 0.16,
-        shoulderOffset: 0.4,
-        shoulderY: 2.16,
-        beltRadius: 0.36,
-        beltTube: 0.04,
-        beltY: 1.14,
-        beltColor: 0x6a2a12,
-        headRadius: 0.27,
-        headY: 2.56,
-        headColor: 0xf1c08d,
-        legWidth: 0.18,
-        legHeight: 0.72,
-        legDepth: 0.18,
-        legOffset: 0.14,
+        bodyTopRadius: 0.44,
+        bodyBottomRadius: 0.52,
+        bodyHeight: 1.7,
+        bodyY: 1.65,
+        bodySegments: 12,
+        bodyColor: 0x1f4520,      // dark forest green
+        shoulderRadius: 0.17,
+        shoulderOffset: 0.42,
+        shoulderY: 2.24,
+        beltRadius: 0.38,
+        beltTube: 0.055,
+        beltY: 1.25,
+        beltColor: 0x0f2510,      // dark belly ridge
+        headRadius: 0.29,
+        headY: 2.74,              // higher for longer neck
+        headColor: 0x2d5a24,      // scaled green
+        legWidth: 0.19,
+        legHeight: 0.74,
+        legDepth: 0.19,
+        legOffset: 0.15,
         legY: 0.45,
-        legColor: 0x5b2414,
-        hatRadius: 0.14,
-        hatHeight: 0.22,
-        hatY: 3.0,
+        legColor: 0x0e2010,
+        hatRadius: 0.001,         // invisible — replaced by horns + snout in accessories
+        hatHeight: 0.001,
+        hatY: 0,
+        hatColor: 0x000000,
       };
     case 'monster':
       return {
@@ -1150,31 +1434,32 @@ function getPlaceholderAppearance(style: NPCPlaceholderStyle): {
       };
     case 'undead':
       return {
-        bodyTopRadius: 0.26,
-        bodyBottomRadius: 0.3,
-        bodyHeight: 1.45,
-        bodyY: 1.5,
-        bodySegments: 10,
-        bodyColor: 0x586458,
-        shoulderRadius: 0.11,
-        shoulderOffset: 0.26,
-        shoulderY: 2.02,
-        beltRadius: 0.28,
-        beltTube: 0.03,
-        beltY: 1.06,
-        beltColor: 0x1f1f1f,
-        headRadius: 0.22,
-        headY: 2.36,
-        headColor: 0xbfd0bf,
-        legWidth: 0.11,
-        legHeight: 0.66,
-        legDepth: 0.11,
-        legOffset: 0.1,
-        legY: 0.43,
-        legColor: 0x434f43,
-        hatRadius: 0.16,
-        hatHeight: 0.3,
-        hatY: 2.74,
+        bodyTopRadius: 0.22,
+        bodyBottomRadius: 0.26,
+        bodyHeight: 1.5,
+        bodyY: 1.52,
+        bodySegments: 8,
+        bodyColor: 0x3a3d35,      // dark bone-gray
+        shoulderRadius: 0.09,
+        shoulderOffset: 0.22,
+        shoulderY: 2.06,
+        beltRadius: 0.24,
+        beltTube: 0.025,
+        beltY: 1.1,
+        beltColor: 0x1a1f1a,
+        headRadius: 0.24,
+        headY: 2.46,
+        headColor: 0xd0d4bc,      // pale bone
+        legWidth: 0.1,
+        legHeight: 0.68,
+        legDepth: 0.1,
+        legOffset: 0.09,
+        legY: 0.44,
+        legColor: 0x2e3128,
+        hatRadius: 0.001,         // invisible — skull dome added in accessories
+        hatHeight: 0.001,
+        hatY: 0,
+        hatColor: 0x000000,
       };
     case 'civilian':
     default:

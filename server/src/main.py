@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
 from .agents.registry import AgentRegistry
+from .agents.world_builder_agent import create_world_builder_agent
 from .config import settings
 from .llm.provider import get_llm
 from .world.world_state import WorldState
@@ -30,7 +31,16 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     world_state = WorldState()
     registry = AgentRegistry(llm=llm, world_state=world_state)
 
-    init_handler(registry, world_state, manager)
+    pending_world_actions: list[Any] = []
+    world_builder_agent = create_world_builder_agent(llm, pending_world_actions)
+
+    init_handler(
+        registry,
+        world_state,
+        manager,
+        world_builder_agent=world_builder_agent,
+        pending_world_actions=pending_world_actions,
+    )
     logger.info(
         "Backend ready: %d NPCs registered, LLM provider=%s",
         len(world_state.npcs),
