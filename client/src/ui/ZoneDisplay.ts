@@ -1,18 +1,10 @@
-/**
- * WoW-style zone name popup displayed when the player crosses zone boundaries.
- *
- * Visual: centered at top 25% of screen.  Each zone has a unique accent color
- * and category tag.  Animation: slide-down + fade-in 0.5s, hold 3s, fade-out 1s.
- */
+import { UIComponent } from "./core/UIComponent";
 
 // ── Per-zone visual config ────────────────────────────────────────────────────
 
 interface ZoneTheme {
-  /** Accent color for the zone name (hex string) */
   accent: string;
-  /** Short category label shown above the zone name */
   category: string;
-  /** Decorative Unicode prefix/suffix around the name */
   glyph: string;
 }
 
@@ -36,20 +28,30 @@ const DEFAULT_THEME: ZoneTheme = {
   glyph: "~",
 };
 
-// ── ZoneDisplay class ─────────────────────────────────────────────────────────
-
-export class ZoneDisplay {
-  readonly element: HTMLDivElement;
-
-  private categoryEl: HTMLDivElement;
-  private nameEl: HTMLDivElement;
-  private dividerEl: HTMLDivElement;
-  private descEl: HTMLDivElement;
+/**
+ * WoW-style zone name popup displayed when the player crosses zone boundaries.
+ * Extends UIComponent for consistent lifecycle management.
+ *
+ * Visual: centered at top 25% of screen.  Each zone has a unique accent color
+ * and category tag.  Animation: slide-down + fade-in 0.5s, hold 3s, fade-out 1s.
+ */
+export class ZoneDisplay extends UIComponent {
+  private categoryEl!: HTMLDivElement;
+  private nameEl!: HTMLDivElement;
+  private dividerEl!: HTMLDivElement;
+  private descEl!: HTMLDivElement;
   private fadeOutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'zone-display');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "fixed",
       top: "22%",
       left: "50%",
@@ -60,7 +62,6 @@ export class ZoneDisplay {
       opacity: "0",
       transition: "opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)",
       padding: "18px 52px 20px",
-      // Layered backdrop — strong center, transparent edges
       background: [
         "radial-gradient(ellipse 80% 100% at 50% 0%,",
         "  rgba(10,4,20,0.85) 0%,",
@@ -70,7 +71,7 @@ export class ZoneDisplay {
       minWidth: "320px",
     } as CSSStyleDeclaration);
 
-    // Zone category tag (e.g. "MAGE DISTRICT")
+    // Zone category tag
     this.categoryEl = document.createElement("div");
     Object.assign(this.categoryEl.style, {
       fontSize: "10px",
@@ -82,13 +83,13 @@ export class ZoneDisplay {
       marginBottom: "6px",
       textShadow: "0 1px 4px rgba(0,0,0,0.9)",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.categoryEl);
+    this.container.appendChild(this.categoryEl);
 
     // Zone name
     this.nameEl = document.createElement("div");
     Object.assign(this.nameEl.style, {
       fontSize: "34px",
-      color: "#c5a55a",           // default; overridden per zone
+      color: "#c5a55a",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       fontWeight: "700",
       letterSpacing: "3px",
@@ -96,9 +97,9 @@ export class ZoneDisplay {
       marginBottom: "10px",
       lineHeight: "1.1",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.nameEl);
+    this.container.appendChild(this.nameEl);
 
-    // Thin decorative divider
+    // Decorative divider
     this.dividerEl = document.createElement("div");
     Object.assign(this.dividerEl.style, {
       width: "60%",
@@ -107,7 +108,7 @@ export class ZoneDisplay {
       margin: "0 auto 10px",
       borderRadius: "1px",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.dividerEl);
+    this.container.appendChild(this.dividerEl);
 
     // Description
     this.descEl = document.createElement("div");
@@ -121,14 +122,24 @@ export class ZoneDisplay {
       margin: "0 auto",
       lineHeight: "1.5",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.descEl);
+    this.container.appendChild(this.descEl);
   }
 
-  /**
-   * Display a zone transition banner.  Auto-fades after ~4.5 seconds total.
-   * Cancels any previous animation if still in progress.
-   */
-  displayZone(zoneName: string, description: string): void {
+  protected override onDispose(): void {
+    if (this.fadeOutTimer !== null) {
+      clearTimeout(this.fadeOutTimer);
+      this.fadeOutTimer = null;
+    }
+  }
+
+  // Overloaded show() method - base class show() and custom show(zoneName, description)
+  show(): void;
+  show(zoneName: string, description: string): void;
+  show(zoneName?: string, description?: string): void {
+    if (zoneName === undefined || description === undefined) {
+      return;
+    }
+
     // Cancel previous animation
     if (this.fadeOutTimer !== null) {
       clearTimeout(this.fadeOutTimer);
@@ -145,7 +156,7 @@ export class ZoneDisplay {
     this.nameEl.textContent = glyph;
     this.descEl.textContent = description;
 
-    // Per-zone accent color (name + divider glow)
+    // Per-zone accent color
     this.nameEl.style.color = theme.accent;
     this.nameEl.style.textShadow = [
       "0 2px 12px rgba(0,0,0,0.95)",
@@ -155,24 +166,28 @@ export class ZoneDisplay {
       `linear-gradient(90deg, transparent, ${theme.accent}88, transparent)`,
     ].join("");
 
-    // Reset: hidden + shifted up slightly (slide-in start position)
-    this.element.style.transition = "none";
-    this.element.style.opacity = "0";
-    this.element.style.transform = "translateX(-50%) translateY(-16px)";
+    // Reset: hidden + shifted up
+    this.container.style.transition = "none";
+    this.container.style.opacity = "0";
+    this.container.style.transform = "translateX(-50%) translateY(-16px)";
 
     requestAnimationFrame(() => {
       // Slide down + fade in
-      this.element.style.transition = "opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)";
-      this.element.style.opacity = "1";
-      this.element.style.transform = "translateX(-50%) translateY(0px)";
+      this.container.style.transition = "opacity 0.5s ease, transform 0.5s cubic-bezier(0.22, 0.61, 0.36, 1)";
+      this.container.style.opacity = "1";
+      this.container.style.transform = "translateX(-50%) translateY(0px)";
 
       // Hold 3.5s then fade out
       this.fadeOutTimer = setTimeout(() => {
-        this.element.style.transition = "opacity 1s ease, transform 1s ease";
-        this.element.style.opacity = "0";
-        this.element.style.transform = "translateX(-50%) translateY(8px)";
+        this.container.style.transition = "opacity 1s ease, transform 1s ease";
+        this.container.style.opacity = "0";
+        this.container.style.transform = "translateX(-50%) translateY(8px)";
         this.fadeOutTimer = null;
-      }, 4000); // 0.5s in + 3.5s hold
+      }, 4000);
     });
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 }

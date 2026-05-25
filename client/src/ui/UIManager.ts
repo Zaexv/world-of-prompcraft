@@ -180,7 +180,7 @@ export class UIManager {
   }
 
   showZoneTransition(name: string, description: string): void {
-    this.zoneDisplay.displayZone(name, description);
+    this.zoneDisplay.show(name, description);
   }
 
   updateQuestUI(playerState: PlayerState): void {
