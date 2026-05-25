@@ -228,12 +228,13 @@ export class NPC {
     const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
     for (const child of toRemove) this.mesh.remove(child);
 
-    // Scale the GLTF so it roughly matches the procedural NPC height (~2.5 units)
+    // Scale the GLTF so it roughly matches the procedural NPC height (~2.5 units).
+    // Normalize by height (Y) only so wide models aren't incorrectly shrunk.
     const gltfScene = gltf.scene.clone();
     const box = new THREE.Box3().setFromObject(gltfScene);
     const size = new THREE.Vector3();
     box.getSize(size);
-    const scale = 2.5 / Math.max(size.x, size.y, size.z, 0.001);
+    const scale = 2.5 / Math.max(size.y, 0.001);
     gltfScene.scale.setScalar(scale);
     // Sit on the ground
     gltfScene.position.y = -box.min.y * scale;
@@ -248,6 +249,9 @@ export class NPC {
     this.materials = [];
     this.originalEmissives = [];
     this.gltfMode = true;
+
+    // Add a subtle silhouette outline so GLTF models remain readable like procedural ones
+    addOutlineShell(gltfScene, { scale: 1.03, opacity: 0.85 });
 
     if (gltf.animations.length > 0) {
       const mixer = new THREE.AnimationMixer(gltfScene);
@@ -699,6 +703,83 @@ export class NPC {
         this.mesh.add(orb);
         break;
       }
+      case 'pyromancer': {
+        const staffGeo = new THREE.CylinderGeometry(0.03, 0.03, 2.2, 6);
+        const staffMat = new THREE.MeshStandardMaterial({ color: 0x5a3020, flatShading: true });
+        const staff = new THREE.Mesh(staffGeo, staffMat);
+        staff.name = 'staff';
+        staff.position.set(0.5, 1.3, 0);
+        this.mesh.add(staff);
+        // Flame-orb: bright orange/yellow emissive sphere
+        const orbGeo = new THREE.SphereGeometry(0.1, 8, 6);
+        const orbMat = new THREE.MeshStandardMaterial({
+          color: 0xff6600,
+          emissive: 0xff3300,
+          emissiveIntensity: 1.6,
+          flatShading: true,
+        });
+        const orb = new THREE.Mesh(orbGeo, orbMat);
+        orb.name = 'orb';
+        orb.position.set(0.5, 2.45, 0);
+        this.mesh.add(orb);
+        // Small surrounding flame sparks
+        const sparkGeo = new THREE.TetrahedronGeometry(0.05, 0);
+        const sparkMat = new THREE.MeshStandardMaterial({
+          color: 0xffaa00,
+          emissive: 0xff6600,
+          emissiveIntensity: 1.2,
+          flatShading: true,
+        });
+        for (let i = 0; i < 3; i++) {
+          const spark = new THREE.Mesh(sparkGeo, sparkMat);
+          spark.name = `spark${i}`;
+          const angle = (i / 3) * Math.PI * 2;
+          spark.position.set(0.5 + Math.cos(angle) * 0.12, 2.45 + Math.sin(angle) * 0.1, Math.sin(angle) * 0.12);
+          this.mesh.add(spark);
+        }
+        break;
+      }
+      case 'cryomancer': {
+        const staffGeo = new THREE.CylinderGeometry(0.025, 0.025, 2.2, 6);
+        const staffMat = new THREE.MeshStandardMaterial({ color: 0x88aacc, flatShading: true, metalness: 0.4, roughness: 0.3 });
+        const staff = new THREE.Mesh(staffGeo, staffMat);
+        staff.name = 'staff';
+        staff.position.set(0.5, 1.3, 0);
+        this.mesh.add(staff);
+        // Ice crystal orb: pale blue emissive sphere
+        const orbGeo = new THREE.OctahedronGeometry(0.1, 0);
+        const orbMat = new THREE.MeshStandardMaterial({
+          color: 0xaaddff,
+          emissive: 0x5599cc,
+          emissiveIntensity: 1.4,
+          flatShading: true,
+          metalness: 0.3,
+          roughness: 0.2,
+        });
+        const orb = new THREE.Mesh(orbGeo, orbMat);
+        orb.name = 'orb';
+        orb.position.set(0.5, 2.45, 0);
+        this.mesh.add(orb);
+        // Ice spike crown
+        const spikeGeo = new THREE.ConeGeometry(0.04, 0.2, 4);
+        const spikeMat = new THREE.MeshStandardMaterial({
+          color: 0xcceeff,
+          emissive: 0x3366aa,
+          emissiveIntensity: 0.6,
+          flatShading: true,
+          transparent: true,
+          opacity: 0.85,
+        });
+        for (let i = 0; i < 5; i++) {
+          const spike = new THREE.Mesh(spikeGeo, spikeMat);
+          spike.name = `iceSpike${i}`;
+          const angle = (i / 5) * Math.PI * 2;
+          spike.position.set(Math.cos(angle) * 0.15, 2.55, Math.sin(angle) * 0.15);
+          spike.rotation.z = Math.PI * 0.1;
+          this.mesh.add(spike);
+        }
+        break;
+      }
       case 'orc': {
         const tuskGeo = new THREE.ConeGeometry(0.03, 0.14, 4);
         const tuskMat = new THREE.MeshStandardMaterial({ color: 0xe8d2b0, flatShading: true });
@@ -1123,6 +1204,64 @@ function getPlaceholderAppearance(style: NPCPlaceholderStyle): {
         hatRadius: 0.18,
         hatHeight: 0.35,
         hatY: 2.78,
+      };
+    case 'pyromancer':
+      return {
+        bodyTopRadius: 0.3,
+        bodyBottomRadius: 0.34,
+        bodyHeight: 1.5,
+        bodyY: 1.53,
+        bodySegments: 10,
+        bodyColor: 0x7a2810,  // deep ember-red robe
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.3,
+        shoulderY: 2.08,
+        beltRadius: 0.31,
+        beltTube: 0.035,
+        beltY: 1.1,
+        beltColor: 0xcc4400,  // bright orange sash
+        headRadius: 0.24,
+        headY: 2.44,
+        headColor: 0xe8b890,
+        legWidth: 0.12,
+        legHeight: 0.68,
+        legDepth: 0.12,
+        legOffset: 0.11,
+        legY: 0.44,
+        legColor: 0x3c1408,
+        hatRadius: 0.17,
+        hatHeight: 0.4,
+        hatY: 2.86,
+        hatColor: 0x6a1a06,
+      };
+    case 'cryomancer':
+      return {
+        bodyTopRadius: 0.3,
+        bodyBottomRadius: 0.34,
+        bodyHeight: 1.5,
+        bodyY: 1.53,
+        bodySegments: 10,
+        bodyColor: 0x2a4a7a,  // deep ice-blue robe
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.3,
+        shoulderY: 2.08,
+        beltRadius: 0.31,
+        beltTube: 0.035,
+        beltY: 1.1,
+        beltColor: 0x66aadd,  // icy silver-blue sash
+        headRadius: 0.24,
+        headY: 2.44,
+        headColor: 0xe0ecf8,  // pale cool skin
+        legWidth: 0.12,
+        legHeight: 0.68,
+        legDepth: 0.12,
+        legOffset: 0.11,
+        legY: 0.44,
+        legColor: 0x1a2a44,
+        hatRadius: 0.17,
+        hatHeight: 0.4,
+        hatY: 2.86,
+        hatColor: 0x1a3a5a,
       };
   }
 }

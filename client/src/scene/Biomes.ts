@@ -234,6 +234,12 @@ export function registerBeachBlend(fn: (x: number, z: number) => number): void {
   _getBeachBlend = fn;
 }
 
+/** Smoothstep: eliminates linear transition terracing by using a cubic ease. */
+function smoothstep(edge0: number, edge1: number, x: number): number {
+  const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
+  return t * t * (3 - 2 * t);
+}
+
 export function getBiomeColor(x: number, z: number, y: number, t: number): THREE.Color {
   const weights = getBiomeWeights(x, z);
   _colorResult.setRGB(0, 0, 0);
@@ -243,12 +249,21 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     if (w < 0.001) continue;
 
     const p = BIOME_PALETTES[biome];
-    if (t < 0.3) {
-      _colorTemp.copy(p.low).lerp(p.mid, t / 0.3);
-    } else if (t < 0.55) {
-      _colorTemp.copy(p.mid).lerp(p.high, (t - 0.3) / 0.25);
-    } else if (t < 0.75) {
-      _colorTemp.copy(p.high).lerp(p.peak, (t - 0.55) / 0.2);
+
+    // 5-band smoothstep transitions instead of 4-band linear to eliminate terracing
+    if (t < 0.2) {
+      _colorTemp.copy(p.low).lerp(p.mid, smoothstep(0, 0.2, t));
+    } else if (t < 0.45) {
+      _colorTemp.copy(p.mid).lerp(p.high, smoothstep(0.2, 0.45, t));
+    } else if (t < 0.65) {
+      _colorTemp.copy(p.high).lerp(p.peak, smoothstep(0.45, 0.65, t));
+    } else if (t < 0.82) {
+      // Extra band: high-peak → pure peak for gentler alpine transition
+      _colorTemp.copy(p.peak).lerp(p.peak, smoothstep(0.65, 0.82, t));
+      // Slight brightness lift for snow/peak zones
+      _colorTemp.r = Math.min(1, _colorTemp.r + smoothstep(0.65, 0.82, t) * 0.06);
+      _colorTemp.g = Math.min(1, _colorTemp.g + smoothstep(0.65, 0.82, t) * 0.05);
+      _colorTemp.b = Math.min(1, _colorTemp.b + smoothstep(0.65, 0.82, t) * 0.07);
     } else {
       _colorTemp.copy(p.peak);
     }
@@ -277,6 +292,70 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
   }
 
   return _colorResult;
+}
+
+/**
+ * Returns a per-biome surface noise value [-1..1] at (x, z).
+ * Used by Terrain to add biome-specific color micro-variation (ember flecks,
+ * frost sparkle, bog patches, etc.) on top of the base biome color.
+ *
+ * Returns RGB offsets as a plain object to avoid extra Color allocations.
+ */
+export function getBiomeSurfaceNoise(
+  x: number,
+  z: number,
+  weights: BiomeWeights,
+): { r: number; g: number; b: number } {
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  // Teldrassil: subtle dark-mottled fungal patches (purple-green variation)
+  if (weights[BiomeType.Teldrassil] > 0.01) {
+    const w = weights[BiomeType.Teldrassil];
+    const spot = Math.sin(x * 0.9 + 1.3) * Math.cos(z * 1.1 - 0.7) * 0.03;
+    r += spot * -0.3 * w;
+    g += spot * 0.5 * w;
+    b += spot * 0.8 * w;
+  }
+
+  // Ember Wastes: bright orange-red ember flecks in low areas
+  if (weights[BiomeType.EmberWastes] > 0.01) {
+    const w = weights[BiomeType.EmberWastes];
+    const ember = Math.max(0, Math.sin(x * 2.3 + 0.5) * Math.cos(z * 1.9 - 1.2)) * 0.05;
+    r += ember * 1.0 * w;
+    g += ember * 0.25 * w;
+    b += ember * 0.0 * w;
+  }
+
+  // Crystal Tundra: icy sparkle — hash-like variation for less repetition
+  if (weights[BiomeType.CrystalTundra] > 0.01) {
+    const w = weights[BiomeType.CrystalTundra];
+    const crystal = (Math.sin(x * 5.7 + z * 4.3) + Math.cos(x * 3.9 - z * 6.1)) * 0.02;
+    r += crystal * 0.3 * w;
+    g += crystal * 0.5 * w;
+    b += crystal * 1.0 * w;
+  }
+
+  // Twilight Marsh: dark bog patches with slight green-purple cast
+  if (weights[BiomeType.TwilightMarsh] > 0.01) {
+    const w = weights[BiomeType.TwilightMarsh];
+    const bog = Math.sin(x * 0.7 + 2.1) * Math.sin(z * 0.8 - 0.9) * 0.04;
+    r += bog * 0.3 * w;
+    g += bog * 0.6 * w;
+    b += bog * 0.5 * w;
+  }
+
+  // Sunlit Meadows: warm golden flower-dot variation
+  if (weights[BiomeType.SunlitMeadows] > 0.01) {
+    const w = weights[BiomeType.SunlitMeadows];
+    const flower = Math.cos(x * 1.5 + 0.8) * Math.cos(z * 2.1 - 1.4) * 0.03;
+    r += flower * 0.9 * w;
+    g += flower * 0.7 * w;
+    b += flower * 0.1 * w;
+  }
+
+  return { r, g, b };
 }
 
 // ── Biome emissive glow ─────────────────────────────────────────────────────

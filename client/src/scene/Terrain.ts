@@ -5,6 +5,7 @@ import {
   biomeHeightModifier,
   getBiomeColor,
   getBiomeEmissive,
+  getBiomeSurfaceNoise,
   registerBeachBlend,
 } from './Biomes';
 
@@ -346,10 +347,10 @@ export class Terrain {
     const emissiveColors = new Float32Array(vertexCount * 3);
     const normals = geometry.attributes.normal as THREE.BufferAttribute;
 
-    // Rock color for steep faces (warm gray-brown)
-    const rockR = 0x52 / 255;
-    const rockG = 0x4a / 255;
-    const rockB = 0x42 / 255;
+    // Base rock color (warm gray-brown) — blended with biome-specific rock below
+    const rockBaseR = 0x52 / 255;
+    const rockBaseG = 0x4a / 255;
+    const rockBaseB = 0x42 / 255;
 
     for (let i = 0; i < vertexCount; i++) {
       const vx = positions.getX(i);
@@ -361,16 +362,36 @@ export class Terrain {
       const normalY = normals.getY(i);
       const steepness = THREE.MathUtils.clamp((0.7 - normalY) / 0.5, 0, 1);
 
-      // --- Base color (biome-blended) ---
+      // --- Base color (biome-blended, smoothstep bands) ---
       const color = getBiomeColor(vx, vz, vy, t);
       let r = color.r;
       let g = color.g;
       let b = color.b;
 
-      // Blend toward rock color on steep faces
+      // --- Biome-aware rock color (EmberWastes = dark red, Tundra = gray-blue, others = base) ---
+      const biomeWeights = getBiomeWeights(vx, vz);
+      const emberW = biomeWeights[BiomeType.EmberWastes];
+      const tundraW = biomeWeights[BiomeType.CrystalTundra];
+      const rockR = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseR, 0x3a / 255, emberW),
+        0x6a / 255,
+        tundraW,
+      );
+      const rockG = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseG, 0x1a / 255, emberW),
+        0x88 / 255,
+        tundraW,
+      );
+      const rockBCol = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseB, 0x08 / 255, emberW),
+        0x98 / 255,
+        tundraW,
+      );
+
+      // Blend toward biome rock color on steep faces
       r += (rockR - r) * steepness;
       g += (rockG - g) * steepness;
-      b += (rockB - b) * steepness;
+      b += (rockBCol - b) * steepness;
 
       // Fake AO: darken valleys up to 20%
       const ao = 1.0 - THREE.MathUtils.clamp((-vy - 2) / 8, 0, 0.20);
@@ -378,11 +399,23 @@ export class Terrain {
       g *= ao;
       b *= ao;
 
-      // Micro-noise: subtle color variation to break up flat areas
-      const noise = (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02;
-      r = THREE.MathUtils.clamp(r + noise, 0, 1);
-      g = THREE.MathUtils.clamp(g + noise * 0.8, 0, 1);
-      b = THREE.MathUtils.clamp(b + noise * 0.6, 0, 1);
+      // Dual-frequency micro-noise: two layers break the single-period tiling stripe
+      const noise =
+        (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02 +
+        (Math.sin(vx * 4.3 - vz * 3.7) + Math.cos(vx * 2.9 + vz * 5.1)) * 0.015;
+      // Medium-frequency layer: breaks up wide flat areas
+      const medNoise =
+        (Math.sin(vx * 0.23 + vz * 0.31) + Math.cos(vx * 0.37 - vz * 0.27)) * 0.025;
+
+      r = THREE.MathUtils.clamp(r + noise + medNoise, 0, 1);
+      g = THREE.MathUtils.clamp(g + noise * 0.8 + medNoise * 0.9, 0, 1);
+      b = THREE.MathUtils.clamp(b + noise * 0.6 + medNoise * 0.7, 0, 1);
+
+      // Biome surface noise: ember flecks, frost sparkle, bog patches, etc.
+      const surfNoise = getBiomeSurfaceNoise(vx, vz, biomeWeights);
+      r = THREE.MathUtils.clamp(r + surfNoise.r, 0, 1);
+      g = THREE.MathUtils.clamp(g + surfNoise.g, 0, 1);
+      b = THREE.MathUtils.clamp(b + surfNoise.b, 0, 1);
 
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;
