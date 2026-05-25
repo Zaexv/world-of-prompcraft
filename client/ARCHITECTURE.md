@@ -467,11 +467,12 @@ client/src/
 - Time: ~8 hours | Risk: Low
 - Status: Done — all tests pass, LoginForm extends UIComponent
 
-**Phase 3: NPC Refactoring** (Week 3)
-- Extract `NPCAppearance.ts` (mesh, skeleton, materials)
-- Extract `NPCFactory.ts` (creation, pooling)
-- Refactor NPC.ts (behavior, AI, dialogue)
-- Time: ~16 hours | Risk: Medium
+**Phase 3: NPC Refactoring** ✓ COMPLETE
+- ✓ Extract `NPCAppearance.ts` (mesh, skeleton, materials) — 11.8 KB, appearance data
+- ✓ Extract `NPCFactory.ts` (creation, pooling) — 1.8 KB, factory pattern
+- ✓ NPC.ts reduced from 1552 → 1100 LOC (29% reduction)
+- ✓ Behavior, AI, animation logic preserved in NPC.ts
+- Time: ~6 hours | Risk: Medium
 
 **Phase 4: WorldGenerator Refactoring** (Week 4-5)
 - Extract `BiomeManager.ts`, `ChunkManager.ts`, `VegetationSpawner.ts`
@@ -517,6 +518,7 @@ client/src/
 
 See `docs/client/architectural-refactoring-plan.md` for detailed phase breakdowns, execution checklists, and code examples.
 
-**Status**: Phase 1 & Phase 2 complete. Ready for Phase 3 (NPC refactoring)  
+**Status**: Phase 1, 2 & 3 complete. Ready for Phase 4 (WorldGenerator refactoring).
+
 **Last Updated**: May 2025  
-**Next Review**: After Phase 3
+**Next Review**: After Phase 4
