@@ -28,19 +28,21 @@ export abstract class UIComponent {
 
   /**
    * Initialize the UI component.
-   * @param parentId - ID of the parent DOM element to attach to
+   * @param parentId - ID of the parent DOM element to attach to (will be created if it doesn't exist)
    * @param componentName - Name of this component (used for CSS classes)
    */
   constructor(parentId: string, componentName: string = 'ui-component') {
-    const parent = document.getElementById(parentId);
+    this.componentName = componentName;
+
+    let parent = document.getElementById(parentId);
+    
+    // Create parent if it doesn't exist
     if (!parent) {
-      throw new Error(
-        `Parent element with ID "${parentId}" not found in DOM. ` +
-          `Make sure the parent element exists before creating ${componentName}.`
-      );
+      parent = document.createElement('div');
+      parent.id = parentId;
+      document.body.appendChild(parent);
     }
 
-    this.componentName = componentName;
     this.container = document.createElement('div');
     this.container.className = `ui-panel ${componentName}`;
     this.container.style.display = 'none'; // Hidden by default
