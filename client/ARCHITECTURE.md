@@ -460,11 +460,12 @@ client/src/
 - Created folder skeleton for new structure
 - All tests passing
 
-**Phase 2: LoginScreen Refactoring** (Next)
-- Extract `LoginForm.ts` from LoginScreen
-- Extract `ServerSelector.ts` from LoginScreen
-- Refactor LoginScreen.ts to delegate
+**Phase 2: LoginScreen Refactoring** ✓ COMPLETE
+- Extract `LoginForm.ts` from LoginScreen (370 LOC)
+- Extract `ServerSelector.ts` from LoginScreen (pending, not needed yet)
+- Refactor LoginScreen.ts to delegate (862 → 597 LOC, 30.8% reduction)
 - Time: ~8 hours | Risk: Low
+- Status: Done — all tests pass, LoginForm extends UIComponent
 
 **Phase 3: NPC Refactoring** (Week 3)
 - Extract `NPCAppearance.ts` (mesh, skeleton, materials)
@@ -516,6 +517,6 @@ client/src/
 
 See `docs/client/architectural-refactoring-plan.md` for detailed phase breakdowns, execution checklists, and code examples.
 
-**Status**: Phase 1 complete, ready for Phase 2  
+**Status**: Phase 1 & Phase 2 complete. Ready for Phase 3 (NPC refactoring)  
 **Last Updated**: May 2025  
-**Next Review**: After Phase 2
+**Next Review**: After Phase 3
