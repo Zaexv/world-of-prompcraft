@@ -7,6 +7,7 @@
  * Delegates character creation form UI to LoginForm component.
  */
 
+import { UIComponent } from './core/UIComponent';
 import { LoginForm, type CharacterCreationData } from './screens/LoginForm';
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -34,14 +35,12 @@ interface Lightning {
 
 // ── LoginScreen class ──────────────────────────────────────────────────────
 
-export class LoginScreen {
+export class LoginScreen extends UIComponent {
   onEnterWorld: ((username: string, race: string, faction: string, skin: string) => void) | null = null;
 
-  private overlay: HTMLDivElement;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
   private animationId: number = 0;
-  private running = false;
 
   // Animation state
   private time = 0;
@@ -52,8 +51,13 @@ export class LoginScreen {
   private loginForm!: LoginForm;
   private formContainer!: HTMLDivElement;
   private enterBtn!: HTMLButtonElement;
+  private readonly handleResize = (): void => {
+    this.resize();
+  };
 
   constructor() {
+    super('ui-root', 'login-screen');
+
     // -- Load Cinzel font ---------------------------------------------------
     if (!document.querySelector('link[href*="Cinzel"]')) {
       const link = document.createElement('link');
@@ -63,9 +67,13 @@ export class LoginScreen {
       document.head.appendChild(link);
     }
 
-    // -- Overlay container --------------------------------------------------
-    this.overlay = document.createElement('div');
-    Object.assign(this.overlay.style, {
+    // -- Seed embers --------------------------------------------------------
+    this.seedEmbers(80);
+  }
+
+  render(): void {
+    // -- Style container as full-screen overlay ----
+    Object.assign(this.container.style, {
       position: 'fixed',
       top: '0',
       left: '0',
@@ -90,7 +98,7 @@ export class LoginScreen {
       width: '100%',
       height: '100%',
     } as CSSStyleDeclaration);
-    this.overlay.appendChild(this.canvas);
+    this.container.appendChild(this.canvas);
     this.ctx = this.canvas.getContext('2d')!;
 
     // -- Title --------------------------------------------------------------
@@ -110,7 +118,7 @@ export class LoginScreen {
       userSelect: 'none',
       textAlign: 'center',
     } as CSSStyleDeclaration);
-    this.overlay.appendChild(title);
+    this.container.appendChild(title);
 
     // -- Form Container ----
     this.formContainer = document.createElement('div');
@@ -121,7 +129,7 @@ export class LoginScreen {
       maxWidth: '500px',
       padding: '2em',
     } as CSSStyleDeclaration);
-    this.overlay.appendChild(this.formContainer);
+    this.container.appendChild(this.formContainer);
 
     // Create LoginForm in the container
     this.createLoginForm();
@@ -167,7 +175,7 @@ export class LoginScreen {
     this.enterBtn.addEventListener('click', () => {
       this.handleEnterWorld();
     });
-    this.overlay.appendChild(this.enterBtn);
+    this.container.appendChild(this.enterBtn);
 
     // -- Version text -------------------------------------------------------
     const version = document.createElement('div');
@@ -182,10 +190,7 @@ export class LoginScreen {
       color: '#555',
       userSelect: 'none',
     } as CSSStyleDeclaration);
-    this.overlay.appendChild(version);
-
-    // -- Seed embers --------------------------------------------------------
-    this.seedEmbers(80);
+    this.container.appendChild(version);
   }
 
   // ── Character Creation Form ────────────────────────────────────────────
@@ -225,32 +230,27 @@ export class LoginScreen {
     }
   }
 
-  show(): void {
-    document.body.appendChild(this.overlay);
+  // ── Lifecycle hooks ────────────────────────────────────────────────────
+
+  protected onShow(): void {
     this.resize();
     window.addEventListener('resize', this.handleResize);
-    this.running = true;
     this.tick(0);
   }
 
-  hide(): void {
-    this.overlay.style.opacity = '0';
-    this.running = false;
+  protected onHide(): void {
+    this.container.style.opacity = '0';
     cancelAnimationFrame(this.animationId);
     window.removeEventListener('resize', this.handleResize);
     setTimeout(() => {
       // Only remove if still in the DOM and still hidden
-      if (this.overlay.parentNode && this.overlay.style.opacity === '0') {
-        this.overlay.remove();
+      if (this.container.parentNode && this.container.style.opacity === '0') {
+        this.container.remove();
       }
     }, 800);
   }
 
   // ── Internals ───────────────────────────────────────────────────────────
-
-  private handleResize = (): void => {
-    this.resize();
-  };
 
   private resize(): void {
     const dpr = window.devicePixelRatio || 1;
@@ -554,7 +554,7 @@ export class LoginScreen {
   // ── Animation loop ──────────────────────────────────────────────────────
 
   private tick = (_timestamp: number): void => {
-    if (!this.running) return;
+    if (!this.isVisible) return;
 
     const dt = 1 / 60; // constant dt — looks consistent regardless of frame rate jitter
     this.time += dt;

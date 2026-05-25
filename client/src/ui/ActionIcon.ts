@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { UIComponent } from './core/UIComponent';
 
 /**
  * Floating action icon above an NPC — shows what the NPC is currently doing.
@@ -42,12 +43,12 @@ const ICON_MAP: Record<string, string> = {
   move_npc: '🚶',
 };
 
-export class ActionIcon {
+export class ActionIcon extends UIComponent {
   readonly sprite: THREE.Sprite;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private texture: THREE.CanvasTexture;
-  private material: THREE.SpriteMaterial;
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
+  private texture!: THREE.CanvasTexture;
+  private material!: THREE.SpriteMaterial;
 
   private fadeTimer = 0;
   private fadeDuration = 3.0;
@@ -55,6 +56,15 @@ export class ActionIcon {
   private pulsePhase = 0;
 
   constructor() {
+    super('ui-root', 'action-icon');
+
+    this.sprite = new THREE.Sprite();
+    this.sprite.scale.set(1.2, 1.2, 1);
+    this.sprite.position.y = 4.2; // Above the nameplate
+    this.sprite.renderOrder = 1000;
+  }
+
+  render(): void {
     this.canvas = document.createElement('canvas');
     this.canvas.width = 128;
     this.canvas.height = 128;
@@ -70,18 +80,15 @@ export class ActionIcon {
       opacity: 0,
     });
 
-    this.sprite = new THREE.Sprite(this.material);
-    this.sprite.scale.set(1.2, 1.2, 1);
-    this.sprite.position.y = 4.2; // Above the nameplate
-    this.sprite.renderOrder = 1000;
+    this.sprite.material = this.material;
   }
 
   /**
-   * Show an action icon above the NPC.
+   * Display an action icon above the NPC.
    * @param actionKind - the action kind (e.g. "damage", "heal", "emote") or specific emote name
    * @param duration - how long to show (default 3s)
    */
-  show(actionKind: string, duration = 3.0): void {
+  displayAction(actionKind: string, duration = 3.0): void {
     const icon = ICON_MAP[actionKind] ?? '❓';
     this.renderIcon(icon);
     this.fadeDuration = duration;
@@ -92,7 +99,7 @@ export class ActionIcon {
   }
 
   /** Hide immediately. */
-  hide(): void {
+  clearAction(): void {
     this.isActive = false;
     this.material.opacity = 0;
   }
@@ -129,6 +136,18 @@ export class ActionIcon {
 
   get active(): boolean {
     return this.isActive;
+  }
+
+  protected onDispose(): void {
+    if (this.texture) {
+      this.texture.dispose();
+    }
+    if (this.material) {
+      this.material.dispose();
+    }
+    if (this.canvas) {
+      this.canvas.remove();
+    }
   }
 
   private renderIcon(emoji: string): void {

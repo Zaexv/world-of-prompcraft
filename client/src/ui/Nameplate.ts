@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { UIComponent } from "./core/UIComponent";
 
 /**
  * Beautiful WoW-style floating nameplate for NPCs.
@@ -6,11 +7,11 @@ import * as THREE from "three";
  * purple/gold border glow, decorative flourishes, and a health bar.
  * The sprite auto-billboards to always face the camera.
  */
-export class Nameplate {
+export class Nameplate extends UIComponent {
   readonly sprite: THREE.Sprite;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private texture: THREE.CanvasTexture;
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
+  private texture!: THREE.CanvasTexture;
   private _name: string;
   private currentHp: number;
   private maxHp: number;
@@ -18,12 +19,23 @@ export class Nameplate {
   private _relationshipScore = 0;
   private readonly canvasW = 512;
   private readonly canvasH = 160;
+  private material!: THREE.SpriteMaterial;
 
   constructor(name: string, maxHp = 100) {
+    super('ui-root', `nameplate-${name}`);
+    
     this._name = name;
     this.currentHp = maxHp;
     this.maxHp = maxHp;
 
+    // Create sprite (will be added to scene by owner)
+    this.sprite = new THREE.Sprite();
+    this.sprite.scale.set(3, 0.94, 1);
+    this.sprite.position.set(0, 3.2, 0);
+    this.sprite.renderOrder = 999;
+  }
+
+  render(): void {
     this.canvas = document.createElement("canvas");
     this.canvas.width = this.canvasW;
     this.canvas.height = this.canvasH;
@@ -33,17 +45,13 @@ export class Nameplate {
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
 
-    const material = new THREE.SpriteMaterial({
+    this.material = new THREE.SpriteMaterial({
       map: this.texture,
       transparent: true,
       depthTest: false,
     });
 
-    this.sprite = new THREE.Sprite(material);
-    this.sprite.scale.set(3, 0.94, 1);
-    this.sprite.position.set(0, 3.2, 0);
-    this.sprite.renderOrder = 999;
-
+    this.sprite.material = this.material;
     this.draw();
   }
 
@@ -62,6 +70,18 @@ export class Nameplate {
     this._mood = mood;
     this._relationshipScore = relationshipScore;
     this.draw();
+  }
+
+  protected onDispose(): void {
+    if (this.texture) {
+      this.texture.dispose();
+    }
+    if (this.material) {
+      this.material.dispose();
+    }
+    if (this.canvas) {
+      this.canvas.remove();
+    }
   }
 
   // ── Internal drawing ────────────────────────────────────────────────

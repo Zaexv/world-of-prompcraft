@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { UIComponent } from './core/UIComponent';
 
 export type BubbleStyle = 'player' | 'npc' | 'system';
 
@@ -104,17 +105,20 @@ const BUBBLE_CSS = `
 }
 `;
 
-export class ChatBubbleSystem {
+export class ChatBubbleSystem extends UIComponent {
   private readonly camera: THREE.PerspectiveCamera;
-  private readonly container: HTMLElement;
-  private readonly bubbleContainer: HTMLDivElement;
+  private readonly externalContainer: HTMLElement;
+  private bubbleContainer!: HTMLDivElement;
   private readonly bubbles: BubbleEntry[] = [];
   private readonly projVec: THREE.Vector3 = new THREE.Vector3();
   private lastTime: number = 0;
 
   constructor(camera: THREE.PerspectiveCamera, container: HTMLElement) {
+    super('ui-root', 'chat-bubble-system');
+    
     this.camera = camera;
-    this.container = container;
+    this.externalContainer = container;
+    this.lastTime = performance.now();
 
     // Inject CSS once
     if (!document.getElementById('cb-styles')) {
@@ -123,13 +127,13 @@ export class ChatBubbleSystem {
       style.textContent = BUBBLE_CSS;
       document.head.appendChild(style);
     }
+  }
 
-    // Create overlay container
+  render(): void {
+    // Create overlay container for bubbles
     this.bubbleContainer = document.createElement('div');
     this.bubbleContainer.classList.add('cb-container');
-    this.container.appendChild(this.bubbleContainer);
-
-    this.lastTime = performance.now();
+    this.externalContainer.appendChild(this.bubbleContainer);
   }
 
   spawn(text: string, worldPos: THREE.Vector3, opts?: BubbleOptions): void {
@@ -181,8 +185,8 @@ export class ChatBubbleSystem {
     const dt = (now - this.lastTime) / 1000;
     this.lastTime = now;
 
-    const width = this.container.clientWidth;
-    const height = this.container.clientHeight;
+    const width = this.externalContainer.clientWidth;
+    const height = this.externalContainer.clientHeight;
 
     for (let i = this.bubbles.length - 1; i >= 0; i--) {
       const b = this.bubbles[i];
@@ -233,6 +237,13 @@ export class ChatBubbleSystem {
   clear(): void {
     for (let i = this.bubbles.length - 1; i >= 0; i--) {
       this.removeBubble(i);
+    }
+  }
+
+  protected onDispose(): void {
+    this.clear();
+    if (this.bubbleContainer && this.bubbleContainer.parentNode) {
+      this.bubbleContainer.remove();
     }
   }
 

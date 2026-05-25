@@ -193,12 +193,12 @@ export class NPC {
   playEmote(emote: string): void {
     const mapped = emote === 'attack' ? 'attack' : 'emote';
     this.animator.play(mapped);
-    this.actionIcon.show(emote, 2.5);
+    this.actionIcon.displayAction(emote, 2.5);
   }
 
   /** Show an action icon above this NPC (e.g. when performing a tool action). */
   showAction(actionKind: string, duration = 3.0): void {
-    this.actionIcon.show(actionKind, duration);
+    this.actionIcon.displayAction(actionKind, duration);
   }
 
   /** Dispose all GPU resources (geometries, materials, textures). */

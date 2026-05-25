@@ -1,22 +1,29 @@
+import { UIComponent } from './core/UIComponent';
+
 /**
  * Full-screen visual feedback when the player uses a consumable item.
  * Each effect is a short CSS animation overlay that auto-cleans up.
  */
-export class ItemUseEffect {
-  private container: HTMLElement;
+export class ItemUseEffect extends UIComponent {
+  private externalContainer: HTMLElement;
   private styleInjected = false;
 
   constructor(container: HTMLElement) {
-    this.container = container;
+    super('ui-root', 'item-use-effect');
+    this.externalContainer = container;
     this.injectStyles();
   }
 
+  render(): void {
+    // Minimal rendering; effects are created dynamically via trigger()
+  }
+
   /**
-   * Show a potion / buff use effect.
+   * Trigger a potion / buff use effect.
    * @param itemName  Name of the item (displayed as rising text)
    * @param effectType  Visual theme: 'heal' (green), 'mana' (blue), 'buff' (gold)
    */
-  show(itemName: string, effectType: "heal" | "mana" | "buff"): void {
+  trigger(itemName: string, effectType: "heal" | "mana" | "buff"): void {
     const colors = {
       heal: { glow: "#33ff66", tint: "rgba(30,120,50,0.18)", border: "#44cc44", text: "+HP" },
       mana: { glow: "#4488ff", tint: "rgba(30,50,140,0.18)", border: "#4488ff", text: "+MP" },
@@ -36,7 +43,7 @@ export class ItemUseEffect {
       animation: "item-use-border 1.5s ease-out forwards",
       willChange: "opacity",
     } as CSSStyleDeclaration);
-    this.container.appendChild(borderOverlay);
+    this.externalContainer.appendChild(borderOverlay);
 
     // ── Tint overlay ────────────────────────────────────────────────────────
     const tintOverlay = document.createElement("div");
@@ -49,7 +56,7 @@ export class ItemUseEffect {
       animation: "item-use-tint 1.5s ease-out forwards",
       willChange: "opacity",
     } as CSSStyleDeclaration);
-    this.container.appendChild(tintOverlay);
+    this.externalContainer.appendChild(tintOverlay);
 
     // ── Rising text ─────────────────────────────────────────────────────────
     const textEl = document.createElement("div");
@@ -70,7 +77,7 @@ export class ItemUseEffect {
       willChange: "transform, opacity",
     } as CSSStyleDeclaration);
     textEl.textContent = itemName;
-    this.container.appendChild(textEl);
+    this.externalContainer.appendChild(textEl);
 
     // ── Particle ring (pseudo particles via multiple small divs) ────────────
     const particleCount = 12;
@@ -99,7 +106,7 @@ export class ItemUseEffect {
         willChange: "transform, opacity",
       } as CSSStyleDeclaration);
 
-      this.container.appendChild(p);
+      this.externalContainer.appendChild(p);
       particles.push(p);
     }
 

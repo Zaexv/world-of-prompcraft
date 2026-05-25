@@ -141,7 +141,7 @@ export class UIManager {
   }
 
   showItemUseEffect(itemName: string, effectType: "heal" | "mana" | "buff"): void {
-    this.itemUseEffect.show(itemName, effectType);
+    this.itemUseEffect.trigger(itemName, effectType);
   }
 
   /** Add an entry to the always-visible combat log. */

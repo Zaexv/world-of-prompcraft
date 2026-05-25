@@ -1,16 +1,22 @@
 import * as THREE from "three";
+import { UIComponent } from './core/UIComponent';
 
 /**
  * Screen-space floating damage / healing numbers.
  * Uses CSS animations for smooth movement — auto-removed from DOM on completion.
  */
-export class DamagePopup {
-  private container: HTMLElement;
+export class DamagePopup extends UIComponent {
+  private externalContainer: HTMLElement;
   private styleInjected = false;
 
   constructor(container: HTMLElement) {
-    this.container = container;
+    super('ui-root', 'damage-popup');
+    this.externalContainer = container;
     this.injectStyles();
+  }
+
+  render(): void {
+    // Minimal rendering; popups are created dynamically via spawn()
   }
 
   /**
@@ -56,7 +62,7 @@ export class DamagePopup {
     } as CSSStyleDeclaration);
 
     el.textContent = displayText;
-    this.container.appendChild(el);
+    this.externalContainer.appendChild(el);
 
     // Remove from DOM after animation completes
     el.addEventListener("animationend", () => {
@@ -91,6 +97,10 @@ export class DamagePopup {
     if (x < -50 || x > width + 50 || y < -50 || y > height + 50) return null;
 
     return { x, y };
+  }
+
+  protected onDispose(): void {
+    // Cleanup handled by individual popups
   }
 
   // ── Internal ────────────────────────────────────────────────────────────────
