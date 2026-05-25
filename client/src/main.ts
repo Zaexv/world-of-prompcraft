@@ -449,7 +449,7 @@ async function initGame(username: string, race: string, faction: string, skin: s
   reactionSystem.setWorldBuilder(worldBuilder);
   reactionSystem.setTerrain(terrain);
 
-  const worldBuilderPanel = new WorldBuilderPanel(app, (prompt: string) => {
+  const worldBuilderPanel = new WorldBuilderPanel((prompt: string) => {
     if (!joinedServer) {
       worldBuilderPanel.setResponse('Connect to the server first.');
       worldBuilderPanel.setReady();

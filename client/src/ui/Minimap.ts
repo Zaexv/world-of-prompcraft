@@ -1,7 +1,9 @@
+import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
 
 /**
  * Canvas-based minimap overlay toggled with M key.
+ * Extends UIComponent for consistent lifecycle management.
  *
  * Shows:
  *  - Biome-colored terrain
@@ -10,11 +12,9 @@ import { BiomeType, getDominantBiome } from '../scene/Biomes';
  *  - Cave markers (diamond icon)
  *  - NPC dots
  */
-export class Minimap {
-  readonly element: HTMLDivElement;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private _visible = false;
+export class Minimap extends UIComponent {
+  private canvas!: HTMLCanvasElement;
+  private ctx!: CanvasRenderingContext2D;
 
   // World markers
   private towns: { x: number; z: number }[] = [];
@@ -30,13 +30,16 @@ export class Minimap {
   private lastDrawAngle = NaN;
   private frameSkip = 0;
 
-  get isVisible(): boolean {
-    return this._visible;
+  constructor() {
+    super('ui-root', 'minimap');
   }
 
-  constructor() {
-    this.element = document.createElement('div');
-    Object.assign(this.element.style, {
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: 'absolute',
       top: '16px',
       right: '16px',
@@ -64,7 +67,7 @@ export class Minimap {
       borderBottom: '1px solid rgba(170, 68, 255, 0.3)',
     } as Partial<CSSStyleDeclaration>);
     title.textContent = 'WORLD MAP [M]';
-    this.element.appendChild(title);
+    this.container.appendChild(title);
 
     this.canvas = document.createElement('canvas');
     this.canvas.width = this.SIZE;
@@ -74,24 +77,9 @@ export class Minimap {
       margin: '2px auto 0',
       borderRadius: '4px',
     } as Partial<CSSStyleDeclaration>);
-    this.element.appendChild(this.canvas);
+    this.container.appendChild(this.canvas);
 
     this.ctx = this.canvas.getContext('2d')!;
-  }
-
-  toggle(): void {
-    this._visible = !this._visible;
-    this.element.style.display = this._visible ? 'block' : 'none';
-  }
-
-  show(): void {
-    this._visible = true;
-    this.element.style.display = 'block';
-  }
-
-  hide(): void {
-    this._visible = false;
-    this.element.style.display = 'none';
   }
 
   addTown(x: number, z: number): void {
@@ -109,7 +97,7 @@ export class Minimap {
    * @param playerAngle Camera yaw in radians (0 = +Z)
    */
   update(playerX: number, playerZ: number, playerAngle: number): void {
-    if (!this._visible) return;
+    if (!this.isVisible) return;
 
     // Throttle: only redraw every 3 frames or when player moves > 2 units
     this.frameSkip++;
@@ -252,6 +240,10 @@ export class Minimap {
     ctx.font = '8px monospace';
     ctx.textAlign = 'left';
     ctx.fillText(`${Math.round(playerX)}, ${Math.round(playerZ)}`, 4, S - 3);
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 }
 

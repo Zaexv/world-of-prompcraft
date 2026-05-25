@@ -1,3 +1,4 @@
+import { UIComponent } from "./core/UIComponent";
 import type { PlayerState } from "../state/PlayerState";
 import type { ActiveQuest } from "../state/QuestDefinitions";
 import { QUEST_DEFINITIONS } from "../state/QuestDefinitions";
@@ -5,17 +6,22 @@ import { QUEST_DEFINITIONS } from "../state/QuestDefinitions";
 /**
  * WoW-style quest log overlay panel — toggled with L key.
  * Displays active and completed quests with objective tracking.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class QuestLog {
-  readonly element: HTMLDivElement;
-
-  private contentContainer: HTMLDivElement;
+export class QuestLog extends UIComponent {
+  private contentContainer!: HTMLDivElement;
   private escHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor() {
-    // ── Root overlay ────────────────────────────────────────────────────
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'quest-log');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "fixed",
       top: "50%",
       left: "50%",
@@ -92,17 +98,16 @@ export class QuestLog {
       this.hide();
     });
     header.appendChild(closeBtn);
-    this.element.appendChild(header);
+    this.container.appendChild(header);
 
     // ── Content container (re-rendered on update) ───────────────────────
     this.contentContainer = document.createElement("div");
-    this.element.appendChild(this.contentContainer);
+    this.container.appendChild(this.contentContainer);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  show(): void {
-    this.element.style.display = "block";
+  protected override onShow(): void {
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         this.hide();
@@ -111,20 +116,15 @@ export class QuestLog {
     window.addEventListener("keydown", this.escHandler);
   }
 
-  hide(): void {
-    this.element.style.display = "none";
+  protected override onHide(): void {
     if (this.escHandler) {
       window.removeEventListener("keydown", this.escHandler);
       this.escHandler = null;
     }
   }
 
-  toggle(): void {
-    if (this.element.style.display === "none") {
-      this.show();
-    } else {
-      this.hide();
-    }
+  get element(): HTMLElement {
+    return this.container;
   }
 
   /** Re-render quest content from current player state. */

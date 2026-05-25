@@ -125,10 +125,10 @@ export class ZoneDisplay {
   }
 
   /**
-   * Show a zone transition banner.  Auto-fades after ~4.5 seconds total.
+   * Display a zone transition banner.  Auto-fades after ~4.5 seconds total.
    * Cancels any previous animation if still in progress.
    */
-  show(zoneName: string, description: string): void {
+  displayZone(zoneName: string, description: string): void {
     // Cancel previous animation
     if (this.fadeOutTimer !== null) {
       clearTimeout(this.fadeOutTimer);

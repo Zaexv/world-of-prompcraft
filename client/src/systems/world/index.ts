@@ -12,3 +12,5 @@ export {
   generateNPCId,
   type NPCSpawnConfig,
 } from './NPCSpawner';
+export { BiomeManager, TreeShape, type BiomeMaterials as BiomeManagerMaterials, type BiomeSettings } from './BiomeManager';
+export { TerrainGenerator } from './TerrainGenerator';

@@ -1,19 +1,26 @@
+import { UIComponent } from "./core/UIComponent";
 import type { PlayerState } from "../state/PlayerState";
 
 /**
  * Compact always-visible quest tracker widget on the right side of the screen.
  * Shows up to 3 active quests with their incomplete objectives.
  * Hidden entirely when no quests are active.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class QuestTracker {
-  readonly element: HTMLDivElement;
-
+export class QuestTracker extends UIComponent {
   /** Fires when the user clicks a quest name — caller should open the quest log. */
   onOpenQuestLog?: () => void;
 
   constructor() {
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'quest-tracker');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "fixed",
       top: "200px",
       right: "16px",
@@ -35,12 +42,12 @@ export class QuestTracker {
     const quests = playerState.activeQuests;
 
     if (quests.length === 0) {
-      this.element.style.display = "none";
+      this.container.style.display = "none";
       return;
     }
 
-    this.element.style.display = "block";
-    this.element.innerHTML = "";
+    this.container.style.display = "block";
+    this.container.innerHTML = "";
 
     const displayed = quests.slice(0, 3);
 
@@ -60,7 +67,7 @@ export class QuestTracker {
       nameEl.addEventListener("click", () => {
         this.onOpenQuestLog?.();
       });
-      this.element.appendChild(nameEl);
+      this.container.appendChild(nameEl);
 
       // Incomplete objectives only
       const incomplete = quest.objectives.filter((o) => !o.completed);
@@ -74,7 +81,7 @@ export class QuestTracker {
           lineHeight: "1.3",
         } as CSSStyleDeclaration);
         objEl.textContent = `\u25CB ${obj.description}`;
-        this.element.appendChild(objEl);
+        this.container.appendChild(objEl);
       }
 
       // Separator between quests (not after the last one)
@@ -85,8 +92,12 @@ export class QuestTracker {
           marginTop: "8px",
           marginBottom: "8px",
         } as CSSStyleDeclaration);
-        this.element.appendChild(separator);
+        this.container.appendChild(separator);
       }
     }
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 }

@@ -1,24 +1,31 @@
+import { UIComponent } from "./core/UIComponent";
 import type { PlayerState } from "../state/PlayerState";
 
 /**
  * HP / Mana / Level / Inventory status bars — WoW-style, fixed top-left.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class StatusBars {
-  readonly element: HTMLDivElement;
-
-  private hpFill: HTMLDivElement;
-  private hpText: HTMLSpanElement;
-  private manaFill: HTMLDivElement;
-  private manaText: HTMLSpanElement;
-  private levelBadge: HTMLDivElement;
-  private inventoryCount: HTMLSpanElement;
-  private weaponSlot: HTMLSpanElement;
-  private shieldSlot: HTMLSpanElement;
-  private trinketSlot: HTMLSpanElement;
+export class StatusBars extends UIComponent {
+  private hpFill!: HTMLDivElement;
+  private hpText!: HTMLSpanElement;
+  private manaFill!: HTMLDivElement;
+  private manaText!: HTMLSpanElement;
+  private levelBadge!: HTMLDivElement;
+  private inventoryCount!: HTMLSpanElement;
+  private weaponSlot!: HTMLSpanElement;
+  private shieldSlot!: HTMLSpanElement;
+  private trinketSlot!: HTMLSpanElement;
 
   constructor() {
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'status-bars');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "absolute",
       top: "16px",
       left: "16px",
@@ -86,7 +93,7 @@ export class StatusBars {
     barsCol.appendChild(manaBar);
 
     topRow.appendChild(barsCol);
-    this.element.appendChild(topRow);
+    this.container.appendChild(topRow);
 
     // ── Inventory count ──────────────────────────────────────────────────
     const invRow = document.createElement("div");
@@ -94,7 +101,7 @@ export class StatusBars {
       display: "flex",
       alignItems: "center",
       gap: "6px",
-      paddingLeft: "46px", // align with bars
+      paddingLeft: "46px",
       color: "#c5a55a",
       fontSize: "12px",
     } as CSSStyleDeclaration);
@@ -109,7 +116,7 @@ export class StatusBars {
     this.inventoryCount.textContent = "0 items";
     invRow.appendChild(this.inventoryCount);
 
-    this.element.appendChild(invRow);
+    this.container.appendChild(invRow);
 
     // ── Equipment slots row ─────────────────────────────────────────────
     const equipRow = document.createElement("div");
@@ -120,14 +127,14 @@ export class StatusBars {
       flexWrap: "wrap",
     } as CSSStyleDeclaration);
 
-    this.weaponSlot = this.createEquipSlot("\u2694\uFE0F", "Weapon"); // sword emoji
+    this.weaponSlot = this.createEquipSlot("\u2694\uFE0F", "Weapon");
     this.shieldSlot = this.createEquipSlot("\uD83D\uDEE1\uFE0F", "Shield");
-    this.trinketSlot = this.createEquipSlot("\uD83D\uDC8D", "Trinket"); // ring emoji
+    this.trinketSlot = this.createEquipSlot("\uD83D\uDC8D", "Trinket");
 
     equipRow.appendChild(this.weaponSlot);
     equipRow.appendChild(this.shieldSlot);
     equipRow.appendChild(this.trinketSlot);
-    this.element.appendChild(equipRow);
+    this.container.appendChild(equipRow);
   }
 
   update(state: PlayerState): void {
@@ -152,6 +159,10 @@ export class StatusBars {
     this.updateEquipSlot(this.weaponSlot, "\u2694\uFE0F", state.equipped.weapon);
     this.updateEquipSlot(this.shieldSlot, "\uD83D\uDEE1\uFE0F", state.equipped.shield);
     this.updateEquipSlot(this.trinketSlot, "\uD83D\uDC8D", state.equipped.trinket);
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 
   // ── Helpers ────────────────────────────────────────────────────────────────

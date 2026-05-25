@@ -1,47 +1,46 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * World Builder Panel — allows the player to type natural language commands
  * to modify the game world via the WorldBuilder agent.
+ * Extends UIComponent for consistent lifecycle management.
  *
  * Toggle with B key or the floating button.
  */
-export class WorldBuilderPanel {
-  private panel: HTMLElement;
-  private input: HTMLTextAreaElement;
-  private responseEl: HTMLElement;
-  private sendBtn: HTMLButtonElement;
-  private isOpen = false;
-  private onSubmit: (prompt: string) => void;
+export class WorldBuilderPanel extends UIComponent {
+  private input!: HTMLTextAreaElement;
+  private responseEl!: HTMLElement;
+  private sendBtn!: HTMLButtonElement;
 
-  constructor(container: HTMLElement, onSubmit: (prompt: string) => void) {
-    void container; // retained for potential future use (e.g. parent-relative positioning)
+  onSubmit: (prompt: string) => void;
+
+  constructor(onSubmit: (prompt: string) => void) {
+    super('ui-root', 'world-builder-panel');
     this.onSubmit = onSubmit;
-    this.panel = this.buildPanel();
-    this.input = this.panel.querySelector('textarea')!;
-    this.responseEl = this.panel.querySelector('.wb-response')!;
-    this.sendBtn = this.panel.querySelector('.wb-send')!;
-    container.appendChild(this.panel);
-    this.hide();
   }
 
-  private buildPanel(): HTMLElement {
-    const panel = document.createElement('div');
-    panel.style.cssText = `
-      position: absolute;
-      bottom: 90px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 480px;
-      background: rgba(8, 6, 20, 0.92);
-      border: 1px solid rgba(136, 68, 255, 0.5);
-      border-radius: 10px;
-      padding: 16px;
-      box-shadow: 0 4px 32px rgba(100, 40, 220, 0.3), 0 0 12px rgba(136, 68, 255, 0.15);
-      backdrop-filter: blur(8px);
-      font-family: system-ui, sans-serif;
-      z-index: 1200;
-    `;
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
+      position: "absolute",
+      bottom: "90px",
+      left: "50%",
+      transform: "translateX(-50%)",
+      width: "480px",
+      background: "rgba(8, 6, 20, 0.92)",
+      border: "1px solid rgba(136, 68, 255, 0.5)",
+      borderRadius: "10px",
+      padding: "16px",
+      boxShadow: "0 4px 32px rgba(100, 40, 220, 0.3), 0 0 12px rgba(136, 68, 255, 0.15)",
+      backdropFilter: "blur(8px)",
+      fontFamily: "system-ui, sans-serif",
+      zIndex: "1200",
+    } as CSSStyleDeclaration);
 
-    panel.innerHTML = `
+    this.container.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
         <div style="width:10px; height:10px; border-radius:50%; background:#8844ff; box-shadow:0 0 6px #8844ff;"></div>
         <span style="color:#c8b4ff; font-size:13px; font-weight:600; letter-spacing:0.5px;">WORLD SPIRIT</span>
@@ -95,15 +94,16 @@ export class WorldBuilderPanel {
       <div style="color:#554477; font-size:10px; margin-top:6px; text-align:center;">Press B to toggle · Enter to send · Shift+Enter for new line</div>
     `;
 
-    const closeBtn = panel.querySelector('.wb-close') as HTMLButtonElement;
+    this.input = this.container.querySelector('textarea')!;
+    this.responseEl = this.container.querySelector('.wb-response')!;
+    this.sendBtn = this.container.querySelector('.wb-send')!;
+
+    const closeBtn = this.container.querySelector('.wb-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hide());
 
-    const textarea = panel.querySelector('textarea') as HTMLTextAreaElement;
-    const sendBtn = panel.querySelector('.wb-send') as HTMLButtonElement;
+    this.sendBtn.addEventListener('click', () => this.submit());
 
-    sendBtn.addEventListener('click', () => this.submit());
-
-    textarea.addEventListener('keydown', (e) => {
+    this.input.addEventListener('keydown', (e) => {
       e.stopPropagation();
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -111,10 +111,8 @@ export class WorldBuilderPanel {
       }
     });
 
-    textarea.addEventListener('keyup', (e) => e.stopPropagation());
-    textarea.addEventListener('keypress', (e) => e.stopPropagation());
-
-    return panel;
+    this.input.addEventListener('keyup', (e) => e.stopPropagation());
+    this.input.addEventListener('keypress', (e) => e.stopPropagation());
   }
 
   private submit(): void {
@@ -135,22 +133,11 @@ export class WorldBuilderPanel {
     this.sendBtn.disabled = false;
   }
 
-  toggle(): void {
-    if (this.isOpen) this.hide(); else this.show();
-  }
-
-  show(): void {
-    this.panel.style.display = 'block';
-    this.isOpen = true;
+  protected override onShow(): void {
     setTimeout(() => this.input.focus(), 50);
   }
 
-  hide(): void {
-    this.panel.style.display = 'none';
-    this.isOpen = false;
-  }
-
   get visible(): boolean {
-    return this.isOpen;
+    return this.isVisible;
   }
 }
