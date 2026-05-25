@@ -129,7 +129,7 @@ const NPC_PLACEHOLDER_STYLE_RULES: NPCPlaceholderStyleRule[] = [
   { keywords: ['elf', 'elven', 'moonkin', 'nightsong', 'dryad'], style: 'healer' },
   { keywords: ['pyromancer', 'fire', 'ember', 'flame', 'burn'], style: 'pyromancer' },
   { keywords: ['cryomancer', 'frost', 'ice', 'winter', 'glacier'], style: 'cryomancer' },
-  { keywords: ['sage', 'druid', 'seer', 'scholar'], style: 'sage' },
+  { keywords: ['sage', 'druid', 'seer', 'scholar', 'witch', 'shaman', 'mystic', 'oracle'], style: 'sage' },
   { keywords: ['mage', 'wizard', 'archmage'], style: 'mage' },
 ];
 
@@ -157,9 +157,11 @@ function getPlaceholderStyleFromId(id: string): NPCPlaceholderStyle | null {
     case 'sage_01':
       return 'sage';
     case 'mage_01':
-    case 'mage_02':
-    case 'mage_03':
       return 'mage';
+    case 'mage_02':
+      return 'pyromancer';
+    case 'mage_03':
+      return 'cryomancer';
     case 'eltito_01':
       return 'orc';
     default:
