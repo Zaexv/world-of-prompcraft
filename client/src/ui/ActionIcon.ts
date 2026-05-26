@@ -44,11 +44,11 @@ const ICON_MAP: Record<string, string> = {
 };
 
 export class ActionIcon extends UIComponent {
-  readonly sprite: THREE.Sprite;
-  private canvas!: HTMLCanvasElement;
-  private ctx!: CanvasRenderingContext2D;
-  private texture!: THREE.CanvasTexture;
-  private material!: THREE.SpriteMaterial;
+  declare sprite: THREE.Sprite;
+  declare private canvas: HTMLCanvasElement;
+  declare private ctx: CanvasRenderingContext2D;
+  declare private texture: THREE.CanvasTexture;
+  declare private material: THREE.SpriteMaterial;
 
   private fadeTimer = 0;
   private fadeDuration = 3.0;
@@ -57,11 +57,7 @@ export class ActionIcon extends UIComponent {
 
   constructor() {
     super('ui-root', 'action-icon');
-
-    this.sprite = new THREE.Sprite();
-    this.sprite.scale.set(1.2, 1.2, 1);
-    this.sprite.position.y = 4.2; // Above the nameplate
-    this.sprite.renderOrder = 1000;
+    // render() already ran — sprite/canvas/ctx/texture/material all exist
   }
 
   render(): void {
@@ -80,7 +76,11 @@ export class ActionIcon extends UIComponent {
       opacity: 0,
     });
 
-    this.sprite.material = this.material;
+    // Pass material to constructor — avoids setting sprite.material after creation
+    this.sprite = new THREE.Sprite(this.material);
+    this.sprite.scale.set(1.2, 1.2, 1);
+    this.sprite.position.y = 4.2;
+    this.sprite.renderOrder = 1000;
   }
 
   /**
@@ -152,6 +152,7 @@ export class ActionIcon extends UIComponent {
 
   private renderIcon(emoji: string): void {
     const { ctx, canvas } = this;
+    if (!ctx) return; // no-op in environments without canvas 2D (e.g. test)
     const w = canvas.width;
     const h = canvas.height;
 

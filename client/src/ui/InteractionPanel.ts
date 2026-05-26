@@ -59,16 +59,16 @@ const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: s
  * Extends UIComponent for consistent lifecycle management.
  */
 export class InteractionPanel extends UIComponent {
-  private header!: HTMLDivElement;
-  private statusBar!: HTMLDivElement;
-  private moodLabel!: HTMLSpanElement;
-  private relBar!: HTMLDivElement;
-  private relFill!: HTMLDivElement;
-  private relLabel!: HTMLSpanElement;
-  private actionBar!: HTMLDivElement;
-  private chatHistory!: HTMLDivElement;
-  private input!: HTMLInputElement;
-  private thinkingEl!: HTMLDivElement;
+  declare private header: HTMLDivElement;
+  declare private statusBar: HTMLDivElement;
+  declare private moodLabel: HTMLSpanElement;
+  declare private relBar: HTMLDivElement;
+  declare private relFill: HTMLDivElement;
+  declare private relLabel: HTMLSpanElement;
+  declare private actionBar: HTMLDivElement;
+  declare private chatHistory: HTMLDivElement;
+  declare private input: HTMLInputElement;
+  declare private thinkingEl: HTMLDivElement;
   private npcId = "";
   private chatHistories: Map<string, string> = new Map();
 

@@ -6,15 +6,15 @@ import type { PlayerState } from "../state/PlayerState";
  * Extends UIComponent for consistent lifecycle management.
  */
 export class StatusBars extends UIComponent {
-  private hpFill!: HTMLDivElement;
-  private hpText!: HTMLSpanElement;
-  private manaFill!: HTMLDivElement;
-  private manaText!: HTMLSpanElement;
-  private levelBadge!: HTMLDivElement;
-  private inventoryCount!: HTMLSpanElement;
-  private weaponSlot!: HTMLSpanElement;
-  private shieldSlot!: HTMLSpanElement;
-  private trinketSlot!: HTMLSpanElement;
+  declare private hpFill: HTMLDivElement;
+  declare private hpText: HTMLSpanElement;
+  declare private manaFill: HTMLDivElement;
+  declare private manaText: HTMLSpanElement;
+  declare private levelBadge: HTMLDivElement;
+  declare private inventoryCount: HTMLSpanElement;
+  declare private weaponSlot: HTMLSpanElement;
+  declare private shieldSlot: HTMLSpanElement;
+  declare private trinketSlot: HTMLSpanElement;
 
   constructor() {
     super('ui-root', 'status-bars');

@@ -14,9 +14,9 @@ export class InventoryPanel extends UIComponent {
 
   private readonly MAX_SLOTS = 20;
   private readonly COLUMNS = 4;
-  private grid!: HTMLDivElement;
-  private itemCountLabel!: HTMLSpanElement;
-  private tooltip!: HTMLDivElement;
+  declare private grid: HTMLDivElement;
+  declare private itemCountLabel: HTMLSpanElement;
+  declare private tooltip: HTMLDivElement;
   private currentInventory: string[] = [];
 
   constructor() {

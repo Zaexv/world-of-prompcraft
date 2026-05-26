@@ -281,6 +281,7 @@ export class GameEngine {
     d.sceneManager.setPlayerPosition(px, pz);
     d.entityManager.setPlayerPosition(px, pz);
     d.entityManager.update(delta, (x, z) => this.getTerrainHeight(x, z), d.collisionSystem);
+    d.collisionSystem.update();
     d.reactionSystem.tick(delta);
     d.zoneTracker.update(px, pz);
     d.zoneAtmosphere.update(delta);

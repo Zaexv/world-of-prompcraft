@@ -36,6 +36,8 @@ export class UIManager {
   readonly chatPanel: ChatPanel;
   bubbleSystem: ChatBubbleSystem | null = null;
   private _playerState: PlayerState | null = null;
+  /** Wire this to WorldBuilderPanel.toggle() from GameBootstrapper. */
+  worldBuilderToggle: (() => void) | null = null;
 
   constructor() {
     this.container = document.createElement("div");
@@ -96,6 +98,91 @@ export class UIManager {
       }
       this.questLog.show();
     };
+
+    this.buildShortcutBar();
+  }
+
+  private buildShortcutBar(): void {
+    const bar = document.createElement('div');
+    Object.assign(bar.style, {
+      position: 'absolute',
+      bottom: '12px',
+      left: '50%',
+      transform: 'translateX(-50%)',
+      display: 'flex',
+      gap: '4px',
+      pointerEvents: 'none',
+      zIndex: '15',
+    } as CSSStyleDeclaration);
+
+    const btnDefs: Array<{ icon: string; label: string; key: string; action: () => void }> = [
+      { icon: '🎒', label: 'Bag',    key: 'I', action: () => this.toggleInventory() },
+      { icon: '🗺️', label: 'Map',    key: 'M', action: () => this.toggleMinimap() },
+      { icon: '📜', label: 'Quests', key: 'L', action: () => this.toggleQuestLog(this._playerState ?? undefined) },
+      { icon: '🔨', label: 'Build',  key: 'B', action: () => this.worldBuilderToggle?.() },
+    ];
+
+    for (const def of btnDefs) {
+      const btn = document.createElement('button');
+      btn.title = `${def.label} [${def.key}]`;
+
+      Object.assign(btn.style, {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+        padding: '5px 9px',
+        background: 'rgba(12,8,3,0.82)',
+        border: '1px solid rgba(197,165,90,0.35)',
+        borderRadius: '4px',
+        color: '#c5a55a',
+        fontFamily: "'Cinzel','Times New Roman',serif",
+        fontSize: '11px',
+        cursor: 'pointer',
+        pointerEvents: 'auto',
+        userSelect: 'none',
+        letterSpacing: '0.04em',
+        transition: 'border-color 0.15s, background 0.15s',
+        backdropFilter: 'blur(2px)',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+      } as CSSStyleDeclaration);
+
+      const icon = document.createElement('span');
+      icon.textContent = def.icon;
+      icon.style.fontSize = '13px';
+
+      const text = document.createElement('span');
+      text.textContent = def.label;
+
+      const kbd = document.createElement('span');
+      Object.assign(kbd.style, {
+        fontSize: '9px',
+        padding: '1px 3px',
+        background: 'rgba(0,0,0,0.35)',
+        border: '1px solid rgba(197,165,90,0.25)',
+        borderRadius: '2px',
+        color: 'rgba(197,165,90,0.6)',
+        marginLeft: '1px',
+      } as CSSStyleDeclaration);
+      kbd.textContent = def.key;
+
+      btn.appendChild(icon);
+      btn.appendChild(text);
+      btn.appendChild(kbd);
+
+      btn.addEventListener('mouseenter', () => {
+        btn.style.background = 'rgba(30,20,8,0.92)';
+        btn.style.borderColor = 'rgba(197,165,90,0.7)';
+      });
+      btn.addEventListener('mouseleave', () => {
+        btn.style.background = 'rgba(12,8,3,0.82)';
+        btn.style.borderColor = 'rgba(197,165,90,0.35)';
+      });
+      btn.addEventListener('click', def.action);
+
+      bar.appendChild(btn);
+    }
+
+    this.container.appendChild(bar);
   }
 
   initBubbleSystem(camera: THREE.PerspectiveCamera): void {

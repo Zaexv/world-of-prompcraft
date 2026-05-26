@@ -9,7 +9,7 @@ import { QUEST_DEFINITIONS } from "../state/QuestDefinitions";
  * Extends UIComponent for consistent lifecycle management.
  */
 export class QuestLog extends UIComponent {
-  private contentContainer!: HTMLDivElement;
+  declare private contentContainer: HTMLDivElement;
   private escHandler: ((e: KeyboardEvent) => void) | null = null;
 
   constructor() {

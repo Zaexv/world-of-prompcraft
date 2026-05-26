@@ -37,13 +37,13 @@ export class LoginForm extends UIComponent {
   private selectedFaction: 'alliance' | 'horde' = 'alliance';
   private selectedRace: string = 'human';
   private selectedSkin: string = getDefaultPlayerSkin();
-  private usernameInput!: HTMLInputElement;
-  private errorText!: HTMLDivElement;
-  private submitBtn!: HTMLButtonElement;
-  private raceCardsContainer!: HTMLDivElement;
-  private skinCardsContainer!: HTMLDivElement;
-  private allianceBtn!: HTMLButtonElement;
-  private hordeBtn!: HTMLButtonElement;
+  declare private usernameInput: HTMLInputElement;
+  declare private errorText: HTMLDivElement;
+  declare private submitBtn: HTMLButtonElement;
+  declare private raceCardsContainer: HTMLDivElement;
+  declare private skinCardsContainer: HTMLDivElement;
+  declare private allianceBtn: HTMLButtonElement;
+  declare private hordeBtn: HTMLButtonElement;
 
   constructor(parentId: string = 'login-form-root') {
     super(parentId, 'login-form');

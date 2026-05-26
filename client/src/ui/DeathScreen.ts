@@ -10,10 +10,10 @@ import { UIComponent } from "./core/UIComponent";
 export class DeathScreen extends UIComponent {
   onRespawn: (() => void) | null = null;
 
-  private titleEl!: HTMLDivElement;
-  private subtitleEl!: HTMLDivElement;
-  private respawnBtn!: HTMLButtonElement;
-  private hintEl!: HTMLDivElement;
+  declare private titleEl: HTMLDivElement;
+  declare private subtitleEl: HTMLDivElement;
+  declare private respawnBtn: HTMLButtonElement;
+  declare private hintEl: HTMLDivElement;
   private pulseId: number = 0;
 
   constructor() {

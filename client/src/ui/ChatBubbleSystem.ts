@@ -108,17 +108,19 @@ const BUBBLE_CSS = `
 export class ChatBubbleSystem extends UIComponent {
   private readonly camera: THREE.PerspectiveCamera;
   private readonly externalContainer: HTMLElement;
-  private bubbleContainer!: HTMLDivElement;
+  declare private bubbleContainer: HTMLDivElement;
   private readonly bubbles: BubbleEntry[] = [];
   private readonly projVec: THREE.Vector3 = new THREE.Vector3();
   private lastTime: number = 0;
 
   constructor(camera: THREE.PerspectiveCamera, container: HTMLElement) {
     super('ui-root', 'chat-bubble-system');
-    
+    // render() has already run — bubbleContainer div exists but isn't yet appended
+    // (render() cannot access constructor params, so append happens here)
     this.camera = camera;
     this.externalContainer = container;
     this.lastTime = performance.now();
+    this.externalContainer.appendChild(this.bubbleContainer);
 
     // Inject CSS once
     if (!document.getElementById('cb-styles')) {
@@ -130,10 +132,10 @@ export class ChatBubbleSystem extends UIComponent {
   }
 
   render(): void {
-    // Create overlay container for bubbles
+    // Create the bubble container div — cannot append to externalContainer here
+    // because that is a constructor parameter stored after super() returns.
     this.bubbleContainer = document.createElement('div');
     this.bubbleContainer.classList.add('cb-container');
-    this.externalContainer.appendChild(this.bubbleContainer);
   }
 
   spawn(text: string, worldPos: THREE.Vector3, opts?: BubbleOptions): void {

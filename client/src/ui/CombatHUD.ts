@@ -6,26 +6,26 @@ import { UIComponent } from "./core/UIComponent";
  * Extends UIComponent for consistent lifecycle management.
  */
 export class CombatHUD extends UIComponent {
-  private playerFrame!: HTMLDivElement;
-  private npcFrame!: HTMLDivElement;
-  private combatLog!: HTMLDivElement;
+  declare private playerFrame: HTMLDivElement;
+  declare private npcFrame: HTMLDivElement;
+  declare private combatLog: HTMLDivElement;
 
-  private playerPortrait!: HTMLDivElement;
-  private playerNameEl!: HTMLDivElement;
-  private playerHpFill!: HTMLDivElement;
-  private playerHpText!: HTMLSpanElement;
-  private playerManaFill!: HTMLDivElement;
-  private playerManaText!: HTMLSpanElement;
+  declare private playerPortrait: HTMLDivElement;
+  declare private playerNameEl: HTMLDivElement;
+  declare private playerHpFill: HTMLDivElement;
+  declare private playerHpText: HTMLSpanElement;
+  declare private playerManaFill: HTMLDivElement;
+  declare private playerManaText: HTMLSpanElement;
 
-  private npcPortrait!: HTMLDivElement;
-  private npcNameEl!: HTMLDivElement;
-  private npcHpFill!: HTMLDivElement;
-  private npcHpText!: HTMLSpanElement;
+  declare private npcPortrait: HTMLDivElement;
+  declare private npcNameEl: HTMLDivElement;
+  declare private npcHpFill: HTMLDivElement;
+  declare private npcHpText: HTMLSpanElement;
 
-  private logEntries!: HTMLDivElement;
+  declare private logEntries: HTMLDivElement;
   private currentNpcId = "";
 
-  private styleTag!: HTMLStyleElement;
+  declare private styleTag: HTMLStyleElement;
 
   constructor() {
     super('ui-root', 'combat-hud');

@@ -13,8 +13,8 @@ import { BiomeType, getDominantBiome } from '../scene/Biomes';
  *  - NPC dots
  */
 export class Minimap extends UIComponent {
-  private canvas!: HTMLCanvasElement;
-  private ctx!: CanvasRenderingContext2D;
+  declare private canvas: HTMLCanvasElement;
+  declare private ctx: CanvasRenderingContext2D;
 
   // World markers
   private towns: { x: number; z: number }[] = [];
@@ -115,6 +115,7 @@ export class Minimap extends UIComponent {
     this.lastDrawAngle = playerAngle;
 
     const ctx = this.ctx;
+    if (!ctx) return; // no-op in environments without canvas 2D (e.g. test)
     const S = this.SIZE;
     const scale = this.SCALE;
     const halfWorld = (S * scale) / 2;

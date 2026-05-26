@@ -8,37 +8,33 @@ import { UIComponent } from "./core/UIComponent";
  * The sprite auto-billboards to always face the camera.
  */
 export class Nameplate extends UIComponent {
-  readonly sprite: THREE.Sprite;
-  private canvas!: HTMLCanvasElement;
-  private ctx!: CanvasRenderingContext2D;
-  private texture!: THREE.CanvasTexture;
-  private _name: string;
-  private currentHp: number;
-  private maxHp: number;
+  declare sprite: THREE.Sprite;
+  declare private canvas: HTMLCanvasElement;
+  declare private ctx: CanvasRenderingContext2D;
+  declare private texture: THREE.CanvasTexture;
+  declare private material: THREE.SpriteMaterial;
+  private _name = "";
+  private currentHp = 100;
+  private maxHp = 100;
   private _mood = "neutral";
   private _relationshipScore = 0;
-  private readonly canvasW = 512;
-  private readonly canvasH = 160;
-  private material!: THREE.SpriteMaterial;
+  // Static so they are available during render(), which runs before instance fields init
+  private static readonly CANVAS_W = 512;
+  private static readonly CANVAS_H = 160;
 
   constructor(name: string, maxHp = 100) {
     super('ui-root', `nameplate-${name}`);
-    
+    // render() already ran — canvas/ctx/texture/material/sprite all exist
     this._name = name;
     this.currentHp = maxHp;
     this.maxHp = maxHp;
-
-    // Create sprite (will be added to scene by owner)
-    this.sprite = new THREE.Sprite();
-    this.sprite.scale.set(3, 0.94, 1);
-    this.sprite.position.set(0, 3.2, 0);
-    this.sprite.renderOrder = 999;
+    this.draw();
   }
 
   render(): void {
     this.canvas = document.createElement("canvas");
-    this.canvas.width = this.canvasW;
-    this.canvas.height = this.canvasH;
+    this.canvas.width = Nameplate.CANVAS_W;
+    this.canvas.height = Nameplate.CANVAS_H;
     this.ctx = this.canvas.getContext("2d")!;
 
     this.texture = new THREE.CanvasTexture(this.canvas);
@@ -51,8 +47,11 @@ export class Nameplate extends UIComponent {
       depthTest: false,
     });
 
-    this.sprite.material = this.material;
-    this.draw();
+    // Pass material to constructor — avoids setting sprite.material after creation
+    this.sprite = new THREE.Sprite(this.material);
+    this.sprite.scale.set(3, 0.94, 1);
+    this.sprite.position.set(0, 3.2, 0);
+    this.sprite.renderOrder = 999;
   }
 
   /** Update the HP bar. `current` and `max` are absolute values. */
@@ -87,7 +86,10 @@ export class Nameplate extends UIComponent {
   // ── Internal drawing ────────────────────────────────────────────────
 
   private draw(): void {
-    const { ctx, canvasW: w, canvasH: h } = this;
+    const ctx = this.ctx;
+    const w = Nameplate.CANVAS_W;
+    const h = Nameplate.CANVAS_H;
+    if (!ctx) return; // no-op in environments without canvas 2D (e.g. test)
     ctx.clearRect(0, 0, w, h);
 
     const panelX = 24;

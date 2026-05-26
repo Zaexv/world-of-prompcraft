@@ -98,13 +98,12 @@ export function bootstrap(
 
   loadingOverlay.setMessage('Preparing collisions...');
   const collisionSystem = new CollisionSystem();
-  collisionSystem.addCollidablesFiltered(sceneManager.buildings.groups);
-  collisionSystem.addCollidablesFiltered(sceneManager.fortMalaka.groups);
-  if (sceneManager.vegetation.massiveTreeGroups.length > 0) {
-    collisionSystem.addCollidablesFiltered(sceneManager.vegetation.massiveTreeGroups);
-  }
-  collisionSystem.setDynamicSource(() => entityManager.getMeshes());
-  playerController.setCollisionSystem(collisionSystem, scene);
+  collisionSystem.initDebug(scene);
+  
+  // Hardcoded landmarks removed in Tabula Rasa phase. 
+  // Future landmarks will be loaded via WorldManifest and WorldBuilder.
+
+  playerController.setCollisionSystem(collisionSystem);
 
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
   const reactionSystem    = new ReactionSystem(scene, playerState, npcStateStore, worldState, entityManager);
@@ -131,10 +130,8 @@ export function bootstrap(
   const worldGenerator = new WorldGenerator(scene, terrain, entityManager, null!);
   worldGenerator.setMinimap(uiManager.minimap);
   worldGenerator.setCollisionSystem(collisionSystem);
-  worldGenerator.setExclusionFootprints([
-    ...sceneManager.buildings.footprints,
-    ...sceneManager.fortMalaka.footprints,
-  ]);
+  // Exclusion footprints will be provided by WorldManifest in the future.
+  worldGenerator.setExclusionFootprints([]);
 
   const zoneTracker  = new ZoneTracker();
   const dungeonSystem = new DungeonSystem(scene, entityManager, null!, playerState);
@@ -173,18 +170,22 @@ export function bootstrap(
   });
 
   // Wire worldBuilderPanel now that ws is available
-  const worldBuilderPanel = new WorldBuilderPanel((prompt: string) => {
-    if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
-    const pos = playerController.position;
-    ws.send({ type: 'world_modify', prompt, playerId: runtime.localPlayerId, position: [pos.x, pos.y, pos.z] });
-  });
+  const worldBuilderPanel = new WorldBuilderPanel(
+    (prompt: string, attachment?: File) => {
+      if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
+      const pos = playerController.position;
+      // Note: Attachment handling (base64) would go here if implemented on server
+      ws.send({ type: 'world_modify', prompt, playerId: runtime.localPlayerId, position: [pos.x, pos.y, pos.z] });
+    },
+    () => worldBuilder.undo(),
+    () => worldBuilder.redo()
+  );
   // Patch worldBuilderPanel ref into handler (created after wsHandler to avoid circular dep)
   (wsHandler as unknown as { d: { worldBuilderPanel: WorldBuilderPanel } }).d.worldBuilderPanel = worldBuilderPanel;
   // Wire HUD Build button → WorldBuilderPanel
   uiManager.worldBuilderToggle = () => worldBuilderPanel.toggle();
 
-  // Wire ws and dungeonSystem to ws
-  worldGenerator['ws'] = ws;   // eslint-disable-line @typescript-eslint/dot-notation
+  // Wire dungeonSystem to ws
   dungeonSystem['ws'] = ws;    // eslint-disable-line @typescript-eslint/dot-notation
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -6,7 +6,7 @@ import { UIComponent } from "./core/UIComponent";
  * Extends UIComponent for consistent lifecycle management.
  */
 export class CombatLog extends UIComponent {
-  private logEntries!: HTMLDivElement;
+  declare private logEntries: HTMLDivElement;
   private styleTag: HTMLStyleElement | null = null;
   private readonly MAX_ENTRIES = 50;
 

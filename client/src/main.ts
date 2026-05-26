@@ -1,5 +1,12 @@
+import * as THREE from 'three';
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import { LoginScreen } from './ui/LoginScreen';
 import { bootstrap } from './core/GameBootstrapper';
+
+// Monkey-patch THREE with BVH support
+THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 // Load Cinzel font early so it's available for the login screen
 if (!document.querySelector('link[href*="Cinzel"]')) {

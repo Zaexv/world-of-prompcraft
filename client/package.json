@@ -15,8 +15,8 @@
     "check": "npm run lint && npm run typecheck && npm run test"
   },
   "dependencies": {
-    "cannon-es": "^0.20.0",
-    "three": "^0.170.0"
+    "three": "^0.170.0",
+    "three-mesh-bvh": "^0.9.10"
   },
   "devDependencies": {
     "@types/three": "^0.170.0",

@@ -8,8 +8,8 @@ import { UIComponent } from "./core/UIComponent";
 export class ChatPanel extends UIComponent {
   onSendMessage: ((text: string) => void) | null = null;
 
-  private messagesArea!: HTMLDivElement;
-  private input!: HTMLInputElement;
+  declare private messagesArea: HTMLDivElement;
+  declare private input: HTMLInputElement;
   private userScrolledUp = false;
 
   constructor() {

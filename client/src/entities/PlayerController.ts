@@ -2,13 +2,12 @@ import * as THREE from 'three';
 import { clamp, lerp } from '../utils/math/MathHelpers';
 import { Water } from '../scene/Water';
 import { CollisionSystem } from '../systems/CollisionSystem';
+import { CapsuleController } from '../systems/collision/CapsuleController';
+import { Capsule } from '../systems/collision/Capsule';
 
 /**
  * Third-person player controller with WoW-style orbit camera:
  * left/right mouse drag to rotate, wheel zoom, WASD movement.
- *
- * When terrain drops below water level the player transitions to swimming:
- * reduced speed, buoyancy instead of gravity, and a different animation state.
  */
 export class PlayerController {
   /** Player world position (client-authoritative for now). */
@@ -28,37 +27,35 @@ export class PlayerController {
   private readonly walkSpeed = 8;
   private readonly runSpeed = 16;
   private readonly jumpVelocity = 10;
-  private readonly gravity = -20;
-  private verticalVelocity = 0;
-  private isGrounded = true;
+  
+  // --- Physics ---
+  private capsuleController = new CapsuleController();
+  private capsule = new Capsule(
+    new THREE.Vector3(0, 0.35, 0),
+    new THREE.Vector3(0, 1.45, 0),
+    0.35
+  );
 
   // --- Swimming ---
   private readonly swimSpeed = 5;
   private readonly swimSprintSpeed = 8;
-  /** How far below water surface the player floats (0 = surface). */
   private readonly swimDepth = 0.4;
-  /** Buoyancy force pulling the player toward the surface. */
   private readonly buoyancy = 12;
-  /** Gravity while swimming (weaker). */
   private readonly swimGravity = -5;
-  /** Vertical impulse when pressing space while swimming (swim upward). */
   private readonly swimUpSpeed = 4;
+  private verticalVelocity = 0;
 
   // --- Water proximity ---
-  /** Distance from water edge where movement starts slowing. */
   private readonly waterSlowRange = 1.5;
-  /** Speed multiplier when near water. */
   private readonly waterSlowFactor = 0.6;
 
   // --- Collision ---
   private collisionSystem: CollisionSystem | null = null;
-  private scene: THREE.Scene | null = null;
 
   // --- Camera ---
   private zoomDistance = 10;
   private readonly zoomMin = 2;
   private readonly zoomMax = 20;
-  /** Height above character feet for the orbit center (character head). */
   private readonly lookAtHeight = 1.7;
 
   // --- Input state ---
@@ -75,11 +72,7 @@ export class PlayerController {
   private domElement: HTMLElement;
   private getHeightAt: (x: number, z: number) => number;
 
-  // Smooth camera position
   private cameraPos = new THREE.Vector3();
-  // Reusable vectors for collision (avoid per-frame allocations)
-  private _collCurrent = new THREE.Vector3();
-  private _collDesired = new THREE.Vector3();
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -90,7 +83,6 @@ export class PlayerController {
     this.domElement = domElement;
     this.getHeightAt = getHeightAt ?? (() => 0);
 
-    // Initialise camera at desired orbit position
     this.cameraPos.copy(this.computeCameraTarget(0));
     this.effectiveDistance = this.zoomDistance;
 
@@ -222,9 +214,8 @@ export class PlayerController {
   //  Collision
   // ----------------------------------------------------------------
 
-  setCollisionSystem(system: CollisionSystem, scene: THREE.Scene): void {
+  setCollisionSystem(system: CollisionSystem): void {
     this.collisionSystem = system;
-    this.scene = scene;
   }
 
   // ----------------------------------------------------------------
@@ -269,54 +260,23 @@ export class PlayerController {
     const dx = (forward * sinYaw + strafe * cosYaw) * speed;
     const dz = (forward * cosYaw - strafe * sinYaw) * speed;
 
-    // --- Candidate position ---
-    const prevX = this.position.x;
-    const prevZ = this.position.z;
-    this.position.x += dx * delta;
-    this.position.z += dz * delta;
-
-    // --- Obstacle collision: raycast-based resolution ---
-    if (this.collisionSystem && this.scene) {
-      try {
-        const currentVec = this._collCurrent;
-        const desiredVec = this._collDesired;
-        currentVec.set(prevX, this.position.y, prevZ);
-        desiredVec.set(this.position.x, this.position.y, this.position.z);
-        const resolved = this.collisionSystem.resolveMovement(currentVec, desiredVec, this.scene);
-        this.position.x = resolved.x;
-        this.position.z = resolved.z;
-      } catch (error) {
-        console.error('[Collision] resolveMovement failed', error);
-        this.position.x = prevX;
-        this.position.z = prevZ;
-      }
-    }
-
     this.velocity.set(dx, 0, dz);
 
-    // --- Vertical movement ---
-    const terrainY = this.getHeightAt(this.position.x, this.position.z);
-    const swimSurface = waterLevel - this.swimDepth;
-
     if (this.isSwimming) {
-      // Swimming physics: buoyancy + gentle gravity
-      this.isGrounded = false;
+      // --- Swimming Physics (Legacy) ---
+      const swimSurface = waterLevel - this.swimDepth;
 
-      // Space = swim upward, otherwise gentle sink
       if (this.keys['Space']) {
         this.verticalVelocity = this.swimUpSpeed;
       } else {
-        // Apply gentle gravity + buoyancy toward the swim surface
         this.verticalVelocity += this.swimGravity * delta;
-
-        // Buoyancy: pull toward the swim surface level
         const distFromSurface = this.position.y - swimSurface;
         this.verticalVelocity -= distFromSurface * this.buoyancy * delta;
-
-        // Damping so the player doesn't oscillate forever
         this.verticalVelocity *= (1 - 3 * delta);
       }
 
+      this.position.x += dx * delta;
+      this.position.z += dz * delta;
       this.position.y += this.verticalVelocity * delta;
 
       // Clamp: don't float above swim surface, don't go below terrain
@@ -324,27 +284,48 @@ export class PlayerController {
         this.position.y = swimSurface;
         this.verticalVelocity = Math.min(this.verticalVelocity, 0);
       }
-      if (this.position.y < terrainY) {
-        this.position.y = terrainY;
+      if (this.position.y < terrainHere) {
+        this.position.y = terrainHere;
         this.verticalVelocity = 0;
       }
+
+      // Sync capsule for when we exit water
+      this.capsule.set(
+        new THREE.Vector3(this.position.x, this.position.y + 0.35, this.position.z),
+        new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z),
+        0.35
+      );
+      this.capsuleController.resetVerticalVelocity();
     } else {
-      // Normal land physics
-      if (this.keys['Space'] && this.isGrounded) {
-        this.verticalVelocity = this.jumpVelocity;
-        this.isGrounded = false;
+      // --- Kinematic Capsule Physics ---
+      const moveVec = new THREE.Vector3(dx, 0, dz);
+      const meshes = this.collisionSystem?.getStaticMeshes() ?? [];
+      
+      // Sync capsule position to current player position
+      this.capsule.set(
+        new THREE.Vector3(this.position.x, this.position.y + 0.35, this.position.z),
+        new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z),
+        0.35
+      );
+
+      if (this.keys['Space']) {
+        this.capsuleController.jump(this.jumpVelocity);
       }
 
-      if (!this.isGrounded) {
-        this.verticalVelocity += this.gravity * delta;
-        this.position.y += this.verticalVelocity * delta;
-        if (this.position.y <= terrainY) {
-          this.position.y = terrainY;
-          this.verticalVelocity = 0;
-          this.isGrounded = true;
-        }
-      } else {
-        this.position.y = terrainY;
+      this.capsuleController.update(this.capsule, moveVec, delta, meshes);
+      
+      // Update player position from capsule (start.y is feet + radius)
+      this.position.set(
+        this.capsule.start.x,
+        this.capsule.start.y - 0.35,
+        this.capsule.start.z
+      );
+
+      // Force terrain floor if no meshes are present or grounded is false but we are below terrain
+      const currentTerrainY = this.getHeightAt(this.position.x, this.position.z);
+      if (this.position.y < currentTerrainY) {
+        this.position.y = currentTerrainY;
+        this.capsuleController.isGrounded = true;
       }
     }
 

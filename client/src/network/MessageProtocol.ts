@@ -321,6 +321,24 @@ export interface WorldModifyResponse {
   actions: Action[];
 }
 
+export interface WorldModifyStart {
+  type: "world_modify_start";
+  blueprintId: string;
+  totalChunks: number;
+}
+
+export interface WorldModifyChunk {
+  type: "world_modify_chunk";
+  blueprintId: string;
+  chunkIndex: number;
+  data: string; // Base64 or JSON string of actions/blueprint
+}
+
+export interface WorldModifyEnd {
+  type: "world_modify_end";
+  blueprintId: string;
+}
+
 export type ServerMessage =
   | AgentResponse
   | UseItemResult
@@ -334,4 +352,7 @@ export type ServerMessage =
   | ChatBroadcast
   | NPCDialogue
   | PongMessage
-  | WorldModifyResponse;
+  | WorldModifyResponse
+  | WorldModifyStart
+  | WorldModifyChunk
+  | WorldModifyEnd;

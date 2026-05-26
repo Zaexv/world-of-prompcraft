@@ -36,10 +36,10 @@ const DEFAULT_THEME: ZoneTheme = {
  * and category tag.  Animation: slide-down + fade-in 0.5s, hold 3s, fade-out 1s.
  */
 export class ZoneDisplay extends UIComponent {
-  private categoryEl!: HTMLDivElement;
-  private nameEl!: HTMLDivElement;
-  private dividerEl!: HTMLDivElement;
-  private descEl!: HTMLDivElement;
+  declare private categoryEl: HTMLDivElement;
+  declare private nameEl: HTMLDivElement;
+  declare private dividerEl: HTMLDivElement;
+  declare private descEl: HTMLDivElement;
   private fadeOutTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {

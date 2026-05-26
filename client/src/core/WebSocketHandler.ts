@@ -278,6 +278,22 @@ export class WebSocketHandler {
       this.d.worldBuilderPanel.setResponse(data.dialogue ?? '');
       this.d.worldBuilderPanel.setReady();
       this.d.reactionSystem.processActions(data.actions ?? []);
+      return;
+    }
+
+    if (data.type === 'world_modify_start') {
+      this.d.worldBuilderPanel.startStreaming(data.blueprintId, data.totalChunks);
+      return;
+    }
+
+    if (data.type === 'world_modify_chunk') {
+      this.d.worldBuilderPanel.updateStreaming(data.blueprintId, data.chunkIndex, data.data);
+      return;
+    }
+
+    if (data.type === 'world_modify_end') {
+      this.d.worldBuilderPanel.endStreaming(data.blueprintId);
+      return;
     }
   }
 }
