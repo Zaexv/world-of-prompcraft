@@ -56,13 +56,18 @@ export class Player {
     this.cloak = (this.group.getObjectByName('cloak') as THREE.Mesh) ?? null;
   }
 
-  static async create(
+  /**
+   * Create a player with a procedural base model and optionally upgrade to a GLTF skin in the background.
+   * Never blocks game startup.
+   */
+  static create(
     race: string = 'night_elf',
     skin: string = getDefaultPlayerSkin(),
     assetLoader?: AssetLoader,
-  ): Promise<Player> {
+  ): Player {
     const player = new Player(race, skin);
-    await player.tryLoadSkin(assetLoader);
+    // Background load the skin — don't await
+    void player.tryLoadSkin(assetLoader);
     return player;
   }
 

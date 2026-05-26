@@ -24,12 +24,11 @@ export class EntityManager {
   // ── NPC management ──────────────────────────────────────────────────────────
 
   /**
-   * Create and register an NPC, adding it to the scene.
-   * Tries to load a GLTF model if an AssetLoader was provided;
-   * falls back to the procedural mesh silently on error.
+   * Create and register an NPC, adding it to the scene immediately.
+   * Background-loads a GLTF model if an AssetLoader was provided.
    */
-  async addNPC(config: NPCConfig): Promise<NPC> {
-    const npc = await NPC.create(config, this.assetLoader);
+  addNPC(config: NPCConfig): NPC {
+    const npc = NPC.create(config, this.assetLoader);
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     return npc;
