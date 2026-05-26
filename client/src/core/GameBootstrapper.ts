@@ -36,18 +36,6 @@ interface LoadingOverlay {
   hide(): void;
 }
 
-const NPC_CONFIGS = [
-  { id: 'dragon_01',   name: 'Ignathar the Ancient',  position: new THREE.Vector3( 120, 15, -80),  color: 0xcc3300 },
-  { id: 'merchant_01', name: 'Thornby the Merchant',   position: new THREE.Vector3(   5,  0,   8), color: 0x88aa44 },
-  { id: 'sage_01',     name: 'Elyria the Sage',        position: new THREE.Vector3( -40,  5, -30), color: 0x6644cc },
-  { id: 'guard_01',    name: 'Captain Aldric',         position: new THREE.Vector3(  15,  0,   2), color: 0x888888 },
-  { id: 'healer_01',   name: 'Sister Mira',            position: new THREE.Vector3(  -5,  0,  12), color: 0xeedd88 },
-  { id: 'eltito_01',   name: 'El Tito',                position: new THREE.Vector3(-120,  0,-236), color: 0x44cc44 },
-  { id: 'mage_01',     name: 'Archmage Malakov',       position: new THREE.Vector3(-155,  0,-240), color: 0xaa44ff },
-  { id: 'mage_02',     name: 'Zara the Pyromancer',    position: new THREE.Vector3(-128,  0,-255), color: 0xff4422 },
-  { id: 'mage_03',     name: 'Frostweaver Nyx',        position: new THREE.Vector3(-148,  0,-232), color: 0x44ccff },
-];
-
 export function bootstrap(
   config: PlayerConfig,
   app: HTMLElement,
@@ -90,11 +78,8 @@ export function bootstrap(
   const entityManager = new EntityManager(scene, assetLoader);
 
   const npcNameMap = new Map<string, string>();
-  for (const cfg of NPC_CONFIGS) {
-    cfg.position.y = getWorldHeightAt(terrain, cfg.position.x, cfg.position.z);
-    entityManager.addNPC(cfg);
-    npcNameMap.set(cfg.id, cfg.name);
-  }
+  // NPC spawning removed for Tabula Rasa phase.
+  // NPCs will be generated dynamically via WorldManifest and server state.
 
   loadingOverlay.setMessage('Preparing collisions...');
   const collisionSystem = new CollisionSystem();

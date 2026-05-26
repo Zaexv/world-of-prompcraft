@@ -78,14 +78,31 @@ export class BVHManager {
     _intersects: (
       box: THREE.Box3, 
       isLeaf: boolean, 
-      score: number, 
+      score: number | undefined, 
       depth: number, 
       nodeIndex: number
     ) => boolean | number
   ): boolean {
     if (!mesh.geometry.boundsTree) return false;
-    // This is just a placeholder for the actual shapecast call
-    // mesh.geometry.boundsTree.shapecast(...)
-    return false;
+    
+    let hit = false;
+    mesh.geometry.boundsTree.shapecast({
+      intersectsBounds: (box, isLeaf, score, depth, nodeIndex) => {
+        const result = _intersects(box, isLeaf, score, depth, nodeIndex);
+        if (result === true) hit = true;
+        return result;
+      },
+      intersectsTriangle: (_triangle, _triangleIndex, _contained, _depth) => {
+        // We only use shapecast for box intersection in our custom step/slope logic,
+        // so we can just return false here if we don't need triangle level accuracy
+        // for the shapecast itself (which is often true for broadphase).
+        // If triangle intersections were needed, they would be handled by the capsule shapecast
+        // which three-mesh-bvh doesn't natively support out of the box in the same way.
+        // We will return false to continue traversal or true if we want to stop.
+        return false;
+      }
+    });
+    
+    return hit;
   }
 }
