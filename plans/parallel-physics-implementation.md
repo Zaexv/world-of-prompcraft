@@ -89,3 +89,4 @@ The world is extended via two primary channels:
 - **[DONE] ESLint & TS Fixes:** Resolved unused variable and implicit any warnings in `BVH.ts`, `GameBootstrapper.ts`, and `WorldManifest.ts` to fix CI pipeline.
 - **[DONE] BVH Shapecast Fix:** Implemented the actual `three-mesh-bvh` logic in `BVH.ts` (replaced the placeholder) so that mesh collisions function correctly.
 - **[DONE] Tabula Rasa Purge:** Cleared procedural spawning logic from `Vegetation.ts` and removed hardcoded `NPC_CONFIGS` from `GameBootstrapper.ts` to enforce a clean 0-state world.
+- **[DONE] Character Floating Fix:** Corrected `StepDetector` to only trigger if the path is blocked, and fixed `GroundSnap` distance calculations to subtract the capsule radius, preventing the physics solver loop from pushing the player into the air.

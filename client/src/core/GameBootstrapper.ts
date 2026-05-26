@@ -98,6 +98,12 @@ export function bootstrap(
   reactionSystem.setWorldBuilder(worldBuilder);
   reactionSystem.setTerrain(terrain);
 
+  // --- TEST GEOMETRY FOR COLLISION ---
+  worldBuilder.spawnObject({ objectId: 'test_pavilion', objectType: 'pavilion', position: [5, 0, 10], scale: 1.5, label: 'Test Pavilion' });
+  worldBuilder.spawnObject({ objectId: 'test_tower', objectType: 'tower', position: [-10, 0, -10], scale: 2.0, label: 'Test Tower' });
+  worldBuilder.spawnObject({ objectId: 'test_ruins', objectType: 'ruins', position: [15, 0, -5], scale: 1.0, label: 'Test Ruins' });
+  // -----------------------------------
+
   const uiManager = new UIManager();
   uiManager.updateStatusBars(playerState);
   uiManager.inventoryPanel.update(playerState.inventory);
