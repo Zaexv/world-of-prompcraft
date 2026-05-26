@@ -80,3 +80,12 @@ The world is extended via two primary channels:
 - **Agent 1 ➜ Agent 2:** Provides the spatial registry and BVH trees.
 - **Agent 3 ➜ Agent 1:** Ensures all new objects are tagged with `userData.isCollider = true` for automatic BVH baking.
 - **Shared Validation:** Start from an empty world (0), add a city via prompt, and verify the player can walk through it with perfect collision.
+
+---
+
+## 🔧 Post-Implementation Fixes (Current)
+**Goal:** Resolve CI failures and verify Tabula Rasa and Collision functionality.
+
+- **[DONE] ESLint & TS Fixes:** Resolved unused variable and implicit any warnings in `BVH.ts`, `GameBootstrapper.ts`, and `WorldManifest.ts` to fix CI pipeline.
+- **[DONE] BVH Shapecast Fix:** Implemented the actual `three-mesh-bvh` logic in `BVH.ts` (replaced the placeholder) so that mesh collisions function correctly.
+- **[DONE] Tabula Rasa Purge:** Cleared procedural spawning logic from `Vegetation.ts` and removed hardcoded `NPC_CONFIGS` from `GameBootstrapper.ts` to enforce a clean 0-state world.

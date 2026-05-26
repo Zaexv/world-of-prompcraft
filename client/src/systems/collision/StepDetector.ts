@@ -24,6 +24,16 @@ export class StepDetector {
 
     const moveStep = horizontalVelocity.clone().multiplyScalar(delta);
     
+    // Check if blocked at current height
+    const blockedCapsule = new Capsule();
+    blockedCapsule.copy(capsule);
+    blockedCapsule.translate(moveStep);
+    const blockedContacts = this.contactSolver.getContacts(blockedCapsule, meshes);
+    
+    if (blockedContacts.length === 0) {
+      return 0; // Path is clear, no need to step up
+    }
+
     // Probe A: Lift capsule and check if clear
     const liftedCapsule = new Capsule();
     liftedCapsule.copy(capsule);

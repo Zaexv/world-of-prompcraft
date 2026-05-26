@@ -19,14 +19,19 @@ export class GroundSnap {
     rayOrigin.y += 0.1; // Offset slightly to avoid starting inside the floor
 
     _raycaster.set(rayOrigin, _down);
-    _raycaster.far = this.snapDistance + 0.1;
+    _raycaster.far = capsule.radius + 0.1 + this.snapDistance;
 
     const intersects = _raycaster.intersectObjects(meshes, true);
 
     if (intersects.length > 0) {
-      const dist = intersects[0].distance - 0.1; // Remove the offset
-      if (dist > 0 && dist <= this.snapDistance) {
-        return -dist; // Return as negative value for downward movement
+      // The distance to the ground should be exactly capsule.radius + 0.1
+      const targetDistance = capsule.radius + 0.1;
+      const error = intersects[0].distance - targetDistance;
+      
+      // If error is positive, we are floating above the floor.
+      // We pull down by error, capped at snapDistance.
+      if (error > 0 && error <= this.snapDistance) {
+        return -error; // Return as negative value for downward movement
       }
     }
 
