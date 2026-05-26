@@ -171,7 +171,7 @@ export function bootstrap(
 
   // Wire worldBuilderPanel now that ws is available
   const worldBuilderPanel = new WorldBuilderPanel(
-    (prompt: string, attachment?: File) => {
+    (prompt: string, _attachment?: File) => {
       if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
       const pos = playerController.position;
       // Note: Attachment handling (base64) would go here if implemented on server
@@ -186,7 +186,7 @@ export function bootstrap(
   uiManager.worldBuilderToggle = () => worldBuilderPanel.toggle();
 
   // Wire dungeonSystem to ws
-  dungeonSystem['ws'] = ws;    // eslint-disable-line @typescript-eslint/dot-notation
+  dungeonSystem['ws'] = ws;     
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   ws.onMessage = (data: any) => wsHandler.handle(data);
@@ -265,7 +265,7 @@ export function bootstrap(
     if (e.code === 'Escape' && uiManager.chatPanel.isFocused) e.preventDefault();
   });
 
-  engine = new GameEngine({ // eslint-disable-line prefer-const
+  engine = new GameEngine({  
     sceneManager, playerController, player, entityManager, collisionSystem,
     interactionSystem, reactionSystem, worldGenerator, zoneTracker, zoneAtmosphere,
     dungeonSystem, uiManager, ws, playerState, npcStateStore, runtime,

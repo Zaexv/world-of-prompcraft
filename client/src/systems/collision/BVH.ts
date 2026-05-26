@@ -75,7 +75,7 @@ export class BVHManager {
    */
   public shapecast(
     mesh: THREE.Mesh, 
-    intersects: (
+    _intersects: (
       box: THREE.Box3, 
       isLeaf: boolean, 
       score: number, 

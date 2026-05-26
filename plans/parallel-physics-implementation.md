@@ -4,12 +4,12 @@ This document outlines the parallel execution strategy for **3 Sub-Agents** to r
 
 ---
 
-## 🌌 Phase 0: Tabula Rasa (Total World Reset)
+## 🌌 Phase 0: Tabula Rasa (Total World Reset) - [DONE]
 **Goal:** Remove all hardcoded legacy content to ensure the new data-driven systems are the sole source of truth.
 
-- **Remove Hardcoded Landmarks:** Delete or disable the manual registrations of `FortMalaka`, `Buildings` (the initial batch), and the `SuarezlandsMountain` in `SceneManager.ts` and `WorldGenerator.ts`.
-- **Clear Procedural Spawners:** Reset the `WorldGenerator` hash-based logic to its bare essentials (Terrain only) until the new Manifest-driven spawning is ready.
-- **Physics Purge:** Complete removal of `CollisionSystem.ts` and all `cannon-es` imports.
+- **[DONE] Remove Hardcoded Landmarks:** Delete or disable the manual registrations of `FortMalaka`, `Buildings` (the initial batch), and the `SuarezlandsMountain` in `SceneManager.ts` and `WorldGenerator.ts`.
+- **[DONE] Clear Procedural Spawners:** Reset the `WorldGenerator` hash-based logic to its bare essentials (Terrain only) until the new Manifest-driven spawning is ready.
+- **[DONE] Physics Purge:** Complete removal of `CollisionSystem.ts` and all `cannon-es` imports.
 
 ---
 
@@ -20,59 +20,59 @@ The world is extended via two primary channels:
 
 ---
 
-## 🟢 Agent 1: The Collision Foundation (Core & Broadphase)
+## 🟢 Agent 1: The Collision Foundation (Core & Broadphase) - [DONE]
 **Goal:** Implement the new physics infrastructure and the "Tabula Rasa" cleanup.
 
-### Task 1.1: The Reset & Core Types
-- **Tabula Rasa:** Remove `FortMalaka` and other hardcoded groups from `SceneManager`.
-- **Dependencies:** Run `npm install three-mesh-bvh` and `npm uninstall cannon-es` in the `client` directory.
-- **Types (`client/src/systems/collision/types.ts`):** Define `AABB`, `OBB`, `CollisionBody`, `ContactPoint`, `Capsule`, and `TriggerVolume`.
-- **Monkey-Patch:** Update `main.ts` to attach `computeBoundsTree` to `THREE.BufferGeometry`.
+### Task 1.1: The Reset & Core Types - [DONE]
+- **[DONE] Tabula Rasa:** Remove `FortMalaka` and other hardcoded groups from `SceneManager`.
+- **[DONE] Dependencies:** Run `npm install three-mesh-bvh` and `npm uninstall cannon-es` in the `client` directory.
+- **[DONE] Types (`client/src/systems/collision/types.ts`):** Define `AABB`, `OBB`, `CollisionBody`, `ContactPoint`, `Capsule`, and `TriggerVolume`.
+- **[DONE] Monkey-Patch:** Update `main.ts` to attach `computeBoundsTree` to `THREE.BufferGeometry`.
 
-### Task 1.2: Broadphase & BVH Construction
-- **BVH Wrapper (`client/src/systems/collision/BVH.ts`):** Implement the scene-level spatial acceleration structure.
-- **OBB Fallback (`client/src/systems/collision/OBB.ts`):** Implement 8-corner construction and SAT (Separating Axis Theorem) narrow phase for 15 axes.
-- **Body Factory:** Implement the asynchronous `mesh.geometry.computeBoundsTree()` logic.
+### Task 1.2: Broadphase & BVH Construction - [DONE]
+- **[DONE] BVH Wrapper (`client/src/systems/collision/BVH.ts`):** Implement the scene-level spatial acceleration structure.
+- **[DONE] OBB Fallback (`client/src/systems/collision/OBB.ts`):** Implement 8-corner construction and SAT (Separating Axis Theorem) narrow phase for 15 axes.
+- **[DONE] Body Factory:** Implement the asynchronous `mesh.geometry.computeBoundsTree()` logic.
 
-### Task 1.3: Façade and Debug Overlay
-- **`CollisionSystem.ts` Façade:** Rewrite the main class while keeping the public API identical.
-- **Debug Overlay (`client/src/systems/collision/CollisionDebug.ts`):** Create the `Alt+C` visualizer to show real-time collision wireframes (Green=BVH, Yellow=OBB, Cyan=AABB).
+### Task 1.3: Façade and Debug Overlay - [DONE]
+- **[DONE] `CollisionSystem.ts` Façade:** Rewrite the main class while keeping the public API identical.
+- **[DONE] Debug Overlay (`client/src/systems/collision/CollisionDebug.ts`):** Create the `Alt+C` visualizer to show real-time collision wireframes (Green=BVH, Yellow=OBB, Cyan=AABB).
 
 ---
 
-## 🔵 Agent 2: The Kinematic Solver (Character Controller)
+## 🔵 Agent 2: The Kinematic Solver (Character Controller) - [DONE]
 **Goal:** Implement the math-heavy Capsule Controller to provide AAA-quality movement.
 
-### Task 2.1: Capsule & Contact Solver
-- **Capsule (`client/src/systems/collision/Capsule.ts`):** Define the player's 1.8m x 0.35m capsule.
-- **Contact Solver (`client/src/systems/collision/ContactSolver.ts`):** Implement the narrow phase algorithm using `bvh.shapecast(capsuleShape)`.
+### Task 2.1: Capsule & Contact Solver - [DONE]
+- **[DONE] Capsule (`client/src/systems/collision/Capsule.ts`):** Define the player's 1.8m x 0.35m capsule.
+- **[DONE] Contact Solver (`client/src/systems/collision/ContactSolver.ts`):** Implement the narrow phase algorithm using `bvh.shapecast(capsuleShape)`.
 
-### Task 2.2: Movement Resolution Algorithms
-- **Slope Solver (`client/src/systems/collision/SlopeSolver.ts`):** Classify contacts (floor/ceiling/wall) and handle slope sliding.
-- **Step Detector (`client/src/systems/collision/StepDetector.ts`):** Implement the "Two-Probe" algorithm for 0.5m curb stepping.
-- **Ground Snap (`client/src/systems/collision/GroundSnap.ts`):** Implement downward raycasting for terrain-sticking.
+### Task 2.2: Movement Resolution Algorithms - [DONE]
+- **[DONE] Slope Solver (`client/src/systems/collision/SlopeSolver.ts`):** Classify contacts (floor/ceiling/wall) and handle slope sliding.
+- **[DONE] Step Detector (`client/src/systems/collision/StepDetector.ts`):** Implement the "Two-Probe" algorithm for 0.5m curb stepping.
+- **[DONE] Ground Snap (`client/src/systems/collision/GroundSnap.ts`):** Implement downward raycasting for terrain-sticking.
 
-### Task 2.3: Controller Integration
-- **`CapsuleController.ts`:** Combine Gravity, Swept Movement, Ground Snapping, and Step Detection into one cohesive function.
-- **`PlayerController.ts` Integration:** Swap the old movement resolver with the new Capsule flow.
+### Task 2.3: Controller Integration - [DONE]
+- **[DONE] `CapsuleController.ts`:** Combine Gravity, Swept Movement, Ground Snapping, and Step Detection into one cohesive function.
+- **[DONE] `PlayerController.ts` Integration:** Swap the old movement resolver with the new Capsule flow.
 
 ---
 
-## 🟡 Agent 3: WorldBuilder & Agentic Pipeline
+## 🟡 Agent 3: WorldBuilder & Agentic Pipeline - [DONE]
 **Goal:** Implement the world extension tools (Object Library, Persistence, and Streaming).
 
-### Task 3.1: Object Library & Manifest
-- **World Manifest:** Implement `client/src/state/WorldManifest.ts` to replace the hardcoded landmarks deleted in Phase 0.
-- **Factories (`client/src/systems/worldbuilder/objects/`):** Implement the categorized object hierarchy (`structures/`, `vegetation/`, `furniture/`, etc.).
-- **Persistence:** Implement `WorldBuilderPersistence.ts` using `localStorage`.
+### Task 3.1: Object Library & Manifest - [DONE]
+- **[DONE] World Manifest:** Implement `client/src/state/WorldManifest.ts` to replace the hardcoded landmarks deleted in Phase 0.
+- **[DONE] Factories (`client/src/systems/worldbuilder/objects/`):** Implement the categorized object hierarchy (`structures/`, `vegetation/`, `furniture/`, etc.).
+- **[DONE] Persistence:** Implement `WorldBuilderPersistence.ts` using `localStorage`.
 
-### Task 3.2: Streaming Protocol & WebSocket
-- **`MessageProtocol.ts`:** Add types for `world_modify_start`, `world_modify_chunk`, and `world_modify_end`.
-- **Integration:** Update `WebSocketHandler.ts` to parse streaming blueprint chunks.
+### Task 3.2: Streaming Protocol & WebSocket - [DONE]
+- **[DONE] `MessageProtocol.ts`:** Add types for `world_modify_start`, `world_modify_chunk`, and `world_modify_end`.
+- **[DONE] Integration:** Update `WebSocketHandler.ts` to parse streaming blueprint chunks.
 
-### Task 3.3: UI Panel & Undo Stack
-- **Undo/Redo:** Implement the snapshot stack (`Ctrl+Z` / `Ctrl+Shift+Z`) within the World Builder state.
-- **`WorldBuilderPanel.ts`:** Add image drag/drop, streaming progress bars, and the build history log.
+### Task 3.3: UI Panel & Undo Stack - [DONE]
+- **[DONE] Undo/Redo:** Implement the snapshot stack (`Ctrl+Z` / `Ctrl+Shift+Z`) within the World Builder state.
+- **[DONE] `WorldBuilderPanel.ts`:** Add image drag/drop, streaming progress bars, and the build history log.
 
 ---
 

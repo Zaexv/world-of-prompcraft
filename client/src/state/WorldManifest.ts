@@ -5,7 +5,7 @@ export interface LandmarkDefinition {
   scale: number;
   rotation?: [number, number, number];
   label?: string;
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 }
 
 export interface WorldManifestData {
