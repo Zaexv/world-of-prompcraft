@@ -594,7 +594,7 @@ export class WorldGenerator {
     const caveGroup = createCaveEntrance(this.scene, this.terrain, cx, cz);
     if (caveGroup) {
       this.trackObject(caveKey, caveGroup);
-      this.collisionSystem?.addCollidable(caveGroup);
+      this.collisionSystem?.addCollidableFiltered(caveGroup);
     }
     if (this.minimap) this.minimap.addCave(cx, cz);
 

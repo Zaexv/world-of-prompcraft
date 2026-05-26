@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { addOutlineShell } from './ModelStyling';
 
 /**
  * Dispatches to the appropriate race model builder.
@@ -40,6 +41,7 @@ export function buildHumanModel(): THREE.Group {
   const chestGeo = new THREE.BoxGeometry(0.42, 0.55, 0.22);
   const chestMat = new THREE.MeshStandardMaterial({ color: 0x9a8262 });
   const chest = new THREE.Mesh(chestGeo, chestMat);
+  chest.name = 'chest';
   chest.position.set(0, 1.58, 0.18);
   group.add(chest);
 
@@ -53,9 +55,11 @@ export function buildHumanModel(): THREE.Group {
   group.add(head);
 
   const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.18), new THREE.MeshStandardMaterial({ color: 0x3f2a20 }));
+  leftBoot.name = 'leftBoot';
   leftBoot.position.set(-0.14, 0.1, 0);
   group.add(leftBoot);
   const rightBoot = leftBoot.clone();
+  rightBoot.name = 'rightBoot';
   rightBoot.position.x = 0.14;
   group.add(rightBoot);
 
@@ -63,6 +67,7 @@ export function buildHumanModel(): THREE.Group {
   const hairGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
   const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
   const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.name = 'hair';
   hair.position.y = 2.55;
   group.add(hair);
 
@@ -101,11 +106,21 @@ export function buildHumanModel(): THREE.Group {
   const shoulderPadGeo = new THREE.BoxGeometry(0.12, 0.18, 0.12);
   const shoulderPadMat = new THREE.MeshStandardMaterial({ color: 0x7b5f98 });
   const leftPad = new THREE.Mesh(shoulderPadGeo, shoulderPadMat);
+  leftPad.name = 'leftPad';
   leftPad.position.set(-0.23, 2.02, 0.02);
   group.add(leftPad);
   const rightPad = leftPad.clone();
+  rightPad.name = 'rightPad';
   rightPad.position.x = 0.23;
   group.add(rightPad);
+
+  const beltGeo = new THREE.TorusGeometry(0.24, 0.04, 6, 18);
+  const beltMat = new THREE.MeshStandardMaterial({ color: 0x5e452b });
+  const belt = new THREE.Mesh(beltGeo, beltMat);
+  belt.name = 'belt';
+  belt.position.y = 1.08;
+  belt.rotation.x = Math.PI / 2;
+  group.add(belt);
 
   // Cape (blue)
   const cloakGeo = new THREE.PlaneGeometry(0.55, 1.2, 1, 4);
@@ -120,6 +135,11 @@ export function buildHumanModel(): THREE.Group {
   cloak.position.set(0, 1.4, -0.2);
   cloak.castShadow = true;
   group.add(cloak);
+
+  addOutlineShell(group, {
+    includeNames: ['body', 'chest', 'head', 'leftBoot', 'rightBoot', 'hair', 'leftArm', 'rightArm', 'leftPad', 'rightPad', 'belt', 'cloak'],
+    scale: 1.05,
+  });
 
   return group;
 }
@@ -158,11 +178,13 @@ export function buildNightElfModel(): THREE.Group {
   const earMat = new THREE.MeshStandardMaterial({ color: skinColor });
 
   const leftEar = new THREE.Mesh(earGeo, earMat);
+  leftEar.name = 'leftEar';
   leftEar.position.set(-0.24, 2.48, 0);
   leftEar.rotation.z = Math.PI / 3;
   group.add(leftEar);
 
   const rightEar = new THREE.Mesh(earGeo, earMat);
+  rightEar.name = 'rightEar';
   rightEar.position.set(0.24, 2.48, 0);
   rightEar.rotation.z = -Math.PI / 3;
   group.add(rightEar);
@@ -171,6 +193,7 @@ export function buildNightElfModel(): THREE.Group {
   const hairGeo = new THREE.ConeGeometry(0.18, 0.5, 8);
   const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
   const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.name = 'hair';
   hair.position.y = 2.78;
   group.add(hair);
 
@@ -220,6 +243,24 @@ export function buildNightElfModel(): THREE.Group {
   rightArm.castShadow = true;
   group.add(rightArm);
 
+  const sashGeo = new THREE.PlaneGeometry(0.18, 1.2, 1, 1);
+  const sashMat = new THREE.MeshStandardMaterial({
+    color: 0x9dbbd8,
+    side: THREE.DoubleSide,
+    transparent: true,
+    opacity: 0.8,
+  });
+  const sash = new THREE.Mesh(sashGeo, sashMat);
+  sash.name = 'sash';
+  sash.position.set(0.03, 1.58, 0.19);
+  sash.rotation.z = -0.18;
+  group.add(sash);
+
+  addOutlineShell(group, {
+    includeNames: ['body', 'head', 'hair', 'cloak', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'sash', 'leftEar', 'rightEar'],
+    scale: 1.045,
+  });
+
   return group;
 }
 
@@ -255,6 +296,7 @@ export function buildOrcModel(): THREE.Group {
   const jawGeo = new THREE.BoxGeometry(0.22, 0.1, 0.18);
   const jawMat = new THREE.MeshStandardMaterial({ color: skinColor });
   const jaw = new THREE.Mesh(jawGeo, jawMat);
+  jaw.name = 'jaw';
   jaw.position.set(0, 2.1, 0.08);
   group.add(jaw);
 
@@ -273,6 +315,7 @@ export function buildOrcModel(): THREE.Group {
   const hairGeo = new THREE.ConeGeometry(0.08, 0.35, 6);
   const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
   const hair = new THREE.Mesh(hairGeo, hairMat);
+  hair.name = 'hair';
   hair.position.y = 2.68;
   group.add(hair);
 
@@ -281,11 +324,13 @@ export function buildOrcModel(): THREE.Group {
   const pauldronMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
 
   const leftPauldron = new THREE.Mesh(pauldronGeo, pauldronMat);
+  leftPauldron.name = 'leftPauldron';
   leftPauldron.position.set(-0.42, 1.95, 0);
   leftPauldron.castShadow = true;
   group.add(leftPauldron);
 
   const rightPauldron = new THREE.Mesh(pauldronGeo, pauldronMat);
+  rightPauldron.name = 'rightPauldron';
   rightPauldron.position.set(0.42, 1.95, 0);
   rightPauldron.castShadow = true;
   group.add(rightPauldron);
@@ -325,6 +370,7 @@ export function buildOrcModel(): THREE.Group {
   const bracerGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 6);
   const bracerMat = new THREE.MeshStandardMaterial({ color: 0x372d20 });
   const leftBracer = new THREE.Mesh(bracerGeo, bracerMat);
+  leftBracer.name = 'leftBracer';
   leftBracer.rotation.z = Math.PI / 2;
   leftBracer.position.set(-0.42, 1.5, 0);
   group.add(leftBracer);
@@ -344,6 +390,11 @@ export function buildOrcModel(): THREE.Group {
   cloak.name = 'cloak';
   cloak.position.set(0, 0.7, 0.15);
   group.add(cloak);
+
+  addOutlineShell(group, {
+    includeNames: ['body', 'head', 'jaw', 'hair', 'leftPauldron', 'rightPauldron', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'leftBracer', 'rightBracer', 'cloak'],
+    scale: 1.055,
+  });
 
   return group;
 }
@@ -385,10 +436,12 @@ export function buildUndeadModel(): THREE.Group {
   });
 
   const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+  leftEye.name = 'leftEye';
   leftEye.position.set(-0.07, 2.34, 0.17);
   group.add(leftEye);
 
   const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+  rightEye.name = 'rightEye';
   rightEye.position.set(0.07, 2.34, 0.17);
   group.add(rightEye);
 
@@ -441,8 +494,22 @@ export function buildUndeadModel(): THREE.Group {
   const ribGeo = new THREE.BoxGeometry(0.18, 0.28, 0.04);
   const ribMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d });
   const rib = new THREE.Mesh(ribGeo, ribMat);
+  rib.name = 'rib';
   rib.position.set(0, 1.95, 0.16);
   group.add(rib);
+
+  const hoodGeo = new THREE.ConeGeometry(0.24, 0.42, 6);
+  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b });
+  const hood = new THREE.Mesh(hoodGeo, hoodMat);
+  hood.name = 'hood';
+  hood.position.set(0, 2.55, 0);
+  hood.rotation.x = Math.PI;
+  group.add(hood);
+
+  addOutlineShell(group, {
+    includeNames: ['body', 'head', 'leftEye', 'rightEye', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'cloak', 'rib', 'hood'],
+    scale: 1.05,
+  });
 
   return group;
 }

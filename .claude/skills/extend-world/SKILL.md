@@ -1,6 +1,6 @@
 ---
 name: extend-world
-description: Extend the 3D world of Promptcraft with new terrain features, buildings, vegetation, NPCs, effects, or environmental elements. Use when the user wants to add new 3D content, expand the map, create new zones, add structures, or enhance the visual atmosphere.
+description: Extend and harden the 3D world of Promptcraft with new terrain features, buildings, vegetation, NPCs, effects, or environmental elements. Use whenever the user wants to add world content, expand the map, create or rebalance zones, improve coordinate consistency, fix collision coverage, or make NPC/world navigation feel production-quality and game-like.
 argument-hint: [what to add, e.g. "a crystal cave zone" or "floating lanterns effect"]
 ---
 
@@ -12,6 +12,7 @@ You are extending **World of Promptcraft**, a Three.js + TypeScript browser RPG 
 
 1. **Read the relevant scene files** to understand existing patterns:
    - `client/src/scene/Terrain.ts` — Procedural terrain with chunk loading and height queries
+   - `client/src/scene/Biomes.ts` — Biome weights/transitions tied to world position
    - `client/src/scene/Buildings.ts` — Elven structures (Moonwell, TreeHouse, Tower, Pavilion)
    - `client/src/scene/Vegetation.ts` — Instanced trees, mushrooms, ferns
    - `client/src/scene/Water.ts` — Reflective water plane with shaders
@@ -19,6 +20,8 @@ You are extending **World of Promptcraft**, a Three.js + TypeScript browser RPG 
    - `client/src/scene/Skybox.ts` — Stars, moons, nebula
    - `client/src/scene/Lighting.ts` — Moonlight, spotlights, shadows
    - `client/src/scene/SceneManager.ts` — Renderer, post-processing, bloom setup
+   - `client/src/systems/WorldGenerator.ts` — Procedural caves/towns/NPCs and collision registration
+   - `client/src/systems/ZoneTracker.ts` — Client zone boundaries and transitions
    - `client/src/main.ts` — Game initialization and main loop
 
 2. **Read the server NPC/zone definitions** if adding NPCs or zones:
@@ -37,6 +40,7 @@ Follow these patterns strictly when extending the world:
 - Avoid placing objects inside building footprints or water areas
 - Keep triangle counts reasonable: use simple geometry (boxes, cylinders, cones, spheres) composed together
 - **Collider-first default**: when adding world geometry, make it collidable by default (`userData.isCollider = true`) and register it with the collision system. Only skip colliders for clearly decorative/non-blocking pieces.
+- If a mesh is decorative and should not block movement, mark it explicitly (`userData.noCollision = true`) rather than leaving intent ambiguous.
 
 ### Visual Style
 - **Color palette**: Deep purples (0x2a0845), teals (0x00ffaa), moonlit blues (0x8899ff), bioluminescent greens (0x44ff88)
@@ -67,8 +71,26 @@ When adding a new NPC, you must update both client and server:
 2. Add terrain features, buildings, or vegetation in the client that visually represent the zone
 3. Consider adding zone-specific lighting or effects
 
+### World Consistency (Coordinates, Zones, and Navigation)
+- Keep **server and client zone boundaries mirrored** (`server/src/world/zones.py` and `client/src/systems/ZoneTracker.ts`).
+- Keep **boundary semantics consistent** across both sides (same inclusive/exclusive edge behavior).
+- Ensure biome transitions (`client/src/scene/Biomes.ts`) match zone scale and geography so visuals and zone names feel coherent.
+- When regional coordinate logic changes, update all dependent systems (especially `WorldGenerator` region/dungeon mapping and any coordinate-threshold gameplay rules).
+- Treat map consistency as a first-class quality target: no abrupt zone/theme mismatch, no contradictory coordinate rules between systems.
+
+### Collision Completeness and Quality
+- For consistency passes, do a collider audit over affected world meshes and make blocking geometry explicitly collidable.
+- Prefer per-mesh colliders over coarse group AABBs for authored structures and generated geometry.
+- Register and unregister colliders correctly for streamed/procedural content (chunk load/unload lifecycle).
+- Ensure NPC movement logic can navigate around new colliders and recover from blocked/stuck states.
+
 ## What the User Wants
 
 The user wants to add: **$ARGUMENTS**
 
-Implement this addition following all the rules above. Show the user what you plan to add before writing code. By default, include colliders for new structures/objects unless they are explicitly decorative. After implementation, verify the code compiles by checking for TypeScript errors.
+Implement this addition following all the rules above. Show the user what you plan to add before writing code. If the request involves world consistency, prioritize:
+1. coordinate/zone alignment across server + client,
+2. collision coverage and collider intent tagging across relevant meshes,
+3. NPC/world navigation behavior in the updated geometry.
+
+By default, include colliders for new structures/objects unless they are explicitly decorative. After implementation, verify the code compiles by checking for TypeScript errors.

@@ -19,6 +19,10 @@ export interface ZoneData {
  * Mirror of server/src/world/zones.py — checked in order (specific zones first).
  * "Elders' Village" must come before "Teldrassil Wilds" because the village
  * bounding box is entirely contained within the wilds.
+ *
+ * Boundary semantics match the server:
+ * - all zones except the last use an exclusive max bound (< max)
+ * - the final catch-all zone uses inclusive max bounds (<= max)
  */
 export const ZONES: ZoneData[] = [
   {
@@ -109,8 +113,13 @@ export class ZoneTracker {
   }
 
   private getZone(x: number, z: number): string {
-    for (const zone of ZONES) {
-      if (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ) {
+    const lastIndex = ZONES.length - 1;
+    for (let i = 0; i < ZONES.length; i++) {
+      const zone = ZONES[i];
+      const inBounds = i < lastIndex
+        ? (x >= zone.minX && x < zone.maxX && z >= zone.minZ && z < zone.maxZ)
+        : (x >= zone.minX && x <= zone.maxX && z >= zone.minZ && z <= zone.maxZ);
+      if (inBounds) {
         return zone.name;
       }
     }
