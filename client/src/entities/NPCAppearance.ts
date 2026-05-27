@@ -1,45 +1,48 @@
 /**
- * NPCAppearance — Procedural mesh building for NPCs.
- *
- * Handles mesh geometry creation (body, shoulders, belt, head, legs, hat)
- * and role-based appearance customization.
+ * NPCAppearance — Roblox-style procedural mesh for NPCs.
+ * Box torso, box head, cylinder arms/legs — same proportions grid as Player.
  */
 
 import * as THREE from 'three';
 import type { NPCPlaceholderStyle } from './NPCModels';
 
+// ── Shared proportions grid (must match RaceModels.ts / Player.ts) ────────────
+export const NPC_Y_LEG   = 0.44;
+export const NPC_Y_TORSO = 1.29;
+export const NPC_Y_ARM   = 1.40;
+export const NPC_Y_HEAD  = 1.99;
+export const NPC_HEAD_HALF = 0.26; // half of fixed head height 0.52
+// Derived helpers for accessories
+export const NPC_TORSO_TOP = NPC_Y_TORSO + 0.44; // 1.73
+export const NPC_HEAD_TOP  = NPC_Y_HEAD + NPC_HEAD_HALF; // 2.25
+
 export interface AppearanceData {
-  bodyTopRadius: number;
-  bodyBottomRadius: number;
-  bodyHeight: number;
-  bodyY: number;
-  bodySegments: number;
+  // Box torso (height always 0.88)
+  bodyWidth: number;
+  bodyDepth: number;
   bodyColor: number;
-  shoulderRadius: number;
-  shoulderOffset: number;
-  shoulderY: number;
-  beltRadius: number;
-  beltTube: number;
-  beltY: number;
-  beltColor: number;
-  headRadius: number;
-  headY: number;
+  // Box head (height always 0.52)
+  headWidth: number;
+  headDepth: number;
   headColor: number;
-  legWidth: number;
-  legHeight: number;
-  legDepth: number;
-  legOffset: number;
-  legY: number;
+  // Eyes — set emissiveIntensity=0 to skip (accessory handles it instead)
+  eyeColor: number;
+  eyeEmissive: number;
+  eyeEmissiveIntensity: number;
+  // Cylinder arms
+  armRadius: number;
+  armColor: number;
+  // Cylinder legs
+  legRadius: number;
   legColor: number;
+  // Belt
+  beltColor: number;
+  // Cone hat on top of head (radius=0 → skip)
   hatRadius: number;
   hatHeight: number;
-  hatY: number;
-  hatColor?: number;
+  hatColor: number;
 }
 
-/**
- * Darken a hex color by a percentage.
- */
 export function darken(hex: number, amount: number): number {
   const r = (hex >> 16) & 255;
   const g = (hex >> 8) & 255;
@@ -51,442 +54,277 @@ export function darken(hex: number, amount: number): number {
   );
 }
 
-/**
- * Get appearance parameters for a given NPC style.
- */
 export function getPlaceholderAppearance(style: NPCPlaceholderStyle): AppearanceData {
   switch (style) {
     case 'merchant':
       return {
-        bodyTopRadius: 0.36,
-        bodyBottomRadius: 0.42,
-        bodyHeight: 1.3,
-        bodyY: 1.45,
-        bodySegments: 10,
-        bodyColor: 0xa67c52,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.28,
-        shoulderY: 2.0,
-        beltRadius: 0.34,
-        beltTube: 0.04,
-        beltY: 1.05,
+        bodyWidth: 0.62, bodyDepth: 0.38, bodyColor: 0x7a5c38,
+        headWidth: 0.52, headDepth: 0.48, headColor: 0xf0c888,
+        eyeColor: 0xcc8833, eyeEmissive: 0xaa6622, eyeEmissiveIntensity: 0.8,
+        armRadius: 0.115, armColor: 0x7a5c38,
+        legRadius: 0.135, legColor: 0x4a3520,
         beltColor: 0x8b6914,
-        headRadius: 0.24,
-        headY: 2.26,
-        headColor: 0xf3cfaf,
-        legWidth: 0.15,
-        legHeight: 0.62,
-        legDepth: 0.15,
-        legOffset: 0.12,
-        legY: 0.42,
-        legColor: 0x5d4037,
-        hatRadius: 0.16,
-        hatHeight: 0.3,
-        hatY: 2.56,
+        hatRadius: 0.24, hatHeight: 0.22, hatColor: 0x5a3a18,
       };
     case 'guard':
       return {
-        bodyTopRadius: 0.42,
-        bodyBottomRadius: 0.46,
-        bodyHeight: 1.55,
-        bodyY: 1.58,
-        bodySegments: 10,
-        bodyColor: 0x8b8f9c,
-        shoulderRadius: 0.16,
-        shoulderOffset: 0.4,
-        shoulderY: 2.15,
-        beltRadius: 0.37,
-        beltTube: 0.045,
-        beltY: 1.18,
+        bodyWidth: 0.70, bodyDepth: 0.42, bodyColor: 0x6a7288,
+        headWidth: 0.54, headDepth: 0.50, headColor: 0xf0c888,
+        eyeColor: 0x4466aa, eyeEmissive: 0x224488, eyeEmissiveIntensity: 0.3,
+        armRadius: 0.13, armColor: 0x6a7288,
+        legRadius: 0.145, legColor: 0x3a4055,
         beltColor: 0x666677,
-        headRadius: 0.26,
-        headY: 2.5,
-        headColor: 0xf2d0b0,
-        legWidth: 0.17,
-        legHeight: 0.72,
-        legDepth: 0.17,
-        legOffset: 0.15,
-        legY: 0.45,
-        legColor: 0x4b4f59,
-        hatRadius: 0.1,
-        hatHeight: 0.18,
-        hatY: 2.96,
+        hatRadius: 0.20, hatHeight: 0.28, hatColor: 0x5a6278,
       };
     case 'healer':
       return {
-        bodyTopRadius: 0.28,
-        bodyBottomRadius: 0.32,
-        bodyHeight: 1.45,
-        bodyY: 1.5,
-        bodySegments: 10,
-        bodyColor: 0xc8b7a4,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.28,
-        shoulderY: 2.06,
-        beltRadius: 0.3,
-        beltTube: 0.035,
-        beltY: 1.08,
+        bodyWidth: 0.56, bodyDepth: 0.34, bodyColor: 0xd8cdb8,
+        headWidth: 0.52, headDepth: 0.48, headColor: 0xf5d8be,
+        eyeColor: 0xffcc44, eyeEmissive: 0xddaa22, eyeEmissiveIntensity: 0.9,
+        armRadius: 0.11, armColor: 0xd8cdb8,
+        legRadius: 0.12, legColor: 0x9a9080,
         beltColor: 0xffdd66,
-        headRadius: 0.24,
-        headY: 2.42,
-        headColor: 0xf5d8be,
-        legWidth: 0.13,
-        legHeight: 0.68,
-        legDepth: 0.13,
-        legOffset: 0.11,
-        legY: 0.44,
-        legColor: 0x7b6a5c,
-        hatRadius: 0.16,
-        hatHeight: 0.24,
-        hatY: 2.72,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'sage':
     case 'mage':
       return {
-        bodyTopRadius: 0.3,
-        bodyBottomRadius: 0.34,
-        bodyHeight: 1.5,
-        bodyY: 1.53,
-        bodySegments: 10,
-        bodyColor: 0x4b3f7a,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.3,
-        shoulderY: 2.08,
-        beltRadius: 0.31,
-        beltTube: 0.035,
-        beltY: 1.1,
+        bodyWidth: 0.52, bodyDepth: 0.32, bodyColor: 0x3d3270,
+        headWidth: 0.50, headDepth: 0.46, headColor: 0xe4cfbd,
+        eyeColor: 0xaa66ff, eyeEmissive: 0x7733cc, eyeEmissiveIntensity: 1.2,
+        armRadius: 0.105, armColor: 0x3d3270,
+        legRadius: 0.12, legColor: 0x251e40,
         beltColor: 0x553366,
-        headRadius: 0.24,
-        headY: 2.44,
-        headColor: 0xe4cfbd,
-        legWidth: 0.12,
-        legHeight: 0.68,
-        legDepth: 0.12,
-        legOffset: 0.11,
-        legY: 0.44,
-        legColor: 0x2f254d,
-        hatRadius: 0.17,
-        hatHeight: 0.4,
-        hatY: 2.86,
+        hatRadius: 0.17, hatHeight: 0.46, hatColor: 0x2a1f50,
       };
     case 'dragon':
       return {
-        bodyTopRadius: 0.44,
-        bodyBottomRadius: 0.52,
-        bodyHeight: 1.7,
-        bodyY: 1.65,
-        bodySegments: 12,
-        bodyColor: 0x1f4520,
-        shoulderRadius: 0.17,
-        shoulderOffset: 0.42,
-        shoulderY: 2.24,
-        beltRadius: 0.38,
-        beltTube: 0.055,
-        beltY: 1.25,
+        bodyWidth: 0.86, bodyDepth: 0.52, bodyColor: 0x1f4520,
+        headWidth: 0.64, headDepth: 0.58, headColor: 0x2d5a24,
+        eyeColor: 0, eyeEmissive: 0, eyeEmissiveIntensity: 0,
+        armRadius: 0.16, armColor: 0x1f4520,
+        legRadius: 0.18, legColor: 0x0e2010,
         beltColor: 0x0f2510,
-        headRadius: 0.29,
-        headY: 2.74,
-        headColor: 0x2d5a24,
-        legWidth: 0.19,
-        legHeight: 0.74,
-        legDepth: 0.19,
-        legOffset: 0.15,
-        legY: 0.45,
-        legColor: 0x0e2010,
-        hatRadius: 0.001,
-        hatHeight: 0.001,
-        hatY: 0,
-        hatColor: 0x000000,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'monster':
       return {
-        bodyTopRadius: 0.48,
-        bodyBottomRadius: 0.54,
-        bodyHeight: 1.48,
-        bodyY: 1.48,
-        bodySegments: 10,
-        bodyColor: 0x5e5a42,
-        shoulderRadius: 0.18,
-        shoulderOffset: 0.42,
-        shoulderY: 2.1,
-        beltRadius: 0.34,
-        beltTube: 0.04,
-        beltY: 1.12,
+        bodyWidth: 0.76, bodyDepth: 0.46, bodyColor: 0x5e5a42,
+        headWidth: 0.58, headDepth: 0.52, headColor: 0xd8d0b0,
+        eyeColor: 0, eyeEmissive: 0, eyeEmissiveIntensity: 0,
+        armRadius: 0.15, armColor: 0x5e5a42,
+        legRadius: 0.165, legColor: 0x383522,
         beltColor: 0x2f2f2f,
-        headRadius: 0.23,
-        headY: 2.34,
-        headColor: 0xd8d0b0,
-        legWidth: 0.18,
-        legHeight: 0.68,
-        legDepth: 0.18,
-        legOffset: 0.14,
-        legY: 0.44,
-        legColor: 0x383522,
-        hatRadius: 0.12,
-        hatHeight: 0.2,
-        hatY: 2.82,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'orc':
       return {
-        bodyTopRadius: 0.44,
-        bodyBottomRadius: 0.5,
-        bodyHeight: 1.58,
-        bodyY: 1.58,
-        bodySegments: 10,
-        bodyColor: 0x3d6b2a,
-        shoulderRadius: 0.17,
-        shoulderOffset: 0.42,
-        shoulderY: 2.16,
-        beltRadius: 0.38,
-        beltTube: 0.045,
-        beltY: 1.15,
+        bodyWidth: 0.80, bodyDepth: 0.46, bodyColor: 0x3d6b2a,
+        headWidth: 0.60, headDepth: 0.54, headColor: 0x3d6b2a,
+        eyeColor: 0xffcc22, eyeEmissive: 0xdd9900, eyeEmissiveIntensity: 1.5,
+        armRadius: 0.155, armColor: 0x3d6b2a,
+        legRadius: 0.17, legColor: 0x26491b,
         beltColor: 0x5f1f1f,
-        headRadius: 0.27,
-        headY: 2.5,
-        headColor: 0xbda98a,
-        legWidth: 0.18,
-        legHeight: 0.72,
-        legDepth: 0.18,
-        legOffset: 0.15,
-        legY: 0.45,
-        legColor: 0x26491b,
-        hatRadius: 0.1,
-        hatHeight: 0.18,
-        hatY: 2.96,
+        hatRadius: 0.09, hatHeight: 0.30, hatColor: 0x111111,
       };
     case 'undead':
       return {
-        bodyTopRadius: 0.22,
-        bodyBottomRadius: 0.26,
-        bodyHeight: 1.5,
-        bodyY: 1.52,
-        bodySegments: 8,
-        bodyColor: 0x3a3d35,
-        shoulderRadius: 0.09,
-        shoulderOffset: 0.22,
-        shoulderY: 2.06,
-        beltRadius: 0.24,
-        beltTube: 0.025,
-        beltY: 1.1,
+        bodyWidth: 0.50, bodyDepth: 0.30, bodyColor: 0x3a3d35,
+        headWidth: 0.48, headDepth: 0.44, headColor: 0xc8c8c0,
+        eyeColor: 0, eyeEmissive: 0, eyeEmissiveIntensity: 0,
+        armRadius: 0.09, armColor: 0x6e7a6e,
+        legRadius: 0.10, legColor: 0x1a1a14,
         beltColor: 0x1a1f1a,
-        headRadius: 0.24,
-        headY: 2.42,
-        headColor: 0xc8c8c0,
-        legWidth: 0.1,
-        legHeight: 0.64,
-        legDepth: 0.1,
-        legOffset: 0.08,
-        legY: 0.43,
-        legColor: 0x1a1a14,
-        hatRadius: 0.15,
-        hatHeight: 0.3,
-        hatY: 2.74,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'civilian':
       return {
-        bodyTopRadius: 0.32,
-        bodyBottomRadius: 0.38,
-        bodyHeight: 1.35,
-        bodyY: 1.48,
-        bodySegments: 10,
-        bodyColor: 0x5d4037,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.3,
-        shoulderY: 2.0,
-        beltRadius: 0.32,
-        beltTube: 0.035,
-        beltY: 1.05,
+        bodyWidth: 0.60, bodyDepth: 0.36, bodyColor: 0x5d4037,
+        headWidth: 0.52, headDepth: 0.48, headColor: 0xe0ac69,
+        eyeColor: 0x5a3311, eyeEmissive: 0, eyeEmissiveIntensity: 0,
+        armRadius: 0.115, armColor: 0x5d4037,
+        legRadius: 0.13, legColor: 0x212121,
         beltColor: 0x3e2723,
-        headRadius: 0.24,
-        headY: 2.3,
-        headColor: 0xe0ac69,
-        legWidth: 0.15,
-        legHeight: 0.64,
-        legDepth: 0.15,
-        legOffset: 0.12,
-        legY: 0.42,
-        legColor: 0x212121,
-        hatRadius: 0.001,
-        hatHeight: 0.001,
-        hatY: 0,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'pyromancer':
       return {
-        bodyTopRadius: 0.3,
-        bodyBottomRadius: 0.34,
-        bodyHeight: 1.5,
-        bodyY: 1.53,
-        bodySegments: 10,
-        bodyColor: 0x6a1a06,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.3,
-        shoulderY: 2.08,
-        beltRadius: 0.31,
-        beltTube: 0.035,
-        beltY: 1.1,
+        bodyWidth: 0.54, bodyDepth: 0.34, bodyColor: 0x6a1a06,
+        headWidth: 0.50, headDepth: 0.46, headColor: 0xe8b890,
+        eyeColor: 0xff6600, eyeEmissive: 0xff3300, eyeEmissiveIntensity: 1.8,
+        armRadius: 0.105, armColor: 0x6a1a06,
+        legRadius: 0.12, legColor: 0x3c1408,
         beltColor: 0xcc4400,
-        headRadius: 0.24,
-        headY: 2.44,
-        headColor: 0xe8b890,
-        legWidth: 0.12,
-        legHeight: 0.68,
-        legDepth: 0.12,
-        legOffset: 0.11,
-        legY: 0.44,
-        legColor: 0x3c1408,
-        hatRadius: 0.17,
-        hatHeight: 0.4,
-        hatY: 2.86,
-        hatColor: 0x6a1a06,
+        hatRadius: 0.17, hatHeight: 0.46, hatColor: 0x4a0f02,
       };
     case 'cryomancer':
       return {
-        bodyTopRadius: 0.3,
-        bodyBottomRadius: 0.34,
-        bodyHeight: 1.5,
-        bodyY: 1.53,
-        bodySegments: 10,
-        bodyColor: 0x2a4a7a,
-        shoulderRadius: 0.12,
-        shoulderOffset: 0.3,
-        shoulderY: 2.08,
-        beltRadius: 0.31,
-        beltTube: 0.035,
-        beltY: 1.1,
+        bodyWidth: 0.54, bodyDepth: 0.34, bodyColor: 0x2a4a7a,
+        headWidth: 0.50, headDepth: 0.46, headColor: 0xe0ecf8,
+        eyeColor: 0x88ccff, eyeEmissive: 0x4499dd, eyeEmissiveIntensity: 1.4,
+        armRadius: 0.105, armColor: 0x2a4a7a,
+        legRadius: 0.12, legColor: 0x1a2a44,
         beltColor: 0x66aadd,
-        headRadius: 0.24,
-        headY: 2.44,
-        headColor: 0xe0ecf8,
-        legWidth: 0.12,
-        legHeight: 0.68,
-        legDepth: 0.12,
-        legOffset: 0.11,
-        legY: 0.44,
-        legColor: 0x1a2a44,
-        hatRadius: 0.17,
-        hatHeight: 0.4,
-        hatY: 2.86,
-        hatColor: 0x1a3a5a,
+        hatRadius: 0.17, hatHeight: 0.46, hatColor: 0x1a3a6a,
       };
     default:
       throw new Error(`Unknown NPC placeholder style: ${style}`);
   }
 }
 
-/**
- * Build procedural mesh for NPC appearance.
- * Returns array of materials for later material management.
- */
 export function buildProceduralMesh(
-  mesh: THREE.Group,
+  group: THREE.Group,
   appearance: AppearanceData,
-  color: number,
+  _color: number,
 ): THREE.MeshStandardMaterial[] {
+  const a = appearance;
   const materials: THREE.MeshStandardMaterial[] = [];
+  const ARM_X = a.bodyWidth / 2 + a.armRadius + 0.02;
+  const LEG_X = a.bodyWidth / 4;
 
-  // Body
-  const bodyGeo = new THREE.CylinderGeometry(
-    appearance.bodyTopRadius,
-    appearance.bodyBottomRadius,
-    appearance.bodyHeight,
-    appearance.bodySegments,
-  );
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: appearance.bodyColor ?? color,
-    flatShading: true,
-    roughness: 0.95,
-    metalness: 0.02,
-  });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  // ── Torso ──
+  const bodyMat = npcMat(a.bodyColor);
+  const body = new THREE.Mesh(new THREE.BoxGeometry(a.bodyWidth, 0.88, a.bodyDepth), bodyMat);
   body.name = 'body';
-  body.position.y = appearance.bodyY;
+  body.position.y = NPC_Y_TORSO;
   body.castShadow = true;
-  mesh.add(body);
+  group.add(body);
   materials.push(bodyMat);
 
-  // Shoulders
-  const shoulderGeo = new THREE.SphereGeometry(appearance.shoulderRadius, 8, 6);
-  const shoulderMat = new THREE.MeshStandardMaterial({
-    color: darken(appearance.bodyColor ?? color, 0.15),
-    flatShading: true,
-    roughness: 0.9,
-    metalness: 0.03,
-  });
-  const leftShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
-  leftShoulder.name = 'leftShoulder';
-  leftShoulder.position.set(-appearance.shoulderOffset, appearance.shoulderY, 0);
-  mesh.add(leftShoulder);
-
-  const rightShoulder = new THREE.Mesh(shoulderGeo, shoulderMat);
-  rightShoulder.name = 'rightShoulder';
-  rightShoulder.position.set(appearance.shoulderOffset, appearance.shoulderY, 0);
-  mesh.add(rightShoulder);
-  materials.push(shoulderMat);
-
   // Belt
-  const beltGeo = new THREE.TorusGeometry(appearance.beltRadius, appearance.beltTube, 6, 16);
-  const beltMat = new THREE.MeshStandardMaterial({
-    color: appearance.beltColor,
-    flatShading: true,
-    roughness: 0.72,
-    metalness: 0.06,
-  });
-  const belt = new THREE.Mesh(beltGeo, beltMat);
+  const beltMat = npcMat(a.beltColor, 0.6, 0.15);
+  const belt = new THREE.Mesh(
+    new THREE.TorusGeometry(a.bodyWidth / 2 - 0.01, 0.028, 5, 14),
+    beltMat,
+  );
   belt.name = 'belt';
-  belt.position.y = appearance.beltY;
+  belt.position.y = NPC_Y_TORSO - 0.28;
   belt.rotation.x = Math.PI / 2;
-  mesh.add(belt);
+  group.add(belt);
   materials.push(beltMat);
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(appearance.headRadius, 12, 10);
-  const headMat = new THREE.MeshStandardMaterial({
-    color: appearance.headColor,
-    flatShading: true,
-    roughness: 0.98,
-    metalness: 0.0,
-  });
-  const head = new THREE.Mesh(headGeo, headMat);
+  // ── Head ──
+  const headMat = npcMat(a.headColor, 0.88);
+  const head = new THREE.Mesh(new THREE.BoxGeometry(a.headWidth, 0.52, a.headDepth), headMat);
   head.name = 'head';
-  head.position.y = appearance.headY;
+  head.position.y = NPC_Y_HEAD;
   head.castShadow = true;
-  mesh.add(head);
+  group.add(head);
   materials.push(headMat);
 
-  // Legs
-  const legGeo = new THREE.BoxGeometry(appearance.legWidth, appearance.legHeight, appearance.legDepth);
-  const legMat = new THREE.MeshStandardMaterial({
-    color: appearance.legColor,
-    flatShading: true,
-    roughness: 0.96,
-    metalness: 0.01,
-  });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-appearance.legOffset, appearance.legY, 0);
-  mesh.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(appearance.legOffset, appearance.legY, 0);
-  mesh.add(rightLeg);
-
-  materials.push(legMat);
+  // Eyes (skip if intensity=0 — accessory provides custom eyes for that style)
+  if (a.eyeEmissiveIntensity > 0) {
+    const eyeMat = npcMat(a.eyeColor, 0.05, 0, a.eyeEmissive, a.eyeEmissiveIntensity);
+    const eyeGeo = new THREE.SphereGeometry(0.046, 8, 6);
+    const ex = a.headWidth * 0.22;
+    const ez = a.headDepth / 2 + 0.02;
+    const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+    lEye.name = 'leftEye';
+    lEye.position.set(-ex, NPC_Y_HEAD + 0.03, ez);
+    group.add(lEye);
+    const rEye = lEye.clone();
+    rEye.name = 'rightEye';
+    rEye.position.x = ex;
+    group.add(rEye);
+    materials.push(eyeMat);
+  }
 
   // Hat
-  const hatGeo = new THREE.ConeGeometry(appearance.hatRadius, appearance.hatHeight, 8);
-  const hatMat = new THREE.MeshStandardMaterial({
-    color: appearance.hatColor ?? darken(color, 0.4),
-    flatShading: true,
-    roughness: 0.88,
-    metalness: 0.03,
-  });
-  const hat = new THREE.Mesh(hatGeo, hatMat);
-  hat.name = 'hat';
-  hat.position.y = appearance.hatY;
-  mesh.add(hat);
-  materials.push(hatMat);
+  if (a.hatRadius > 0) {
+    const hatMat = npcMat(a.hatColor);
+    const hat = new THREE.Mesh(new THREE.ConeGeometry(a.hatRadius, a.hatHeight, 8), hatMat);
+    hat.name = 'hat';
+    hat.position.y = NPC_HEAD_TOP + a.hatHeight / 2;
+    group.add(hat);
+    materials.push(hatMat);
+  }
+
+  // ── Arms ──
+  const armMat = npcMat(a.armColor, 0.78);
+  const armGeo = new THREE.CylinderGeometry(a.armRadius, a.armRadius, 0.66, 10);
+  const handGeo = new THREE.SphereGeometry(a.armRadius + 0.01, 8, 5);
+
+  const lArm = new THREE.Mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, NPC_Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  childMesh(lArm, handGeo, armMat, 0, -0.37, 0);
+
+  const rArm = new THREE.Mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, NPC_Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  childMesh(rArm, handGeo, armMat, 0, -0.37, 0);
+  materials.push(armMat);
+
+  // ── Legs ──
+  const legMat = npcMat(a.legColor, 0.75);
+  const legGeo = new THREE.CylinderGeometry(a.legRadius, a.legRadius, 0.82, 10);
+  const bootMat = npcMat(darken(a.legColor, 0.22), 0.80);
+  const bootGeo = new THREE.CylinderGeometry(a.legRadius + 0.01, a.legRadius + 0.02, 0.22, 10);
+  const toeGeo  = new THREE.SphereGeometry(a.legRadius + 0.015, 8, 5);
+
+  const lLeg = new THREE.Mesh(legGeo, legMat);
+  lLeg.name = 'leftLeg';
+  lLeg.position.set(-LEG_X, NPC_Y_LEG, 0);
+  lLeg.castShadow = true;
+  group.add(lLeg);
+  const lBoot = childMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+  childMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+  const rLeg = new THREE.Mesh(legGeo, legMat);
+  rLeg.name = 'rightLeg';
+  rLeg.position.set(LEG_X, NPC_Y_LEG, 0);
+  rLeg.castShadow = true;
+  group.add(rLeg);
+  const rBoot = childMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+  childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+  materials.push(legMat);
 
   return materials;
+}
+
+function npcMat(
+  color: number,
+  roughness = 0.78,
+  metalness = 0,
+  emissive?: number,
+  emissiveIntensity?: number,
+): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness,
+    metalness,
+    emissive: emissive !== undefined && emissive !== 0 ? new THREE.Color(emissive) : undefined,
+    emissiveIntensity,
+    flatShading: true,
+  });
+}
+
+function childMesh(
+  parent: THREE.Mesh,
+  geo: THREE.BufferGeometry,
+  mat: THREE.Material,
+  x: number, y: number, z: number,
+): THREE.Mesh {
+  const child = new THREE.Mesh(geo, mat);
+  child.position.set(x, y, z);
+  parent.add(child);
+  return child;
+}
+
+export function applyFlatShading(group: THREE.Group): void {
+  group.traverse((child) => {
+    if (child instanceof THREE.Mesh) {
+      const mats = Array.isArray(child.material) ? child.material : [child.material];
+      for (const mat of mats) {
+        if (mat instanceof THREE.MeshStandardMaterial) {
+          mat.flatShading = true;
+          mat.needsUpdate = true;
+        }
+      }
+    }
+  });
 }

@@ -304,14 +304,32 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
   }
 
   if (roadBlend > 0) {
-    // Add cobblestone/dirt color
-    const roadColor = new THREE.Color(0xa8a090); // warm stone/dirt
-    // Add some noise to the road
-    const noise = Math.sin(x * 1.5 + z * 1.5) * 0.05;
-    roadColor.r += noise;
-    roadColor.g += noise;
-    roadColor.b += noise;
-    _colorResult.lerp(roadColor, roadBlend * 0.85); // 85% opacity in the center
+    // Advanced Cobblestone Shader Math
+    // We use a multi-frequency sine wave to simulate interlocking stones
+    const stoneScale = 1.8;
+    const stoneX = x * stoneScale;
+    const stoneZ = z * stoneScale;
+    
+    // Interlocking grid pattern
+    const pattern = Math.abs(Math.sin(stoneX) * Math.sin(stoneZ));
+    const grout = smoothstep(0.7, 0.9, pattern); // Dark gaps between stones
+    
+    const roadColor = new THREE.Color(0x8a8270); // Base warm stone
+    const stoneVariation = (Math.sin(stoneX * 0.5) + Math.cos(stoneZ * 0.5)) * 0.05;
+    
+    roadColor.r += stoneVariation;
+    roadColor.g += stoneVariation;
+    roadColor.b += stoneVariation;
+    
+    // Apply grout (darken the gaps)
+    roadColor.lerp(new THREE.Color(0x333333), grout * 0.6);
+    
+    // Add dirt/weathering noise
+    const dirt = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.04;
+    roadColor.r += dirt;
+    roadColor.g += dirt;
+
+    _colorResult.lerp(roadColor, roadBlend * 0.9);
   }
 
   return _colorResult;
