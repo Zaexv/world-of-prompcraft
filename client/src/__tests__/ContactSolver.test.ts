@@ -25,7 +25,7 @@ describe('ContactSolver', () => {
     );
 
     const contacts = solver.getContacts(capsule, [mesh]);
-    console.log("Contacts:", contacts);
+    console.info("Contacts:", contacts);
     expect(contacts.length).toBeGreaterThan(0);
   });
 });

@@ -1,4 +1,5 @@
 import manifestData from '../../../shared/data/world_manifest.json';
+import type { DungeonConfig } from '../scene/DungeonConfig';
 
 export interface BiomeColorData {
   low: [number, number, number];
@@ -67,7 +68,7 @@ export interface ZoneDefinition {
   };
   architecture: {
     landmarks: LandmarkDefinition[];
-    dungeons: Record<string, any>;
+    dungeons: Record<string, DungeonConfig>;
   };
 }
 
@@ -91,7 +92,7 @@ export class WorldManifest {
   private landmarks: Map<string, LandmarkDefinition> = new Map();
   private terrainFeatures: VerticalPlace[] = [];
   private environment: EnvironmentConfig | null = null;
-  private dungeons: Record<string, any> = {};
+  private dungeons: Record<string, DungeonConfig> = {};
   private npcs: NPCDefinition[] = [];
   private zones: Map<string, ZoneDefinition> = new Map();
 
@@ -144,11 +145,11 @@ export class WorldManifest {
     return this.terrainFeatures;
   }
 
-  public getDungeons(): Record<string, any> {
+  public getDungeons(): Record<string, DungeonConfig> {
     return this.dungeons;
   }
 
-  public getDungeon(id: string): any | undefined {
+  public getDungeon(id: string): DungeonConfig | undefined {
     return this.dungeons[id];
   }
 

@@ -49,11 +49,11 @@ export class WebSocketClient {
   // ── Internals ──────────────────────────────────────────────────────────────
 
   private connect(): void {
-    console.log(`WebSocketClient: Connecting to ${this.url}...`);
+    console.info(`WebSocketClient: Connecting to ${this.url}...`);
     this.ws = new WebSocket(this.url);
 
     this.ws.onopen = () => {
-      console.log('WebSocketClient: Connected successfully.');
+      console.info('WebSocketClient: Connected successfully.');
       this.reconnectDelay = 1000;
       this.startHeartbeat();
       this.onConnectionChange?.(true);
@@ -64,7 +64,7 @@ export class WebSocketClient {
       this.stopHeartbeat();
       this.onConnectionChange?.(false);
       if (this.shouldReconnect) {
-        console.log(`WebSocketClient: Reconnecting in ${this.reconnectDelay}ms...`);
+        console.info(`WebSocketClient: Reconnecting in ${this.reconnectDelay}ms...`);
         setTimeout(() => this.connect(), this.reconnectDelay);
         this.reconnectDelay = Math.min(
           this.reconnectDelay * 2,

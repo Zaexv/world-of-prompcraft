@@ -18,7 +18,7 @@ describe('Collision Integration', () => {
     await cs.addCollidableFiltered(tower);
 
     const meshes = cs.getStaticMeshes();
-    console.log("Registered static meshes:", meshes.length);
+    console.info("Registered static meshes:", meshes.length);
     expect(meshes.length).toBeGreaterThan(0);
 
     const capsule = new Capsule(
@@ -30,7 +30,7 @@ describe('Collision Integration', () => {
     const controller = new CapsuleController();
     controller.update(capsule, new THREE.Vector3(10, 0, 0), 0.1, meshes);
     
-    console.log("Capsule position after update:", capsule.start);
+    console.info("Capsule position after update:", capsule.start);
     // Should be blocked before x = 2 - tower_radius
   });
 });

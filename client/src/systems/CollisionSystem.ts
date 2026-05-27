@@ -75,7 +75,7 @@ export class CollisionSystem {
 
       const body = this.createCollisionBody(child, true);
       if (body) {
-        console.log(`CollisionSystem: Registering static body for ${child.name || 'unnamed mesh'} type=${body.type}`);
+        console.info(`CollisionSystem: Registering static body for ${child.name || 'unnamed mesh'} type=${body.type}`);
         await this.bvhManager.addBody(body);
         this.statics.push({ obj: child, body });
       }

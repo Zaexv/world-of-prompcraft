@@ -20,6 +20,9 @@ export interface NPCConfig {
   behavior?: NPCMotionSource['behavior'];
   movementStyle?: NPCMotionSource['movementStyle'];
   wanderRadius?: number;
+  hp?: number;
+  maxHp?: number;
+  personality?: string;
 }
 
 export class NPC {

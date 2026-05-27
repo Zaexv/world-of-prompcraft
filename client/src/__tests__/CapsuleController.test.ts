@@ -30,7 +30,7 @@ describe('CapsuleController', () => {
     // We expect the controller to push the capsule out to X=1.5
     controller.update(capsule, velocity, 0.1, [mesh]);
     
-    console.log("Capsule after update:", capsule.start);
+    console.info("Capsule after update:", capsule.start);
     expect(capsule.start.x).toBeGreaterThanOrEqual(1.49);
   });
 });

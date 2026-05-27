@@ -25,6 +25,6 @@ describe('CapsuleController Wall', () => {
     );
 
     const contacts = solver.getContacts(capsule, [mesh]);
-    console.log("Contacts at x=1:", contacts);
+    console.info("Contacts at x=1:", contacts);
   });
 });

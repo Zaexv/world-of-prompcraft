@@ -54,7 +54,7 @@ export class WebSocketHandler {
       }
 
       if (data.npcs) {
-        console.log(`Received ${data.npcs.length} NPCs from server.`);
+        console.info(`Received ${data.npcs.length} NPCs from server.`);
         for (const n of data.npcs) {
           const id = n.npc_id || n.id;
           const pos = n.position;
@@ -67,14 +67,15 @@ export class WebSocketHandler {
           // Update lookup maps
           this.d.npcNameMap.set(id, n.name);
 
-          console.log(`Spawning NPC: ${n.name} (${id}) at ${pos}`);
+          console.info(`Spawning NPC: ${n.name} (${id}) at ${pos}`);
           this.d.entityManager.addNPC({
             id,
             name: n.name,
             position: new THREE.Vector3(pos[0], pos[1], pos[2]),
             hp: n.hp,
             maxHp: n.maxHp,
-          } as any);
+            personality: n.personality,
+          });
 
           this.d.npcStateStore.updateState(id, {
             name: n.name,
