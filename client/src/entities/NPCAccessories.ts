@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { addOutlineShell } from './ModelStyling';
 import type { NPCPlaceholderStyle } from './NPCModels';
 import {
-  NPC_Y_TORSO, NPC_Y_ARM, NPC_Y_HEAD,
+  NPC_Y_LEG, NPC_Y_TORSO, NPC_Y_ARM, NPC_Y_HEAD,
   NPC_TORSO_TOP, NPC_HEAD_TOP,
 } from './NPCAppearance';
 
@@ -507,5 +507,3 @@ function npcMat(
   });
 }
 
-// Expose for use in NPCAppearance's NPC_Y_LEG reference
-import { NPC_Y_LEG } from './NPCAppearance';

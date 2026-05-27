@@ -9,6 +9,9 @@ export interface PlacedObject {
   id: string;
   type: string;
   group: THREE.Group;
+  position: [number, number, number];
+  rotation: [number, number, number];
+  scale: number;
   label?: string;
 }
 
@@ -62,35 +65,55 @@ export class WorldBuilder {
     label?: string;
   }, pushToUndo = true): THREE.Group | undefined {
     let placed = this.objects.get(params.objectId);
+    const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
+    const snappedPosition: [number, number, number] = [params.position[0], y, params.position[2]];
+    const rotation: [number, number, number] = params.rotation ?? placed?.rotation ?? [0, 0, 0];
+    const scale = params.scale ?? placed?.scale ?? 1;
+    const label = params.label ?? placed?.label;
+    let undoRecorded = false;
+
+    if (placed && !this.matchesPlacement(placed, params.objectType, snappedPosition, rotation, scale, label)) {
+      if (pushToUndo) {
+        this.pushUndoState();
+        undoRecorded = true;
+      }
+      this.removeObject(params.objectId, false);
+      placed = undefined;
+    }
+
     let group: THREE.Group;
 
     if (placed) {
       group = placed.group;
+      placed.position = snappedPosition;
+      placed.rotation = rotation;
+      placed.scale = scale;
+      placed.label = label;
     } else {
-      if (pushToUndo) {
+      if (pushToUndo && !undoRecorded) {
         this.pushUndoState();
       }
 
-      const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
-      const pos = new THREE.Vector3(params.position[0], y, params.position[2]);
-      const scale = params.scale ?? 1;
+      const pos = new THREE.Vector3(snappedPosition[0], snappedPosition[1], snappedPosition[2]);
 
-      const builtGroup = buildObject(params.objectType, pos, scale, params.label);
+      const builtGroup = buildObject(params.objectType, pos, scale, label);
       if (!builtGroup) return undefined;
       group = builtGroup;
 
       if (params.rotation) {
-        group.rotation.set(params.rotation[0], params.rotation[1], params.rotation[2]);
+        group.rotation.set(rotation[0], rotation[1], rotation[2]);
       }
 
       placed = {
         id: params.objectId,
         type: params.objectType,
         group,
-        label: params.label,
+        position: snappedPosition,
+        rotation,
+        scale,
+        label,
       };
       this.objects.set(params.objectId, placed);
-      this.persistence.save(this.objects);
     }
 
     // Ensure it's in the scene (it might have been removed by chunk unloading)
@@ -104,6 +127,8 @@ export class WorldBuilder {
       // be ready in a few frames.
       this.collisionSystem.addCollidableFiltered(group);
     }
+
+    this.persistence.save(this.objects);
 
     return group;
   }
@@ -139,12 +164,15 @@ export class WorldBuilder {
   getNearbyObjects(pos: THREE.Vector3, radius: number): { id: string, type: string, label: string, position: [number, number, number] }[] {
     const nearby: { id: string, type: string, label: string, position: [number, number, number] }[] = [];
     for (const obj of this.objects.values()) {
-      if (obj.group.position.distanceTo(pos) <= radius) {
+      const dx = obj.position[0] - pos.x;
+      const dy = obj.position[1] - pos.y;
+      const dz = obj.position[2] - pos.z;
+      if ((dx * dx + dy * dy + dz * dz) <= radius * radius) {
         nearby.push({
           id: obj.id,
           type: obj.type,
           label: obj.label ?? obj.type,
-          position: [obj.group.position.x, obj.group.position.y, obj.group.position.z]
+          position: obj.position,
         });
       }
     }
@@ -157,8 +185,8 @@ export class WorldBuilder {
     return Array.from(this.objects.values()).map(obj => ({
       id: obj.id,
       type: obj.type,
-      position: [obj.group.position.x, obj.group.position.y, obj.group.position.z],
-      scale: obj.group.scale.x,
+      position: obj.position,
+      scale: obj.scale,
       label: obj.label,
     }));
   }
@@ -220,5 +248,30 @@ export class WorldBuilder {
         label: obj.label,
       }, false);
     }
+  }
+
+  private matchesPlacement(
+    placed: PlacedObject,
+    type: string,
+    position: [number, number, number],
+    rotation: [number, number, number],
+    scale: number,
+    label?: string,
+  ): boolean {
+    const posMatches =
+      placed.position[0] === position[0] &&
+      placed.position[1] === position[1] &&
+      placed.position[2] === position[2];
+    const rotMatches =
+      placed.rotation[0] === rotation[0] &&
+      placed.rotation[1] === rotation[1] &&
+      placed.rotation[2] === rotation[2];
+    return (
+      placed.type === type &&
+      posMatches &&
+      rotMatches &&
+      placed.scale === scale &&
+      placed.label === label
+    );
   }
 }
