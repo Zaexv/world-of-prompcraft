@@ -8,16 +8,18 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential \
   && rm -rf /var/lib/apt/lists/*
 
-# Copy requirements
-COPY requirements.txt .
-COPY pyproject.toml .
-COPY setup.py . 2>/dev/null || true
+# Copy configuration (from root context)
+COPY server/pyproject.toml .
+
+# Copy source code (needed for pip install .)
+COPY server/src/ ./src/
 
 # Build Python environment in virtual env
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN pip install --no-cache-dir -e .
+# Install package and dependencies
+RUN pip install --no-cache-dir .
 
 # Production image
 FROM python:3.13-slim
@@ -32,9 +34,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy virtual environment from builder
 COPY --from=builder /opt/venv /opt/venv
 
-# Copy application code
-COPY src/ ./src/
-COPY .env* ./
+# Copy configuration and shared data
+# We copy pyproject.toml again to make the .env* wildcard optional
+COPY server/pyproject.toml .env* ./
+COPY shared/ /shared/
 
 ENV PATH="/opt/venv/bin:$PATH"
 ENV PYTHONUNBUFFERED=1

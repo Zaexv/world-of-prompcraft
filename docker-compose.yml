@@ -1,6 +1,8 @@
 services:
   client:
-    build: ./client
+    build:
+      context: .
+      dockerfile: client/Dockerfile
     ports:
       - "5173:5173"
     environment:
@@ -12,7 +14,9 @@ services:
     command: npm run dev -- --host
 
   server:
-    build: ./server
+    build:
+      context: .
+      dockerfile: server/Dockerfile
     ports:
       - "8000:8000"
     volumes:

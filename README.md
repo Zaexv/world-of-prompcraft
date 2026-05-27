@@ -115,7 +115,7 @@ Player Prompt ──► [ Reason ] ──► [ Act ] ──► [ Respond ]
 
 ### Prerequisites
 
-- **Node.js** 18+ &nbsp;·&nbsp; **Python** 3.11+ &nbsp;·&nbsp; An LLM API key ([OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/))
+- **Node.js** 20+ &nbsp;·&nbsp; **Python** 3.11+ &nbsp;·&nbsp; An LLM API key ([OpenAI](https://platform.openai.com/api-keys) or [Anthropic](https://console.anthropic.com/))
 
 ### 1. Clone & configure
 
@@ -197,16 +197,23 @@ make check          # Lint + typecheck + tests for both client and server
 
 ### CI Pipeline
 
-Every push and PR runs **6 parallel CI jobs** on GitHub Actions:
+Every push and PR runs a **staged pipeline** on GitHub Actions with 7 required jobs across 4 gates:
 
 ```
-Client Lint ─┐
-Client TC   ─┼── All must pass to merge
-Client Test ─┤
-Server Lint ─┤
-Server TC   ─┤
-Server Test ─┘
+Stage 1 (Quality)    Client Lint ─┐
+                     Server Lint ─┤
+                                  ▼
+Stage 2 (Types)      Client TC ───┤
+                     Server TC ───┤
+                                  ▼
+Stage 3 (Tests)      Client Test ─┤
+                     Server Test ─┤
+                     LLM Mock    ─┤
+                                  ▼
+Stage 4 (Status)     Pipeline ✅ ─┘
 ```
+
+On pushes to `main` only: load tests and Docker image builds run as additional non-blocking jobs.
 
 ---
 
@@ -280,7 +287,10 @@ Detailed technical documentation lives in [`docs/`](./docs/):
 
 | Document | Description |
 |----------|-------------|
-| [Architecture](./docs/architecture.md) | System overview with Mermaid diagrams |
+| [Client Architecture](./client/ARCHITECTURE.md) | Frontend deep-dive — render loop, entity system, collision, UI, state, WebSocket |
+| [Server Architecture](./server/ARCHITECTURE.md) | Backend deep-dive — FastAPI, WebSocket layer, LangGraph, tools, RAG, WorldState |
+| [Agentic Workflow](./docs/agentic-workflow.md) | LangGraph pipeline reference — all nodes, tool system, memory model, example traces |
+| [Protocol](./docs/protocol.md) | WebSocket protocol spec — every message type, field, and action kind |
 | [Backend Guide](./docs/backend_guide.md) | Server architecture deep-dive |
 | [Architecture Blueprint](./docs/architecture-blueprint.md) | Full engine-agnostic technical spec |
 | [Improvements](./docs/improvements.md) | Code audit — 39 tracked issues by severity |
