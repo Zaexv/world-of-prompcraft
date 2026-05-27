@@ -23,14 +23,24 @@ export class Player {
   private leftArm: THREE.Mesh | null;
   private rightArm: THREE.Mesh | null;
   private cloak: THREE.Mesh | null;
-  private walkPhase = 0;
-  private fallbackPhase = Math.random() * Math.PI * 2;
+  private head: THREE.Mesh | null;
 
-  /** Current body tilt (radians, 0 = upright). */
-  private bodyTilt = 0;
+  // --- Animation phases ---
+  private walkPhase = 0;
+  private breathPhase = Math.random() * Math.PI * 2;
+  private idlePhase = Math.random() * Math.PI * 2;
+
+  // --- Smooth animation state ---
+  private forwardLean = 0;
+  private bankLean = 0;
+  private armRaise = 0;
+  private squashTimer = 0;
+  private wasGrounded = true;
 
   /** The yaw the model is currently visually facing (radians). */
   private facingYaw = 0;
+  private prevFacingYaw = 0;
+  private turnRate = 0;
 
   constructor(race: string = 'night_elf', skin: string = getDefaultPlayerSkin()) {
     this.race = race;
@@ -40,12 +50,12 @@ export class Player {
     this.visualRoot = buildRaceModel(race);
     this.group.add(this.visualRoot);
 
-    // Look up parts by name (may be null if model is missing a part)
     this.leftLeg = (this.group.getObjectByName('leftLeg') as THREE.Mesh) ?? null;
     this.rightLeg = (this.group.getObjectByName('rightLeg') as THREE.Mesh) ?? null;
     this.leftArm = (this.group.getObjectByName('leftArm') as THREE.Mesh) ?? null;
     this.rightArm = (this.group.getObjectByName('rightArm') as THREE.Mesh) ?? null;
     this.cloak = (this.group.getObjectByName('cloak') as THREE.Mesh) ?? null;
+    this.head = (this.group.getObjectByName('head') as THREE.Mesh) ?? null;
   }
 
   /**
@@ -58,84 +68,77 @@ export class Player {
     assetLoader?: AssetLoader,
   ): Player {
     const player = new Player(race, skin);
-    // Background load the skin — don't await
     void player.tryLoadSkin(assetLoader);
     return player;
   }
 
-  /**
-   * Called every frame.
-   * @param delta      Time since last frame (seconds).
-   * @param isMoving   Whether the player is currently moving.
-   * @param velocity   Current velocity vector (used for facing direction).
-   * @param isSwimming Whether the player is currently in water.
-   * @param facingYawOverride Optional facing direction override (used for RMB camera turn).
-   */
   update(
     delta: number,
     isMoving: boolean,
     velocity: THREE.Vector3,
     isSwimming = false,
     facingYawOverride: number | null = null,
+    isGrounded = true,
   ): void {
-    this.fallbackPhase += delta * (isMoving ? 8 : 2.5);
+    // --- Phases ---
+    const speed = velocity.length();
+    const isRunning = isMoving && speed > 10;
+    const animSpeed = isRunning ? 15 : 8;
+    if (isMoving) this.walkPhase += delta * animSpeed;
+    else this.walkPhase *= 0.85;
 
-    // Keep the player upright even while in water.
-    const targetTilt = 0;
-    this.bodyTilt += (targetTilt - this.bodyTilt) * clampedT(delta, 6);
-    this.group.rotation.x = this.bodyTilt;
+    this.breathPhase += delta * 1.35;
+    this.idlePhase += delta * 0.4;
+
+    // --- Landing squash ---
+    if (isGrounded && !this.wasGrounded) {
+      this.squashTimer = 0.18;
+    }
+    this.wasGrounded = isGrounded;
+    if (this.squashTimer > 0) {
+      this.squashTimer -= delta;
+      const t = Math.max(0, this.squashTimer / 0.18);
+      const squash = 1 - 0.14 * Math.sin(t * Math.PI);
+      this.visualRoot.scale.set(1 + (1 - squash) * 0.3, squash, 1 + (1 - squash) * 0.3);
+    } else {
+      this.visualRoot.scale.set(1, 1, 1);
+    }
+
+    // --- Turn rate for banking ---
+    const facingDelta = angleDiff(this.facingYaw, this.prevFacingYaw);
+    this.turnRate = lerp(this.turnRate, facingDelta / Math.max(delta, 0.001), clampedT(delta, 8));
+    this.prevFacingYaw = this.facingYaw;
 
     if (this.animator) {
-      const speed = velocity.length();
-      const state = isMoving ? (speed > 10 ? 'run' : 'walk') : 'idle';
+      const state = isMoving ? (isRunning ? 'run' : 'walk') : 'idle';
       this.animator.setState(state);
       this.animator.update(delta);
     } else {
-      // ---- Land animation ----
-      // Damp arm rotation back to neutral.
-      if (this.leftArm) {
-        this.leftArm.rotation.x *= 0.85;
-        this.leftArm.rotation.z *= 0.85;
-      }
-      if (this.rightArm) {
-        this.rightArm.rotation.x *= 0.85;
-        this.rightArm.rotation.z *= 0.85;
-      }
-
-      if (isMoving) {
-        this.walkPhase += delta * 10;
-        const swing = Math.sin(this.walkPhase) * 0.5;
-        if (this.leftLeg) this.leftLeg.rotation.x = swing;
-        if (this.rightLeg) this.rightLeg.rotation.x = -swing;
-
-        // Arms swing opposite to legs
-        if (this.leftArm) this.leftArm.rotation.x = -swing * 0.4;
-        if (this.rightArm) this.rightArm.rotation.x = swing * 0.4;
-
-        // Subtle cloak billow while moving
-        if (this.cloak) this.cloak.rotation.x = Math.sin(this.walkPhase * 0.7) * 0.12;
-      } else {
-        // Return to neutral — dampen rotations smoothly instead of hard-resetting walkPhase
-        if (this.leftLeg) this.leftLeg.rotation.x *= 0.85;
-        if (this.rightLeg) this.rightLeg.rotation.x *= 0.85;
-        if (this.cloak) this.cloak.rotation.x *= 0.9;
-        // Let walkPhase dampen toward 0 to avoid animation jerks on stop
-        this.walkPhase *= 0.85;
-      }
-
-      const bob = Math.sin(this.fallbackPhase) * (isMoving ? 0.045 : 0.025);
-      const sway = Math.sin(this.fallbackPhase * 0.5) * (isMoving ? 0.035 : 0.015);
-      this.visualRoot.position.y = bob;
-      this.visualRoot.rotation.z = sway;
+      this.updateProceduralAnimation(delta, isMoving, isRunning);
     }
 
+    // --- Forward lean ---
+    const targetLean = isRunning ? -0.13 : isMoving ? -0.07 : 0;
+    this.forwardLean = lerp(this.forwardLean, targetLean, clampedT(delta, 5));
+
+    // --- Turn banking (lean into turns) ---
+    const targetBank = clamp(this.turnRate * 0.015, -0.12, 0.12) * (isMoving ? 1 : 0);
+    this.bankLean = lerp(this.bankLean, targetBank, clampedT(delta, 6));
+
+    this.visualRoot.rotation.x = this.forwardLean;
+    this.visualRoot.rotation.z = this.bankLean;
+
+    // --- Swimming override ---
     if (isSwimming) {
       this.visualRoot.position.y = 0.34;
-      this.visualRoot.rotation.z *= 0.6;
+      this.visualRoot.rotation.z = this.bankLean * 0.5;
+    } else if (!this.animator) {
+      const breath = Math.sin(this.breathPhase) * 0.012;
+      const idleSway = Math.sin(this.idlePhase) * (isMoving ? 0 : 0.018);
+      const moveBob = Math.sin(this.walkPhase) * (isMoving ? 0.04 : 0);
+      this.visualRoot.position.y = breath + moveBob + idleSway;
     } else {
-      if (this.animator) {
-        this.visualRoot.position.y = 0;
-      }
+      this.visualRoot.position.y = 0;
     }
 
     // --- Face movement direction ---
@@ -146,6 +149,48 @@ export class Player {
       this.facingYaw = lerpAngle(this.facingYaw, targetYaw, clampedT(delta, 10));
     }
     this.group.rotation.y = this.facingYaw;
+    this.group.rotation.x = 0;
+  }
+
+  private updateProceduralAnimation(delta: number, isMoving: boolean, isRunning: boolean): void {
+    const swing = Math.sin(this.walkPhase) * (isRunning ? 0.65 : 0.48);
+    const breathNod = Math.sin(this.breathPhase) * 0.012;
+    const idleFidget = Math.sin(this.idlePhase * 2.3) * (isMoving ? 0 : 0.008);
+
+    // Legs: stride
+    if (this.leftLeg) this.leftLeg.rotation.x = swing;
+    if (this.rightLeg) this.rightLeg.rotation.x = -swing;
+
+    // Arms: swing opposite legs, raise slightly when running (combat-ready)
+    const targetArmRaise = isRunning ? -0.35 : 0;
+    this.armRaise = lerp(this.armRaise, targetArmRaise, clampedT(delta, 4));
+
+    if (this.leftArm) {
+      this.leftArm.rotation.x = -swing * 0.55 + this.armRaise;
+      this.leftArm.rotation.z = lerp(this.leftArm.rotation.z, isMoving ? -0.08 : -0.04, clampedT(delta, 3));
+    }
+    if (this.rightArm) {
+      this.rightArm.rotation.x = swing * 0.55 + this.armRaise;
+      this.rightArm.rotation.z = lerp(this.rightArm.rotation.z, isMoving ? 0.08 : 0.04, clampedT(delta, 3));
+    }
+
+    // Head: breath nod + idle look
+    if (this.head) {
+      this.head.rotation.x = breathNod + idleFidget;
+      this.head.rotation.y = lerp(this.head.rotation.y, isMoving ? 0 : Math.sin(this.idlePhase * 0.7) * 0.08, clampedT(delta, 2));
+    }
+
+    // Cloak: multi-frequency billow, stronger while running
+    if (this.cloak) {
+      const cloakSpeed = isRunning ? 1.6 : 1.0;
+      const cloakAmp = isRunning ? 0.22 : 0.1;
+      this.cloak.rotation.x = lerp(
+        this.cloak.rotation.x,
+        Math.sin(this.walkPhase * cloakSpeed) * cloakAmp
+          + Math.sin(this.walkPhase * 0.3) * cloakAmp * 0.4,
+        clampedT(delta, 5),
+      );
+    }
   }
 
   private async tryLoadSkin(assetLoader?: AssetLoader): Promise<void> {
@@ -198,12 +243,14 @@ export class Player {
       this.leftArm = (this.group.getObjectByName('leftArm') as THREE.Mesh) ?? null;
       this.rightArm = (this.group.getObjectByName('rightArm') as THREE.Mesh) ?? null;
       this.cloak = (this.group.getObjectByName('cloak') as THREE.Mesh) ?? null;
+      this.head = (this.group.getObjectByName('head') as THREE.Mesh) ?? null;
     } else {
       this.leftLeg = null;
       this.rightLeg = null;
       this.leftArm = null;
       this.rightArm = null;
       this.cloak = null;
+      this.head = null;
     }
   }
 
@@ -223,7 +270,22 @@ export class Player {
   }
 }
 
-/** Helper: clamp a lerp factor so it doesn't overshoot at low framerates. */
 function clampedT(delta: number, speed: number): number {
   return Math.min(1, delta * speed);
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function clamp(v: number, min: number, max: number): number {
+  return Math.max(min, Math.min(max, v));
+}
+
+/** Shortest signed difference between two angles. */
+function angleDiff(a: number, b: number): number {
+  let d = a - b;
+  while (d > Math.PI) d -= Math.PI * 2;
+  while (d < -Math.PI) d += Math.PI * 2;
+  return d;
 }
