@@ -94,7 +94,6 @@ export function bootstrap(
   loadingOverlay.setMessage('Preparing collisions...');
   const collisionSystem = new CollisionSystem();
   collisionSystem.initDebug(scene);
-  sceneManager.setCollisionSystem(collisionSystem);
   
   // Hardcoded landmarks removed in Tabula Rasa phase. 
   // Future landmarks will be loaded via WorldManifest and WorldBuilder.

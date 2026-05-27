@@ -153,7 +153,7 @@ export class Minimap extends UIComponent {
         const wx = playerX + (px - S / 2) * scale;
         const wz = playerZ + (py - S / 2) * scale;
         const biome = getDominantBiome(wx, wz);
-        ctx.fillStyle = BIOME_COLORS[biome];
+        ctx.fillStyle = BIOME_COLORS[biome] ?? BIOME_COLORS[BiomeType.Teldrassil] ?? '#1a2a1f';
         ctx.fillRect(px, py, step, step);
       }
     }
@@ -385,11 +385,10 @@ export class Minimap extends UIComponent {
 }
 
 // Biome display colors for the minimap
-const BIOME_COLORS: Record<BiomeType, string> = {
+const BIOME_COLORS: Partial<Record<BiomeType, string>> = {
   [BiomeType.Teldrassil]: '#1a2a1f',
   [BiomeType.EmberWastes]: '#3a1508',
   [BiomeType.CrystalTundra]: '#4a5a6a',
   [BiomeType.TwilightMarsh]: '#0a1a0a',
   [BiomeType.SunlitMeadows]: '#3a4a1a',
-  [BiomeType.Desert]: '#b58a4a',
 };
