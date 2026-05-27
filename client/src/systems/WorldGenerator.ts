@@ -122,6 +122,7 @@ export class WorldGenerator {
           objectId: landmark.id,
           objectType: landmark.type,
           position: landmark.transform.position,
+          rotation: landmark.transform.rotation,
           scale: landmark.transform.scale,
           label: landmark.visual.label,
         }, false);

@@ -5,6 +5,7 @@ import * as furniture from './furniture';
 
 export type ObjectType = 
   | 'moonwell' | 'tower' | 'ruins' | 'altar' | 'runic_stone' | 'wooden_fence' | 'pavilion' | 'portal_arch'
+  | 'malaka_house' | 'malaka_church' | 'malaka_castle' | 'roman_amphitheatre' | 'road'
   | 'mushroom_cluster' | 'ancient_tree' | 'crystal_cluster'
   | 'campfire' | 'bonfire' | 'lantern';
 
@@ -18,6 +19,11 @@ export function buildObject(type: string, pos: THREE.Vector3, scale: number, lab
     case 'wooden_fence': return structures.buildWoodenFence(pos, scale);
     case 'pavilion': return structures.buildPavilion(pos, scale);
     case 'portal_arch': return structures.buildPortalArch(pos, scale);
+    case 'malaka_house': return structures.buildMalakaHouse(pos, scale);
+    case 'malaka_church': return structures.buildMalakaChurch(pos, scale);
+    case 'malaka_castle': return structures.buildMalakaCastle(pos, scale);
+    case 'roman_amphitheatre': return structures.buildRomanAmphitheatre(pos, scale);
+    case 'road': return structures.buildRoad(pos, scale);
     
     case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);
     case 'ancient_tree': 

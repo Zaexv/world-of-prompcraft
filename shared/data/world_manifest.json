@@ -131,7 +131,50 @@
         "npcs": []
       },
       "architecture": {
-        "landmarks": [],
+        "landmarks": [
+          {
+            "id": "malaka_church_01",
+            "type": "malaka_church",
+            "transform": { "position": [-160, 0, -220], "scale": 1.2 },
+            "visual": { "label": "Cathedral of the Sea" }
+          },
+          {
+            "id": "malaka_castle_01",
+            "type": "malaka_castle",
+            "transform": { "position": [-140, 0, -200], "scale": 1.5 },
+            "visual": { "label": "Alcazaba" }
+          },
+          {
+            "id": "malaka_amphitheatre_01",
+            "type": "roman_amphitheatre",
+            "transform": { "position": [-180, 0, -210], "scale": 1.8, "rotation": [0, 1.57, 0] },
+            "visual": { "label": "Roman Theatre" }
+          },
+          {
+            "id": "malaka_house_01",
+            "type": "malaka_house",
+            "transform": { "position": [-150, 0, -230], "scale": 1.0 },
+            "visual": {}
+          },
+          {
+            "id": "malaka_house_02",
+            "type": "malaka_house",
+            "transform": { "position": [-155, 0, -235], "scale": 1.0, "rotation": [0, 0.5, 0] },
+            "visual": {}
+          },
+          {
+            "id": "malaka_house_03",
+            "type": "malaka_house",
+            "transform": { "position": [-165, 0, -230], "scale": 1.0, "rotation": [0, -0.2, 0] },
+            "visual": {}
+          }
+        ],
+        "paths": [
+          { "start": [-150, -228], "end": [-160, -222], "width": 4 },
+          { "start": [-160, -222], "end": [-180, -210], "width": 5 },
+          { "start": [-160, -222], "end": [-140, -202], "width": 5 },
+          { "start": [-150, -228], "end": [-140, -245], "width": 3 }
+        ],
         "dungeons": {
           "crystal_caverns": {
             "name": "Crystal Caverns",

@@ -311,3 +311,168 @@ export function buildPortalArch(pos: THREE.Vector3, scale: number): THREE.Group 
 
   return g;
 }
+
+export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffee, roughness: 0.9 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xcc5533, roughness: 0.8 }); // Terracotta
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 });
+
+  // Main body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4 * scale, 3 * scale, 4 * scale), wallMat);
+  body.position.y = 1.5 * scale;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  body.userData.isCollider = true;
+  g.add(body);
+
+  // Roof
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3.2 * scale, 1.5 * scale, 4), roofMat);
+  roof.position.y = 3.75 * scale;
+  roof.rotation.y = Math.PI / 4;
+  roof.castShadow = true;
+  roof.userData.isCollider = true;
+  g.add(roof);
+
+  // Door
+  const door = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, 1.5 * scale, 0.1 * scale), woodMat);
+  door.position.set(0, 0.75 * scale, 2.01 * scale);
+  door.userData.noCollision = true;
+  g.add(door);
+
+  return g;
+}
+
+export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const wallMat = new THREE.MeshStandardMaterial({ color: 0xffffee, roughness: 0.9 });
+  const roofMat = new THREE.MeshStandardMaterial({ color: 0xcc5533, roughness: 0.8 });
+
+  // Main hall
+  const hall = new THREE.Mesh(new THREE.BoxGeometry(6 * scale, 4 * scale, 8 * scale), wallMat);
+  hall.position.y = 2 * scale;
+  hall.castShadow = true;
+  hall.receiveShadow = true;
+  hall.userData.isCollider = true;
+  g.add(hall);
+
+  // Hall roof (Prism)
+  const roofGeo = new THREE.CylinderGeometry(4.5 * scale, 4.5 * scale, 8 * scale, 3);
+  const hallRoof = new THREE.Mesh(roofGeo, roofMat);
+  hallRoof.rotation.z = Math.PI / 2;
+  hallRoof.rotation.x = Math.PI / 2;
+  hallRoof.position.y = 5.2 * scale;
+  hallRoof.castShadow = true;
+  hallRoof.userData.isCollider = true;
+  g.add(hallRoof);
+
+  // Bell Tower
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(3 * scale, 8 * scale, 3 * scale), wallMat);
+  tower.position.set(0, 4 * scale, 4 * scale);
+  tower.castShadow = true;
+  tower.receiveShadow = true;
+  tower.userData.isCollider = true;
+  g.add(tower);
+
+  // Tower roof
+  const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(2.5 * scale, 2 * scale, 4), roofMat);
+  towerRoof.position.set(0, 9 * scale, 4 * scale);
+  towerRoof.rotation.y = Math.PI / 4;
+  towerRoof.castShadow = true;
+  towerRoof.userData.isCollider = true;
+  g.add(towerRoof);
+
+  return g;
+}
+
+export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xd8c8b8, roughness: 1.0 }); // Warm sandstone
+
+  // Central Keep
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(8 * scale, 6 * scale, 8 * scale), stoneMat);
+  keep.position.y = 3 * scale;
+  keep.castShadow = true;
+  keep.receiveShadow = true;
+  keep.userData.isCollider = true;
+  g.add(keep);
+
+  // Corner towers
+  const towerGeo = new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, 8 * scale, 8);
+  for (const [x, z] of [[-4, -4], [4, -4], [-4, 4], [4, 4]]) {
+    const tower = new THREE.Mesh(towerGeo, stoneMat);
+    tower.position.set(x * scale, 4 * scale, z * scale);
+    tower.castShadow = true;
+    tower.receiveShadow = true;
+    tower.userData.isCollider = true;
+    g.add(tower);
+  }
+
+  // Crenellations
+  const crenMat = stoneMat;
+  for (let i = -3; i <= 3; i += 1.5) {
+    for (const [x, z] of [[i, -4, true], [i, 4, true], [-4, i, false], [4, i, false]] as [number, number, boolean][]) {
+      const cren = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, 1 * scale, 0.8 * scale), crenMat);
+      cren.position.set(x * scale, 6.5 * scale, z * scale);
+      cren.castShadow = true;
+      cren.userData.isCollider = true;
+      g.add(cren);
+    }
+  }
+
+  return g;
+}
+
+export function buildRomanAmphitheatre(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xc8c0b0, roughness: 0.9 });
+
+  // Create tiered semi-circular steps
+  const tiers = 5;
+  for (let i = 1; i <= tiers; i++) {
+    const radius = i * 2 * scale;
+    const height = i * 0.8 * scale;
+    
+    const geo = new THREE.CylinderGeometry(radius, radius, 0.8 * scale, 16, 1, false, 0, Math.PI);
+    const mesh = new THREE.Mesh(geo, stoneMat);
+    mesh.position.y = height - (0.4 * scale);
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    mesh.userData.isCollider = true;
+    g.add(mesh);
+  }
+
+  // Stage area
+  const stage = new THREE.Mesh(new THREE.BoxGeometry(8 * scale, 0.2 * scale, 4 * scale), stoneMat);
+  stage.position.set(0, 0.1 * scale, -2 * scale);
+  stage.receiveShadow = true;
+  stage.userData.isCollider = true;
+  g.add(stage);
+
+  return g;
+}
+
+export function buildRoad(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x999988, roughness: 1.0 });
+
+  // A flat plane for the road. We raise it slightly (0.05) to avoid z-fighting with terrain.
+  const roadGeo = new THREE.BoxGeometry(4 * scale, 0.1 * scale, 8 * scale);
+  const road = new THREE.Mesh(roadGeo, stoneMat);
+  road.position.y = 0.05 * scale;
+  road.receiveShadow = true;
+  road.userData.noCollision = true; // Roads shouldn't block walking
+  g.add(road);
+
+  return g;
+}

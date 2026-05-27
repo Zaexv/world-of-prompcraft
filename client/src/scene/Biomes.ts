@@ -7,6 +7,15 @@ export function setWorldManifest(wm: WorldManifest): void {
   worldManifest = wm;
 }
 
+function distToSegment(x: number, z: number, startX: number, startZ: number, endX: number, endZ: number): number {
+  const l2 = (endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ);
+  if (l2 === 0) return Math.sqrt((x - startX) * (x - startX) + (z - startZ) * (z - startZ));
+  let t = ((x - startX) * (endX - startX) + (z - startZ) * (endZ - startZ)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.sqrt((x - (startX + t * (endX - startX))) * (x - (startX + t * (endX - startX))) +
+                   (z - (startZ + t * (endZ - startZ))) * (z - (startZ + t * (endZ - startZ))));
+}
+
 /**
  * Biome system for World of Promptcraft.
  *
@@ -280,6 +289,29 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     _colorResult.r += _colorTemp.r * w;
     _colorResult.g += _colorTemp.g * w;
     _colorResult.b += _colorTemp.b * w;
+  }
+
+  // Paint roads on the terrain
+  const paths = worldManifest?.getPaths() || [];
+  let roadBlend = 0;
+  for (const path of paths) {
+    const d = distToSegment(x, z, path.start[0], path.start[1], path.end[0], path.end[1]);
+    if (d < path.width) {
+      // Smooth fade out at the edges
+      const blend = 1 - (d / path.width);
+      roadBlend = Math.max(roadBlend, blend * blend);
+    }
+  }
+
+  if (roadBlend > 0) {
+    // Add cobblestone/dirt color
+    const roadColor = new THREE.Color(0xa8a090); // warm stone/dirt
+    // Add some noise to the road
+    const noise = Math.sin(x * 1.5 + z * 1.5) * 0.05;
+    roadColor.r += noise;
+    roadColor.g += noise;
+    roadColor.b += noise;
+    _colorResult.lerp(roadColor, roadBlend * 0.85); // 85% opacity in the center
   }
 
   return _colorResult;

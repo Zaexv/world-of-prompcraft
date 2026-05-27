@@ -36,6 +36,7 @@ export class Player {
   private armRaise = 0;
   private squashTimer = 0;
   private wasGrounded = true;
+  private cloakLean = 0;
 
   /** The yaw the model is currently visually facing (radians). */
   private facingYaw = 0;
@@ -128,6 +129,14 @@ export class Player {
     this.visualRoot.rotation.x = this.forwardLean;
     this.visualRoot.rotation.z = this.bankLean;
 
+    // --- Cloak: blow backward with movement (positive rotation.x = bottom trails behind) ---
+    const targetCloakLean = isRunning ? 0.55 : isMoving ? 0.30 : 0;
+    this.cloakLean = lerp(this.cloakLean, targetCloakLean, clampedT(delta, 3.5));
+    if (this.cloak) {
+      const flutter = isMoving ? Math.sin(this.walkPhase * 1.3) * 0.06 : 0;
+      this.cloak.rotation.x = this.cloakLean + flutter;
+    }
+
     // --- Swimming override ---
     if (isSwimming) {
       this.visualRoot.position.y = 0.34;
@@ -178,18 +187,6 @@ export class Player {
     if (this.head) {
       this.head.rotation.x = breathNod + idleFidget;
       this.head.rotation.y = lerp(this.head.rotation.y, isMoving ? 0 : Math.sin(this.idlePhase * 0.7) * 0.08, clampedT(delta, 2));
-    }
-
-    // Cloak: multi-frequency billow, stronger while running
-    if (this.cloak) {
-      const cloakSpeed = isRunning ? 1.6 : 1.0;
-      const cloakAmp = isRunning ? 0.22 : 0.1;
-      this.cloak.rotation.x = lerp(
-        this.cloak.rotation.x,
-        Math.sin(this.walkPhase * cloakSpeed) * cloakAmp
-          + Math.sin(this.walkPhase * 0.3) * cloakAmp * 0.4,
-        clampedT(delta, 5),
-      );
     }
   }
 
