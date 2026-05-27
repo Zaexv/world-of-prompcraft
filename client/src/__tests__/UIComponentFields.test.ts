@@ -11,7 +11,7 @@
  * due to undefined UI elements.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { UIComponent } from '../ui/core/UIComponent';
 import { StatusBars } from '../ui/StatusBars';
 import { CombatHUD } from '../ui/CombatHUD';
@@ -142,6 +142,45 @@ describe('Minimap - field initialization', () => {
     const map = new Minimap();
     map.show(); // must be visible for update() to run
     expect(() => map.update(0, 0, 0)).not.toThrow();
+  });
+
+  it('clicks a waypoint and emits the selected teleport target', () => {
+    const map = new Minimap();
+    map.show();
+    map.setWaypoints([
+      { id: 'origin', label: 'Origin Pavilion', x: 20, z: 0, kind: 'landmark' },
+    ]);
+    map.update(0, 0, 0);
+
+    const canvas = map.element.querySelector('canvas') as HTMLCanvasElement;
+    vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
+      x: 0,
+      y: 0,
+      left: 0,
+      top: 0,
+      right: 280,
+      bottom: 280,
+      width: 280,
+      height: 280,
+      toJSON: () => ({}),
+    });
+
+    const handler = vi.fn();
+    map.onWaypointClick = handler;
+
+    canvas.dispatchEvent(new MouseEvent('pointerdown', {
+      bubbles: true,
+      clientX: 150,
+      clientY: 140,
+    }));
+
+    expect(handler).toHaveBeenCalledWith({
+      id: 'origin',
+      label: 'Origin Pavilion',
+      x: 20,
+      z: 0,
+      kind: 'landmark',
+    });
   });
 });
 

@@ -1,6 +1,14 @@
 import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
 
+export interface MinimapWaypoint {
+  id: string;
+  label: string;
+  x: number;
+  z: number;
+  kind: 'landmark' | 'feature';
+}
+
 /**
  * Canvas-based minimap overlay toggled with M key.
  * Extends UIComponent for consistent lifecycle management.
@@ -16,9 +24,11 @@ export class Minimap extends UIComponent {
   declare private canvas: HTMLCanvasElement;
   declare private ctx: CanvasRenderingContext2D;
 
-  // World markers
-  private towns: { x: number; z: number }[] = [];
-  private caves: { x: number; z: number }[] = [];
+  // World waypoints
+  private waypoints: MinimapWaypoint[] = [];
+  private hoveredWaypointId: string | null = null;
+
+  onWaypointClick: ((waypoint: MinimapWaypoint) => void) | null = null;
 
   // Map config
   private readonly SIZE = 280; // pixel size of the minimap
@@ -32,6 +42,10 @@ export class Minimap extends UIComponent {
 
   constructor() {
     super('ui-root', 'minimap');
+    this.canvas.style.cursor = 'default';
+    this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
+    this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
+    this.canvas.addEventListener('pointerleave', this.handlePointerLeave.bind(this));
   }
 
   /**
@@ -40,7 +54,7 @@ export class Minimap extends UIComponent {
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: 'absolute',
+      position: 'fixed',
       top: '16px',
       right: '16px',
       width: `${this.SIZE + 4}px`,
@@ -50,7 +64,7 @@ export class Minimap extends UIComponent {
       borderRadius: '8px',
       display: 'none',
       pointerEvents: 'auto',
-      zIndex: '20',
+      zIndex: '10000',
       padding: '2px',
       boxShadow: '0 0 20px rgba(100, 50, 180, 0.3)',
     } as Partial<CSSStyleDeclaration>);
@@ -82,12 +96,20 @@ export class Minimap extends UIComponent {
     this.ctx = this.canvas.getContext('2d')!;
   }
 
-  addTown(x: number, z: number): void {
-    this.towns.push({ x, z });
+  setWaypoints(waypoints: MinimapWaypoint[]): void {
+    this.waypoints = waypoints.map((waypoint) => ({ ...waypoint }));
   }
 
-  addCave(x: number, z: number): void {
-    this.caves.push({ x, z });
+  addWaypoint(waypoint: MinimapWaypoint): void {
+    this.waypoints.push({ ...waypoint });
+  }
+
+  addTown(x: number, z: number, label = 'Town'): void {
+    this.addWaypoint({ id: `town:${label}:${x}:${z}`, label, x, z, kind: 'landmark' });
+  }
+
+  addCave(x: number, z: number, label = 'Cave'): void {
+    this.addWaypoint({ id: `cave:${label}:${x}:${z}`, label, x, z, kind: 'feature' });
   }
 
   /**
@@ -160,45 +182,14 @@ export class Minimap extends UIComponent {
       ctx.stroke();
     }
 
-    // Draw town markers
-    for (const town of this.towns) {
-      const px = (town.x - playerX) / scale + S / 2;
-      const py = (town.z - playerZ) / scale + S / 2;
-      if (px < -10 || px > S + 10 || py < -10 || py > S + 10) continue;
+    // Draw waypoints
+    for (const waypoint of this.waypoints) {
+      const marker = this.getMarkerPoint(waypoint, playerX, playerZ, scale, S);
+      if (!marker) continue;
 
-      // House icon
-      ctx.fillStyle = '#ffcc44';
-      ctx.beginPath();
-      ctx.moveTo(px - 4, py + 3);
-      ctx.lineTo(px + 4, py + 3);
-      ctx.lineTo(px + 4, py - 1);
-      ctx.lineTo(px, py - 4);
-      ctx.lineTo(px - 4, py - 1);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#aa8800';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
-    }
-
-    // Draw cave markers
-    for (const cave of this.caves) {
-      const px = (cave.x - playerX) / scale + S / 2;
-      const py = (cave.z - playerZ) / scale + S / 2;
-      if (px < -10 || px > S + 10 || py < -10 || py > S + 10) continue;
-
-      // Diamond icon
-      ctx.fillStyle = '#8866cc';
-      ctx.beginPath();
-      ctx.moveTo(px, py - 4);
-      ctx.lineTo(px + 3, py);
-      ctx.lineTo(px, py + 4);
-      ctx.lineTo(px - 3, py);
-      ctx.closePath();
-      ctx.fill();
-      ctx.strokeStyle = '#5533aa';
-      ctx.lineWidth = 0.8;
-      ctx.stroke();
+      const highlighted = waypoint.id === this.hoveredWaypointId;
+      this.drawWaypointMarker(ctx, marker.x, marker.y, waypoint.kind, highlighted);
+      this.drawWaypointLabel(ctx, marker.x, marker.y, waypoint.label, highlighted);
     }
 
     // Player arrow (center)
@@ -246,6 +237,151 @@ export class Minimap extends UIComponent {
   get element(): HTMLElement {
     return this.container;
   }
+
+  private handlePointerDown(event: PointerEvent): void {
+    const waypoint = this.getWaypointAtEvent(event);
+    if (!waypoint) return;
+    this.onWaypointClick?.(waypoint);
+  }
+
+  private handlePointerMove(event: PointerEvent): void {
+    const waypoint = this.getWaypointAtEvent(event);
+    this.hoveredWaypointId = waypoint?.id ?? null;
+    this.canvas.style.cursor = waypoint ? 'pointer' : 'default';
+  }
+
+  private handlePointerLeave(): void {
+    this.hoveredWaypointId = null;
+    this.canvas.style.cursor = 'default';
+  }
+
+  private getWaypointAtEvent(event: PointerEvent): MinimapWaypoint | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    return this.getWaypointAtCanvasPoint(x, y);
+  }
+
+  private getWaypointAtCanvasPoint(x: number, y: number): MinimapWaypoint | null {
+    if (!Number.isFinite(this.lastDrawX) || !Number.isFinite(this.lastDrawZ)) return null;
+    const markerRadius = 10;
+    let closest: { waypoint: MinimapWaypoint; distanceSq: number } | null = null;
+    for (const waypoint of this.waypoints) {
+      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, this.SCALE, this.SIZE);
+      if (!marker) continue;
+      const dx = x - marker.x;
+      const dy = y - marker.y;
+      const distanceSq = dx * dx + dy * dy;
+      if (distanceSq <= markerRadius * markerRadius && (!closest || distanceSq < closest.distanceSq)) {
+        closest = { waypoint, distanceSq };
+      }
+    }
+    return closest?.waypoint ?? null;
+  }
+
+  private getMarkerPoint(
+    waypoint: MinimapWaypoint,
+    playerX: number,
+    playerZ: number,
+    scale: number,
+    size: number,
+  ): { x: number; y: number } | null {
+    const x = (waypoint.x - playerX) / scale + size / 2;
+    const y = (waypoint.z - playerZ) / scale + size / 2;
+    if (x < -12 || x > size + 12 || y < -12 || y > size + 12) return null;
+    return { x, y };
+  }
+
+  private drawWaypointMarker(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    kind: MinimapWaypoint['kind'],
+    highlighted: boolean,
+  ): void {
+    const accent = kind === 'feature' ? '#82d8ff' : '#ffcc44';
+    const outline = kind === 'feature' ? '#2c7fb8' : '#aa8800';
+    const radius = highlighted ? 5 : 4;
+
+    ctx.save();
+    ctx.shadowColor = highlighted ? accent : 'transparent';
+    ctx.shadowBlur = highlighted ? 8 : 0;
+    ctx.fillStyle = accent;
+    ctx.strokeStyle = outline;
+    ctx.lineWidth = highlighted ? 1.3 : 0.8;
+    ctx.beginPath();
+    if (kind === 'feature') {
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x - radius - 2, y);
+      ctx.lineTo(x + radius + 2, y);
+      ctx.moveTo(x, y - radius - 2);
+      ctx.lineTo(x, y + radius + 2);
+      ctx.strokeStyle = highlighted ? '#d8fbff' : '#ffffff';
+      ctx.lineWidth = 0.9;
+      ctx.stroke();
+    } else {
+      ctx.moveTo(x, y - radius);
+      ctx.lineTo(x + radius, y);
+      ctx.lineTo(x, y + radius);
+      ctx.lineTo(x - radius, y);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawWaypointLabel(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    label: string,
+    highlighted: boolean,
+  ): void {
+    const padX = 4;
+    const padY = 2;
+    ctx.save();
+    ctx.font = '8px monospace';
+    const width = ctx.measureText(label).width;
+    const boxX = x + 7;
+    const boxY = y - 10;
+    ctx.fillStyle = 'rgba(8, 10, 18, 0.72)';
+    ctx.strokeStyle = highlighted ? 'rgba(255, 255, 255, 0.5)' : 'rgba(170, 136, 0, 0.35)';
+    ctx.lineWidth = 0.8;
+    this.fillRoundedRect(ctx, boxX, boxY - 8, width + padX * 2, 12 + padY, 3);
+    ctx.fillStyle = highlighted ? '#ffffff' : '#e8d9a8';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    ctx.fillText(label, boxX + padX, boxY - 6);
+    ctx.restore();
+  }
+
+  private fillRoundedRect(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number,
+  ): void {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+  }
 }
 
 // Biome display colors for the minimap
@@ -255,4 +391,5 @@ const BIOME_COLORS: Record<BiomeType, string> = {
   [BiomeType.CrystalTundra]: '#4a5a6a',
   [BiomeType.TwilightMarsh]: '#0a1a0a',
   [BiomeType.SunlitMeadows]: '#3a4a1a',
+  [BiomeType.Desert]: '#b58a4a',
 };

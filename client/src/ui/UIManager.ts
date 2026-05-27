@@ -77,7 +77,7 @@ export class UIManager {
     this.container.appendChild(this.deathScreen.element);
 
     this.minimap = new Minimap();
-    this.container.appendChild(this.minimap.element);
+    app.appendChild(this.minimap.element);
 
     this.questLog = new QuestLog();
     this.container.appendChild(this.questLog.element);

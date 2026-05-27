@@ -9,7 +9,7 @@ import * as THREE from 'three';
 import type { EntityManager } from '../entities/EntityManager';
 import type { WebSocketClient } from '../network/WebSocketClient';
 import type { Terrain } from '../scene/Terrain';
-import type { Minimap } from '../ui/Minimap';
+import type { Minimap, MinimapWaypoint } from '../ui/Minimap';
 import type { CollisionSystem } from './CollisionSystem';
 import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
@@ -29,6 +29,7 @@ export class WorldGenerator {
   private collisionSystem: CollisionSystem | null = null;
   private worldManifest: WorldManifest | null = null;
   private worldBuilder: WorldBuilder | null = null;
+  private minimap: Minimap | null = null;
 
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
   private chunkNPCs: Map<string, string[]> = new Map();
@@ -44,7 +45,10 @@ export class WorldGenerator {
   }
 
   /** Set minimap reference for registering markers. */
-  setMinimap(_minimap: Minimap): void {}
+  setMinimap(minimap: Minimap): void {
+    this.minimap = minimap;
+    this.syncMinimapWaypoints();
+  }
 
   /** Set collision system so spawned trees become collidable. */
   setCollisionSystem(cs: CollisionSystem): void {
@@ -54,6 +58,7 @@ export class WorldGenerator {
   /** Set the world manifest for data-driven landmark spawning. */
   setWorldManifest(wm: WorldManifest): void {
     this.worldManifest = wm;
+    this.syncMinimapWaypoints();
   }
 
   /** Set the world builder for object construction. */
@@ -115,7 +120,7 @@ export class WorldGenerator {
     const landmarks = this.worldManifest.getAllLandmarks();
     for (const landmark of landmarks) {
       const [lx, , lz] = landmark.transform.position;
-      
+
       if (lx >= minX && lx < maxX && lz >= minZ && lz < maxZ) {
         // Spawn the landmark using WorldBuilder
         const obj = this.worldBuilder.spawnObject({
@@ -147,5 +152,43 @@ export class WorldGenerator {
         npc.isGrounded = false; // Re-trigger snap on next EntityManager update
       }
     }
+  }
+
+  private syncMinimapWaypoints(): void {
+    if (!this.minimap || !this.worldManifest) return;
+
+    const waypoints: MinimapWaypoint[] = [];
+    for (const landmark of this.worldManifest.getAllLandmarks()) {
+      const label = landmark.visual?.label?.trim();
+      if (!label) continue;
+
+      waypoints.push({
+        id: `landmark:${landmark.id}`,
+        label,
+        x: landmark.transform.position[0],
+        z: landmark.transform.position[2],
+        kind: 'landmark',
+      });
+    }
+
+    for (const feature of this.worldManifest.getTerrainFeatures()) {
+      waypoints.push({
+        id: `feature:${feature.id}`,
+        label: this.formatWaypointLabel(feature.id),
+        x: feature.transform.x,
+        z: feature.transform.z,
+        kind: 'feature',
+      });
+    }
+
+    this.minimap.setWaypoints(waypoints);
+  }
+
+  private formatWaypointLabel(id: string): string {
+    return id
+      .replace(/[-_]+/g, ' ')
+      .replace(/\b\w/g, (match) => match.toUpperCase())
+      .replace(/\s+/g, ' ')
+      .trim();
   }
 }
