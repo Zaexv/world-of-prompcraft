@@ -7,6 +7,15 @@ export function setWorldManifest(wm: WorldManifest): void {
   worldManifest = wm;
 }
 
+function distToSegment(x: number, z: number, startX: number, startZ: number, endX: number, endZ: number): number {
+  const l2 = (endX - startX) * (endX - startX) + (endZ - startZ) * (endZ - startZ);
+  if (l2 === 0) return Math.sqrt((x - startX) * (x - startX) + (z - startZ) * (z - startZ));
+  let t = ((x - startX) * (endX - startX) + (z - startZ) * (endZ - startZ)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.sqrt((x - (startX + t * (endX - startX))) * (x - (startX + t * (endX - startX))) +
+                   (z - (startZ + t * (endZ - startZ))) * (z - (startZ + t * (endZ - startZ))));
+}
+
 /**
  * Biome system for World of Promptcraft.
  *
@@ -280,6 +289,47 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     _colorResult.r += _colorTemp.r * w;
     _colorResult.g += _colorTemp.g * w;
     _colorResult.b += _colorTemp.b * w;
+  }
+
+  // Paint roads on the terrain
+  const paths = worldManifest?.getPaths() || [];
+  let roadBlend = 0;
+  for (const path of paths) {
+    const d = distToSegment(x, z, path.start[0], path.start[1], path.end[0], path.end[1]);
+    if (d < path.width) {
+      // Smooth fade out at the edges
+      const blend = 1 - (d / path.width);
+      roadBlend = Math.max(roadBlend, blend * blend);
+    }
+  }
+
+  if (roadBlend > 0) {
+    // Advanced Cobblestone Shader Math
+    // We use a multi-frequency sine wave to simulate interlocking stones
+    const stoneScale = 1.8;
+    const stoneX = x * stoneScale;
+    const stoneZ = z * stoneScale;
+    
+    // Interlocking grid pattern
+    const pattern = Math.abs(Math.sin(stoneX) * Math.sin(stoneZ));
+    const grout = smoothstep(0.7, 0.9, pattern); // Dark gaps between stones
+    
+    const roadColor = new THREE.Color(0x8a8270); // Base warm stone
+    const stoneVariation = (Math.sin(stoneX * 0.5) + Math.cos(stoneZ * 0.5)) * 0.05;
+    
+    roadColor.r += stoneVariation;
+    roadColor.g += stoneVariation;
+    roadColor.b += stoneVariation;
+    
+    // Apply grout (darken the gaps)
+    roadColor.lerp(new THREE.Color(0x333333), grout * 0.6);
+    
+    // Add dirt/weathering noise
+    const dirt = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.04;
+    roadColor.r += dirt;
+    roadColor.g += dirt;
+
+    _colorResult.lerp(roadColor, roadBlend * 0.9);
   }
 
   return _colorResult;

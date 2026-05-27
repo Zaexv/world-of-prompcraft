@@ -57,6 +57,7 @@ export class WorldBuilder {
     objectId: string;
     objectType: string;
     position: [number, number, number];
+    rotation?: [number, number, number];
     scale?: number;
     label?: string;
   }, pushToUndo = true): THREE.Group | undefined {
@@ -77,6 +78,10 @@ export class WorldBuilder {
       const builtGroup = buildObject(params.objectType, pos, scale, params.label);
       if (!builtGroup) return undefined;
       group = builtGroup;
+
+      if (params.rotation) {
+        group.rotation.set(params.rotation[0], params.rotation[1], params.rotation[2]);
+      }
 
       placed = {
         id: params.objectId,

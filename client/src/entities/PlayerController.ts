@@ -349,6 +349,11 @@ export class PlayerController {
     return this.velocity.lengthSq() > 0.01;
   }
 
+  /** Whether the player is touching the ground (or water surface). */
+  get isGrounded(): boolean {
+    return this.capsuleController.isGrounded;
+  }
+
   // ----------------------------------------------------------------
   //  Helpers
   // ----------------------------------------------------------------

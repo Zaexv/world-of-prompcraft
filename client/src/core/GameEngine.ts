@@ -262,6 +262,7 @@ export class GameEngine {
         (this.introCinematicActive || dialogFocusActive) ? this._idleVelocity : d.playerController.velocity,
         d.playerController.isSwimming,
         d.playerController.facingYawOverride,
+        d.playerController.isGrounded,
       );
       d.playerState.position = [
         d.playerController.position.x,

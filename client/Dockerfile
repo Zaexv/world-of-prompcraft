@@ -3,14 +3,15 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
-COPY package*.json ./
+# Copy package files (from root context)
+COPY client/package*.json ./
 
 # Install dependencies
 RUN npm ci
 
-# Copy source
-COPY . .
+# Copy source and shared data
+COPY client/ ./
+COPY shared/ ../shared/
 
 # Build for production
 RUN npm run build

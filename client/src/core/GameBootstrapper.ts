@@ -145,6 +145,21 @@ export function bootstrap(
   const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocketClient(`${wsProto}://${window.location.host}/ws`);
 
+  uiManager.minimap.onWaypointClick = (waypoint) => {
+    const teleportY = runtime.inDungeonOverride ? 0 : getWorldHeightAt(terrain, waypoint.x, waypoint.z);
+    playerController.position.set(waypoint.x, teleportY, waypoint.z);
+    player.group.position.copy(playerController.position);
+    playerState.position = [waypoint.x, teleportY, waypoint.z];
+    if (runtime.joinedServer) {
+      ws.send({
+        type: 'player_move',
+        playerId: runtime.localPlayerId,
+        position: [waypoint.x, teleportY, waypoint.z],
+        yaw: playerController.yaw,
+      });
+    }
+  };
+
   const spawnChatBubble = (
     text: string,
     parent?: THREE.Object3D,
@@ -258,17 +273,22 @@ export function bootstrap(
   };
 
   // Keyboard shortcuts
-  document.addEventListener('keydown', (e: KeyboardEvent) => {
+  window.addEventListener('keydown', (e: KeyboardEvent) => {
+    const key = e.key.toLowerCase();
+    if (e.code === 'KeyM' || key === 'm') {
+      uiManager.toggleMinimap();
+      return;
+    }
+
     const tag = (e.target as HTMLElement)?.tagName;
     if (tag === 'INPUT' || tag === 'TEXTAREA') return;
-    if (e.code === 'KeyI') uiManager.toggleInventory();
-    if (e.code === 'KeyM') uiManager.toggleMinimap();
-    if (e.code === 'KeyL') uiManager.toggleQuestLog(playerState);
-    if (e.code === 'KeyE') dungeonSystem.tryEnter();
-    if (e.code === 'KeyB') worldBuilderPanel.toggle();
+    if (e.code === 'KeyI' || key === 'i') uiManager.toggleInventory();
+    if (e.code === 'KeyL' || key === 'l') uiManager.toggleQuestLog(playerState);
+    if (e.code === 'KeyE' || key === 'e') dungeonSystem.tryEnter();
+    if (e.code === 'KeyB' || key === 'b') worldBuilderPanel.toggle();
     if (e.code === 'Enter' && !uiManager.chatPanel.isFocused) { e.preventDefault(); uiManager.chatPanel.focusInput(); }
     if (e.code === 'Escape' && uiManager.chatPanel.isFocused) e.preventDefault();
-  });
+  }, { capture: true });
 
   engine = new GameEngine({  
     sceneManager, playerController, player, entityManager, collisionSystem,

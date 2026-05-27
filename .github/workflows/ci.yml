@@ -222,7 +222,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v5
         with:
-          context: ./client
+          context: .
           file: ./client/Dockerfile
           push: false
           tags: wop-client:latest,wop-client:${{ github.sha }}
@@ -239,7 +239,7 @@ jobs:
       - uses: docker/setup-buildx-action@v3
       - uses: docker/build-push-action@v5
         with:
-          context: ./server
+          context: .
           file: ./server/Dockerfile
           push: false
           tags: wop-server:latest,wop-server:${{ github.sha }}

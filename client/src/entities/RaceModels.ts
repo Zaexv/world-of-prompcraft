@@ -1,21 +1,174 @@
 import * as THREE from 'three';
 import { addOutlineShell } from './ModelStyling';
 
-/**
- * Dispatches to the appropriate race model builder.
- */
 export function buildRaceModel(race: string): THREE.Group {
   switch (race) {
-    case 'human':
-      return buildHumanModel();
-    case 'orc':
-      return buildOrcModel();
-    case 'undead':
-      return buildUndeadModel();
+    case 'human':   return buildHumanModel();
+    case 'orc':     return buildOrcModel();
+    case 'undead':  return buildUndeadModel();
     case 'night_elf':
-    default:
-      return buildNightElfModel();
+    default:        return buildNightElfModel();
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  Shared proportions  (all races use the same grid so positioning is exact)
+// ─────────────────────────────────────────────────────────────────────────────
+//  Leg:   height 0.82  →  center y = 0.44   (bottom 0.03, top 0.85)
+//  Torso: height 0.88  →  center y = 1.29   (bottom 0.85, top 1.73)
+//  Head:  height 0.52  →  center y = 1.99   (bottom 1.73, top 2.25)
+//  Arm:   height 0.66  →  center y = 1.40   (shoulder at torso top)
+//  Arm X: ±(torso_half_w + arm_r + 0.02)
+// ─────────────────────────────────────────────────────────────────────────────
+
+const Y_LEG   = 0.44;
+const Y_TORSO = 1.29;
+const Y_ARM   = 1.40;
+const Y_HEAD  = 1.99;
+
+// ── Night Elf ────────────────────────────────────────────────────────────────
+
+export function buildNightElfModel(): THREE.Group {
+  const group = new THREE.Group();
+
+  const TORSO_W = 0.62;
+  const ARM_R   = 0.115;
+  const LEG_R   = 0.135;
+  const ARM_X   = TORSO_W / 2 + ARM_R + 0.02;  // 0.445
+
+  // ── Torso ──
+  const torso = mesh(box(TORSO_W, 0.88, 0.36), mat(0x3a1d60));
+  torso.name = 'body';
+  torso.position.y = Y_TORSO;
+  torso.castShadow = true;
+  group.add(torso);
+
+  // Chest ornament (emissive gem)
+  const gem = mesh(sph(0.048, 8), mat(0xcc88ff, { em: 0x9944ff, ei: 1.6, r: 0.2, m: 0.5 }));
+  gem.name = 'gem';
+  gem.position.set(0, Y_TORSO + 0.1, 0.2);
+  group.add(gem);
+
+  // Belt line
+  const belt = mesh(new THREE.TorusGeometry(0.22, 0.028, 5, 14), mat(0xc0c8e8, { r: 0.3, m: 0.7 }));
+  belt.name = 'belt';
+  belt.position.set(0, Y_TORSO - 0.28, 0);
+  belt.rotation.x = Math.PI / 2;
+  group.add(belt);
+
+  // ── Head ──
+  const headMesh = mesh(box(0.52, 0.52, 0.48), mat(0xddc5a8));
+  headMesh.name = 'head';
+  headMesh.position.y = Y_HEAD;
+  headMesh.castShadow = true;
+  group.add(headMesh);
+
+  // Ears (children of head — animate with head nod)
+  const earMat = mat(0xddc5a8);
+  const earGeo = new THREE.ConeGeometry(0.05, 0.32, 5);
+  const lEar = mesh(earGeo, earMat);
+  lEar.name = 'leftEar';
+  lEar.position.set(-0.3, 0.08, -0.04);
+  lEar.rotation.z = 1.05;
+  lEar.rotation.x = -0.12;
+  headMesh.add(lEar);
+  const rEar = lEar.clone();
+  rEar.name = 'rightEar';
+  rEar.position.x = 0.3;
+  rEar.rotation.z = -1.05;
+  headMesh.add(rEar);
+
+  // Glowing silver-blue eyes (children of head)
+  const eyeMat = mat(0xaabbff, { em: 0x7799ff, ei: 2.2, r: 0.05 });
+  const eyeGeo = new THREE.SphereGeometry(0.052, 8, 6);
+  const lEye = mesh(eyeGeo, eyeMat);
+  lEye.name = 'leftEye';
+  lEye.position.set(-0.12, 0.05, 0.26);
+  headMesh.add(lEye);
+  const rEye = lEye.clone();
+  rEye.name = 'rightEye';
+  rEye.position.x = 0.12;
+  headMesh.add(rEye);
+
+  // ── Hair ──
+  const hairMat = mat(0xeeeaff, { r: 0.88 });
+  const crown = mesh(new THREE.ConeGeometry(0.2, 0.38, 8), hairMat);
+  crown.name = 'hair';
+  crown.position.y = 2.44;
+  group.add(crown);
+
+  // ── Pauldrons ──
+  const pauldronGeo = new THREE.SphereGeometry(0.11, 8, 5);
+  const pauldronMat = mat(0x7755cc, { r: 0.35, m: 0.4 });
+  const lPaul = mesh(pauldronGeo, pauldronMat);
+  lPaul.name = 'leftPauldron';
+  lPaul.position.set(-ARM_X + 0.02, Y_TORSO + 0.38, 0);
+  lPaul.scale.set(1, 0.55, 0.85);
+  group.add(lPaul);
+  const rPaul = lPaul.clone();
+  rPaul.name = 'rightPauldron';
+  rPaul.position.x = ARM_X - 0.02;
+  group.add(rPaul);
+
+  // ── Arms ──
+  const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+  const armMat = mat(0xddc5a8, { r: 0.82 });
+  const handGeo = new THREE.SphereGeometry(0.065, 8, 6);
+
+  const lArm = mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  addChildMesh(lArm, handGeo, armMat, 0, -0.38, 0);
+
+  const rArm = mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  addChildMesh(rArm, handGeo, armMat, 0, -0.38, 0);
+
+  // ── Legs ──
+  const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+  const legMat = mat(0x25124a, { r: 0.65 });
+  const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.22, 12);
+  const bootMat = mat(0x120820, { r: 0.75 });
+  const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+
+  const lLeg = mesh(legGeo, legMat);
+  lLeg.name = 'leftLeg';
+  lLeg.position.set(-0.16, Y_LEG, 0);
+  lLeg.castShadow = true;
+  group.add(lLeg);
+  const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+  addChildMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+  const rLeg = mesh(legGeo, legMat);
+  rLeg.name = 'rightLeg';
+  rLeg.position.set(0.16, Y_LEG, 0);
+  rLeg.castShadow = true;
+  group.add(rLeg);
+  const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+  addChildMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+  // ── Cloak ──
+  const cloak = mesh(
+    new THREE.PlaneGeometry(0.58, 0.95, 2, 6),
+    mat(0x1e0f3a, { side: THREE.DoubleSide, t: true, o: 0.9 }),
+  );
+  cloak.name = 'cloak';
+  cloak.position.set(0, Y_TORSO, -0.20);
+  cloak.castShadow = true;
+  group.add(cloak);
+
+  addOutlineShell(group, {
+    includeNames: ['body', 'head', 'hair', 'cloak', 'leftLeg', 'rightLeg',
+      'leftArm', 'rightArm', 'leftPauldron', 'rightPauldron'],
+    scale: 1.05,
+  });
+
+  return group;
 }
 
 // ── Human ────────────────────────────────────────────────────────────────────
@@ -23,242 +176,135 @@ export function buildRaceModel(race: string): THREE.Group {
 export function buildHumanModel(): THREE.Group {
   const group = new THREE.Group();
 
-  const skinColor = 0xc4a882;
-  const armorColor = 0x8B7355;
-  const legColor = 0x6b5b45;
-  const hairColor = 0x5c3a1e;
-  const capeColor = 0x2244aa;
+  const TORSO_W = 0.66;
+  const ARM_R   = 0.12;
+  const LEG_R   = 0.14;
+  const ARM_X   = TORSO_W / 2 + ARM_R + 0.02;
 
-  // Body
-  const bodyGeo = new THREE.BoxGeometry(0.55, 1.3, 0.35);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: armorColor });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.name = 'body';
-  body.position.y = 1.45;
-  body.castShadow = true;
-  group.add(body);
+  // Torso
+  const torso = mesh(box(TORSO_W, 0.88, 0.38), mat(0x7a6042, { r: 0.7, m: 0.1 }));
+  torso.name = 'body';
+  torso.position.y = Y_TORSO;
+  torso.castShadow = true;
+  group.add(torso);
 
-  const chestGeo = new THREE.BoxGeometry(0.42, 0.55, 0.22);
-  const chestMat = new THREE.MeshStandardMaterial({ color: 0x9a8262 });
-  const chest = new THREE.Mesh(chestGeo, chestMat);
-  chest.name = 'chest';
-  chest.position.set(0, 1.58, 0.18);
-  group.add(chest);
+  // Chest plate
+  const plate = mesh(box(0.28, 0.3, 0.06), mat(0x9a8262, { r: 0.4, m: 0.3 }));
+  plate.name = 'chestPlate';
+  plate.position.set(0, Y_TORSO + 0.08, 0.22);
+  group.add(plate);
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.22, 12, 10);
-  const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.name = 'head';
-  head.position.y = 2.3;
-  head.castShadow = true;
-  group.add(head);
-
-  const leftBoot = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.16, 0.18), new THREE.MeshStandardMaterial({ color: 0x3f2a20 }));
-  leftBoot.name = 'leftBoot';
-  leftBoot.position.set(-0.14, 0.1, 0);
-  group.add(leftBoot);
-  const rightBoot = leftBoot.clone();
-  rightBoot.name = 'rightBoot';
-  rightBoot.position.x = 0.14;
-  group.add(rightBoot);
-
-  // Hair (short box)
-  const hairGeo = new THREE.BoxGeometry(0.3, 0.15, 0.3);
-  const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
-  const hair = new THREE.Mesh(hairGeo, hairMat);
-  hair.name = 'hair';
-  hair.position.y = 2.55;
-  group.add(hair);
-
-  // Legs
-  const legGeo = new THREE.BoxGeometry(0.16, 0.65, 0.16);
-  const legMat = new THREE.MeshStandardMaterial({ color: legColor });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-0.14, 0.45, 0);
-  leftLeg.castShadow = true;
-  group.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(0.14, 0.45, 0);
-  rightLeg.castShadow = true;
-  group.add(rightLeg);
-
-  // Arms
-  const armGeo = new THREE.BoxGeometry(0.13, 0.65, 0.13);
-  const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
-
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.name = 'leftArm';
-  leftArm.position.set(-0.38, 1.65, 0);
-  leftArm.castShadow = true;
-  group.add(leftArm);
-
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.name = 'rightArm';
-  rightArm.position.set(0.38, 1.65, 0);
-  rightArm.castShadow = true;
-  group.add(rightArm);
-
-  const shoulderPadGeo = new THREE.BoxGeometry(0.12, 0.18, 0.12);
-  const shoulderPadMat = new THREE.MeshStandardMaterial({ color: 0x7b5f98 });
-  const leftPad = new THREE.Mesh(shoulderPadGeo, shoulderPadMat);
-  leftPad.name = 'leftPad';
-  leftPad.position.set(-0.23, 2.02, 0.02);
-  group.add(leftPad);
-  const rightPad = leftPad.clone();
-  rightPad.name = 'rightPad';
-  rightPad.position.x = 0.23;
-  group.add(rightPad);
-
-  const beltGeo = new THREE.TorusGeometry(0.24, 0.04, 6, 18);
-  const beltMat = new THREE.MeshStandardMaterial({ color: 0x5e452b });
-  const belt = new THREE.Mesh(beltGeo, beltMat);
+  // Belt
+  const belt = mesh(new THREE.TorusGeometry(0.23, 0.03, 5, 14), mat(0x3f2a20, { r: 0.85 }));
   belt.name = 'belt';
-  belt.position.y = 1.08;
+  belt.position.set(0, Y_TORSO - 0.28, 0);
   belt.rotation.x = Math.PI / 2;
   group.add(belt);
 
-  // Cape (blue)
-  const cloakGeo = new THREE.PlaneGeometry(0.55, 1.2, 1, 4);
-  const cloakMat = new THREE.MeshStandardMaterial({
-    color: capeColor,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.85,
-  });
-  const cloak = new THREE.Mesh(cloakGeo, cloakMat);
-  cloak.name = 'cloak';
-  cloak.position.set(0, 1.4, -0.2);
-  cloak.castShadow = true;
-  group.add(cloak);
-
-  addOutlineShell(group, {
-    includeNames: ['body', 'chest', 'head', 'leftBoot', 'rightBoot', 'hair', 'leftArm', 'rightArm', 'leftPad', 'rightPad', 'belt', 'cloak'],
-    scale: 1.05,
-  });
-
-  return group;
-}
-
-// ── Night Elf ────────────────────────────────────────────────────────────────
-
-export function buildNightElfModel(): THREE.Group {
-  const group = new THREE.Group();
-
-  const skinColor = 0xd4b8a0;
-  const bodyColor = 0x332255;
-  const legColor = 0x221144;
-  const hairColor = 0xccccdd;
-  const cloakColor = 0x2a1845;
-
-  // Body
-  const bodyGeo = new THREE.BoxGeometry(0.5, 1.4, 0.32);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.name = 'body';
-  body.position.y = 1.5;
-  body.castShadow = true;
-  group.add(body);
+  // Belt buckle
+  const buckle = mesh(box(0.08, 0.08, 0.04), mat(0xb8bcd0, { r: 0.3, m: 0.7 }));
+  buckle.position.set(0, Y_TORSO - 0.28, 0.24);
+  group.add(buckle);
 
   // Head
-  const headGeo = new THREE.SphereGeometry(0.22, 12, 10);
-  const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.name = 'head';
-  head.position.y = 2.42;
-  head.castShadow = true;
-  group.add(head);
+  const headMesh = mesh(box(0.54, 0.52, 0.5), mat(0xd4a87a));
+  headMesh.name = 'head';
+  headMesh.position.y = Y_HEAD;
+  headMesh.castShadow = true;
+  group.add(headMesh);
 
-  // Pointed ears
-  const earGeo = new THREE.ConeGeometry(0.06, 0.28, 6);
-  const earMat = new THREE.MeshStandardMaterial({ color: skinColor });
+  // Hair (layered box on top of head)
+  const hairMat = mat(0x4a2c10, { r: 0.9 });
+  const hairTop = mesh(box(0.54, 0.18, 0.5), hairMat);
+  hairTop.name = 'hair';
+  hairTop.position.set(0, 0.35, 0);
+  headMesh.add(hairTop);
+  // Side/back drape
+  const hairBack = mesh(box(0.5, 0.22, 0.08), hairMat);
+  hairBack.position.set(0, 0.22, -0.29);
+  headMesh.add(hairBack);
 
-  const leftEar = new THREE.Mesh(earGeo, earMat);
-  leftEar.name = 'leftEar';
-  leftEar.position.set(-0.24, 2.48, 0);
-  leftEar.rotation.z = Math.PI / 3;
-  group.add(leftEar);
+  // Eyes (brown, non-emissive — human)
+  const eyeMat = mat(0x4a3010, { r: 0.4 });
+  const eyeGeo = new THREE.SphereGeometry(0.044, 8, 6);
+  const lEye = mesh(eyeGeo, eyeMat);
+  lEye.name = 'leftEye';
+  lEye.position.set(-0.13, 0.06, 0.27);
+  headMesh.add(lEye);
+  const rEye = lEye.clone();
+  rEye.name = 'rightEye';
+  rEye.position.x = 0.13;
+  headMesh.add(rEye);
 
-  const rightEar = new THREE.Mesh(earGeo, earMat);
-  rightEar.name = 'rightEar';
-  rightEar.position.set(0.24, 2.48, 0);
-  rightEar.rotation.z = -Math.PI / 3;
-  group.add(rightEar);
-
-  // Hair (elongated cone)
-  const hairGeo = new THREE.ConeGeometry(0.18, 0.5, 8);
-  const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
-  const hair = new THREE.Mesh(hairGeo, hairMat);
-  hair.name = 'hair';
-  hair.position.y = 2.78;
-  group.add(hair);
-
-  // Legs
-  const legGeo = new THREE.BoxGeometry(0.14, 0.7, 0.14);
-  const legMat = new THREE.MeshStandardMaterial({ color: legColor });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-0.13, 0.45, 0);
-  leftLeg.castShadow = true;
-  group.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(0.13, 0.45, 0);
-  rightLeg.castShadow = true;
-  group.add(rightLeg);
-
-  // Cloak
-  const cloakGeo = new THREE.PlaneGeometry(0.55, 1.3, 1, 4);
-  const cloakMat = new THREE.MeshStandardMaterial({
-    color: cloakColor,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.85,
-  });
-  const cloak = new THREE.Mesh(cloakGeo, cloakMat);
-  cloak.name = 'cloak';
-  cloak.position.set(0, 1.45, -0.2);
-  cloak.castShadow = true;
-  group.add(cloak);
+  // Pauldrons
+  const pauldronMat = mat(0x7b5f98, { r: 0.4, m: 0.35 });
+  const pauldronGeo = new THREE.SphereGeometry(0.12, 8, 5);
+  const lPaul = mesh(pauldronGeo, pauldronMat);
+  lPaul.name = 'leftPauldron';
+  lPaul.position.set(-ARM_X + 0.02, Y_TORSO + 0.38, 0);
+  lPaul.scale.set(1, 0.58, 0.85);
+  group.add(lPaul);
+  const rPaul = lPaul.clone();
+  rPaul.name = 'rightPauldron';
+  rPaul.position.x = ARM_X - 0.02;
+  group.add(rPaul);
 
   // Arms
-  const armGeo = new THREE.BoxGeometry(0.12, 0.7, 0.12);
-  const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
+  const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+  const armMat = mat(0x7a6042, { r: 0.7 });
+  const gloveGeo = new THREE.SphereGeometry(0.07, 8, 6);
+  const gloveMat = mat(0x3f2a20, { r: 0.88 });
 
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.name = 'leftArm';
-  leftArm.position.set(-0.35, 1.75, 0);
-  leftArm.castShadow = true;
-  group.add(leftArm);
+  const lArm = mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  addChildMesh(lArm, gloveGeo, gloveMat, 0, -0.38, 0);
 
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.name = 'rightArm';
-  rightArm.position.set(0.35, 1.75, 0);
-  rightArm.castShadow = true;
-  group.add(rightArm);
+  const rArm = mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  addChildMesh(rArm, gloveGeo, gloveMat, 0, -0.38, 0);
 
-  const sashGeo = new THREE.PlaneGeometry(0.18, 1.2, 1, 1);
-  const sashMat = new THREE.MeshStandardMaterial({
-    color: 0x9dbbd8,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.8,
-  });
-  const sash = new THREE.Mesh(sashGeo, sashMat);
-  sash.name = 'sash';
-  sash.position.set(0.03, 1.58, 0.19);
-  sash.rotation.z = -0.18;
-  group.add(sash);
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+  const legMat = mat(0x5a3f22, { r: 0.72 });
+  const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.24, 12);
+  const bootMat = mat(0x3a2010, { r: 0.82 });
+  const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+
+  const lLeg = mesh(legGeo, legMat);
+  lLeg.name = 'leftLeg';
+  lLeg.position.set(-0.16, Y_LEG, 0);
+  lLeg.castShadow = true;
+  group.add(lLeg);
+  const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+  addChildMesh(lBoot, toeGeo, bootMat, 0, -0.1, 0.045);
+
+  const rLeg = mesh(legGeo, legMat);
+  rLeg.name = 'rightLeg';
+  rLeg.position.set(0.16, Y_LEG, 0);
+  rLeg.castShadow = true;
+  group.add(rLeg);
+  const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+  addChildMesh(rBoot, toeGeo, bootMat, 0, -0.1, 0.045);
+
+  // Cape (blue)
+  const cloak = mesh(
+    new THREE.PlaneGeometry(0.58, 0.95, 2, 6),
+    mat(0x2255cc, { side: THREE.DoubleSide, t: true, o: 0.88 }),
+  );
+  cloak.name = 'cloak';
+  cloak.position.set(0, Y_TORSO, -0.21);
+  group.add(cloak);
 
   addOutlineShell(group, {
-    includeNames: ['body', 'head', 'hair', 'cloak', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'sash', 'leftEar', 'rightEar'],
-    scale: 1.045,
+    includeNames: ['body', 'head', 'cloak', 'leftLeg', 'rightLeg',
+      'leftArm', 'rightArm', 'leftPauldron', 'rightPauldron', 'chestPlate'],
+    scale: 1.05,
   });
 
   return group;
@@ -269,131 +315,140 @@ export function buildNightElfModel(): THREE.Group {
 export function buildOrcModel(): THREE.Group {
   const group = new THREE.Group();
 
-  const skinColor = 0x2d5a1e;
-  const legColor = 0x1e4015;
-  const hairColor = 0x111111;
-  const loinclothColor = 0xaa2222;
+  const TORSO_W = 0.80;  // notably wider
+  const ARM_R   = 0.155;
+  const LEG_R   = 0.17;
+  const ARM_X   = TORSO_W / 2 + ARM_R + 0.02;
 
-  // Body (wider / bulkier)
-  const bodyGeo = new THREE.BoxGeometry(0.6, 1.3, 0.4);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.name = 'body';
-  body.position.y = 1.45;
-  body.castShadow = true;
-  group.add(body);
+  // Torso (wider, bulkier)
+  const torso = mesh(box(TORSO_W, 0.88, 0.46), mat(0x3a6e22, { r: 0.68 }));
+  torso.name = 'body';
+  torso.position.y = Y_TORSO;
+  torso.castShadow = true;
+  group.add(torso);
 
-  // Head (larger)
-  const headGeo = new THREE.SphereGeometry(0.25, 12, 10);
-  const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.name = 'head';
-  head.position.y = 2.32;
-  head.castShadow = true;
-  group.add(head);
+  // Loincloth
+  const loin = mesh(
+    new THREE.PlaneGeometry(0.44, 0.5, 1, 3),
+    mat(0xcc2222, { side: THREE.DoubleSide, t: true, o: 0.92 }),
+  );
+  loin.name = 'cloak';
+  loin.position.set(0, Y_TORSO - 0.32, 0.25);
+  group.add(loin);
 
-  // Jaw (large box under head)
-  const jawGeo = new THREE.BoxGeometry(0.22, 0.1, 0.18);
-  const jawMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const jaw = new THREE.Mesh(jawGeo, jawMat);
+  // Head (wider, slightly shorter — orcish)
+  const headMesh = mesh(box(0.62, 0.52, 0.54), mat(0x3a6e22));
+  headMesh.name = 'head';
+  headMesh.position.y = Y_HEAD;
+  headMesh.castShadow = true;
+  group.add(headMesh);
+
+  // Jaw protrusion
+  const jaw = mesh(box(0.48, 0.14, 0.22), mat(0x2d5a1e));
   jaw.name = 'jaw';
-  jaw.position.set(0, 2.1, 0.08);
-  group.add(jaw);
+  jaw.position.set(0, -0.24, 0.18);
+  headMesh.add(jaw);
 
-  const tuskGeo = new THREE.ConeGeometry(0.03, 0.14, 4);
-  const tuskMat = new THREE.MeshStandardMaterial({ color: 0xe8d2b0 });
-  const leftTusk = new THREE.Mesh(tuskGeo, tuskMat);
-  leftTusk.position.set(-0.08, 2.02, 0.16);
-  leftTusk.rotation.z = Math.PI * 0.3;
-  group.add(leftTusk);
-  const rightTusk = leftTusk.clone();
-  rightTusk.position.x = 0.08;
-  rightTusk.rotation.z = -Math.PI * 0.3;
-  group.add(rightTusk);
+  // Tusks
+  const tuskMat = mat(0xe8d2b0, { r: 0.5 });
+  const tuskGeo = new THREE.ConeGeometry(0.03, 0.17, 5);
+  const lTusk = mesh(tuskGeo, tuskMat);
+  lTusk.position.set(-0.12, -0.3, 0.22);
+  lTusk.rotation.z = 0.85;
+  lTusk.rotation.x = -0.2;
+  headMesh.add(lTusk);
+  const rTusk = lTusk.clone();
+  rTusk.position.x = 0.12;
+  rTusk.rotation.z = -0.85;
+  headMesh.add(rTusk);
 
-  // Top-knot hair
-  const hairGeo = new THREE.ConeGeometry(0.08, 0.35, 6);
-  const hairMat = new THREE.MeshStandardMaterial({ color: hairColor });
-  const hair = new THREE.Mesh(hairGeo, hairMat);
-  hair.name = 'hair';
-  hair.position.y = 2.68;
-  group.add(hair);
+  // Feral yellow-orange eyes
+  const eyeMat = mat(0xffcc22, { em: 0xdd9900, ei: 1.8, r: 0.1 });
+  const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
+  const lEye = mesh(eyeGeo, eyeMat);
+  lEye.name = 'leftEye';
+  lEye.position.set(-0.14, 0.09, 0.29);
+  headMesh.add(lEye);
+  const rEye = lEye.clone();
+  rEye.name = 'rightEye';
+  rEye.position.x = 0.14;
+  headMesh.add(rEye);
 
-  // Spiked pauldrons (cones on shoulders)
-  const pauldronGeo = new THREE.ConeGeometry(0.12, 0.3, 8);
-  const pauldronMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+  // Top-knot
+  const topknot = mesh(new THREE.ConeGeometry(0.09, 0.36, 6), mat(0x111111, { r: 0.95 }));
+  topknot.name = 'hair';
+  topknot.position.set(0, 0.44, 0);
+  headMesh.add(topknot);
 
-  const leftPauldron = new THREE.Mesh(pauldronGeo, pauldronMat);
-  leftPauldron.name = 'leftPauldron';
-  leftPauldron.position.set(-0.42, 1.95, 0);
-  leftPauldron.castShadow = true;
-  group.add(leftPauldron);
+  // Spiked iron pauldrons
+  const pauldronMat = mat(0x383838, { r: 0.4, m: 0.55 });
+  const pauldronGeo = new THREE.SphereGeometry(0.16, 8, 5);
+  const lPaul = mesh(pauldronGeo, pauldronMat);
+  lPaul.name = 'leftPauldron';
+  lPaul.position.set(-ARM_X + 0.04, Y_TORSO + 0.38, 0);
+  lPaul.scale.set(1, 0.58, 0.85);
+  group.add(lPaul);
+  const lSpike = mesh(new THREE.ConeGeometry(0.04, 0.24, 6), pauldronMat);
+  lSpike.position.set(-ARM_X + 0.04, Y_TORSO + 0.65, 0);
+  group.add(lSpike);
+  const rPaul = lPaul.clone();
+  rPaul.name = 'rightPauldron';
+  rPaul.position.x = ARM_X - 0.04;
+  group.add(rPaul);
+  const rSpike = lSpike.clone();
+  rSpike.position.x = ARM_X - 0.04;
+  group.add(rSpike);
 
-  const rightPauldron = new THREE.Mesh(pauldronGeo, pauldronMat);
-  rightPauldron.name = 'rightPauldron';
-  rightPauldron.position.set(0.42, 1.95, 0);
-  rightPauldron.castShadow = true;
-  group.add(rightPauldron);
+  // Arms (thick)
+  const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+  const armMat = mat(0x3a6e22, { r: 0.72 });
+  const ironBracerGeo = new THREE.CylinderGeometry(ARM_R + 0.01, ARM_R + 0.015, 0.18, 12);
+  const ironMat = mat(0x383838, { r: 0.4, m: 0.55 });
+  const fistGeo = new THREE.SphereGeometry(ARM_R + 0.01, 8, 6);
 
-  // Legs (thicker)
-  const legGeo = new THREE.BoxGeometry(0.18, 0.65, 0.18);
-  const legMat = new THREE.MeshStandardMaterial({ color: legColor });
+  const lArm = mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  addChildMesh(lArm, ironBracerGeo, ironMat, 0, -0.22, 0);
+  addChildMesh(lArm, fistGeo, armMat, 0, -0.39, 0);
 
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-0.16, 0.45, 0);
-  leftLeg.castShadow = true;
-  group.add(leftLeg);
+  const rArm = mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  addChildMesh(rArm, ironBracerGeo, ironMat, 0, -0.22, 0);
+  addChildMesh(rArm, fistGeo, armMat, 0, -0.39, 0);
 
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(0.16, 0.45, 0);
-  rightLeg.castShadow = true;
-  group.add(rightLeg);
+  // Legs
+  const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+  const legMat = mat(0x2a5018, { r: 0.72 });
+  const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.025, 0.26, 12);
+  const bootMat = mat(0x1e1008, { r: 0.82 });
+  const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
 
-  // Arms (thicker)
-  const armGeo = new THREE.BoxGeometry(0.15, 0.7, 0.15);
-  const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
+  const lLeg = mesh(legGeo, legMat);
+  lLeg.name = 'leftLeg';
+  lLeg.position.set(-0.20, Y_LEG, 0);
+  lLeg.castShadow = true;
+  group.add(lLeg);
+  const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.37, 0);
+  addChildMesh(lBoot, toeGeo, bootMat, 0, -0.11, 0.05);
 
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.name = 'leftArm';
-  leftArm.position.set(-0.42, 1.65, 0);
-  leftArm.castShadow = true;
-  group.add(leftArm);
-
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.name = 'rightArm';
-  rightArm.position.set(0.42, 1.65, 0);
-  rightArm.castShadow = true;
-  group.add(rightArm);
-
-  const bracerGeo = new THREE.CylinderGeometry(0.06, 0.06, 0.18, 6);
-  const bracerMat = new THREE.MeshStandardMaterial({ color: 0x372d20 });
-  const leftBracer = new THREE.Mesh(bracerGeo, bracerMat);
-  leftBracer.name = 'leftBracer';
-  leftBracer.rotation.z = Math.PI / 2;
-  leftBracer.position.set(-0.42, 1.5, 0);
-  group.add(leftBracer);
-  const rightBracer = leftBracer.clone();
-  rightBracer.position.x = 0.42;
-  group.add(rightBracer);
-
-  // Loincloth (red plane in front)
-  const cloakGeo = new THREE.PlaneGeometry(0.4, 0.5, 1, 2);
-  const cloakMat = new THREE.MeshStandardMaterial({
-    color: loinclothColor,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.9,
-  });
-  const cloak = new THREE.Mesh(cloakGeo, cloakMat);
-  cloak.name = 'cloak';
-  cloak.position.set(0, 0.7, 0.15);
-  group.add(cloak);
+  const rLeg = mesh(legGeo, legMat);
+  rLeg.name = 'rightLeg';
+  rLeg.position.set(0.20, Y_LEG, 0);
+  rLeg.castShadow = true;
+  group.add(rLeg);
+  const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.37, 0);
+  addChildMesh(rBoot, toeGeo, bootMat, 0, -0.11, 0.05);
 
   addOutlineShell(group, {
-    includeNames: ['body', 'head', 'jaw', 'hair', 'leftPauldron', 'rightPauldron', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'leftBracer', 'rightBracer', 'cloak'],
-    scale: 1.055,
+    includeNames: ['body', 'head', 'cloak', 'leftLeg', 'rightLeg',
+      'leftArm', 'rightArm', 'leftPauldron', 'rightPauldron'],
+    scale: 1.06,
   });
 
   return group;
@@ -404,112 +459,168 @@ export function buildOrcModel(): THREE.Group {
 export function buildUndeadModel(): THREE.Group {
   const group = new THREE.Group();
 
-  const skinColor = 0x7a8a7a;
-  const bodyColor = 0x5a6a5a;
-  const legColor = 0x4a5a4a;
-  const cloakColor = 0x333333;
+  const TORSO_W = 0.52;  // gaunt / narrow
+  const ARM_R   = 0.09;
+  const LEG_R   = 0.10;
+  const ARM_X   = TORSO_W / 2 + ARM_R + 0.02;
 
-  // Body (gaunt / thin)
-  const bodyGeo = new THREE.BoxGeometry(0.4, 1.3, 0.25);
-  const bodyMat = new THREE.MeshStandardMaterial({ color: bodyColor });
-  const body = new THREE.Mesh(bodyGeo, bodyMat);
-  body.name = 'body';
-  body.position.y = 1.45;
-  body.castShadow = true;
-  group.add(body);
+  // Torso (gaunt, slight hunch via position offset)
+  const torso = mesh(box(TORSO_W, 0.88, 0.30), mat(0x5a6a5a, { r: 0.85 }));
+  torso.name = 'body';
+  torso.position.set(0, Y_TORSO, 0.04); // slight forward lean in geometry
+  torso.castShadow = true;
+  group.add(torso);
 
-  // Head
-  const headGeo = new THREE.SphereGeometry(0.2, 12, 10);
-  const headMat = new THREE.MeshStandardMaterial({ color: skinColor });
-  const head = new THREE.Mesh(headGeo, headMat);
-  head.name = 'head';
-  head.position.y = 2.3;
-  head.castShadow = true;
-  group.add(head);
-
-  // Glowing eyes (emissive spheres)
-  const eyeGeo = new THREE.SphereGeometry(0.04, 8, 6);
-  const eyeMat = new THREE.MeshStandardMaterial({
-    color: 0x44ffaa,
-    emissive: 0x44ffaa,
-    emissiveIntensity: 2.0,
-  });
-
-  const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
-  leftEye.name = 'leftEye';
-  leftEye.position.set(-0.07, 2.34, 0.17);
-  group.add(leftEye);
-
-  const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
-  rightEye.name = 'rightEye';
-  rightEye.position.set(0.07, 2.34, 0.17);
-  group.add(rightEye);
-
-  // Legs (thin)
-  const legGeo = new THREE.BoxGeometry(0.11, 0.65, 0.11);
-  const legMat = new THREE.MeshStandardMaterial({ color: legColor });
-
-  const leftLeg = new THREE.Mesh(legGeo, legMat);
-  leftLeg.name = 'leftLeg';
-  leftLeg.position.set(-0.1, 0.45, 0);
-  leftLeg.castShadow = true;
-  group.add(leftLeg);
-
-  const rightLeg = new THREE.Mesh(legGeo, legMat);
-  rightLeg.name = 'rightLeg';
-  rightLeg.position.set(0.1, 0.45, 0);
-  rightLeg.castShadow = true;
-  group.add(rightLeg);
-
-  // Arms (thin)
-  const armGeo = new THREE.BoxGeometry(0.1, 0.65, 0.1);
-  const armMat = new THREE.MeshStandardMaterial({ color: skinColor });
-
-  const leftArm = new THREE.Mesh(armGeo, armMat);
-  leftArm.name = 'leftArm';
-  leftArm.position.set(-0.28, 1.65, 0);
-  leftArm.castShadow = true;
-  group.add(leftArm);
-
-  const rightArm = new THREE.Mesh(armGeo, armMat);
-  rightArm.name = 'rightArm';
-  rightArm.position.set(0.28, 1.65, 0);
-  rightArm.castShadow = true;
-  group.add(rightArm);
-
-  // Tattered cloak (dark gray)
-  const cloakGeo = new THREE.PlaneGeometry(0.45, 1.1, 1, 4);
-  const cloakMat = new THREE.MeshStandardMaterial({
-    color: cloakColor,
-    side: THREE.DoubleSide,
-    transparent: true,
-    opacity: 0.7,
-  });
-  const cloak = new THREE.Mesh(cloakGeo, cloakMat);
-  cloak.name = 'cloak';
-  cloak.position.set(0, 1.35, -0.18);
-  cloak.castShadow = true;
-  group.add(cloak);
-
-  const ribGeo = new THREE.BoxGeometry(0.18, 0.28, 0.04);
-  const ribMat = new THREE.MeshStandardMaterial({ color: 0x3d3d3d });
-  const rib = new THREE.Mesh(ribGeo, ribMat);
+  // Rib texture (dark lines on chest)
+  const ribMat = mat(0x3a4a3a, { r: 0.88 });
+  const rib = mesh(box(0.22, 0.26, 0.04), ribMat);
   rib.name = 'rib';
-  rib.position.set(0, 1.95, 0.16);
+  rib.position.set(0, Y_TORSO + 0.06, 0.18);
   group.add(rib);
 
-  const hoodGeo = new THREE.ConeGeometry(0.24, 0.42, 6);
-  const hoodMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b });
-  const hood = new THREE.Mesh(hoodGeo, hoodMat);
+  // Head (slightly elongated — skull)
+  const headMesh = mesh(box(0.5, 0.54, 0.46), mat(0x8a9a8a));
+  headMesh.name = 'head';
+  headMesh.position.y = Y_HEAD;
+  headMesh.castShadow = true;
+  group.add(headMesh);
+
+  // Dark hood
+  const hoodMat = mat(0x1a1a1a, { r: 0.95, t: true, o: 0.9 });
+  const hood = mesh(new THREE.ConeGeometry(0.32, 0.52, 6), hoodMat);
   hood.name = 'hood';
-  hood.position.set(0, 2.55, 0);
-  hood.rotation.x = Math.PI;
-  group.add(hood);
+  hood.position.set(0, 0.52, 0);
+  hood.rotation.x = Math.PI; // opens downward
+  headMesh.add(hood);
+
+  // Glowing green eyes
+  const eyeMat = mat(0x44ffaa, { em: 0x22cc77, ei: 2.8, r: 0.05 });
+  const eyeGeo = new THREE.SphereGeometry(0.044, 8, 6);
+  const lEye = mesh(eyeGeo, eyeMat);
+  lEye.name = 'leftEye';
+  lEye.position.set(-0.1, 0.06, 0.25);
+  headMesh.add(lEye);
+  const rEye = lEye.clone();
+  rEye.name = 'rightEye';
+  rEye.position.x = 0.1;
+  headMesh.add(rEye);
+
+  // Arms (bony — very thin)
+  const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 10);
+  const armMat = mat(0x8a9a8a, { r: 0.88 });
+  const clawMat = mat(0x666666, { r: 0.5, m: 0.3 });
+  const clawGeo = new THREE.ConeGeometry(0.016, 0.1, 4);
+
+  const lArm = mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  // Three finger-claws as arm children
+  for (let i = -1; i <= 1; i++) {
+    const claw = mesh(clawGeo, clawMat);
+    claw.position.set(i * 0.03, -0.38, 0.02);
+    claw.rotation.x = -0.45;
+    lArm.add(claw);
+  }
+
+  const rArm = mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  for (let i = -1; i <= 1; i++) {
+    const claw = mesh(clawGeo, clawMat);
+    claw.position.set(i * 0.03, -0.38, 0.02);
+    claw.rotation.x = -0.45;
+    rArm.add(claw);
+  }
+
+  // Legs (very thin)
+  const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 10);
+  const legMat = mat(0x4a5a4a, { r: 0.85 });
+  const footGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.2, 10);
+  const footMat = mat(0x2a2a2a, { r: 0.9 });
+  const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.01, 8, 5);
+
+  const lLeg = mesh(legGeo, legMat);
+  lLeg.name = 'leftLeg';
+  lLeg.position.set(-0.12, Y_LEG, 0);
+  lLeg.castShadow = true;
+  group.add(lLeg);
+  const lFoot = addChildMesh(lLeg, footGeo, footMat, 0, -0.38, 0);
+  addChildMesh(lFoot, toeGeo, footMat, 0, -0.09, 0.04);
+
+  const rLeg = mesh(legGeo, legMat);
+  rLeg.name = 'rightLeg';
+  rLeg.position.set(0.12, Y_LEG, 0);
+  rLeg.castShadow = true;
+  group.add(rLeg);
+  const rFoot = addChildMesh(rLeg, footGeo, footMat, 0, -0.38, 0);
+  addChildMesh(rFoot, toeGeo, footMat, 0, -0.09, 0.04);
+
+  // Tattered cloak
+  const cloak = mesh(
+    new THREE.PlaneGeometry(0.5, 0.95, 2, 6),
+    mat(0x1a1a1a, { side: THREE.DoubleSide, t: true, o: 0.72 }),
+  );
+  cloak.name = 'cloak';
+  cloak.position.set(0, Y_TORSO, -0.17);
+  group.add(cloak);
 
   addOutlineShell(group, {
-    includeNames: ['body', 'head', 'leftEye', 'rightEye', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm', 'cloak', 'rib', 'hood'],
+    includeNames: ['body', 'head', 'rib', 'cloak', 'leftLeg', 'rightLeg', 'leftArm', 'rightArm'],
     scale: 1.05,
   });
 
   return group;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+type MatOpts = {
+  r?: number;   // roughness
+  m?: number;   // metalness
+  em?: number;  // emissive hex
+  ei?: number;  // emissiveIntensity
+  side?: THREE.Side;
+  t?: boolean;  // transparent
+  o?: number;   // opacity
+};
+
+function mat(color: number, opts: MatOpts = {}): THREE.MeshStandardMaterial {
+  return new THREE.MeshStandardMaterial({
+    color,
+    roughness: opts.r ?? 0.75,
+    metalness: opts.m ?? 0,
+    emissive: opts.em !== undefined ? new THREE.Color(opts.em) : undefined,
+    emissiveIntensity: opts.ei,
+    side: opts.side,
+    transparent: opts.t,
+    opacity: opts.o,
+  });
+}
+
+function mesh(geo: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {
+  return new THREE.Mesh(geo, material);
+}
+
+function box(w: number, h: number, d: number): THREE.BoxGeometry {
+  return new THREE.BoxGeometry(w, h, d);
+}
+
+function sph(r: number, segs: number): THREE.SphereGeometry {
+  return new THREE.SphereGeometry(r, segs, Math.ceil(segs * 0.75));
+}
+
+function addChildMesh(
+  parent: THREE.Mesh,
+  geo: THREE.BufferGeometry,
+  material: THREE.Material,
+  x: number, y: number, z: number,
+): THREE.Mesh {
+  const child = new THREE.Mesh(geo, material);
+  child.position.set(x, y, z);
+  parent.add(child);
+  return child;
 }

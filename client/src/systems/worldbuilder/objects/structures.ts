@@ -311,3 +311,20 @@ export function buildPortalArch(pos: THREE.Vector3, scale: number): THREE.Group 
 
   return g;
 }
+
+export function buildRoad(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x999988, roughness: 1.0 });
+
+  // A flat plane for the road. We raise it slightly (0.05) to avoid z-fighting with terrain.
+  const roadGeo = new THREE.BoxGeometry(4 * scale, 0.1 * scale, 8 * scale);
+  const road = new THREE.Mesh(roadGeo, stoneMat);
+  road.position.y = 0.05 * scale;
+  road.receiveShadow = true;
+  road.userData.noCollision = true; // Roads shouldn't block walking
+  g.add(road);
+
+  return g;
+}

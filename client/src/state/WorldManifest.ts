@@ -60,6 +60,12 @@ export interface NPCDefinition {
   };
 }
 
+export interface PathDefinition {
+  start: [number, number];
+  end: [number, number];
+  width: number;
+}
+
 export interface ZoneDefinition {
   name: string;
   bounds: { min: [number, number]; max: [number, number] };
@@ -69,6 +75,7 @@ export interface ZoneDefinition {
   architecture: {
     landmarks: LandmarkDefinition[];
     dungeons: Record<string, DungeonConfig>;
+    paths?: PathDefinition[];
   };
 }
 
@@ -94,6 +101,7 @@ export class WorldManifest {
   private environment: EnvironmentConfig | null = null;
   private dungeons: Record<string, DungeonConfig> = {};
   private npcs: NPCDefinition[] = [];
+  private paths: PathDefinition[] = [];
   private zones: Map<string, ZoneDefinition> = new Map();
 
   constructor() {
@@ -112,6 +120,7 @@ export class WorldManifest {
     this.landmarks.clear();
     this.dungeons = {};
     this.npcs = [];
+    this.paths = [];
     this.zones.clear();
 
     // 3. Process Zones
@@ -134,6 +143,11 @@ export class WorldManifest {
       if (zone.architecture?.dungeons) {
         this.dungeons = { ...this.dungeons, ...zone.architecture.dungeons };
       }
+
+      // Collect Paths
+      if (zone.architecture?.paths) {
+        this.paths.push(...zone.architecture.paths);
+      }
     }
   }
 
@@ -143,6 +157,10 @@ export class WorldManifest {
 
   public getTerrainFeatures(): VerticalPlace[] {
     return this.terrainFeatures;
+  }
+
+  public getPaths(): PathDefinition[] {
+    return this.paths;
   }
 
   public getDungeons(): Record<string, DungeonConfig> {
