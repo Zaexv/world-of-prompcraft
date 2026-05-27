@@ -1,3 +1,11 @@
+import type { WorldManifest } from '../state/WorldManifest';
+
+let worldManifest: WorldManifest | null = null;
+
+export function setWorldManifest(wm: WorldManifest): void {
+  worldManifest = wm;
+}
+
 export interface DungeonConfig {
   id: string;
   name: string;
@@ -15,7 +23,7 @@ export interface DungeonConfig {
   roomDepth: number;
 }
 
-export const DUNGEONS: Record<string, DungeonConfig> = {
+const DEFAULT_DUNGEONS: Record<string, DungeonConfig> = {
   ember_depths: {
     id: "ember_depths",
     name: "Ember Depths",
@@ -53,36 +61,25 @@ export const DUNGEONS: Record<string, DungeonConfig> = {
     roomWidth: 35,
     roomDepth: 45,
   },
-  arcane_catacombs: {
-    id: "arcane_catacombs",
-    name: "Arcane Catacombs",
-    wallColor: 0x1a0a2a,
-    floorColor: 0x0a0518,
-    ceilingColor: 0x0a0520,
-    ambientColor: 0x8844cc,
-    fogColor: 0x0a0520,
-    fogDensity: 0.012,
-    enemyCount: 3,
-    lootItem: "Tome of Forgotten Spells",
-    enemyNames: ["Arcane Wraith", "Rune Golem", "Spectral Mage"],
-    enemyColor: 0x8844cc,
-    roomWidth: 38,
-    roomDepth: 42,
-  },
-  twilight_hollow: {
-    id: "twilight_hollow",
-    name: "Twilight Hollow",
-    wallColor: 0x0a1a0a,
-    floorColor: 0x050a05,
-    ceilingColor: 0x0a150a,
-    ambientColor: 0x44ff88,
-    fogColor: 0x050a05,
-    fogDensity: 0.018,
-    enemyCount: 3,
-    lootItem: "Twilight Shard",
-    enemyNames: ["Shadow Stalker", "Corrupted Treant", "Night Crawler"],
-    enemyColor: 0x44ff88,
-    roomWidth: 35,
-    roomDepth: 50,
-  },
 };
+
+export const DUNGEONS: Record<string, DungeonConfig> = new Proxy({}, {
+  get: (_, prop: string) => {
+    const manifestDungeons = worldManifest?.getDungeons() || {};
+    const manifestData = manifestDungeons[prop];
+    const defaultData = DEFAULT_DUNGEONS[prop];
+
+    if (!manifestData && !defaultData) return undefined;
+
+    return {
+      ...(defaultData || {}),
+      ...(manifestData || {}),
+      id: prop,
+    };
+  },
+  ownKeys: () => {
+    const manifestDungeons = worldManifest?.getDungeons() || {};
+    return Array.from(new Set([...Object.keys(DEFAULT_DUNGEONS), ...Object.keys(manifestDungeons)]));
+  },
+  getOwnPropertyDescriptor: () => ({ enumerable: true, configurable: true }),
+});

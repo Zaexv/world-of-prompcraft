@@ -562,6 +562,9 @@ flowchart TD
 
 ## Adding a New NPC Archetype
 
-1. Add personality in `server/src/agents/personalities/templates.py`
-2. Add definition in `server/src/world/npc_definitions.py`
-3. Agent auto-registers on server start — client spawns NPC from `join_ok.npcs[]`
+1. **Define Personality**: Add a new system prompt in `server/src/agents/personalities/templates.py`.
+2. **Register in Manifest**: Add the NPC to the `npcs` array of a specific zone in `shared/data/world_manifest.json`. Use the structured component schema (Version 2.1.0).
+3. **Automatic Sync**: 
+   - The server reloads the shared manifest on every player join, automatically registering the new character's AI brain.
+   - The client hydrates the manifest on boot and spawns the 3D model automatically via `join_ok`.
+   - Use the `npc-registry-manager` skill to simplify this process during development.

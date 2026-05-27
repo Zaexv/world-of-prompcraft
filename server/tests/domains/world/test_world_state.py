@@ -39,10 +39,8 @@ def test_world_state_singleton() -> None:
 
 def test_world_state_loads_default_npcs() -> None:
     ws = WorldState()
-    assert len(ws.npcs) >= 6  # dragon, merchant, sage, guard, healer, eltito
-    assert "dragon_01" in ws.npcs
-    assert "merchant_01" in ws.npcs
-    assert "eltito_01" in ws.npcs
+    assert len(ws.npcs) >= 1
+    assert "tutorial_01" in ws.npcs
 
 
 def test_get_player_creates_default() -> None:
@@ -54,8 +52,8 @@ def test_get_player_creates_default() -> None:
 
 def test_get_npc_config() -> None:
     ws = WorldState()
-    config = ws.get_npc_config("dragon_01")
-    assert config["name"] == "Ignathar the Ancient"
+    config = ws.get_npc_config("tutorial_01")
+    assert config["name"] == "Tutorial-Man"
     assert "personality" in config
 
     unknown = ws.get_npc_config("nonexistent")
@@ -104,11 +102,11 @@ async def test_apply_heal_does_not_exceed_max() -> None:
 @pytest.mark.asyncio
 async def test_apply_damage_npc() -> None:
     ws = WorldState()
-    npc = ws.npcs["dragon_01"]
+    npc = ws.npcs["tutorial_01"]
     original_hp = npc.hp
     await ws.apply_actions(
         [
-            {"kind": "damage_npc", "params": {"npc_id": "dragon_01", "amount": 100}},
+            {"kind": "damage_npc", "params": {"npc_id": "tutorial_01", "amount": 100}},
         ]
     )
     assert npc.hp == original_hp - 100
@@ -117,10 +115,10 @@ async def test_apply_damage_npc() -> None:
 @pytest.mark.asyncio
 async def test_apply_damage_npc_floor_zero() -> None:
     ws = WorldState()
-    npc = ws.npcs["merchant_01"]
+    npc = ws.npcs["tutorial_01"]
     await ws.apply_actions(
         [
-            {"kind": "damage_npc", "params": {"npc_id": "merchant_01", "amount": 9999}},
+            {"kind": "damage_npc", "params": {"npc_id": "tutorial_01", "amount": 9999}},
         ]
     )
     assert npc.hp == 0
@@ -164,7 +162,7 @@ async def test_apply_change_weather() -> None:
 
 def test_get_context_for_npc() -> None:
     ws = WorldState()
-    ctx = ws.get_context_for_npc("merchant_01", "p1")
+    ctx = ws.get_context_for_npc("tutorial_01", "p1")
     assert "zone" in ctx
     assert "weather" in ctx
     assert "nearby_entities" in ctx

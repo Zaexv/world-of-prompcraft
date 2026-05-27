@@ -6,9 +6,6 @@ import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
-import { Buildings } from './Buildings';
-import { FortMalaka } from './FortMalaka';
-import { Vegetation } from './Vegetation';
 import { Effects } from './Effects';
 
 export class SceneManager {
@@ -16,14 +13,11 @@ export class SceneManager {
   public camera: THREE.PerspectiveCamera;
   public renderer: THREE.WebGLRenderer;
   public terrain: Terrain;
-  public buildings: Buildings;
-  public fortMalaka: FortMalaka;
-  public vegetation: Vegetation;
+  public lighting!: Lighting;
 
   private clock: THREE.Clock;
   private water: Water;
-  private effects: Effects;
-  private composer: EffectComposer | null = null;
+  private effects: Effects;  private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
@@ -92,17 +86,10 @@ export class SceneManager {
 
     // --- World systems (order matters: lighting first, then geometry) ---
     new Skybox(this.scene);
-    new Lighting(this.scene);
+    this.lighting = new Lighting(this.scene);
 
     this.terrain = new Terrain(this.scene);
     this.water = new Water(this.scene);
-
-    this.buildings = new Buildings(this.scene, this.terrain);
-    this.fortMalaka = new FortMalaka(this.scene, this.terrain);
-
-    // Combine footprints from all building systems for vegetation avoidance
-    const allFootprints = [...this.buildings.footprints, ...this.fortMalaka.footprints];
-    this.vegetation = new Vegetation(this.scene, this.terrain, allFootprints);
 
     // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);

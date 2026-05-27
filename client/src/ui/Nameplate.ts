@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { UIComponent } from "./core/UIComponent";
 
 /**
  * Beautiful WoW-style floating nameplate for NPCs.
@@ -6,45 +7,51 @@ import * as THREE from "three";
  * purple/gold border glow, decorative flourishes, and a health bar.
  * The sprite auto-billboards to always face the camera.
  */
-export class Nameplate {
-  readonly sprite: THREE.Sprite;
-  private canvas: HTMLCanvasElement;
-  private ctx: CanvasRenderingContext2D;
-  private texture: THREE.CanvasTexture;
-  private _name: string;
-  private currentHp: number;
-  private maxHp: number;
+export class Nameplate extends UIComponent {
+  declare sprite: THREE.Sprite;
+  declare private canvas: HTMLCanvasElement;
+  declare private ctx: CanvasRenderingContext2D;
+  declare private texture: THREE.CanvasTexture;
+  declare private material: THREE.SpriteMaterial;
+  private _name = "";
+  private currentHp = 100;
+  private maxHp = 100;
   private _mood = "neutral";
   private _relationshipScore = 0;
-  private readonly canvasW = 512;
-  private readonly canvasH = 160;
+  // Static so they are available during render(), which runs before instance fields init
+  private static readonly CANVAS_W = 512;
+  private static readonly CANVAS_H = 160;
 
   constructor(name: string, maxHp = 100) {
+    super('ui-root', `nameplate-${name}`);
+    // render() already ran — canvas/ctx/texture/material/sprite all exist
     this._name = name;
     this.currentHp = maxHp;
     this.maxHp = maxHp;
+    this.draw();
+  }
 
+  render(): void {
     this.canvas = document.createElement("canvas");
-    this.canvas.width = this.canvasW;
-    this.canvas.height = this.canvasH;
+    this.canvas.width = Nameplate.CANVAS_W;
+    this.canvas.height = Nameplate.CANVAS_H;
     this.ctx = this.canvas.getContext("2d")!;
 
     this.texture = new THREE.CanvasTexture(this.canvas);
     this.texture.minFilter = THREE.LinearFilter;
     this.texture.magFilter = THREE.LinearFilter;
 
-    const material = new THREE.SpriteMaterial({
+    this.material = new THREE.SpriteMaterial({
       map: this.texture,
       transparent: true,
       depthTest: false,
     });
 
-    this.sprite = new THREE.Sprite(material);
+    // Pass material to constructor — avoids setting sprite.material after creation
+    this.sprite = new THREE.Sprite(this.material);
     this.sprite.scale.set(3, 0.94, 1);
     this.sprite.position.set(0, 3.2, 0);
     this.sprite.renderOrder = 999;
-
-    this.draw();
   }
 
   /** Update the HP bar. `current` and `max` are absolute values. */
@@ -64,10 +71,25 @@ export class Nameplate {
     this.draw();
   }
 
+  protected onDispose(): void {
+    if (this.texture) {
+      this.texture.dispose();
+    }
+    if (this.material) {
+      this.material.dispose();
+    }
+    if (this.canvas) {
+      this.canvas.remove();
+    }
+  }
+
   // ── Internal drawing ────────────────────────────────────────────────
 
   private draw(): void {
-    const { ctx, canvasW: w, canvasH: h } = this;
+    const ctx = this.ctx;
+    const w = Nameplate.CANVAS_W;
+    const h = Nameplate.CANVAS_H;
+    if (!ctx) return; // no-op in environments without canvas 2D (e.g. test)
     ctx.clearRect(0, 0, w, h);
 
     const panelX = 24;

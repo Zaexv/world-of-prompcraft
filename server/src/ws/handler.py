@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from fastapi import WebSocket
 
+    from ..agents.agent_state import NPCAgentState as _NPCAgentState
     from ..agents.registry import AgentRegistry
     from ..world.world_state import WorldState
     from .connection_manager import ConnectionManager
@@ -215,6 +216,10 @@ _registry: AgentRegistry | None = None
 _world_state: WorldState | None = None
 _manager: ConnectionManager | None = None
 
+# WorldBuilder agent and its pending actions list
+_world_builder_agent: Any | None = None
+_pending_world_actions: list[Any] = []
+
 # Per-player interaction locks — prevents concurrent interactions from the same client
 _interaction_locks: dict[str, asyncio.Lock] = {}
 
@@ -235,13 +240,21 @@ _ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
 def init_handler(
-    registry: AgentRegistry, world_state: WorldState, manager: ConnectionManager
+    registry: AgentRegistry,
+    world_state: WorldState,
+    manager: ConnectionManager,
+    world_builder_agent: Any | None = None,
+    pending_world_actions: list[Any] | None = None,
 ) -> None:
     """Wire the handler to the live registry, world state, and connection manager."""
-    global _registry, _world_state, _manager
+    global _registry, _world_state, _manager, _world_builder_agent, _pending_world_actions
     _registry = registry
     _world_state = world_state
     _manager = manager
+    if world_builder_agent is not None:
+        _world_builder_agent = world_builder_agent
+    if pending_world_actions is not None:
+        _pending_world_actions = pending_world_actions
 
 
 async def handle_message(
@@ -287,6 +300,9 @@ async def handle_message(
     if msg_type == "quest_update":
         return await _handle_quest_update(data)
 
+    if msg_type == "world_modify":
+        return await _handle_world_modify(data, websocket)
+
     return {"type": "error", "message": f"Unknown message type: {msg_type}"}
 
 
@@ -299,15 +315,15 @@ async def _handle_join(
     faction = data.get("faction", "alliance")
     skin = data.get("skin", "skin-1")
 
+    logger.info(f"Player joining: {username} ({race}, {faction})")
+
     # Validate username: 1-20 alphanumeric/underscore characters
     if not username or len(username) > 20 or not re.match(r"^[a-zA-Z0-9_]+$", username):
+        logger.warning(f"Join rejected: Invalid username '{username}'")
         return {
             "type": "join_error",
             "message": "Username must be 1-20 alphanumeric characters.",
         }
-
-    if manager.is_username_taken(username):
-        return {"type": "join_error", "message": "Username is already taken."}
 
     if race not in _VALID_RACES:
         race = "human"
@@ -317,7 +333,8 @@ async def _handle_join(
         skin = "skin-1"
 
     # Register websocket with manager
-    manager.register(websocket, username)
+    await manager.register(websocket, username)
+    logger.info(f"WebSocket registered for player: {username}")
 
     # BUG-3: Accept initial position from client so player isn't broadcast at [0,0,0]
     initial_position = data.get("position")
@@ -332,12 +349,16 @@ async def _handle_join(
 
     # Create player in world state
     if _world_state is not None:
+        _world_state.refresh_npcs()
+        if _registry:
+            _registry.refresh_agents()
         player = _world_state.get_player(username)
         player.username = username
         player.race = race
         player.faction = faction
         player.skin = skin
         player.position = initial_position
+        logger.info(f"Player state initialized: {username}")
 
     # Build list of current players (excluding the joining player)
     current_players: list[dict[str, Any]] = []
@@ -347,10 +368,10 @@ async def _handle_join(
                 current_players.append(p.to_public_dict())
 
     # Build NPC list
-    npc_list: list[dict[str, Any]] = []
+    current_npcs: list[dict[str, Any]] = []
     if _world_state is not None:
         for npc in _world_state.npcs.values():
-            npc_list.append(npc.to_dict())
+            current_npcs.append(npc.to_dict())
 
     # Broadcast player_joined to everyone else
     if _world_state is not None:
@@ -363,11 +384,12 @@ async def _handle_join(
             exclude=username,
         )
 
+    logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
     return {
         "type": "join_ok",
         "playerId": username,
         "players": current_players,
-        "npcs": npc_list,
+        "npcs": current_npcs,
     }
 
 
@@ -1183,4 +1205,71 @@ async def _handle_quest_update(data: dict[str, Any]) -> dict[str, Any]:
         "type": "quest_update",
         "actions": actions,
         "playerStateUpdate": player.to_dict(),
+    }
+
+
+async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> dict[str, Any]:
+    """Handle a world_modify request — invoke the WorldBuilder agent."""
+    if _world_builder_agent is None:
+        return {
+            "type": "world_modify_response",
+            "dialogue": "The World Spirit is not yet awakened...",
+            "actions": [],
+        }
+
+    prompt = data.get("prompt", "")
+    position: list[float] = data.get("position", [0.0, 0.0, 0.0])
+    if not isinstance(position, list) or len(position) < 3:
+        position = [0.0, 0.0, 0.0]
+
+    _pending_world_actions.clear()
+
+    from langchain_core.messages import HumanMessage as _HumanMessage
+
+    nearby = data.get("nearbyObjects", [])
+    nearby_str = ""
+    if nearby:
+        nearby_str = "\nNearby objects you can modify or remove:\n" + "\n".join(
+            [
+                f"- {obj['label']} (type: {obj['type']}, id: {obj['id']}) at position {obj['position']}"
+                for obj in nearby
+            ]
+        )
+
+    context: dict[str, Any] = {
+        "player_position": f"x={float(position[0]):.1f}, z={float(position[2]):.1f}",
+        "nearby_objects": nearby_str,
+    }
+
+    input_state: _NPCAgentState = {
+        "messages": [_HumanMessage(content=prompt)],
+        "npc_id": "world_spirit",
+        "npc_name": "World Spirit",
+        "npc_personality": "",
+        "player_state": {},
+        "world_context": context,
+        "pending_actions": [],
+        "response_text": "",
+        "conversation_summary": "",
+        "mood": "neutral",
+        "relationship_score": 0,
+        "personality_notes": "",
+    }
+
+    try:
+        result = await asyncio.wait_for(
+            _world_builder_agent.ainvoke(input_state),
+            timeout=30.0,
+        )
+        actions = list(_pending_world_actions)
+        dialogue: str = result.get("response_text", "The world reshapes itself...")
+    except Exception:
+        logger.exception("WorldBuilder agent failed")
+        actions = []
+        dialogue = "The world spirit is dormant..."
+
+    return {
+        "type": "world_modify_response",
+        "dialogue": dialogue,
+        "actions": actions,
     }

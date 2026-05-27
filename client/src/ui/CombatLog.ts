@@ -1,15 +1,24 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * Always-visible scrollable combat log panel at the bottom-left of the screen.
  * Shows combat events, loot, quests, and NPC actions with colored entries.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class CombatLog {
-  readonly element: HTMLDivElement;
-
-  private logEntries: HTMLDivElement;
-  private styleTag: HTMLStyleElement;
+export class CombatLog extends UIComponent {
+  declare private logEntries: HTMLDivElement;
+  private styleTag: HTMLStyleElement | null = null;
   private readonly MAX_ENTRIES = 50;
 
   constructor() {
+    super('ui-root', 'combat-log');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
     // Inject scrollbar styles
     this.styleTag = document.createElement("style");
     this.styleTag.textContent = `
@@ -20,8 +29,7 @@ export class CombatLog {
     document.head.appendChild(this.styleTag);
 
     // ── Root container ────────────────────────────────────────────────────
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    Object.assign(this.container.style, {
       position: "absolute",
       bottom: "24px",
       right: "24px",
@@ -51,7 +59,7 @@ export class CombatLog {
       textTransform: "uppercase",
     } as CSSStyleDeclaration);
     header.textContent = "Combat Log";
-    this.element.appendChild(header);
+    this.container.appendChild(header);
 
     // ── Scrollable entries ────────────────────────────────────────────────
     this.logEntries = document.createElement("div");
@@ -64,7 +72,13 @@ export class CombatLog {
       gap: "2px",
       maxHeight: "140px",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.logEntries);
+    this.container.appendChild(this.logEntries);
+  }
+
+  protected override onDispose(): void {
+    if (this.styleTag && this.styleTag.parentNode) {
+      this.styleTag.parentNode.removeChild(this.styleTag);
+    }
   }
 
   /** Add a new entry to the combat log with optional color. */
@@ -106,5 +120,9 @@ export class CombatLog {
   /** Clear all entries. */
   clear(): void {
     this.logEntries.innerHTML = "";
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 }

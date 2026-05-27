@@ -4,9 +4,8 @@ import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.j
 import { CharacterAnimator } from './CharacterAnimator';
 import { buildRaceModel } from './RaceModels';
 import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
-import type { AssetLoader } from '../utils/AssetLoader';
-import { lerpAngle } from '../utils/MathHelpers';
-import { createBoatModel } from '../scene/BoatModel';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
+import { lerpAngle } from '../utils/math/MathHelpers';
 
 /**
  * Player character built from race-specific models, with optional rigged GLTF skins.
@@ -18,7 +17,6 @@ export class Player {
   private readonly skin: string;
   private visualRoot: THREE.Object3D;
   private animator: CharacterAnimator | null = null;
-  private readonly boatMount: THREE.Group;
 
   private leftLeg: THREE.Mesh | null;
   private rightLeg: THREE.Mesh | null;
@@ -27,9 +25,6 @@ export class Player {
   private cloak: THREE.Mesh | null;
   private walkPhase = 0;
   private fallbackPhase = Math.random() * Math.PI * 2;
-  private boatBob = 0;
-  private boatRoll = 0;
-  private boatPitch = 0;
 
   /** Current body tilt (radians, 0 = upright). */
   private bodyTilt = 0;
@@ -44,9 +39,6 @@ export class Player {
 
     this.visualRoot = buildRaceModel(race);
     this.group.add(this.visualRoot);
-    this.boatMount = this.createBoatMount();
-    this.boatMount.visible = false;
-    this.group.add(this.boatMount);
 
     // Look up parts by name (may be null if model is missing a part)
     this.leftLeg = (this.group.getObjectByName('leftLeg') as THREE.Mesh) ?? null;
@@ -56,13 +48,18 @@ export class Player {
     this.cloak = (this.group.getObjectByName('cloak') as THREE.Mesh) ?? null;
   }
 
-  static async create(
+  /**
+   * Create a player with a procedural base model and optionally upgrade to a GLTF skin in the background.
+   * Never blocks game startup.
+   */
+  static create(
     race: string = 'night_elf',
     skin: string = getDefaultPlayerSkin(),
     assetLoader?: AssetLoader,
-  ): Promise<Player> {
+  ): Player {
     const player = new Player(race, skin);
-    await player.tryLoadSkin(assetLoader);
+    // Background load the skin — don't await
+    void player.tryLoadSkin(assetLoader);
     return player;
   }
 
@@ -87,7 +84,6 @@ export class Player {
     const targetTilt = 0;
     this.bodyTilt += (targetTilt - this.bodyTilt) * clampedT(delta, 6);
     this.group.rotation.x = this.bodyTilt;
-    this.boatMount.visible = isSwimming;
 
     if (this.animator) {
       const speed = velocity.length();
@@ -134,27 +130,9 @@ export class Player {
     }
 
     if (isSwimming) {
-      const speed = velocity.length();
-      const targetBob = Math.sin(this.fallbackPhase * 0.9) * 0.045;
-      const targetRoll = Math.sin(this.fallbackPhase * 0.55) * (0.02 + Math.min(speed / 18, 0.04));
-      const targetPitch = -Math.min(speed / 18, 0.07);
-
-      this.boatBob += (targetBob - this.boatBob) * clampedT(delta, 3.2);
-      this.boatRoll += (targetRoll - this.boatRoll) * clampedT(delta, 4.2);
-      this.boatPitch += (targetPitch - this.boatPitch) * clampedT(delta, 4.2);
-
-      this.boatMount.position.y = 0.7 + this.boatBob;
-      this.boatMount.rotation.z = this.boatRoll;
-      this.boatMount.rotation.x = this.boatPitch;
-      this.visualRoot.position.y = 0.34 + this.boatBob * 0.2;
+      this.visualRoot.position.y = 0.34;
       this.visualRoot.rotation.z *= 0.6;
     } else {
-      this.boatBob += (0 - this.boatBob) * clampedT(delta, 6);
-      this.boatRoll += (0 - this.boatRoll) * clampedT(delta, 8);
-      this.boatPitch += (0 - this.boatPitch) * clampedT(delta, 8);
-      this.boatMount.position.y = 0.7 + this.boatBob;
-      this.boatMount.rotation.z = this.boatRoll;
-      this.boatMount.rotation.x = this.boatPitch;
       if (this.animator) {
         this.visualRoot.position.y = 0;
       }
@@ -242,15 +220,6 @@ export class Player {
         }
       }
     });
-  }
-
-  private createBoatMount(): THREE.Group {
-    const boat = createBoatModel({ scale: 0.48, withSail: true, markColliders: false });
-    boat.name = 'playerBoatMount';
-    boat.rotation.y = Math.PI / 2;
-    boat.scale.z *= 1.15;
-    boat.position.y = 0.7;
-    return boat;
   }
 }
 

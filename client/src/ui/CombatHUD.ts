@@ -1,34 +1,41 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * Combat HUD overlay — WoW-style unit frames with player/NPC health bars,
  * mana bar, and a scrolling combat log.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class CombatHUD {
-  readonly element: HTMLDivElement;
+export class CombatHUD extends UIComponent {
+  declare private playerFrame: HTMLDivElement;
+  declare private npcFrame: HTMLDivElement;
+  declare private combatLog: HTMLDivElement;
 
-  private playerFrame: HTMLDivElement;
-  private npcFrame: HTMLDivElement;
-  private combatLog: HTMLDivElement;
+  declare private playerPortrait: HTMLDivElement;
+  declare private playerNameEl: HTMLDivElement;
+  declare private playerHpFill: HTMLDivElement;
+  declare private playerHpText: HTMLSpanElement;
+  declare private playerManaFill: HTMLDivElement;
+  declare private playerManaText: HTMLSpanElement;
 
-  private playerPortrait: HTMLDivElement;
-  private playerNameEl: HTMLDivElement;
-  private playerHpFill: HTMLDivElement;
-  private playerHpText: HTMLSpanElement;
-  private playerManaFill: HTMLDivElement;
-  private playerManaText: HTMLSpanElement;
+  declare private npcPortrait: HTMLDivElement;
+  declare private npcNameEl: HTMLDivElement;
+  declare private npcHpFill: HTMLDivElement;
+  declare private npcHpText: HTMLSpanElement;
 
-  private npcPortrait: HTMLDivElement;
-  private npcNameEl: HTMLDivElement;
-  private npcHpFill: HTMLDivElement;
-  private npcHpText: HTMLSpanElement;
-
-  private logEntries: HTMLDivElement;
-  private _isVisible = false;
+  declare private logEntries: HTMLDivElement;
   private currentNpcId = "";
 
-  private styleTag: HTMLStyleElement;
+  declare private styleTag: HTMLStyleElement;
 
   constructor() {
-    // Inject keyframes + scrollbar styles
+    super('ui-root', 'combat-hud');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
     this.styleTag = document.createElement("style");
     this.styleTag.textContent = `
       @keyframes combat-hud-flash {
@@ -44,9 +51,7 @@ export class CombatHUD {
     `;
     document.head.appendChild(this.styleTag);
 
-    // ── Root container ──────────────────────────────────────────────────────
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    Object.assign(this.container.style, {
       position: "absolute",
       top: "80px",
       left: "50%",
@@ -61,7 +66,6 @@ export class CombatHUD {
       userSelect: "none",
     } as CSSStyleDeclaration);
 
-    // ── Frames row (player left, NPC right) ─────────────────────────────────
     const framesRow = document.createElement("div");
     Object.assign(framesRow.style, {
       display: "flex",
@@ -69,7 +73,6 @@ export class CombatHUD {
       alignItems: "flex-start",
     } as CSSStyleDeclaration);
 
-    // Player frame
     const playerResult = this.createUnitFrame("Player", "P", true);
     this.playerFrame = playerResult.frame;
     this.playerPortrait = playerResult.portrait;
@@ -80,7 +83,6 @@ export class CombatHUD {
     this.playerManaText = playerResult.manaText!;
     framesRow.appendChild(this.playerFrame);
 
-    // NPC frame
     const npcResult = this.createUnitFrame("NPC", "N", false);
     this.npcFrame = npcResult.frame;
     this.npcPortrait = npcResult.portrait;
@@ -89,9 +91,8 @@ export class CombatHUD {
     this.npcHpText = npcResult.hpText;
     framesRow.appendChild(this.npcFrame);
 
-    this.element.appendChild(framesRow);
+    this.container.appendChild(framesRow);
 
-    // ── Combat log ──────────────────────────────────────────────────────────
     this.combatLog = document.createElement("div");
     Object.assign(this.combatLog.style, {
       width: "440px",
@@ -125,34 +126,34 @@ export class CombatHUD {
     } as CSSStyleDeclaration);
     this.combatLog.appendChild(this.logEntries);
 
-    this.element.appendChild(this.combatLog);
+    this.container.appendChild(this.combatLog);
   }
 
-  // ── Public API ──────────────────────────────────────────────────────────────
+  // Call signatures for compatibility
+  show(npcId: string, npcName: string, npcHp: number, npcMaxHp: number): void;
+  show(): void;
+  show(npcId?: string, npcName?: string, npcHp?: number, npcMaxHp?: number): void {
+    if (npcId !== undefined && npcName !== undefined && npcHp !== undefined && npcMaxHp !== undefined) {
+      this.currentNpcId = npcId;
 
-  show(npcId: string, npcName: string, npcHp: number, npcMaxHp: number): void {
-    this.currentNpcId = npcId;
-    this._isVisible = true;
+      this.npcNameEl.textContent = npcName;
+      this.npcPortrait.textContent = npcName.charAt(0).toUpperCase();
+      this.updateNpcHP(npcHp, npcMaxHp);
 
-    // Update NPC frame
-    this.npcNameEl.textContent = npcName;
-    this.npcPortrait.textContent = npcName.charAt(0).toUpperCase();
-    this.updateNpcHP(npcHp, npcMaxHp);
+      this.playerNameEl.textContent = "Player";
+      this.playerPortrait.textContent = "P";
 
-    // Reset player info label
-    this.playerNameEl.textContent = "Player";
-    this.playerPortrait.textContent = "P";
+      this.logEntries.innerHTML = "";
 
-    // Clear old log entries
-    this.logEntries.innerHTML = "";
-
-    this.element.style.display = "flex";
+      super.show();
+    } else {
+      super.show();
+    }
   }
 
   hide(): void {
-    this._isVisible = false;
     this.currentNpcId = "";
-    this.element.style.display = "none";
+    super.hide();
   }
 
   updatePlayerHP(hp: number, maxHp: number): void {
@@ -189,21 +190,25 @@ export class CombatHUD {
     entry.textContent = `> ${text}`;
     this.logEntries.appendChild(entry);
 
-    // Keep max 30 entries
     while (this.logEntries.children.length > 30) {
       this.logEntries.removeChild(this.logEntries.firstChild!);
     }
 
-    // Auto-scroll
     this.logEntries.scrollTop = this.logEntries.scrollHeight;
   }
 
+  /** Check if combat HUD is currently visible. */
+  // @ts-expect-error - override protected property as public getter for backward compatibility
   get isVisible(): boolean {
-    return this._isVisible;
+    return this.getIsVisible();
   }
 
   get npcId(): string {
     return this.currentNpcId;
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 
   // ── Private helpers ─────────────────────────────────────────────────────────
@@ -219,7 +224,6 @@ export class CombatHUD {
 
   private triggerFlash(el: HTMLElement): void {
     el.classList.remove("combat-hp-flash");
-    // Force reflow to restart animation
     void el.offsetWidth;
     el.classList.add("combat-hp-flash");
   }
@@ -250,7 +254,6 @@ export class CombatHUD {
       minWidth: "200px",
     } as CSSStyleDeclaration);
 
-    // Portrait circle
     const portrait = document.createElement("div");
     Object.assign(portrait.style, {
       width: "36px",
@@ -270,7 +273,6 @@ export class CombatHUD {
     portrait.textContent = initial;
     frame.appendChild(portrait);
 
-    // Info column
     const infoCol = document.createElement("div");
     Object.assign(infoCol.style, {
       display: "flex",
@@ -279,7 +281,6 @@ export class CombatHUD {
       flex: "1",
     } as CSSStyleDeclaration);
 
-    // Name
     const nameEl = document.createElement("div");
     Object.assign(nameEl.style, {
       fontSize: "12px",
@@ -294,7 +295,6 @@ export class CombatHUD {
     nameEl.textContent = name;
     infoCol.appendChild(nameEl);
 
-    // HP bar
     const { bar: hpBar, fill: hpFill, text: hpText } = this.createBar(
       "linear-gradient(90deg, #1a7a1a 0%, #33cc33 100%)",
       "rgba(10,30,10,0.85)",
@@ -366,5 +366,11 @@ export class CombatHUD {
     bar.appendChild(text);
 
     return { bar, fill, text };
+  }
+
+  protected override onDispose(): void {
+    if (this.styleTag && this.styleTag.parentNode) {
+      this.styleTag.parentNode.removeChild(this.styleTag);
+    }
   }
 }

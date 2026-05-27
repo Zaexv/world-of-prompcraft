@@ -1,19 +1,27 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * ChatPanel — bottom-left chat panel for multiplayer communication.
  * Shows player messages, NPC dialogue, and system messages.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class ChatPanel {
-  readonly element: HTMLDivElement;
+export class ChatPanel extends UIComponent {
   onSendMessage: ((text: string) => void) | null = null;
 
-  private messagesArea: HTMLDivElement;
-  private input: HTMLInputElement;
+  declare private messagesArea: HTMLDivElement;
+  declare private input: HTMLInputElement;
   private userScrolledUp = false;
 
   constructor() {
-    // ── Container ──────────────────────────────────────────────────────────
-    this.element = document.createElement('div');
-    Object.assign(this.element.style, {
+    super('ui-root', 'chat-panel');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: 'absolute',
       bottom: '12px',
       left: '12px',
@@ -48,7 +56,7 @@ export class ChatPanel {
       this.userScrolledUp = !atBottom;
     });
 
-    this.element.appendChild(this.messagesArea);
+    this.container.appendChild(this.messagesArea);
 
     // ── Input area ─────────────────────────────────────────────────────────
     this.input = document.createElement('input');
@@ -80,11 +88,10 @@ export class ChatPanel {
         e.preventDefault();
         this.input.blur();
       }
-      // Stop propagation so WASD etc. don't trigger while typing
       e.stopPropagation();
     });
 
-    this.element.appendChild(this.input);
+    this.container.appendChild(this.input);
   }
 
   /** Add a player or NPC message to the chat log. */
@@ -117,12 +124,8 @@ export class ChatPanel {
     return document.activeElement === this.input;
   }
 
-  show(): void {
-    this.element.style.display = 'flex';
-  }
-
-  hide(): void {
-    this.element.style.display = 'none';
+  get element(): HTMLElement {
+    return this.container;
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────

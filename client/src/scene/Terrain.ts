@@ -5,8 +5,9 @@ import {
   biomeHeightModifier,
   getBiomeColor,
   getBiomeEmissive,
-  registerBeachBlend,
+  getBiomeSurfaceNoise,
 } from './Biomes';
+import { getVerticalLiftAt } from './VerticalTerrain';
 
 /**
  * Infinite procedural terrain with chunk-based loading and biome blending.
@@ -105,12 +106,7 @@ export class Terrain {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // Register the beach blend function so Biomes can use it for sand colors
-    registerBeachBlend(Terrain.getBeachBlend);
-
     // Lightweight warm-up near spawn; remaining chunks stream in across frames.
-    this.lastPlayerCX = 0;
-    this.lastPlayerCZ = 0;
     this.queueChunksAround(0, 0, INITIAL_PRELOAD_RADIUS);
     this.processChunkQueue(CHUNK_LOADS_PER_UPDATE * 2);
   }
@@ -120,12 +116,12 @@ export class Terrain {
   // ────────────────────────────────────────────────────────────────────────────
 
   /**
-   * Returns the deterministic terrain height at any world (x, z).
+   * Returns the full world height at any (x, z): terrain noise + vertical lift.
    * Does NOT depend on loaded chunks — pure math.
-   * Includes biome height modifications.
+   * This is the authoritative height used by PlayerController and all placement code.
    */
   getHeightAt(x: number, z: number): number {
-    return Terrain.computeHeight(x, z);
+    return Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
   }
 
   /**
@@ -205,22 +201,6 @@ export class Terrain {
    * This is the single source of truth for terrain height everywhere.
    * Now includes biome-blended height modifications.
    */
-  /**
-   * Returns the Fort Malaka beach blend factor [0..1] at (x, z).
-   * 0 = normal terrain, 1 = full beach. Exported for use by Biomes.
-   */
-  static getBeachBlend(x: number, z: number): number {
-    // Fast bounding-box rejection (avoids trig for 99% of terrain)
-    if (x < -50 || x > 50 || z > -145 || z < -200) return 0;
-
-    // Beach strip: X ∈ [-45, 45], Z ∈ [-190, -155]
-    const bx = Math.max(0, (Math.abs(x) - 30) / 15);       // fade from |x|=30 to |x|=45
-    const bzNorth = Math.max(0, (z + 155) / 10);            // fade Z=-155..-145
-    const bzSouth = Math.max(0, (-190 - z) / 10);           // fade Z=-190..-200
-    const edgeFade = 1 - Math.min(1, bx + bzNorth + bzSouth);
-    return Math.max(0, edgeFade);
-  }
-
   static computeHeight(x: number, z: number): number {
     let h = 0;
 
@@ -239,11 +219,11 @@ export class Terrain {
     h += Math.sin(x * 0.05 - 0.9) * Math.cos(z * 0.055 + 2.3) * 1.2;
 
     // Fine detail
-    h += Math.sin(x * 0.08 + 4.0) * Math.cos(z * 0.07 - 2.0) * 0.6;
-    h += Math.cos(x * 0.09 - 1.5) * Math.sin(z * 0.1 + 3.0) * 0.4;
+    h += Math.sin(x * 0.08 + 4.0) * Math.cos(z * 0.07 - 2.0) * 0.3;
+    h += Math.cos(x * 0.09 - 1.5) * Math.sin(z * 0.1 + 3.0) * 0.2;
 
-    // Very fine detail (root-like bumps)
-    h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.2;
+    // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
+    h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
     // Blend in biome-specific height modifications
     const weights = getBiomeWeights(x, z);
@@ -257,17 +237,6 @@ export class Terrain {
       if (w > 0.001) {
         h += biomeHeightModifier(x, z, biome) * w;
       }
-    }
-
-    // Fort Malaka beach: flatten terrain into a sandy slope toward water
-    const beachBlend = Terrain.getBeachBlend(x, z);
-    if (beachBlend > 0.001) {
-      // Beach slopes south: promenade (Z≈-155) at Y≈2 → water's edge (Z≈-185) at Y≈-0.8
-      const beachProgress = THREE.MathUtils.clamp((-z - 155) / 35, 0, 1);
-      const beachHeight = THREE.MathUtils.lerp(2.0, -0.8, beachProgress);
-      // Add gentle sandy ripples
-      const ripple = Math.sin(x * 0.3 + z * 0.1) * 0.08 * (1 - beachProgress);
-      h = THREE.MathUtils.lerp(h, beachHeight + ripple, beachBlend);
     }
 
     return h;
@@ -307,7 +276,9 @@ export class Terrain {
       const lz = positions.getZ(i) + worldZ + CHUNK_SIZE * 0.5;
       positions.setX(i, lx);
       positions.setZ(i, lz);
-      positions.setY(i, Terrain.computeHeight(lx, lz));
+      // Use full world height (terrain noise + vertical lift) so the mesh
+      // visually matches the height used by PlayerController.
+      positions.setY(i, Terrain.computeHeight(lx, lz) + getVerticalLiftAt(lx, lz));
     }
 
     positions.needsUpdate = true;
@@ -319,10 +290,11 @@ export class Terrain {
     for (let i = 0; i < vertexCount; i++) {
       const vx = positions.getX(i);
       const vz = positions.getZ(i);
-      const hL = Terrain.computeHeight(vx - normalSampleStep, vz);
-      const hR = Terrain.computeHeight(vx + normalSampleStep, vz);
-      const hD = Terrain.computeHeight(vx, vz - normalSampleStep);
-      const hU = Terrain.computeHeight(vx, vz + normalSampleStep);
+      // Sample full world height (noise + lift) for accurate slope normals on hills.
+      const hL = Terrain.computeHeight(vx - normalSampleStep, vz) + getVerticalLiftAt(vx - normalSampleStep, vz);
+      const hR = Terrain.computeHeight(vx + normalSampleStep, vz) + getVerticalLiftAt(vx + normalSampleStep, vz);
+      const hD = Terrain.computeHeight(vx, vz - normalSampleStep) + getVerticalLiftAt(vx, vz - normalSampleStep);
+      const hU = Terrain.computeHeight(vx, vz + normalSampleStep) + getVerticalLiftAt(vx, vz + normalSampleStep);
 
       const dX = (hR - hL) / (2 * normalSampleStep);
       const dZ = (hU - hD) / (2 * normalSampleStep);
@@ -346,10 +318,10 @@ export class Terrain {
     const emissiveColors = new Float32Array(vertexCount * 3);
     const normals = geometry.attributes.normal as THREE.BufferAttribute;
 
-    // Rock color for steep faces (warm gray-brown)
-    const rockR = 0x52 / 255;
-    const rockG = 0x4a / 255;
-    const rockB = 0x42 / 255;
+    // Base rock color (warm gray-brown) — blended with biome-specific rock below
+    const rockBaseR = 0x52 / 255;
+    const rockBaseG = 0x4a / 255;
+    const rockBaseB = 0x42 / 255;
 
     for (let i = 0; i < vertexCount; i++) {
       const vx = positions.getX(i);
@@ -361,16 +333,36 @@ export class Terrain {
       const normalY = normals.getY(i);
       const steepness = THREE.MathUtils.clamp((0.7 - normalY) / 0.5, 0, 1);
 
-      // --- Base color (biome-blended) ---
+      // --- Base color (biome-blended, smoothstep bands) ---
       const color = getBiomeColor(vx, vz, vy, t);
       let r = color.r;
       let g = color.g;
       let b = color.b;
 
-      // Blend toward rock color on steep faces
+      // --- Biome-aware rock color (EmberWastes = dark red, Tundra = gray-blue, others = base) ---
+      const biomeWeights = getBiomeWeights(vx, vz);
+      const emberW = biomeWeights[BiomeType.EmberWastes];
+      const tundraW = biomeWeights[BiomeType.CrystalTundra];
+      const rockR = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseR, 0x3a / 255, emberW),
+        0x6a / 255,
+        tundraW,
+      );
+      const rockG = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseG, 0x1a / 255, emberW),
+        0x88 / 255,
+        tundraW,
+      );
+      const rockBCol = THREE.MathUtils.lerp(
+        THREE.MathUtils.lerp(rockBaseB, 0x08 / 255, emberW),
+        0x98 / 255,
+        tundraW,
+      );
+
+      // Blend toward biome rock color on steep faces
       r += (rockR - r) * steepness;
       g += (rockG - g) * steepness;
-      b += (rockB - b) * steepness;
+      b += (rockBCol - b) * steepness;
 
       // Fake AO: darken valleys up to 20%
       const ao = 1.0 - THREE.MathUtils.clamp((-vy - 2) / 8, 0, 0.20);
@@ -378,11 +370,23 @@ export class Terrain {
       g *= ao;
       b *= ao;
 
-      // Micro-noise: subtle color variation to break up flat areas
-      const noise = (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02;
-      r = THREE.MathUtils.clamp(r + noise, 0, 1);
-      g = THREE.MathUtils.clamp(g + noise * 0.8, 0, 1);
-      b = THREE.MathUtils.clamp(b + noise * 0.6, 0, 1);
+      // Dual-frequency micro-noise: two layers break the single-period tiling stripe
+      const noise =
+        (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02 +
+        (Math.sin(vx * 4.3 - vz * 3.7) + Math.cos(vx * 2.9 + vz * 5.1)) * 0.015;
+      // Medium-frequency layer: breaks up wide flat areas
+      const medNoise =
+        (Math.sin(vx * 0.23 + vz * 0.31) + Math.cos(vx * 0.37 - vz * 0.27)) * 0.025;
+
+      r = THREE.MathUtils.clamp(r + noise + medNoise, 0, 1);
+      g = THREE.MathUtils.clamp(g + noise * 0.8 + medNoise * 0.9, 0, 1);
+      b = THREE.MathUtils.clamp(b + noise * 0.6 + medNoise * 0.7, 0, 1);
+
+      // Biome surface noise: ember flecks, frost sparkle, bog patches, etc.
+      const surfNoise = getBiomeSurfaceNoise(vx, vz, biomeWeights);
+      r = THREE.MathUtils.clamp(r + surfNoise.r, 0, 1);
+      g = THREE.MathUtils.clamp(g + surfNoise.g, 0, 1);
+      b = THREE.MathUtils.clamp(b + surfNoise.b, 0, 1);
 
       colors[i * 3] = r;
       colors[i * 3 + 1] = g;

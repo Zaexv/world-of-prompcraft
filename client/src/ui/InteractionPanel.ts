@@ -1,3 +1,5 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * Default action buttons shown for any NPC without specific overrides.
  */
@@ -54,19 +56,19 @@ const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: s
 /**
  * Bottom-center chat panel for NPC interactions.
  * WoW-inspired dark-fantasy styling, no framework dependencies.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class InteractionPanel {
-  readonly element: HTMLDivElement;
-  private header: HTMLDivElement;
-  private statusBar: HTMLDivElement;
-  private moodLabel: HTMLSpanElement;
-  private relBar: HTMLDivElement;
-  private relFill: HTMLDivElement;
-  private relLabel: HTMLSpanElement;
-  private actionBar: HTMLDivElement;
-  private chatHistory: HTMLDivElement;
-  private input: HTMLInputElement;
-  private thinkingEl: HTMLDivElement;
+export class InteractionPanel extends UIComponent {
+  declare private header: HTMLDivElement;
+  declare private statusBar: HTMLDivElement;
+  declare private moodLabel: HTMLSpanElement;
+  declare private relBar: HTMLDivElement;
+  declare private relFill: HTMLDivElement;
+  declare private relLabel: HTMLSpanElement;
+  declare private actionBar: HTMLDivElement;
+  declare private chatHistory: HTMLDivElement;
+  declare private input: HTMLInputElement;
+  declare private thinkingEl: HTMLDivElement;
   private npcId = "";
   private chatHistories: Map<string, string> = new Map();
 
@@ -76,9 +78,15 @@ export class InteractionPanel {
   onClose: (() => void) | null = null;
 
   constructor() {
-    // ── Root container ────────────────────────────────────────────────────
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'interaction-panel');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "absolute",
       bottom: "24px",
       left: "50%",
@@ -97,7 +105,6 @@ export class InteractionPanel {
       overflow: "hidden",
     } as CSSStyleDeclaration);
 
-    // ── Header ───────────────────────────────────────────────────────────
     this.header = document.createElement("div");
     Object.assign(this.header.style, {
       padding: "10px 16px",
@@ -109,9 +116,8 @@ export class InteractionPanel {
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.header);
+    this.container.appendChild(this.header);
 
-    // ── Mood & Relationship status bar ────────────────────────────────
     this.statusBar = document.createElement("div");
     Object.assign(this.statusBar.style, {
       display: "none",
@@ -171,9 +177,8 @@ export class InteractionPanel {
     this.relBar.appendChild(this.relFill);
     relWrap.appendChild(this.relBar);
     this.statusBar.appendChild(relWrap);
-    this.element.appendChild(this.statusBar);
+    this.container.appendChild(this.statusBar);
 
-    // ── Action bar ─────────────────────────────────────────────────────
     this.actionBar = document.createElement("div");
     Object.assign(this.actionBar.style, {
       display: "none",
@@ -183,9 +188,8 @@ export class InteractionPanel {
       overflowX: "auto",
       borderBottom: "1px solid rgba(197,165,90,0.3)",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.actionBar);
+    this.container.appendChild(this.actionBar);
 
-    // Hide scrollbar on action bar but keep it scrollable
     const actionBarStyle = document.createElement("style");
     actionBarStyle.textContent = `
       #interaction-action-bar::-webkit-scrollbar { display: none; }
@@ -194,7 +198,6 @@ export class InteractionPanel {
     document.head.appendChild(actionBarStyle);
     this.actionBar.id = "interaction-action-bar";
 
-    // ── Chat history ─────────────────────────────────────────────────────
     this.chatHistory = document.createElement("div");
     Object.assign(this.chatHistory.style, {
       flex: "1",
@@ -205,9 +208,8 @@ export class InteractionPanel {
       gap: "8px",
       maxHeight: "280px",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.chatHistory);
+    this.container.appendChild(this.chatHistory);
 
-    // Custom scrollbar styling
     const styleTag = document.createElement("style");
     styleTag.textContent = `
       #interaction-chat::-webkit-scrollbar { width: 6px; }
@@ -217,7 +219,6 @@ export class InteractionPanel {
     document.head.appendChild(styleTag);
     this.chatHistory.id = "interaction-chat";
 
-    // ── Thinking indicator ───────────────────────────────────────────────
     this.thinkingEl = document.createElement("div");
     Object.assign(this.thinkingEl.style, {
       padding: "6px 14px",
@@ -229,9 +230,8 @@ export class InteractionPanel {
       fontStyle: "italic",
     } as CSSStyleDeclaration);
     this.thinkingEl.innerHTML = `<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>`;
-    this.element.appendChild(this.thinkingEl);
+    this.container.appendChild(this.thinkingEl);
 
-    // Dot animation
     const dotStyle = document.createElement("style");
     dotStyle.textContent = `
       .thinking-dots span { animation: dot-blink 1.4s infinite; opacity: 0; }
@@ -242,7 +242,6 @@ export class InteractionPanel {
     `;
     document.head.appendChild(dotStyle);
 
-    // ── Input bar ────────────────────────────────────────────────────────
     const inputWrap = document.createElement("div");
     Object.assign(inputWrap.style, {
       padding: "8px 10px",
@@ -276,41 +275,40 @@ export class InteractionPanel {
       } else if (e.key === "Escape") {
         this.onClose?.();
       }
-      // Stop event from reaching game controls
       e.stopPropagation();
     });
 
     inputWrap.appendChild(this.input);
-    this.element.appendChild(inputWrap);
+    this.container.appendChild(inputWrap);
   }
 
-  // ── Public API ─────────────────────────────────────────────────────────────
+  // Call signature for compatibility
+  show(npcId: string, npcName: string): void;
+  show(): void;
+  show(npcId?: string, npcName?: string): void {
+    if (npcId !== undefined && npcName !== undefined) {
+      if (this.npcId && this.npcId !== npcId) {
+        this.chatHistories.set(this.npcId, this.chatHistory.innerHTML);
+        this.pruneHistories();
+      }
 
-  show(npcId: string, npcName: string): void {
-    // Save current NPC's chat history before switching
-    if (this.npcId && this.npcId !== npcId) {
-      this.chatHistories.set(this.npcId, this.chatHistory.innerHTML);
-      this.pruneHistories();
+      this.npcId = npcId;
+      this.header.textContent = npcName;
+      this.chatHistory.innerHTML = this.chatHistories.get(npcId) ?? "";
+
+      this.hideThinking();
+      this.populateActionBar(npcId);
+      this.statusBar.style.display = "flex";
+      super.show();
+      this.input.focus();
+    } else {
+      super.show();
     }
-
-    this.npcId = npcId;
-    this.header.textContent = npcName;
-
-    // Restore target NPC's history or clear
-    this.chatHistory.innerHTML = this.chatHistories.get(npcId) ?? "";
-
-    this.hideThinking();
-    this.populateActionBar(npcId);
-    this.statusBar.style.display = "flex";
-    this.element.style.display = "flex";
-    this.input.focus();
   }
 
   private populateActionBar(npcId: string): void {
     this.actionBar.innerHTML = "";
-    // Use NPC-specific actions if available, otherwise show default actions
     const actions = NPC_ACTIONS[npcId] ?? DEFAULT_ACTIONS;
-
     this.actionBar.style.display = "flex";
 
     for (const action of actions) {
@@ -350,14 +348,12 @@ export class InteractionPanel {
     }
   }
 
-  hide(): void {
-    // Save chat history before hiding
+  protected override onHide(): void {
+    this.hideThinking();
     if (this.npcId) {
       this.chatHistories.set(this.npcId, this.chatHistory.innerHTML);
       this.pruneHistories();
     }
-    this.hideThinking();
-    this.element.style.display = "none";
     this.npcId = "";
   }
 
@@ -397,7 +393,6 @@ export class InteractionPanel {
     } as CSSStyleDeclaration);
 
     bubble.textContent = text;
-    // Smart auto-scroll: only scroll if user is already at bottom
     const isAtBottom = this.chatHistory.scrollHeight - this.chatHistory.scrollTop - this.chatHistory.clientHeight < 50;
     this.chatHistory.appendChild(bubble);
     if (isAtBottom) {
@@ -424,17 +419,14 @@ export class InteractionPanel {
     amused: { emoji: "😄", color: "#cccc44" },
   };
 
-  /** Update the mood emoji and relationship bar in the status section. */
   updateMoodStatus(mood: string, relationshipScore: number): void {
     const info = InteractionPanel.MOOD_DISPLAY[mood] ?? InteractionPanel.MOOD_DISPLAY.neutral;
     this.moodLabel.textContent = `${info.emoji} ${mood.charAt(0).toUpperCase() + mood.slice(1)}`;
     this.moodLabel.style.color = info.color;
 
-    // Relationship bar fill: -100..100 → 0..100%
     const pct = Math.max(0, Math.min(100, (relationshipScore + 100) / 2));
     this.relFill.style.width = `${pct}%`;
 
-    // Bar color
     if (relationshipScore < -30) {
       this.relFill.style.background = "#cc2222";
     } else if (relationshipScore < 10) {
@@ -443,7 +435,6 @@ export class InteractionPanel {
       this.relFill.style.background = "#22cc44";
     }
 
-    // Tier label
     if (relationshipScore <= -50) {
       this.relLabel.textContent = "ENEMY";
       this.relLabel.style.color = "#cc4444";
@@ -462,15 +453,10 @@ export class InteractionPanel {
     }
   }
 
-  /** Remove chat history for a specific NPC. Call when an NPC is removed. */
   clearHistory(npcId: string): void {
     this.chatHistories.delete(npcId);
   }
 
-  /**
-   * Prune the chat history map if it exceeds the max size (50 entries).
-   * Deletes the oldest entries (earliest inserted) to stay within the limit.
-   */
   private pruneHistories(): void {
     const MAX_HISTORIES = 50;
     if (this.chatHistories.size > MAX_HISTORIES) {
@@ -485,8 +471,11 @@ export class InteractionPanel {
     }
   }
 
-  /** The NPC ID currently shown, or empty string. */
   get currentNpcId(): string {
     return this.npcId;
+  }
+
+  get element(): HTMLElement {
+    return this.container;
   }
 }

@@ -1,4 +1,4 @@
-import { lerp } from '../utils/MathHelpers';
+import { lerp } from '../utils/math/MathHelpers';
 
 export type NPCBehavior = 'friendly' | 'neutral' | 'hostile';
 export type NPCMovementStyle = 'stroll' | 'patrol' | 'prowl' | 'float' | 'swagger' | 'stomp';
@@ -30,17 +30,17 @@ export interface NPCMotionProfile {
 const BASE_PROFILES: Record<NPCMovementStyle, NPCMotionProfile> = {
   stroll: {
     style: 'stroll',
-    moveSpeed: 1.18,
-    wanderRadius: 5.5,
-    pauseMin: 2.6,
-    pauseMax: 5.2,
-    turnSpeed: 3.5,
-    walkCycleSpeed: 7.8,
+    moveSpeed: 1.8,
+    wanderRadius: 15.0,
+    pauseMin: 0.5,
+    pauseMax: 2.5,
+    turnSpeed: 4.5,
+    walkCycleSpeed: 8.5,
     idleBobAmplitude: 0.035,
     idleBobSpeed: 1.9,
     swayAmplitude: 0.03,
     swaySpeed: 1.2,
-    animationRate: 0.96,
+    animationRate: 1.0,
     patrolPoints: 0,
   },
   patrol: {

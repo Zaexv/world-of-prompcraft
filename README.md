@@ -80,25 +80,24 @@ graph TB
 |-----------|---------------|
 | **Prompt is the interface** | No action buttons — free-form text drives all gameplay |
 | **Server-authoritative** | `WorldState` lives on the server; client is a render mirror |
+| **Shared Manifest** | Global world map and population defined in a single, shared `world_manifest.json` |
 | **Per-NPC autonomy** | Each NPC runs its own LangGraph `StateGraph` with independent memory |
 | **Tool-driven mechanics** | LLM calls typed tools (`deal_damage`, `heal_target`, `offer_item`) that produce structured game actions |
-| **Procedural generation** | Infinite chunk-based terrain (64×64) with NPCs and vegetation spawned on exploration |
+| **Generative World** | Infinite chunk-based terrain (64×64) with manifest-driven landmarks and NPCs |
 
 ---
 
 ## 🌍 The World
 
-Explore a fantasy world with distinct zones, each with its own atmosphere and inhabitants:
+Explore a fantasy world with distinct zones, each with its own atmosphere and inhabitants defined in the master manifest:
 
-| Zone | Description | NPCs |
+| Zone | Description | Key Landmarks |
 |------|-------------|------|
-| **Elders' Village** | Peaceful starting village with ancient wisdom | Thornby (Merchant), Captain Aldric (Guard), Sister Mira (Healer) |
-| **Ember Peaks** | Volcanic mountains with molten rivers | Ignathar the Ancient (Dragon Boss — 500 HP) |
-| **Crystal Lake** | Serene magical waters | Elyria the Sage |
-| **Dark Forest** | Foreboding shadows and whispers | Procedural hostile spawns |
-| **Fort Malaka** | Mediterranean fortified city | El Tito, Archmage Malakov, Zara the Pyromancer, Frostweaver Nyx |
+| **Teldrassil Core** | Peaceful starting area with mystical waters | Ancient Grove, Market Pavilion |
+| **Ember Peaks** | Volcanic mountains with molten rivers | Mystic Ruins, Ember Depths Dungeon |
+| **Fort Malaka** | Mediterranean fortified city | Grand Mage Tower, La Alcazaba, Crystal Caverns |
 
-### NPC Agent Pipeline
+---
 
 Each interaction flows through a three-stage LangGraph pipeline:
 
@@ -159,40 +158,22 @@ Open **http://localhost:5173**, create a character, and start talking to NPCs.
 ```
 world-of-prompcraft/
 │
+├── shared/                        # 🔗 Shared world data (Single Source of Truth)
+│   └── data/
+│       └── world_manifest.json    # Master blueprint: biomes, landmarks, NPCs
+│
 ├── client/                        # 🎮 Three.js + TypeScript + Vite
 │   └── src/
-│       ├── main.ts                # Game bootstrap & render loop
-│       ├── scene/                 # 3D scene — Terrain, Water, Skybox, Lighting, Vegetation, Effects
-│       ├── entities/              # Player, NPC, RemotePlayer, EntityManager, PlayerController
-│       ├── systems/               # InteractionSystem, ReactionSystem, CollisionSystem, WorldGenerator,
-│       │                          # DungeonSystem, ZoneTracker
-│       ├── ui/                    # InteractionPanel, CombatHUD, Inventory, QuestLog, Minimap,
-│       │                          # ChatPanel, LoginScreen, DeathScreen, StatusBars
-│       ├── network/               # WebSocketClient, MessageProtocol
-│       ├── state/                 # PlayerState (singleton), WorldState, NPCState
-│       └── utils/                 # MathHelpers, AssetLoader
+│       ├── state/                 # WorldManifest hydration & sync
+│       ├── scene/                 # Data-driven Terrain, Biomes, Lighting
+│       ├── systems/               # WorldGenerator (manifest-driven spawning)
+│       └── ...
 │
 ├── server/                        # 🧠 FastAPI + LangGraph + Python
 │   └── src/
-│       ├── main.py                # FastAPI app, WebSocket endpoint, lifespan
-│       ├── config.py              # Pydantic Settings (LLM provider config)
-│       ├── agents/                # LangGraph NPC agent system
-│       │   ├── npc_agent.py       # StateGraph factory (reason → act → respond)
-│       │   ├── registry.py        # NPC ID → compiled agent map
-│       │   ├── agent_state.py     # TypedDict state schema
-│       │   ├── nodes/             # reason.py, act.py, respond.py
-│       │   ├── tools/             # combat, dialogue, trade, environment, quest, world_query
-│       │   └── personalities/     # System prompt templates per NPC archetype
-│       ├── world/                 # WorldState, PlayerState, NPC definitions, zone boundaries
-│       ├── rag/                   # Knowledge base (lore entries) + keyword retriever
-│       ├── llm/                   # Configurable LLM provider (Claude / OpenAI)
-│       └── ws/                    # WebSocket handler, protocol, connection manager
-│
-├── docs/                          # 📚 Architecture docs, research, planning
-├── .github/workflows/ci.yml       # GitHub Actions CI pipeline
-├── docker-compose.yml             # One-command local deployment
-├── Makefile                       # Unified lint / typecheck / test commands
-└── .pre-commit-config.yaml        # Ruff + ESLint + tsc pre-commit hooks
+│       ├── world/                 # npc_definitions (loads from shared manifest)
+│       ├── ws/                    # WebSocket handler with sync-on-join
+│       └── ...
 ```
 
 ---
@@ -233,16 +214,11 @@ Server Test ─┘
 
 | Layer | Technology | Purpose |
 |-------|-----------|---------|
-| **3D Engine** | [Three.js](https://threejs.org/) + TypeScript | Procedural terrain, reflective water, adaptive resolution scaling, distance-based shadow casting |
-| **Bundler** | [Vite](https://vitejs.dev/) | Hot-reload dev server, optimized production builds |
-| **Physics** | [cannon-es](https://pmndrs.github.io/cannon-es/) | Swept AABB collision, tag-based filtering, WoW-style camera |
-| **Server** | [FastAPI](https://fastapi.tiangolo.com/) | Async WebSocket server with lifespan management |
+| **3D Engine** | [Three.js](https://threejs.org/) + TypeScript | Procedural terrain, manifest-driven landmarks, distance-based culling |
+| **Architecture** | **Zonal Hybrid Manifest** | Scalable V2.1.0 schema separating Environment, Topology, and Population |
+| **Physics** | [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) | Fast BVH-accelerated collisions and AI navigation |
+| **Server** | [FastAPI](https://fastapi.tiangolo.com/) | Async WebSocket server with REST manifest sync |
 | **AI Agents** | [LangGraph](https://langchain-ai.github.io/langgraph/) | Per-NPC StateGraph with memory, tool-calling, and reasoning nodes |
-| **LLM** | OpenAI / Anthropic | Configurable provider — GPT-4o-mini or Claude Sonnet |
-| **Knowledge** | Custom RAG | Keyword-based lore retrieval for contextual NPC responses |
-| **Linting** | ESLint + [Ruff](https://docs.astral.sh/ruff/) | TypeScript and Python linting/formatting |
-| **Type Safety** | TypeScript strict + [mypy](https://mypy-lang.org/) | Full static typing across the entire codebase |
-| **Testing** | [Vitest](https://vitest.dev/) + [pytest](https://pytest.org/) | Unit tests for client logic and server systems |
 
 ---
 
@@ -251,63 +227,43 @@ Server Test ─┘
 <details>
 <summary><b>Add a new NPC</b></summary>
 
-1. Define personality and system prompt in `server/src/agents/personalities/templates.py`
-2. Add the NPC definition in `server/src/world/npc_definitions.py`
-3. The agent is auto-registered by `registry.py` on server start
-4. The client spawns the NPC model automatically from server-pushed data
+1. Choose or define a personality template in `server/src/agents/personalities/templates.py`
+2. Add the NPC to the `npcs` array of a specific zone in `shared/data/world_manifest.json`
+3. The server refreshes the agent registry automatically on next player join
+4. The client hydrates the new NPC data and spawns the model on boot
 
 </details>
 
 <details>
-<summary><b>Add a new tool (game mechanic)</b></summary>
+<summary><b>Add a new Landmark</b></summary>
 
-1. Create the tool function in the appropriate `server/src/agents/tools/` file
-2. Use the closure pattern: `create_X_tools(pending_actions, world_state)` → `@tool` functions
-3. Register in `server/src/agents/npc_agent.py` tool binding
-4. Handle the action `kind` in `client/src/systems/ReactionSystem.ts`
+1. Choose a building type (tower, ruins, altar)
+2. Add a new entry to the `architecture.landmarks` array in `shared/data/world_manifest.json`
+3. The `WorldGenerator` will automatically spawn it when you enter the relevant terrain chunk
 
 </details>
 
 <details>
-<summary><b>Add a new zone</b></summary>
+<summary><b>Reshape the Geography</b></summary>
 
-1. Define zone boundaries in `server/src/world/zones.py`
-2. The `WorldGenerator` and `ZoneTracker` pick it up automatically
-3. Optionally add zone-specific terrain/vegetation in the client scene modules
+1. Edit the `world.environment` or `world.topology` sections in `shared/data/world_manifest.json`
+2. Change biome colors, transition widths, or add specific mountain features
+3. The game engine dynamically re-calculates the infinite terrain based on these rules
 
 </details>
 
 ---
 
-## 🛡️ Collision & Camera
+## 🛡️ Collision & Navigation
 
-The game uses a **swept AABB collision system** with tag-based filtering and a WoW-style third-person camera.
+The game uses **BVH-accelerated spatial queries** for both player movement and AI navigation.
 
-### Tag-based Collision Filtering
+### Structured World Logic
 
-Complex 3D groups (trees, buildings) contain both solid geometry (trunks, walls) and decorative geometry (canopies, vines, arches). Instead of wrapping the entire group in one oversized bounding box, only meshes tagged with `userData.isCollider = true` produce collision bodies:
-
-```typescript
-// In scene construction code:
-trunk.userData.isCollider = true;   // ← solid, blocks movement
-canopy.userData.isCollider = false;  // ← decorative, walk underneath
-
-// Registration:
-collisionSystem.addCollidableFiltered(treeGroup);
-```
-
-### What has collision
-
-| Category | Method | What blocks |
-|----------|--------|-------------|
-| Buildings | `addCollidablesFiltered()` | Pillars, walls, basins, tower bodies |
-| Fort Malaka | `addCollidablesFiltered()` | Tower bases, gateway pillars, fortress walls |
-| Trees (procedural) | `addCollidableFiltered()` | Trunk meshes only |
-| Massive trees | `addCollidablesFiltered()` | Trunk + root base |
-| Towns (procedural) | `addCollidableFiltered()` | Hut walls, well bases |
-| Caves | `addCollidable()` | Whole entrance (solid) |
-| NPCs | `setDynamicSource()` | Body hitbox (synced each frame) |
-| Terrain | `getHeightAt()` | Heightmap-based ground following |
+Instead of hardcoded meshes, the world is built from the manifest. Each object type defines its own collision behavior:
+- **Solid Trunks:** Trees and pillars block movement via `isCollider` tags.
+- **Navigable Ground:** Terrain height is sampled deterministically across all chunks.
+- **AI Blocking:** NPCs check `isPositionBlocked(x, y, z)` before wandering to avoid getting stuck in buildings.
 
 ### WoW-style Camera
 

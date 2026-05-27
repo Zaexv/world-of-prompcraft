@@ -1,5 +1,3 @@
-export type { Animatable } from './AnimationSystem';
-export { AnimationSystem } from './AnimationSystem';
 export type { PhysicsEntry } from './CollisionSystem';
 export { CollisionSystem } from './CollisionSystem';
 export { DungeonSystem } from './DungeonSystem';
@@ -9,3 +7,4 @@ export { ReactionSystem } from './ReactionSystem';
 export { WorldGenerator } from './WorldGenerator';
 export type { ZoneData } from './ZoneTracker';
 export { ZONES, ZoneTracker } from './ZoneTracker';
+export { ZoneAtmosphere, ZONE_ATMOSPHERES } from './ZoneAtmosphere';

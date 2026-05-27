@@ -254,7 +254,7 @@ export class DungeonSystem {
     const spawnPoints = this.activeDungeon.enemySpawnPoints;
     for (let i = 0; i < spawnPoints.length && i < config.enemyNames.length; i++) {
       const enemyId = `dungeon_enemy_${entrance.dungeonId}_${i}`;
-      const npc = await this.entityManager.addNPC({
+      const npc = this.entityManager.addNPC({
         id: enemyId,
         name: config.enemyNames[i],
         position: spawnPoints[i].clone(),

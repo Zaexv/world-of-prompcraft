@@ -77,6 +77,15 @@ export interface PingMessage {
   type: "ping";
 }
 
+// ── WorldBuilder Messages ─────────────────────────────────────────────────────
+
+export interface WorldModifyRequest {
+  type: "world_modify";
+  prompt: string;
+  playerId: string;
+  position: [number, number, number];
+}
+
 export type ClientMessage =
   | PlayerInteraction
   | PlayerMove
@@ -88,7 +97,8 @@ export type ClientMessage =
   | DungeonEnter
   | DungeonExit
   | QuestUpdate
-  | PingMessage;
+  | PingMessage
+  | WorldModifyRequest;
 
 // ── Action Params (discriminated by kind) ────────────────────────────────────
 // Each action kind carries a typed params object. This makes the client-server
@@ -161,6 +171,18 @@ export interface AdvanceObjectiveParams {
   progress?: number;
 }
 
+export interface WorldSpawnParams {
+  objectId: string;
+  objectType: string;
+  position: [number, number, number];
+  scale?: number;
+  label?: string;
+}
+
+export interface WorldRemoveParams {
+  objectId: string;
+}
+
 export type Action =
   | { kind: "damage"; params: DamageParams }
   | { kind: "heal"; params: HealParams }
@@ -172,7 +194,9 @@ export type Action =
   | { kind: "change_weather"; params: ChangeWeatherParams }
   | { kind: "start_quest"; params: StartQuestParams }
   | { kind: "complete_quest"; params: CompleteQuestParams }
-  | { kind: "advance_objective"; params: AdvanceObjectiveParams };
+  | { kind: "advance_objective"; params: AdvanceObjectiveParams }
+  | { kind: "world_spawn"; params: WorldSpawnParams }
+  | { kind: "world_remove"; params: WorldRemoveParams };
 
 // ── Shared Data Shapes ────────────────────────────────────────────────────────
 
@@ -192,6 +216,8 @@ export interface NPCStateData {
   position: [number, number, number];
   mood: string;
   relationship_score: number;
+  personality?: string;
+  name?: string;
 }
 
 export interface NPCInitData {
@@ -201,6 +227,7 @@ export interface NPCInitData {
   maxHp: number;
   position: [number, number, number];
   mood: string;
+  personality: string;
 }
 
 export interface RemotePlayerData {
@@ -291,6 +318,30 @@ export interface PongMessage {
   type: "pong";
 }
 
+export interface WorldModifyResponse {
+  type: "world_modify_response";
+  dialogue: string;
+  actions: Action[];
+}
+
+export interface WorldModifyStart {
+  type: "world_modify_start";
+  blueprintId: string;
+  totalChunks: number;
+}
+
+export interface WorldModifyChunk {
+  type: "world_modify_chunk";
+  blueprintId: string;
+  chunkIndex: number;
+  data: string; // Base64 or JSON string of actions/blueprint
+}
+
+export interface WorldModifyEnd {
+  type: "world_modify_end";
+  blueprintId: string;
+}
+
 export type ServerMessage =
   | AgentResponse
   | UseItemResult
@@ -303,4 +354,8 @@ export type ServerMessage =
   | WorldUpdate
   | ChatBroadcast
   | NPCDialogue
-  | PongMessage;
+  | PongMessage
+  | WorldModifyResponse
+  | WorldModifyStart
+  | WorldModifyChunk
+  | WorldModifyEnd;

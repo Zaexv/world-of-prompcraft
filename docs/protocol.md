@@ -4,11 +4,11 @@ This document is the **authoritative contract** between the TypeScript client (`
 
 **Transport:** WebSocket at `ws://<host>:8000/ws`  
 **Encoding:** JSON (UTF-8)  
-**Versioning:** Implicit — breaking changes require updating both `MessageProtocol.ts` and `server/ws/protocol.py`
+**Versioning:** 2.1.0 (Zonal Hybrid Manifest)
 
 ---
 
-## Design Principles
+## Client → Server Messages
 
 - **Discriminated union on `type`**: every message carries a `type` string field that determines its shape.
 - **camelCase on the wire**: server fields that are snake_case internally use `alias` in Pydantic and map to camelCase in JSON.
@@ -29,7 +29,8 @@ Sent once on connection to register the player.
   "type": "join",
   "username": "Aelindra",
   "race": "night_elf",
-  "faction": "alliance"
+  "faction": "alliance",
+  "position": [x, y, z]
 }
 ```
 
@@ -241,15 +242,17 @@ Login successful. Contains initial world state.
   ],
   "npcs": [
     {
-      "npc_id": "dragon_01",
-      "name": "Ignathar",
-      "hp": 500,
-      "maxHp": 500,
-      "position": [100.0, 3.0, -80.0],
+      "npc_id": "tutorial_01",
+      "name": "Tutorial-Man",
+      "hp": 1000,
+      "maxHp": 1000,
+      "position": [2.0, 0.0, 5.0],
+      "personality": "Full system prompt string...",
       "mood": "neutral"
     }
   ]
 }
+*Note: The `npcs` list is derived dynamically from the master `world_manifest.json`.*
 ```
 
 ---

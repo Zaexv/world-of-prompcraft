@@ -3,7 +3,7 @@ import { NPC, NPCConfig } from './NPC';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
 import type { CollisionSystem } from '../systems/CollisionSystem';
-import type { AssetLoader } from '../utils/AssetLoader';
+import type { AssetLoader } from '../utils/asset/AssetLoader';
 
 /**
  * Central registry for all NPC entities and remote players.
@@ -24,12 +24,11 @@ export class EntityManager {
   // ── NPC management ──────────────────────────────────────────────────────────
 
   /**
-   * Create and register an NPC, adding it to the scene.
-   * Tries to load a GLTF model if an AssetLoader was provided;
-   * falls back to the procedural mesh silently on error.
+   * Create and register an NPC, adding it to the scene immediately.
+   * Background-loads a GLTF model if an AssetLoader was provided.
    */
-  async addNPC(config: NPCConfig): Promise<NPC> {
-    const npc = await NPC.create(config, this.assetLoader);
+  addNPC(config: NPCConfig): NPC {
+    const npc = NPC.create(config, this.assetLoader);
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     return npc;
@@ -111,6 +110,12 @@ export class EntityManager {
   /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
   update(delta: number, getHeightAt?: (x: number, z: number) => number, collisionSystem?: CollisionSystem): void {
     for (const npc of this.npcs.values()) {
+      // Robust snapping check: ensure NPCs aren't flying/buried
+      if (getHeightAt && !npc.isGrounded) {
+        npc.snapToGround(getHeightAt);
+        npc.isGrounded = true;
+      }
+
       const dx = npc.position.x - this.playerX;
       const dz = npc.position.z - this.playerZ;
       const distSq = dx * dx + dz * dz;

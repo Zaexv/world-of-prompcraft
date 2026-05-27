@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
-from .npc_definitions import NPC_DEFINITIONS
 from .quest_definitions import QUEST_DEFINITIONS
 
 
@@ -85,7 +84,13 @@ class PlayerData:
         quest_def = QUEST_DEFINITIONS.get(quest_id)
         if quest_def is None:
             return
-        npc_def = NPC_DEFINITIONS.get(quest_def.giver_npc)
+
+        # Dynamically fetch NPC name from manifest
+        from .npc_definitions import get_npc_definitions
+
+        npc_defs = get_npc_definitions()
+        npc_def = npc_defs.get(quest_def.giver_npc)
+
         giver_name = npc_def["name"] if npc_def else quest_def.giver_npc
         quest_entry: dict[str, Any] = {
             "id": quest_def.id,

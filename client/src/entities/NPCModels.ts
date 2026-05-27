@@ -27,6 +27,8 @@ export type NPCPlaceholderStyle =
   | 'healer'
   | 'sage'
   | 'mage'
+  | 'pyromancer'
+  | 'cryomancer'
   | 'dragon'
   | 'monster'
   | 'orc'
@@ -34,15 +36,20 @@ export type NPCPlaceholderStyle =
 
 const NPC_TYPE_MODEL_RULES: NPCModelRule[] = [
   { keywords: ['dragon', 'wyrm', 'beast', 'boss'], path: '/models/npcs/dragon.glb' },
-  { keywords: ['monster', 'spider', 'wolf', 'treant', 'golem', 'bat', 'hydra', 'elemental', 'crawler', 'stalker', 'revenant', 'wraith', 'abomination', 'slime', 'ogre', 'brute', 'demon'], path: '/models/npcs/monster.glb' },
+  // undead checked before monster so wraith/ghost/skeleton resolve correctly
+  { keywords: ['undead', 'ghost', 'wraith', 'skeleton', 'zombie', 'ghoul'], path: '/models/npcs/undead.glb' },
+  { keywords: ['monster', 'spider', 'wolf', 'treant', 'golem', 'bat', 'hydra', 'elemental', 'crawler', 'stalker', 'revenant', 'abomination', 'slime', 'ogre', 'brute', 'demon'], path: '/models/npcs/monster.glb' },
   { keywords: ['merchant', 'trader', 'vendor', 'shop', 'citizen', 'village', 'villager', 'elder', 'artisan', 'baker', 'farmer', 'herbalist', 'fisher'], path: '/models/npcs/casual.glb' },
+  // rogue / thief / pirate archetypes share the warrior rig
+  { keywords: ['rogue', 'thief', 'assassin', 'pirate', 'bandit', 'outlaw', 'brigand'], path: '/models/npcs/warrior.glb' },
   { keywords: ['guard', 'sentinel', 'warden', 'captain', 'soldier', 'scout', 'knight', 'moonguard'], path: '/models/npcs/warrior.glb' },
+  { keywords: ['orc', 'raider', 'berserker', 'war', 'fighter'], path: '/models/npcs/warrior.glb' },
   { keywords: ['healer', 'priest', 'priestess', 'cleric', 'nurse'], path: '/models/npcs/healer.glb' },
-  { keywords: ['sage', 'mage', 'wizard', 'archmage', 'scholar', 'druid', 'seer'], path: '/models/npcs/mage.glb' },
+  // elf / night elf / moonkin share the healer rig (slender frame)
+  { keywords: ['elf', 'elven', 'moonkin', 'nightsong', 'dryad'], path: '/models/npcs/healer.glb' },
   { keywords: ['pyromancer', 'fire', 'ember', 'flame', 'burn'], path: '/models/npcs/pyromancer.glb' },
   { keywords: ['cryomancer', 'frost', 'ice', 'winter', 'glacier'], path: '/models/npcs/cryomancer.glb' },
-  { keywords: ['orc', 'raider', 'berserker', 'war', 'fighter'], path: '/models/npcs/warrior.glb' },
-  { keywords: ['undead', 'ghost', 'wraith', 'skeleton', 'zombie', 'ghoul'], path: '/models/npcs/casual.glb' },
+  { keywords: ['sage', 'mage', 'wizard', 'archmage', 'scholar', 'druid', 'seer'], path: '/models/npcs/mage.glb' },
 ];
 
 const NPC_FALLBACK_MODELS = [
@@ -111,16 +118,19 @@ interface NPCPlaceholderStyleRule {
 
 const NPC_PLACEHOLDER_STYLE_RULES: NPCPlaceholderStyleRule[] = [
   { keywords: ['dragon', 'wyrm', 'beast', 'boss'], style: 'dragon' },
-  { keywords: ['monster', 'spider', 'wolf', 'treant', 'golem', 'bat', 'hydra', 'elemental', 'crawler', 'stalker', 'revenant', 'wraith', 'abomination', 'slime', 'ogre', 'brute', 'demon'], style: 'monster' },
-  { keywords: ['merchant', 'trader', 'vendor', 'shop', 'citizen', 'village', 'villager', 'elder', 'artisan', 'baker', 'farmer', 'herbalist', 'fisher'], style: 'merchant' },
-  { keywords: ['guard', 'sentinel', 'warden', 'captain', 'soldier', 'scout', 'knight', 'moonguard'], style: 'guard' },
-  { keywords: ['healer', 'priest', 'priestess', 'cleric', 'nurse'], style: 'healer' },
-  { keywords: ['sage', 'druid', 'seer', 'scholar'], style: 'sage' },
-  { keywords: ['mage', 'wizard', 'archmage'], style: 'mage' },
-  { keywords: ['pyromancer', 'fire', 'ember', 'flame', 'burn'], style: 'mage' },
-  { keywords: ['cryomancer', 'frost', 'ice', 'winter', 'glacier'], style: 'mage' },
-  { keywords: ['orc', 'raider', 'berserker', 'war', 'fighter'], style: 'orc' },
+  // undead before monster to prevent wraith/ghost from matching monster first
   { keywords: ['undead', 'ghost', 'wraith', 'skeleton', 'zombie', 'ghoul'], style: 'undead' },
+  { keywords: ['monster', 'spider', 'wolf', 'treant', 'golem', 'bat', 'hydra', 'elemental', 'crawler', 'stalker', 'revenant', 'abomination', 'slime', 'ogre', 'brute', 'demon'], style: 'monster' },
+  { keywords: ['merchant', 'trader', 'vendor', 'shop', 'citizen', 'village', 'villager', 'elder', 'artisan', 'baker', 'farmer', 'herbalist', 'fisher'], style: 'merchant' },
+  { keywords: ['rogue', 'thief', 'assassin', 'pirate', 'bandit', 'outlaw', 'brigand'], style: 'guard' },
+  { keywords: ['guard', 'sentinel', 'warden', 'captain', 'soldier', 'scout', 'knight', 'moonguard'], style: 'guard' },
+  { keywords: ['orc', 'raider', 'berserker', 'war', 'fighter'], style: 'orc' },
+  { keywords: ['healer', 'priest', 'priestess', 'cleric', 'nurse'], style: 'healer' },
+  { keywords: ['elf', 'elven', 'moonkin', 'nightsong', 'dryad'], style: 'healer' },
+  { keywords: ['pyromancer', 'fire', 'ember', 'flame', 'burn'], style: 'pyromancer' },
+  { keywords: ['cryomancer', 'frost', 'ice', 'winter', 'glacier'], style: 'cryomancer' },
+  { keywords: ['sage', 'druid', 'seer', 'scholar', 'witch', 'shaman', 'mystic', 'oracle'], style: 'sage' },
+  { keywords: ['mage', 'wizard', 'archmage'], style: 'mage' },
 ];
 
 function hashString(value: string): number {
@@ -147,9 +157,11 @@ function getPlaceholderStyleFromId(id: string): NPCPlaceholderStyle | null {
     case 'sage_01':
       return 'sage';
     case 'mage_01':
-    case 'mage_02':
-    case 'mage_03':
       return 'mage';
+    case 'mage_02':
+      return 'pyromancer';
+    case 'mage_03':
+      return 'cryomancer';
     case 'eltito_01':
       return 'orc';
     default:

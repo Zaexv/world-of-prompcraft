@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..agents.personalities.templates import NPC_PERSONALITIES
-from .npc_definitions import NPC_DEFINITIONS
+from .npc_definitions import get_npc_definitions
 from .player_state import PlayerData
 from .zones import get_zone, get_zone_description
 
@@ -30,6 +30,7 @@ class NPCData:
             "hp": self.hp,
             "maxHp": self.max_hp,
             "position": list(self.position),
+            "personality": self.personality,
             "mood": self.mood,
         }
 
@@ -59,23 +60,41 @@ class WorldState:
         }
         self.chat_history: deque[dict[str, Any]] = deque(maxlen=50)
         self.recent_events: deque[str] = deque(maxlen=20)
-        self._load_default_npcs()
+        self.refresh_npcs()
 
-    def _load_default_npcs(self) -> None:
-        for npc_id, npc_def in NPC_DEFINITIONS.items():
+    def refresh_npcs(self) -> None:
+        """Synchronize in-memory NPCs with the manifest definitions."""
+        definitions = get_npc_definitions()
+
+        # 1. Remove NPCs that are no longer in the manifest
+        current_ids = set(self.npcs.keys())
+        manifest_ids = set(definitions.keys())
+        for npc_id in current_ids - manifest_ids:
+            del self.npcs[npc_id]
+
+        # 2. Add or update NPCs from the manifest
+        for npc_id, npc_def in definitions.items():
             personality_key = npc_def.get("personality_key", npc_id)
             personality = NPC_PERSONALITIES.get(personality_key, {})
             system_prompt = personality.get("system_prompt", "You are a mysterious stranger.")
             initial_hp = npc_def.get("initial_hp", 100)
-            npc = NPCData(
-                npc_id=npc_id,
-                name=npc_def["name"],
-                personality=system_prompt,
-                hp=initial_hp,
-                max_hp=initial_hp,
-                position=list(npc_def["position"]),
-            )
-            self.npcs[npc.npc_id] = npc
+
+            if npc_id in self.npcs:
+                # Update existing (preserving dynamic state like current HP)
+                self.npcs[npc_id].name = npc_def["name"]
+                self.npcs[npc_id].personality = system_prompt
+                self.npcs[npc_id].position = list(npc_def["position"])
+            else:
+                # Add new
+                npc = NPCData(
+                    npc_id=npc_id,
+                    name=npc_def["name"],
+                    personality=system_prompt,
+                    hp=initial_hp,
+                    max_hp=initial_hp,
+                    position=list(npc_def["position"]),
+                )
+                self.npcs[npc_id] = npc
 
     # ---- Player helpers ----
 

@@ -1,10 +1,11 @@
+import { UIComponent } from "./core/UIComponent";
+
 /**
  * WoW-style inventory bag panel — right side of screen.
  * Opens/closes with the I key. Pure DOM, no framework.
+ * Extends UIComponent for consistent lifecycle management.
  */
-export class InventoryPanel {
-  readonly element: HTMLDivElement;
-
+export class InventoryPanel extends UIComponent {
   /** Fired when the player uses a consumable (potion, scroll, etc.). */
   onUseItem: ((itemName: string) => void) | null = null;
   /** Fired when the player equips a weapon/shield/trinket. */
@@ -13,15 +14,21 @@ export class InventoryPanel {
 
   private readonly MAX_SLOTS = 20;
   private readonly COLUMNS = 4;
-  private grid: HTMLDivElement;
-  private itemCountLabel: HTMLSpanElement;
-  private tooltip: HTMLDivElement;
+  declare private grid: HTMLDivElement;
+  declare private itemCountLabel: HTMLSpanElement;
+  declare private tooltip: HTMLDivElement;
   private currentInventory: string[] = [];
 
   constructor() {
-    // ── Root container ──────────────────────────────────────────────────
-    this.element = document.createElement("div");
-    Object.assign(this.element.style, {
+    super('ui-root', 'inventory-panel');
+  }
+
+  /**
+   * Render the component's DOM structure.
+   * Called during initialization.
+   */
+  render(): void {
+    Object.assign(this.container.style, {
       position: "absolute",
       top: "60px",
       right: "16px",
@@ -42,7 +49,6 @@ export class InventoryPanel {
       userSelect: "none",
     } as CSSStyleDeclaration);
 
-    // ── Header ──────────────────────────────────────────────────────────
     const header = document.createElement("div");
     Object.assign(header.style, {
       display: "flex",
@@ -64,7 +70,6 @@ export class InventoryPanel {
     title.textContent = "Inventory";
     header.appendChild(title);
 
-    // Close button
     const closeBtn = document.createElement("button");
     Object.assign(closeBtn.style, {
       position: "absolute",
@@ -98,9 +103,8 @@ export class InventoryPanel {
       this.onClose?.();
     });
     header.appendChild(closeBtn);
-    this.element.appendChild(header);
+    this.container.appendChild(header);
 
-    // ── Grid ────────────────────────────────────────────────────────────
     this.grid = document.createElement("div");
     Object.assign(this.grid.style, {
       display: "grid",
@@ -108,9 +112,8 @@ export class InventoryPanel {
       gap: "6px",
       padding: "12px",
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.grid);
+    this.container.appendChild(this.grid);
 
-    // ── Footer (item count) ─────────────────────────────────────────────
     const footer = document.createElement("div");
     Object.assign(footer.style, {
       padding: "8px 14px",
@@ -123,9 +126,8 @@ export class InventoryPanel {
     this.itemCountLabel = document.createElement("span");
     this.itemCountLabel.textContent = `0/${this.MAX_SLOTS} items`;
     footer.appendChild(this.itemCountLabel);
-    this.element.appendChild(footer);
+    this.container.appendChild(footer);
 
-    // ── Tooltip (shared, repositioned per slot) ─────────────────────────
     this.tooltip = document.createElement("div");
     Object.assign(this.tooltip.style, {
       position: "fixed",
@@ -144,23 +146,22 @@ export class InventoryPanel {
     } as CSSStyleDeclaration);
     document.body.appendChild(this.tooltip);
 
-    // Build the initial empty grid
     this.renderSlots([]);
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
 
-  show(): void {
-    this.element.style.display = "flex";
+  override show(): void {
+    super.show();
   }
 
-  hide(): void {
-    this.element.style.display = "none";
+  override hide(): void {
     this.tooltip.style.display = "none";
+    super.hide();
   }
 
   toggle(): void {
-    if (this.isVisible) {
+    if (this.getIsVisible()) {
       this.hide();
       this.onClose?.();
     } else {
@@ -168,9 +169,6 @@ export class InventoryPanel {
     }
   }
 
-  get isVisible(): boolean {
-    return this.element.style.display !== "none";
-  }
 
   update(inventory: string[]): void {
     this.currentInventory = [...inventory];
@@ -214,7 +212,6 @@ export class InventoryPanel {
 
     if (!itemName) return slot;
 
-    // Item name label
     const label = document.createElement("span");
     Object.assign(label.style, {
       fontSize: "10px",
@@ -228,7 +225,6 @@ export class InventoryPanel {
     label.textContent = itemName;
     slot.appendChild(label);
 
-    // "Use" button (visible on hover) — all items are usable
     const useBtn = document.createElement("button");
     Object.assign(useBtn.style, {
       position: "absolute",
@@ -248,7 +244,7 @@ export class InventoryPanel {
       whiteSpace: "nowrap",
       zIndex: "2",
     } as CSSStyleDeclaration);
-    // Context-sensitive label based on item type
+
     const lower = itemName.toLowerCase();
     if (/sword|blade|axe|dagger|mace|hammer|spear/i.test(lower)) {
       useBtn.textContent = "Equip";
@@ -270,18 +266,15 @@ export class InventoryPanel {
     });
     slot.appendChild(useBtn);
 
-    // Hover effects
     slot.addEventListener("mouseenter", (_e) => {
       slot.style.borderColor = "#e8cc6a";
       slot.style.background = "rgba(60,42,20,0.9)";
-      // Show tooltip
       this.tooltip.textContent = itemName;
       this.tooltip.style.display = "block";
       const rect = slot.getBoundingClientRect();
       this.tooltip.style.left = `${rect.left + rect.width / 2}px`;
       this.tooltip.style.top = `${rect.top - 28}px`;
       this.tooltip.style.transform = "translateX(-50%)";
-      // Show Use button
       if (useBtn) useBtn.style.display = "block";
     });
 
@@ -292,7 +285,6 @@ export class InventoryPanel {
       if (useBtn) useBtn.style.display = "none";
     });
 
-    // Click shows tooltip (for touch or quick click)
     slot.addEventListener("click", () => {
       this.tooltip.textContent = itemName;
       this.tooltip.style.display = "block";
@@ -303,5 +295,15 @@ export class InventoryPanel {
     });
 
     return slot;
+  }
+
+  get element(): HTMLElement {
+    return this.container;
+  }
+
+  protected override onDispose(): void {
+    if (this.tooltip && this.tooltip.parentNode) {
+      this.tooltip.parentNode.removeChild(this.tooltip);
+    }
   }
 }
