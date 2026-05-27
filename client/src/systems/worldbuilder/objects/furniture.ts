@@ -64,7 +64,7 @@ export function buildBonfire(pos: THREE.Vector3, scale: number): THREE.Group {
     log.rotation.z = Math.PI / 2;
     log.rotation.y = i * (Math.PI / 2);
     log.castShadow = true;
-    log.userData.noCollision = true;
+    log.userData.isCollider = true;
     g.add(log);
   }
 

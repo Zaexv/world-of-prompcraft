@@ -6,7 +6,6 @@ import {
   getBiomeColor,
   getBiomeEmissive,
   getBiomeSurfaceNoise,
-  registerBeachBlend,
 } from './Biomes';
 import { getVerticalLiftAt } from './VerticalTerrain';
 
@@ -107,12 +106,7 @@ export class Terrain {
   constructor(scene: THREE.Scene) {
     this.scene = scene;
 
-    // Register the beach blend function so Biomes can use it for sand colors
-    registerBeachBlend(Terrain.getBeachBlend);
-
     // Lightweight warm-up near spawn; remaining chunks stream in across frames.
-    this.lastPlayerCX = 0;
-    this.lastPlayerCZ = 0;
     this.queueChunksAround(0, 0, INITIAL_PRELOAD_RADIUS);
     this.processChunkQueue(CHUNK_LOADS_PER_UPDATE * 2);
   }
@@ -207,22 +201,6 @@ export class Terrain {
    * This is the single source of truth for terrain height everywhere.
    * Now includes biome-blended height modifications.
    */
-  /**
-   * Returns the Fort Malaka beach blend factor [0..1] at (x, z).
-   * 0 = normal terrain, 1 = full beach. Exported for use by Biomes.
-   */
-  static getBeachBlend(x: number, z: number): number {
-    // Fast bounding-box rejection (avoids trig for 99% of terrain)
-    if (x < -50 || x > 50 || z > -145 || z < -200) return 0;
-
-    // Beach strip: X ∈ [-45, 45], Z ∈ [-190, -155]
-    const bx = Math.max(0, (Math.abs(x) - 30) / 15);       // fade from |x|=30 to |x|=45
-    const bzNorth = Math.max(0, (z + 155) / 10);            // fade Z=-155..-145
-    const bzSouth = Math.max(0, (-190 - z) / 10);           // fade Z=-190..-200
-    const edgeFade = 1 - Math.min(1, bx + bzNorth + bzSouth);
-    return Math.max(0, edgeFade);
-  }
-
   static computeHeight(x: number, z: number): number {
     let h = 0;
 
@@ -241,11 +219,11 @@ export class Terrain {
     h += Math.sin(x * 0.05 - 0.9) * Math.cos(z * 0.055 + 2.3) * 1.2;
 
     // Fine detail
-    h += Math.sin(x * 0.08 + 4.0) * Math.cos(z * 0.07 - 2.0) * 0.6;
-    h += Math.cos(x * 0.09 - 1.5) * Math.sin(z * 0.1 + 3.0) * 0.4;
+    h += Math.sin(x * 0.08 + 4.0) * Math.cos(z * 0.07 - 2.0) * 0.3;
+    h += Math.cos(x * 0.09 - 1.5) * Math.sin(z * 0.1 + 3.0) * 0.2;
 
-    // Very fine detail (root-like bumps)
-    h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.2;
+    // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
+    h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
     // Blend in biome-specific height modifications
     const weights = getBiomeWeights(x, z);
@@ -259,17 +237,6 @@ export class Terrain {
       if (w > 0.001) {
         h += biomeHeightModifier(x, z, biome) * w;
       }
-    }
-
-    // Fort Malaka beach: flatten terrain into a sandy slope toward water
-    const beachBlend = Terrain.getBeachBlend(x, z);
-    if (beachBlend > 0.001) {
-      // Beach slopes south: promenade (Z≈-155) at Y≈2 → water's edge (Z≈-185) at Y≈-0.8
-      const beachProgress = THREE.MathUtils.clamp((-z - 155) / 35, 0, 1);
-      const beachHeight = THREE.MathUtils.lerp(2.0, -0.8, beachProgress);
-      // Add gentle sandy ripples
-      const ripple = Math.sin(x * 0.3 + z * 0.1) * 0.08 * (1 - beachProgress);
-      h = THREE.MathUtils.lerp(h, beachHeight + ripple, beachBlend);
     }
 
     return h;

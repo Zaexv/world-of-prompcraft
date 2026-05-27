@@ -20,6 +20,8 @@ export class NPCStateStore {
       position: [0, 0, 0] as [number, number, number],
       mood: "neutral",
       relationship_score: 0,
+      name: "",
+      personality: "",
     };
 
     const updated: NPCStateData = {
@@ -28,6 +30,8 @@ export class NPCStateStore {
       position: partial.position ?? existing.position,
       mood: partial.mood ?? existing.mood,
       relationship_score: partial.relationship_score ?? existing.relationship_score,
+      name: partial.name ?? existing.name,
+      personality: partial.personality ?? existing.personality,
     };
 
     this.states.set(npcId, updated);

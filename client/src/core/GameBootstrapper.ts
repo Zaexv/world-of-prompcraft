@@ -12,13 +12,16 @@ import { NPCStateStore } from '../state/NPCState';
 import { WorldState } from '../state/WorldState';
 import { CollisionSystem } from '../systems/CollisionSystem';
 import { WorldGenerator } from '../systems/WorldGenerator';
+import { WorldManifest } from '../state/WorldManifest';
 import { ZoneTracker } from '../systems/ZoneTracker';
 import { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import { DungeonSystem } from '../systems/DungeonSystem';
 import { AssetLoader } from '../utils/asset/AssetLoader';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
-import { getWorldHeightAt } from '../scene/VerticalTerrain';
+import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../scene/VerticalTerrain';
+import { setWorldManifest as setBiomeManifest } from '../scene/Biomes';
+import { setWorldManifest as setDungeonManifest } from '../scene/DungeonConfig';
 import { GameEngine } from './GameEngine';
 import { WebSocketHandler } from './WebSocketHandler';
 import { createRuntimeState } from './RuntimeState';
@@ -42,6 +45,13 @@ export function bootstrap(
   loadingOverlay: LoadingOverlay,
   loginScreen: LoginScreen,
 ): GameEngine {
+  const worldManifest = new WorldManifest();
+  
+  // Inject manifest into data-driven environment systems immediately
+  setTerrainManifest(worldManifest);
+  setBiomeManifest(worldManifest);
+  setDungeonManifest(worldManifest);
+
   loadingOverlay.setMessage('Initializing renderer...');
   const sceneManager = new SceneManager(app);
   const { scene, camera, renderer, terrain } = sceneManager;
@@ -98,12 +108,6 @@ export function bootstrap(
   reactionSystem.setWorldBuilder(worldBuilder);
   reactionSystem.setTerrain(terrain);
 
-  // --- TEST GEOMETRY FOR COLLISION ---
-  worldBuilder.spawnObject({ objectId: 'test_pavilion', objectType: 'pavilion', position: [5, 0, 10], scale: 1.5, label: 'Test Pavilion' });
-  worldBuilder.spawnObject({ objectId: 'test_tower', objectType: 'tower', position: [-10, 0, -10], scale: 2.0, label: 'Test Tower' });
-  worldBuilder.spawnObject({ objectId: 'test_ruins', objectType: 'ruins', position: [15, 0, -5], scale: 1.0, label: 'Test Ruins' });
-  // -----------------------------------
-
   const uiManager = new UIManager();
   uiManager.updateStatusBars(playerState);
   uiManager.inventoryPanel.update(playerState.inventory);
@@ -121,6 +125,8 @@ export function bootstrap(
   const worldGenerator = new WorldGenerator(scene, terrain, entityManager, null!);
   worldGenerator.setMinimap(uiManager.minimap);
   worldGenerator.setCollisionSystem(collisionSystem);
+  worldGenerator.setWorldManifest(worldManifest);
+  worldGenerator.setWorldBuilder(worldBuilder);
   // Exclusion footprints will be provided by WorldManifest in the future.
   worldGenerator.setExclusionFootprints([]);
 
@@ -128,7 +134,6 @@ export function bootstrap(
   const dungeonSystem = new DungeonSystem(scene, entityManager, null!, playerState);
   dungeonSystem.setCollisionSystem(collisionSystem);
   dungeonSystem.excludeFromDungeonHide(player.group);
-  worldGenerator.setDungeonSystem(dungeonSystem);
 
   terrain.onChunkLoaded   = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
   terrain.onChunkUnloaded = (cx, cz)         => worldGenerator.onChunkUnloaded(cx, cz);
@@ -156,7 +161,9 @@ export function bootstrap(
     reactionSystem, worldBuilderPanel: null!, playerController, camera, scene,
     loginScreen, loadingOverlay, username: config.username, npcNameMap,
     HOSTILE_NPCS: new Set(['dragon_01', 'guard_01']),
-    startIntroCinematic: () => engine.startIntroCinematic(),
+    startIntroCinematic: () => {
+      if (engine) engine.startIntroCinematic();
+    },
     spawnChatBubble,
   });
 
@@ -165,8 +172,15 @@ export function bootstrap(
     (prompt: string, _attachment?: File) => {
       if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
       const pos = playerController.position;
+      const nearbyObjects = worldBuilder.getNearbyObjects(pos, 30);
       // Note: Attachment handling (base64) would go here if implemented on server
-      ws.send({ type: 'world_modify', prompt, playerId: runtime.localPlayerId, position: [pos.x, pos.y, pos.z] });
+      ws.send({ 
+        type: 'world_modify', 
+        prompt, 
+        playerId: runtime.localPlayerId, 
+        position: [pos.x, pos.y, pos.z],
+        nearbyObjects 
+      });
     },
     () => worldBuilder.undo(),
     () => worldBuilder.redo()
@@ -258,7 +272,7 @@ export function bootstrap(
 
   engine = new GameEngine({  
     sceneManager, playerController, player, entityManager, collisionSystem,
-    interactionSystem, reactionSystem, worldGenerator, zoneTracker, zoneAtmosphere,
+    interactionSystem, reactionSystem, worldGenerator, worldBuilder, zoneTracker, zoneAtmosphere,
     dungeonSystem, uiManager, ws, playerState, npcStateStore, runtime,
   });
 

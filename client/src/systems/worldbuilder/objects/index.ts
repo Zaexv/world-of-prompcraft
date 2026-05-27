@@ -20,7 +20,10 @@ export function buildObject(type: string, pos: THREE.Vector3, scale: number, lab
     case 'portal_arch': return structures.buildPortalArch(pos, scale);
     
     case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);
-    case 'ancient_tree': return vegetation.buildAncientTree(pos, scale);
+    case 'ancient_tree': 
+    case 'ancient_tree_cluster':
+    case 'tree':
+    case 'pine': return vegetation.buildAncientTree(pos, scale);
     case 'crystal_cluster': return vegetation.buildCrystalCluster(pos, scale);
     
     case 'campfire': return furniture.buildCampfire(pos, scale);

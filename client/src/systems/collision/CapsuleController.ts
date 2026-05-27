@@ -42,6 +42,23 @@ export class CapsuleController {
     const moveVelocity = velocity.clone();
     moveVelocity.y += this.verticalVelocity;
 
+    // Sub-stepping for stability
+    const maxStepLength = capsule.radius * 0.5;
+    const moveDist = moveVelocity.length() * delta;
+    const subSteps = Math.max(1, Math.ceil(moveDist / maxStepLength));
+    const subDelta = delta / subSteps;
+
+    for (let s = 0; s < subSteps; s++) {
+      this.internalUpdate(capsule, moveVelocity, subDelta, meshes);
+    }
+  }
+
+  private internalUpdate(
+    capsule: Capsule,
+    moveVelocity: THREE.Vector3,
+    delta: number,
+    meshes: THREE.Mesh[]
+  ): void {
     // Step Detection (pre-move)
     const stepUp = this.stepDetector.detectStep(capsule, moveVelocity, delta, meshes);
     if (stepUp > 0) {
@@ -53,30 +70,34 @@ export class CapsuleController {
 
     // Iterative Depenetration
     this.isGrounded = false;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 8; i++) {
       const contacts = this.contactSolver.getContacts(capsule, meshes);
       if (contacts.length === 0) break;
 
       const classified = this.slopeSolver.classifyContacts(contacts);
       
-      for (const contact of classified) {
-        // Push out
-        const push = contact.normal.clone().multiplyScalar(contact.depth);
-        capsule.translate(push);
+      // Sort by depth descending to resolve deepest penetrations first
+      classified.sort((a, b) => b.depth - a.depth);
 
-        // Adjust velocity
-        if (contact.type === ContactType.FLOOR) {
-          this.isGrounded = true;
-          this.verticalVelocity = Math.max(this.verticalVelocity, 0);
-        } else if (contact.type === ContactType.CEILING) {
-          this.verticalVelocity = Math.min(this.verticalVelocity, 0);
-        }
-        
-        // Cancel velocity into the wall/slope
-        const dot = moveVelocity.dot(contact.normal);
-        if (dot < 0) {
-          moveVelocity.addScaledVector(contact.normal, -dot);
-        }
+      // Resolve the deepest contact this iteration. 
+      const contact = classified[0];
+      
+      // Push out
+      const push = contact.normal.clone().multiplyScalar(contact.depth);
+      capsule.translate(push);
+
+      // Adjust velocity
+      if (contact.type === ContactType.FLOOR) {
+        this.isGrounded = true;
+        this.verticalVelocity = Math.max(this.verticalVelocity, 0);
+      } else if (contact.type === ContactType.CEILING) {
+        this.verticalVelocity = Math.min(this.verticalVelocity, 0);
+      }
+      
+      // Cancel velocity into the wall/slope
+      const dot = moveVelocity.dot(contact.normal);
+      if (dot < 0) {
+        moveVelocity.addScaledVector(contact.normal, -dot);
       }
     }
 

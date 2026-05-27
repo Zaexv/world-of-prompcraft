@@ -30,6 +30,8 @@ export class CollisionSystem {
   // ── Registration ──────────────────────────────────────────────────────
 
   async addCollidable(obj: THREE.Object3D): Promise<void> {
+    if (this.statics.some(e => e.obj === obj)) return;
+
     const body = this.createCollisionBody(obj, true);
     if (body) {
       await this.bvhManager.addBody(body);
@@ -69,8 +71,11 @@ export class CollisionSystem {
     group.updateWorldMatrix(true, true);
 
     await Promise.all(targets.map(async (child) => {
+      if (this.statics.some(e => e.obj === child)) return;
+
       const body = this.createCollisionBody(child, true);
       if (body) {
+        console.log(`CollisionSystem: Registering static body for ${child.name || 'unnamed mesh'} type=${body.type}`);
         await this.bvhManager.addBody(body);
         this.statics.push({ obj: child, body });
       }
@@ -152,9 +157,10 @@ export class CollisionSystem {
     return this.bvhManager.getStaticMeshes();
   }
 
-  isPositionBlocked(x: number, y: number, z: number, _halfExtent = 0.5): boolean {
-    // Placeholder until narrow phase is fully implemented by Agent 2
-    return false;
+  isPositionBlocked(x: number, y: number, z: number, halfExtent = 0.5): boolean {
+    this._box3.min.set(x - halfExtent, y, z - halfExtent);
+    this._box3.max.set(x + halfExtent, y + 1.8, z + halfExtent);
+    return this.bvhManager.intersectsBox(this._box3);
   }
 
   // ── Resolution ────────────────────────────────────────────────────────

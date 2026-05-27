@@ -282,6 +282,34 @@ export function getPlaceholderAppearance(style: NPCPlaceholderStyle): Appearance
         hatHeight: 0.3,
         hatY: 2.74,
       };
+    case 'civilian':
+      return {
+        bodyTopRadius: 0.32,
+        bodyBottomRadius: 0.38,
+        bodyHeight: 1.35,
+        bodyY: 1.48,
+        bodySegments: 10,
+        bodyColor: 0x5d4037,
+        shoulderRadius: 0.12,
+        shoulderOffset: 0.3,
+        shoulderY: 2.0,
+        beltRadius: 0.32,
+        beltTube: 0.035,
+        beltY: 1.05,
+        beltColor: 0x3e2723,
+        headRadius: 0.24,
+        headY: 2.3,
+        headColor: 0xe0ac69,
+        legWidth: 0.15,
+        legHeight: 0.64,
+        legDepth: 0.15,
+        legOffset: 0.12,
+        legY: 0.42,
+        legColor: 0x212121,
+        hatRadius: 0.001,
+        hatHeight: 0.001,
+        hatY: 0,
+      };
     case 'pyromancer':
       return {
         bodyTopRadius: 0.3,

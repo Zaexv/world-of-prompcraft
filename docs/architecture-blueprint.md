@@ -15,24 +15,24 @@
 │                                                     │
 │  ┌───────────┐  ┌───────────┐  ┌────────────────┐  │
 │  │  Renderer  │  │  Entities │  │   UI System    │  │
-│  │  (3D Scene,│  │  (Player, │  │  (Chat, HUD,   │  │
-│  │   Terrain, │  │   NPCs,   │  │   Inventory,   │  │
-│  │   Effects) │  │   Remote  │  │   Nameplates)  │  │
-│  │            │  │   Players)│  │                │  │
+│  │ (3D Scene, │  │ (Player,  │  │ (Chat, HUD,    │  │
+│  │  Terrain,  │  │  NPCs,    │  │  Inventory,    │  │
+│  │  Effects)  │  │  Remote   │  │  Nameplates)   │  │
 │  └─────┬─────┘  └─────┬─────┘  └───────┬────────┘  │
 │        │              │                 │            │
 │  ┌─────┴──────────────┴─────────────────┴────────┐  │
 │  │              Game Systems Layer                │  │
-│  │  (Collision, Interaction, Reaction, Dungeons,  │  │
-│  │   WorldGen, ZoneTracker)                       │  │
+│  │ (Collision, Interaction, Reaction, Dungeons,   │  │
+│  │  WorldGen, WorldBuilder, ZoneTracker)          │  │
 │  └──────────────────────┬────────────────────────┘  │
 │                         │                            │
 │  ┌──────────────────────┴────────────────────────┐  │
-│  │         State (PlayerState, WorldState)         │  │
+│  │     World Manifest (Direct File Import)      │  │
+│  │   (Environment, Topology, Zones, Population)   │  │
 │  └──────────────────────┬────────────────────────┘  │
 │                         │                            │
 │  ┌──────────────────────┴────────────────────────┐  │
-│  │    Network (WebSocket JSON, auto-reconnect)    │  │
+│  │    Network (WebSocket JSON Protocol)          │  │
 │  └──────────────────────┬────────────────────────┘  │
 └─────────────────────────┼───────────────────────────┘
                           │ WebSocket (port 8000)
@@ -45,91 +45,175 @@
 │          │              │               │            │
 │  ┌───────┴──────┐ ┌────┴─────┐  ┌──────┴─────────┐ │
 │  │  Connection  │ │  World   │  │  Agent Registry │ │
-│  │  Manager     │ │  State   │  │  (per-NPC       │ │
-│  │  (broadcast, │ │  (auth-  │  │   LangGraph     │ │
-│  │   proximity) │ │  itative)│  │   agents)       │ │
-│  └──────────────┘ └──────────┘  └───────┬─────────┘ │
-│                                         │            │
-│  ┌──────────────────────────────────────┴─────────┐ │
-│  │         LangGraph Agent Pipeline               │ │
-│  │  reason → act(loop) → respond → reflect →      │ │
-│  │  [summarize]                                    │ │
-│  │                                                 │ │
-│  │  Tools: combat, dialogue, trade, environment,   │ │
-│  │         world_query                             │ │
-│  │  Memory: MemorySaver (per NPC×player thread)    │ │
-│  │  RAG: keyword-matched lore retrieval            │ │
-│  └──────────────────────┬─────────────────────────┘ │
-│                         │                            │
-│  ┌──────────────────────┴────────────────────────┐  │
-│  │     LLM Provider (Claude / OpenAI)             │  │
-│  └────────────────────────────────────────────────┘  │
+│  │  Manager     │ │  State   │  │  (Dynamic NPC   │ │
+│  │  (broadcast, │ │ (Author- │  │   Brains)       │ │
+│  │   proximity) │ │ itative) │  └───────┬─────────┘ │
+│  └──────────────┘ └────┬─────┘          │            │
+│                        │                │            │
+│              ┌─────────┴────────────────┴────────┐   │
+│              │    SHARED WORLD MANIFEST (JSON)   │   │
+│              │   (Single Point of Truth on Disk) │   │
+│              └───────────────────────────────────┘   │
 └──────────────────────────────────────────────────────┘
 ```
 
 ### Core Design Principles
 
-1. **Server-Authoritative State**: All game state (HP, inventory, positions, NPC state) lives on the server. Client is a render mirror.
-2. **Prompt as the Only Input**: No attack/trade/quest buttons — text prompt IS the game interface. LLM decides what actions to take.
-3. **Per-NPC Agents**: Each NPC gets its own LangGraph StateGraph with independent memory, mood, and relationship tracking.
-4. **Tool-Driven Mechanics**: LLM calls typed tools (`deal_damage`, `heal_target`, `offer_item`, etc.) that produce structured actions processed by both server and client.
-5. **Generative World**: Infinite chunk-based terrain, NPCs/trees spawned procedurally on exploration.
-6. **Cost-Aware AI**: Heuristic-based reflection (no LLM), conditional summarization (LLM only every ~6 exchanges).
-
-### Key Technology Mapping (Browser → Game Engine)
-
-| Browser Implementation | Game Engine Equivalent |
-|---|---|
-| Three.js WebGLRenderer | Unity URP / Unreal Renderer / Godot RenderingServer |
-| THREE.InstancedMesh | GPU Instancing / MultiMesh |
-| UnrealBloomPass (post-processing) | Post-processing Volume / PPv2 |
-| HTML DOM UI panels | Unity UI Toolkit / UMG / Godot Control nodes |
-| Canvas2D Nameplates | World-space UI / 3D Widgets |
-| WebSocket JSON | Native TCP/UDP sockets or WebSocket |
-| requestAnimationFrame loop | Engine Update/Tick |
-| Three.js Raycaster | Physics Raycast |
-| Simplex noise (terrain) | Same (FastNoiseLite / libnoise) |
+1.  **Server-Authoritative Shared Manifest**: The global world map, biomes, and character registry live in a single `world_manifest.json` physically shared between FE and BE via the root `shared/` directory.
+2.  **Zonal Hybrid Architecture**: Content is organized into geographic "Zones" (Teldrassil, Fort Malaka) containing local "Population" (NPCs) and "Architecture" (Landmarks, Dungeons).
+3.  **Component-Based Data Model**: Manifest entities are defined by logical components (`identity`, `transform`, `stats`, `ai`), mirroring professional engine standards.
+4.  **Async Boot-Time Hydration**: The client fetches and hydrates the manifest from the server before engine initialization to ensure perfect synchronization.
+5.  **Dynamic NPC Synchronization**: The server refreshes its AI registry from the manifest on-demand, allowing for real-time population changes without restarts.
 
 ---
 
 # PART 1: CLIENT ARCHITECTURE
 
-**Architecture Type:** Component-based, event-driven system with immediate-mode rendering  
-**Networking:** WebSocket with JSON messages (auto-reconnect + heartbeat)
-
-
+**Architecture Type:** Data-driven, component-based engine with server-authoritative manifest sync.  
+**Networking:** WebSocket + REST (Manifest Hydration).
 
 ## **1. GAME BOOTSTRAP & MAIN LOOP**
 
 ### **Entry Point: `main.ts`**
 
-**Initialization Flow:**
-1. **LoginScreen** displayed first (username, race, faction selection)
-2. On login → `initGame(username, race, faction)` called
-3. Game state, scene, entities, systems initialized in sequence
-4. Network client connects → server sends initial NPC list + players
-5. Main render loop begins via `requestAnimationFrame`
+**Initialization Flow (Synchronous):**
+1. **Manifest Load**: `WorldManifest` imports `shared/data/world_manifest.json` directly.
+2. **Hydration**: `hydrate()` initializes global designs and caches from the imported data.
+3. **Environment Setup**: Manifest injected into `Terrain`, `Biomes`, and `VerticalTerrain`.
+4. **Collision System**: Physics world initialized with BVH support.
+5. **Renderer Boot**: `SceneManager` and `renderer` start.
+6. **Engine Start**: Render loop begins; `WorldGenerator` triggers chunk loading.
 
 **Main Loop Tick Order (every frame):**
 ```
 1. PlayerController.update(delta)       // Input, movement, collision
-2. EntityManager.update(delta)          // NPC animation, distance culling
-3. Terrain.update(playerX, playerZ)    // Chunk load/unload
-4. WorldGenerator.update(...)           // Spawn trees/caves/NPCs
-5. ZoneTracker.update(playerX, playerZ) // Zone boundary detection
-6. SceneManager.tick()                  // Render + post-processing
+2. WorldBuilder.update(playerPos)       // Distance culling for objects
+3. EntityManager.update(delta)          // NPC animation, snapping, culling
+4. Terrain.update(playerX, playerZ)    // Chunk load/unload
+5. WorldGenerator.update(...)           // Manifest-driven spawning
+6. ZoneTracker.update(playerX, playerZ) // Zone boundary detection
+7. CollisionSystem.update()             // Physics debug sync
+8. SceneManager.tick()                  // Render + post-processing
 ```
 
-**Delta Time:** Obtained from `THREE.Clock.getDelta()` — **accurate to frame boundary**. Used for:
-- Animation speed normalization
-- Movement frame-independence
-- Smooth interpolation
+---
 
-**Performance Optimizations:**
-- Distance-based NPC culling (visibility at 350 units, full update at 200 units)
-- Terrain chunk LOD (CHUNK_SEGMENTS: 32 nearby, 16 mid, 8 far)
-- Water reflection skipped when player Y > 15
-- Post-processing at half-resolution bloom
+## **3. WORLD MANIFEST SYSTEM**
+
+### **Core: `WorldManifest.ts`**
+
+**Master Source of Truth (Version 2.1.0)**
+
+The world is defined as a hierarchical set of systems and geographic regions.
+
+**Schema Overview:**
+- **`world`**: Global engine parameters.
+  - **`environment`**: Biome start/transition, color palettes, ruggedness.
+  - **`topology`**: Global terrain features (mountains, craters) with specific radii/heights.
+- **`zones`**: Spatial groupings of authored content.
+  - **`teldrassil_central`**: Starting region.
+  - **`fort_malaka`**: Outpost region.
+  - Each zone contains **`population`** (NPC array) and **`architecture`** (Landmarks, Dungeons).
+
+**NPC Component Structure:**
+```json
+{
+  "id": "npc_unique_id",
+  "identity": { "name": "Name", "role": "guide|merchant|guard" },
+  "transform": { "position": [x, y, z], "rotation": [0, 0, 0] },
+  "stats": { "max_hp": 100, "level": 1 },
+  "ai": { "personality_key": "template_id", "wander_radius": 15 }
+}
+```
+
+**Landmark Component Structure:**
+```json
+{
+  "id": "landmark_id",
+  "type": "tower|pavilion|ruins|ancient_tree",
+  "transform": { "position": [x, y, z], "scale": 1.0 },
+  "visual": { "label": "Display Name" }
+}
+```
+
+**Client Hydration Logic:**
+1. Manifest data is imported directly at the top of `WorldManifest.ts`.
+2. `constructor` calls `hydrate()` immediately on instantiation.
+3. `hydrate()` clears existing local maps.
+4. Iterates through all zones, aggregating NPCs and Landmarks into flattened Map lookups.
+5. Terrain height queries and Biome coloring logic now use getters pointing to the manifest.
+
+---
+
+## **4. BIOME SYSTEM**
+
+### **Core: `Biomes.ts`**
+
+**Data-Driven Radial Blending**
+
+**Transition Algorithm (Continuous):**
+```typescript
+const transitionT = clamp((dist - (biomeStart - transition)) / transition, 0, 1);
+const centerWeight = 1.0 - transitionT;
+const outerWeight = transitionT;
+
+// Directional blending for outer biomes (Ember, Tundra, Marsh, Meadows)
+weights[Teldrassil] = centerWeight;
+weights[Ember] = directionalStrength * outerWeight;
+// ...
+```
+**Benefits**: Eliminates "cuts" or discontinuities between the central zone and the rest of the infinite world.
+
+---
+
+## **13. COLLISION & PHYSICS**
+
+### **Core: `CollisionSystem.ts`**
+
+**BVH-Accelerated Spatial Queries**
+
+- **Acceleration**: Uses `three-mesh-bvh` for fast intersection tests.
+- **Idempotent Spawning**: `WorldBuilder` ensures objects are re-added to physics when chunks reload.
+- **Deduplication**: `BVHManager` prevents memory leaks by checking for existing static bodies.
+- **Position Blocking**: `isPositionBlocked(x, y, z)` allows NPCs to navigate around buildings by performing fast AABB queries against the static world.
+
+**Distance Culling**:
+- Objects culled at **180 units** radius.
+- Matches exponential fog density for smooth "unspawning".
+- NPCs culled at **350 units** (visibility) and **200 units** (AI update).
+
+---
+
+# PART 2: SERVER ARCHITECTURE
+
+## **1. MANIFEST SYNCHRONIZATION**
+
+### **Dynamic NPC Registry** (`npc_definitions.py`)
+- Reads from `shared/data/world_manifest.json`.
+- **Physical Sharing**: Uses paths that resolve to the monorepo root (Local or Docker).
+- **On-Demand Refresh**: Provides `get_npc_definitions()` which reloads the file from disk, enabling hot-reloading of the world population.
+
+### **WorldState Lifecycle** (`world_state.py`)
+- **`refresh_npcs()`**: Synchronizes in-memory NPCs with the manifest.
+- **Purge Logic**: Automatically removes characters that are no longer in the manifest.
+- **State Preservation**: Updates name/position/personality while preserving transient state like current HP.
+
+### **Agent Registry Lifecycle** (`agents/registry.py`)
+- **`refresh_agents()`**: Rebuilds the AI brain registry whenever the world population changes.
+- Disposes of agents for removed NPCs, ensuring server memory is reclaimed.
+
+---
+
+## **KEY CONSTANTS UPDATE**
+
+| Constant | Value | Purpose |
+|----------|-------|---------|
+| MANIFEST_VERSION | 2.1.0 | Zonal Hybrid Schema |
+| VISIBLE_RADIUS | 180 | Object culling (matched to fog) |
+| CHUNK_SIZE | 64 | Terrain grid unit (sync'd with Generator) |
+| WANDER_PAUSE_MIN | 0.5s | Random movement responsiveness |
+| WANDER_PAUSE_MAX | 2.5s | Random movement responsiveness |
+
 
 
 

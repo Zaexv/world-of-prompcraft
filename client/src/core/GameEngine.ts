@@ -7,6 +7,7 @@ import type { CollisionSystem } from '../systems/CollisionSystem';
 import type { InteractionSystem } from '../systems/InteractionSystem';
 import type { ReactionSystem } from '../systems/ReactionSystem';
 import type { WorldGenerator } from '../systems/WorldGenerator';
+import type { WorldBuilder } from '../systems/WorldBuilder';
 import type { ZoneTracker } from '../systems/ZoneTracker';
 import type { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import type { DungeonSystem } from '../systems/DungeonSystem';
@@ -30,6 +31,7 @@ export interface GameEngineDeps {
   interactionSystem: InteractionSystem;
   reactionSystem: ReactionSystem;
   worldGenerator: WorldGenerator;
+  worldBuilder: WorldBuilder;
   zoneTracker: ZoneTracker;
   zoneAtmosphere: ZoneAtmosphere;
   dungeonSystem: DungeonSystem;
@@ -279,6 +281,7 @@ export class GameEngine {
 
     d.sceneManager.terrain.update(px, pz);
     d.sceneManager.setPlayerPosition(px, pz);
+    d.worldBuilder.update(px, pz);
     d.entityManager.setPlayerPosition(px, pz);
     d.entityManager.update(delta, (x, z) => this.getTerrainHeight(x, z), d.collisionSystem);
     d.collisionSystem.update();

@@ -42,10 +42,9 @@ export class WebSocketHandler {
       this.d.runtime.localPlayerId = data.playerId as string;
       this.d.runtime.joinedServer = true;
       this.d.playerState.playerId = data.playerId as string;
-      this.d.loginScreen.hide();
-      this.d.loadingOverlay.hide();
-      this.d.startIntroCinematic();
+      
       this.d.uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${this.d.username}!`);
+      
       if (data.players) {
         for (const p of data.players) {
           if (p.playerId !== this.d.runtime.localPlayerId) {
@@ -53,6 +52,45 @@ export class WebSocketHandler {
           }
         }
       }
+
+      if (data.npcs) {
+        console.log(`Received ${data.npcs.length} NPCs from server.`);
+        for (const n of data.npcs) {
+          const id = n.npc_id || n.id;
+          const pos = n.position;
+          
+          if (!id || !pos || !Array.isArray(pos) || pos.length < 3) {
+            console.warn('Skipping invalid NPC data (missing id or position array):', n);
+            continue;
+          }
+
+          // Update lookup maps
+          this.d.npcNameMap.set(id, n.name);
+
+          console.log(`Spawning NPC: ${n.name} (${id}) at ${pos}`);
+          this.d.entityManager.addNPC({
+            id,
+            name: n.name,
+            position: new THREE.Vector3(pos[0], pos[1], pos[2]),
+            hp: n.hp,
+            maxHp: n.maxHp,
+          } as any);
+
+          this.d.npcStateStore.updateState(id, {
+            name: n.name,
+            hp: n.hp,
+            maxHp: n.maxHp,
+            personality: n.personality,
+            mood: n.mood,
+          });
+        }
+      } else {
+        console.warn('No NPCs received in join_ok message.');
+      }
+
+      this.d.loginScreen.hide();
+      this.d.loadingOverlay.hide();
+      this.d.startIntroCinematic();
       return;
     }
 

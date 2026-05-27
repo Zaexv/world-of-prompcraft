@@ -66,7 +66,17 @@ When adding a new NPC, you must update both client and server:
 - NPCs are spawned from server data via WebSocket — no client-side NPC hardcoding needed
 - Ensure the NPC position snaps to terrain and doesn't overlap buildings
 
-### Adding Zones
+### Deterministic Landmarks (The World Manifest)
+The world uses a **World Manifest** (`client/src/data/world_manifest.json`) to define persistent landmarks. When adding significant structures (cities, ruins, outposts) that should exist permanently in the infinite world:
+
+1. **Define the Landmark**: Add an entry to `world_manifest.json`.
+   - `id`: Unique identifier (e.g., "silvermoon_outpost").
+   - `type`: Must match a type recognized by `WorldBuilder.ts` (pavilion, tower, ruins, etc.).
+   - `position`: `[x, y, z]` coordinates. Y is usually 0 (terrain-snapped).
+2. **Deterministic Spawning**: The `WorldGenerator` will automatically spawn these when their chunk loads.
+3. **Template Principle**: For complex areas, prefer creating a "Template" in `WorldBuilder` or `structures.ts` and referencing it via `type` in the manifest.
+
+### World Consistency (Coordinates, Zones, and Navigation)
 1. Define the zone in `server/src/world/zones.py` with boundaries, description, and lore
 2. Add terrain features, buildings, or vegetation in the client that visually represent the zone
 3. Consider adding zone-specific lighting or effects

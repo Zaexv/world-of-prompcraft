@@ -29,7 +29,7 @@ export class BVHManager {
         });
       }
 
-      if (body.isStatic) {
+      if (body.isStatic && !this.staticBodies.includes(mesh)) {
         this.staticBodies.push(mesh);
       }
     }
@@ -71,10 +71,8 @@ export class BVHManager {
 
   /**
    * Shapecast using BVH meshes.
-   * This is what Agent 2 will use for the capsule controller.
    */
   public shapecast(
-    mesh: THREE.Mesh, 
     _intersects: (
       box: THREE.Box3, 
       isLeaf: boolean, 
@@ -83,26 +81,44 @@ export class BVHManager {
       nodeIndex: number
     ) => boolean | number
   ): boolean {
-    if (!mesh.geometry.boundsTree) return false;
-    
     let hit = false;
-    mesh.geometry.boundsTree.shapecast({
-      intersectsBounds: (box, isLeaf, score, depth, nodeIndex) => {
-        const result = _intersects(box, isLeaf, score, depth, nodeIndex);
-        if (result === true) hit = true;
-        return result;
-      },
-      intersectsTriangle: (_triangle, _triangleIndex, _contained, _depth) => {
-        // We only use shapecast for box intersection in our custom step/slope logic,
-        // so we can just return false here if we don't need triangle level accuracy
-        // for the shapecast itself (which is often true for broadphase).
-        // If triangle intersections were needed, they would be handled by the capsule shapecast
-        // which three-mesh-bvh doesn't natively support out of the box in the same way.
-        // We will return false to continue traversal or true if we want to stop.
-        return false;
-      }
-    });
+    
+    for (const mesh of this.staticBodies) {
+      if (!mesh.geometry.boundsTree) continue;
+
+      // Transform query to local mesh space if needed (simplified for global AABB check)
+      const res = mesh.geometry.boundsTree.shapecast({
+        intersectsBounds: (box, isLeaf, score, depth, nodeIndex) => {
+          const result = _intersects(box, isLeaf, score, depth, nodeIndex);
+          if (result === true) hit = true;
+          return result;
+        },
+        intersectsTriangle: (_triangle, _triangleIndex, _contained, _depth) => {
+          return false;
+        }
+      });
+      if (res) return true;
+    }
     
     return hit;
+  }
+
+  /** Check if an AABB intersects any static mesh. */
+  public intersectsBox(box: THREE.Box3): boolean {
+    for (const mesh of this.staticBodies) {
+      if (!mesh.geometry.boundsTree) continue;
+
+      // Local mesh check
+      const meshInvMatrix = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+      const localBox = box.clone().applyMatrix4(meshInvMatrix);
+      
+      const hit = mesh.geometry.boundsTree.shapecast({
+        intersectsBounds: (b) => b.intersectsBox(localBox),
+        intersectsTriangle: () => true, // Any triangle hit means blocked
+      });
+
+      if (hit) return true;
+    }
+    return false;
   }
 }

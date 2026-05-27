@@ -216,6 +216,8 @@ export interface NPCStateData {
   position: [number, number, number];
   mood: string;
   relationship_score: number;
+  personality?: string;
+  name?: string;
 }
 
 export interface NPCInitData {
@@ -225,6 +227,7 @@ export interface NPCInitData {
   maxHp: number;
   position: [number, number, number];
   mood: string;
+  personality: string;
 }
 
 export interface RemotePlayerData {

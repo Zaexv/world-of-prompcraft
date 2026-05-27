@@ -151,7 +151,7 @@ export function buildAltar(pos: THREE.Vector3, scale: number): THREE.Group {
     const leg = new THREE.Mesh(legGeo, stoneMat);
     leg.position.set(lx * scale, 0.5 * scale, lz * scale);
     leg.castShadow = true;
-    leg.userData.noCollision = true;
+    leg.userData.isCollider = true;
     g.add(leg);
   }
 
@@ -215,7 +215,7 @@ export function buildWoodenFence(pos: THREE.Vector3, scale: number): THREE.Group
     woodMat,
   );
   rail1.position.y = 1.2 * scale;
-  rail1.userData.noCollision = true;
+  rail1.userData.isCollider = true;
   g.add(rail1);
 
   const rail2 = new THREE.Mesh(
@@ -223,7 +223,7 @@ export function buildWoodenFence(pos: THREE.Vector3, scale: number): THREE.Group
     woodMat,
   );
   rail2.position.y = 0.6 * scale;
-  rail2.userData.noCollision = true;
+  rail2.userData.isCollider = true;
   g.add(rail2);
 
   return g;
@@ -251,13 +251,13 @@ export function buildPavilion(pos: THREE.Vector3, scale: number): THREE.Group {
   roof.position.y = 5 * scale;
   roof.rotation.y = Math.PI / 4;
   roof.castShadow = true;
-  roof.userData.noCollision = true;
+  roof.userData.isCollider = true;
   g.add(roof);
 
   const floor = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, 0.1 * scale, 5 * scale), woodMat);
   floor.position.y = 0.05 * scale;
   floor.receiveShadow = true;
-  floor.userData.noCollision = true;
+  floor.userData.isCollider = true;
   g.add(floor);
 
   return g;
@@ -300,7 +300,7 @@ export function buildPortalArch(pos: THREE.Vector3, scale: number): THREE.Group 
     stoneMat,
   );
   lintel.position.y = 5.5 * scale;
-  lintel.userData.noCollision = true;
+  lintel.userData.isCollider = true;
   g.add(lintel);
 
   const portalGeo = new THREE.PlaneGeometry(2.6 * scale, 4.8 * scale);

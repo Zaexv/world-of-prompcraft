@@ -3,8 +3,6 @@ import { Capsule } from './Capsule';
 import { ContactSolver } from './ContactSolver';
 
 export class StepDetector {
-  private stepHeight: number = 0.5;
-
   constructor(private contactSolver: ContactSolver) {}
 
   /**
@@ -35,23 +33,22 @@ export class StepDetector {
     }
 
     // Probe A: Lift capsule and check if clear
+    // We try multiple heights to find the smallest one that works, or just a more reasonable one.
+    // For now, let's just make it return a smaller step if the path is clear.
     const liftedCapsule = new Capsule();
-    liftedCapsule.copy(capsule);
-    liftedCapsule.translate(new THREE.Vector3(0, this.stepHeight, 0));
-    liftedCapsule.translate(moveStep);
-
-    const contacts = this.contactSolver.getContacts(liftedCapsule, meshes);
     
-    // If no contacts after lift and move, it might be a step
-    if (contacts.length === 0) {
-      // Probe B: Raycast down to find ground
-      // For simplicity, we'll just check if we can safely descend back
-      // and if the "new ground" is higher than "old ground" but below stepHeight
-      
-      // In a full implementation, we'd do a more careful check.
-      // But for this controller, we can return the stepHeight as a potential vertical boost.
-      // The CapsuleController will handle the actual movement and depenetration.
-      return this.stepHeight;
+    // Check multiple heights for more precise stepping
+    const heights = [0.1, 0.2, 0.3, 0.4, 0.5];
+    for (const h of heights) {
+      liftedCapsule.copy(capsule);
+      liftedCapsule.translate(new THREE.Vector3(0, h, 0));
+      liftedCapsule.translate(moveStep);
+
+      const contacts = this.contactSolver.getContacts(liftedCapsule, meshes);
+      if (contacts.length === 0) {
+        // Found a height that clears the obstacle
+        return h;
+      }
     }
 
     return 0;

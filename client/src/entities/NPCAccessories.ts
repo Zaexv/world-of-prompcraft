@@ -283,17 +283,6 @@ export function addPlaceholderAccessory(mesh: THREE.Group, style: NPCPlaceholder
       orb.name = 'orb';
       orb.position.set(0.5, 2.45, 0);
       mesh.add(orb);
-      const sparkGeo = new THREE.TetrahedronGeometry(0.05, 0);
-      const sparkMat = new THREE.MeshStandardMaterial({
-        color: 0xffaa00, emissive: 0xff6600, emissiveIntensity: 1.2, flatShading: true,
-      });
-      for (let i = 0; i < 3; i++) {
-        const spark = new THREE.Mesh(sparkGeo, sparkMat);
-        spark.name = `spark${i}`;
-        const angle = (i / 3) * Math.PI * 2;
-        spark.position.set(0.5 + Math.cos(angle) * 0.12, 2.45 + Math.sin(angle) * 0.1, Math.sin(angle) * 0.12);
-        mesh.add(spark);
-      }
       break;
     }
     case 'cryomancer': {

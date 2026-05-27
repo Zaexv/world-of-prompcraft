@@ -27,8 +27,23 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
 
-    def register(self, websocket: WebSocket, player_id: str) -> None:
-        """Associate a websocket with a player id."""
+    async def register(self, websocket: WebSocket, player_id: str) -> None:
+        """Associate a websocket with a player id. Handles takeover if already exists."""
+        # 1. Check if user already has an active connection
+        if player_id in self.active_connections:
+            old_ws = self.active_connections[player_id]
+            logger.info(f"Session takeover: Closing old connection for {player_id}")
+
+            # Remove from WS mapping
+            self._ws_to_player.pop(id(old_ws), None)
+
+            # Attempt to close the old socket
+            import contextlib
+
+            with contextlib.suppress(Exception):
+                await old_ws.close(code=1000, reason="Logged in from another location")
+
+        # 2. Register the new connection
         self.active_connections[player_id] = websocket
         self._ws_to_player[id(websocket)] = player_id
 

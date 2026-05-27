@@ -34,6 +34,10 @@ export class WorldBuilder {
 
   setCollisionSystem(cs: CollisionSystem): void {
     this.collisionSystem = cs;
+    // Register existing objects for collision
+    for (const obj of this.objects.values()) {
+      this.collisionSystem.addCollidableFiltered(obj.group);
+    }
   }
 
   private loadFromStorage(): void {
@@ -55,33 +59,48 @@ export class WorldBuilder {
     position: [number, number, number];
     scale?: number;
     label?: string;
-  }, pushToUndo = true): void {
-    if (this.objects.has(params.objectId)) return;
+  }, pushToUndo = true): THREE.Group | undefined {
+    let placed = this.objects.get(params.objectId);
+    let group: THREE.Group;
 
-    if (pushToUndo) {
-      this.pushUndoState();
+    if (placed) {
+      group = placed.group;
+    } else {
+      if (pushToUndo) {
+        this.pushUndoState();
+      }
+
+      const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
+      const pos = new THREE.Vector3(params.position[0], y, params.position[2]);
+      const scale = params.scale ?? 1;
+
+      const builtGroup = buildObject(params.objectType, pos, scale, params.label);
+      if (!builtGroup) return undefined;
+      group = builtGroup;
+
+      placed = {
+        id: params.objectId,
+        type: params.objectType,
+        group,
+        label: params.label,
+      };
+      this.objects.set(params.objectId, placed);
+      this.persistence.save(this.objects);
     }
 
-    const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
-    const pos = new THREE.Vector3(params.position[0], y, params.position[2]);
-    const scale = params.scale ?? 1;
+    // Ensure it's in the scene (it might have been removed by chunk unloading)
+    if (group.parent !== this.scene) {
+      this.scene.add(group);
+    }
 
-    const group = buildObject(params.objectType, pos, scale, params.label);
-    if (!group) return;
-
-    this.scene.add(group);
+    // Ensure it's in the collision system (might have been removed by chunk unloading)
     if (this.collisionSystem) {
+      // addCollidableFiltered is async; it's okay not to await here as it will
+      // be ready in a few frames.
       this.collisionSystem.addCollidableFiltered(group);
     }
 
-    this.objects.set(params.objectId, {
-      id: params.objectId,
-      type: params.objectType,
-      group,
-      label: params.label,
-    });
-
-    this.persistence.save(this.objects);
+    return group;
   }
 
   removeObject(objectId: string, pushToUndo = true): void {
@@ -110,6 +129,21 @@ export class WorldBuilder {
 
   getPlacedObjectIds(): string[] {
     return Array.from(this.objects.keys());
+  }
+
+  getNearbyObjects(pos: THREE.Vector3, radius: number): { id: string, type: string, label: string, position: [number, number, number] }[] {
+    const nearby: { id: string, type: string, label: string, position: [number, number, number] }[] = [];
+    for (const obj of this.objects.values()) {
+      if (obj.group.position.distanceTo(pos) <= radius) {
+        nearby.push({
+          id: obj.id,
+          type: obj.type,
+          label: obj.label ?? obj.type,
+          position: [obj.group.position.x, obj.group.position.y, obj.group.position.z]
+        });
+      }
+    }
+    return nearby;
   }
 
   // ── Undo / Redo Logic ────────────────────────────────────────────────
@@ -144,6 +178,25 @@ export class WorldBuilder {
     this.undoStack.push(this.getCurrentStateAsPersisted());
     const nextState = this.redoStack.pop()!;
     this.applyState(nextState);
+  }
+
+  // ── Distance Culling ──────────────────────────────────────────────────
+
+  private readonly VISIBLE_RADIUS_SQ = 180 * 180;
+
+  /** Update object visibility based on distance to player. */
+  update(playerX: number, playerZ: number): void {
+    for (const obj of this.objects.values()) {
+      const dx = obj.group.position.x - playerX;
+      const dz = obj.group.position.z - playerZ;
+      const distSq = dx * dx + dz * dz;
+
+      // Hide objects beyond visible range
+      const visible = distSq <= this.VISIBLE_RADIUS_SQ;
+      if (obj.group.visible !== visible) {
+        obj.group.visible = visible;
+      }
+    }
   }
 
   private applyState(targetState: PersistedObject[]): void {

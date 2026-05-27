@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .npc_definitions import NPC_DEFINITIONS
+from .npc_definitions import NPC_DEFINITIONS, get_npc_definitions
 from .player_state import PlayerData
 from .quest_definitions import QUEST_DEFINITIONS, QuestDefinition, QuestObjective
 from .world_state import NPCData, WorldState
@@ -15,6 +15,7 @@ __all__ = [
     "QuestDefinition",
     "QuestObjective",
     "WorldState",
+    "get_npc_definitions",
     "get_zone",
     "get_zone_description",
 ]

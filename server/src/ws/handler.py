@@ -315,15 +315,15 @@ async def _handle_join(
     faction = data.get("faction", "alliance")
     skin = data.get("skin", "skin-1")
 
+    logger.info(f"Player joining: {username} ({race}, {faction})")
+
     # Validate username: 1-20 alphanumeric/underscore characters
     if not username or len(username) > 20 or not re.match(r"^[a-zA-Z0-9_]+$", username):
+        logger.warning(f"Join rejected: Invalid username '{username}'")
         return {
             "type": "join_error",
             "message": "Username must be 1-20 alphanumeric characters.",
         }
-
-    if manager.is_username_taken(username):
-        return {"type": "join_error", "message": "Username is already taken."}
 
     if race not in _VALID_RACES:
         race = "human"
@@ -333,7 +333,8 @@ async def _handle_join(
         skin = "skin-1"
 
     # Register websocket with manager
-    manager.register(websocket, username)
+    await manager.register(websocket, username)
+    logger.info(f"WebSocket registered for player: {username}")
 
     # BUG-3: Accept initial position from client so player isn't broadcast at [0,0,0]
     initial_position = data.get("position")
@@ -348,12 +349,16 @@ async def _handle_join(
 
     # Create player in world state
     if _world_state is not None:
+        _world_state.refresh_npcs()
+        if _registry:
+            _registry.refresh_agents()
         player = _world_state.get_player(username)
         player.username = username
         player.race = race
         player.faction = faction
         player.skin = skin
         player.position = initial_position
+        logger.info(f"Player state initialized: {username}")
 
     # Build list of current players (excluding the joining player)
     current_players: list[dict[str, Any]] = []
@@ -363,10 +368,10 @@ async def _handle_join(
                 current_players.append(p.to_public_dict())
 
     # Build NPC list
-    npc_list: list[dict[str, Any]] = []
+    current_npcs: list[dict[str, Any]] = []
     if _world_state is not None:
         for npc in _world_state.npcs.values():
-            npc_list.append(npc.to_dict())
+            current_npcs.append(npc.to_dict())
 
     # Broadcast player_joined to everyone else
     if _world_state is not None:
@@ -379,11 +384,12 @@ async def _handle_join(
             exclude=username,
         )
 
+    logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
     return {
         "type": "join_ok",
         "playerId": username,
         "players": current_players,
-        "npcs": npc_list,
+        "npcs": current_npcs,
     }
 
 
@@ -1220,8 +1226,19 @@ async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> di
 
     from langchain_core.messages import HumanMessage as _HumanMessage
 
+    nearby = data.get("nearbyObjects", [])
+    nearby_str = ""
+    if nearby:
+        nearby_str = "\nNearby objects you can modify or remove:\n" + "\n".join(
+            [
+                f"- {obj['label']} (type: {obj['type']}, id: {obj['id']}) at position {obj['position']}"
+                for obj in nearby
+            ]
+        )
+
     context: dict[str, Any] = {
         "player_position": f"x={float(position[0]):.1f}, z={float(position[2]):.1f}",
+        "nearby_objects": nearby_str,
     }
 
     input_state: _NPCAgentState = {

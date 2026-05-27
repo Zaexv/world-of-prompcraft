@@ -1,0 +1,155 @@
+{
+  "version": "2.1.0",
+  "world": {
+    "environment": {
+      "biome_start": 120,
+      "transition_width": 100,
+      "biomes": {
+        "teldrassil": {
+          "colors": {
+            "low": [26, 42, 31],
+            "mid": [42, 74, 46],
+            "high": [58, 46, 31],
+            "peak": [85, 85, 102]
+          },
+          "height_modifier_amplitude": 0
+        },
+        "ember_wastes": {
+          "colors": {
+            "low": [42, 16, 8],
+            "mid": [74, 32, 16],
+            "high": [58, 42, 26],
+            "peak": [85, 80, 68]
+          },
+          "height_modifier_amplitude": 1.0
+        },
+        "crystal_tundra": {
+          "colors": {
+            "low": [74, 90, 106],
+            "mid": [106, 122, 138],
+            "high": [138, 154, 170],
+            "peak": [192, 208, 224]
+          },
+          "height_modifier_amplitude": 1.0
+        },
+        "twilight_marsh": {
+          "colors": {
+            "low": [10, 26, 10],
+            "mid": [26, 42, 21],
+            "high": [42, 58, 32],
+            "peak": [58, 74, 48]
+          },
+          "height_modifier_amplitude": 1.0
+        },
+        "sunlit_meadows": {
+          "colors": {
+            "low": [58, 74, 26],
+            "mid": [90, 106, 42],
+            "high": [122, 122, 58],
+            "peak": [138, 138, 90]
+          },
+          "height_modifier_amplitude": 1.0
+        }
+      }
+    },
+    "topology": {
+      "features": [
+        {
+          "id": "blasted-suarezlands-mountain",
+          "transform": { "x": -140, "z": -245 },
+          "radii": { "inner": 26, "outer": 74 },
+          "height": 16
+        }
+      ]
+    }
+  },
+  "zones": {
+    "teldrassil_central": {
+      "name": "Teldrassil Core",
+      "bounds": { "min": [-100, -100], "max": [100, 100] },
+      "population": {
+        "npcs": [
+          {
+            "id": "tutorial_01",
+            "identity": { "name": "Tutorial-Man", "role": "guide" },
+            "transform": { "position": [2, 0, 5], "rotation": [0, 0, 0] },
+            "stats": { "max_hp": 1000, "level": 10 },
+            "ai": { "personality_key": "tutorial_01", "wander_radius": 15 }
+          }
+        ]
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "ancient_grove",
+            "type": "ancient_tree_cluster",
+            "transform": { "position": [-40, 0, -60], "scale": 1.2 },
+            "visual": { "label": "Ancient Grove" }
+          }
+        ],
+        "dungeons": {}
+      }
+    },
+    "ember_peaks": {
+      "name": "Ember Peaks",
+      "bounds": { "min": [100, -100], "max": [300, 100] },
+      "population": {
+        "npcs": []
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "mystic_ruins",
+            "type": "ruins",
+            "transform": { "position": [120, 0, -30], "scale": 1.5 },
+            "visual": { "label": "Mystic Ruins" }
+          }
+        ],
+        "dungeons": {
+          "ember_depths": {
+            "name": "Ember Depths",
+            "wallColor": 2759178,
+            "floorColor": 1706501,
+            "ceilingColor": 1706496,
+            "ambientColor": 16729088,
+            "fogColor": 1705984,
+            "fogDensity": 0.015,
+            "enemyCount": 4,
+            "lootItem": "Mechero Ancestral",
+            "enemyNames": ["Ember Guardian", "Fire Wraith", "Magma Sentinel", "Lava Worm"],
+            "enemyColor": 16729088,
+            "roomWidth": 40,
+            "roomDepth": 40
+          }
+        }
+      }
+    },
+    "fort_malaka": {
+      "name": "Fort Malaka Outpost",
+      "bounds": { "min": [-200, -300], "max": [-100, -100] },
+      "population": {
+        "npcs": []
+      },
+      "architecture": {
+        "landmarks": [],
+        "dungeons": {
+          "crystal_caverns": {
+            "name": "Crystal Caverns",
+            "wallColor": 1714746,
+            "floorColor": 662058,
+            "ceilingColor": 660768,
+            "ambientColor": 4491468,
+            "fogColor": 662058,
+            "fogDensity": 0.01,
+            "enemyCount": 3,
+            "lootItem": "Crystal Tear",
+            "enemyNames": ["Crystal Golem", "Frost Shade", "Ice Stalker"],
+            "enemyColor": 4491468,
+            "roomWidth": 35,
+            "roomDepth": 45
+          }
+        }
+      }
+    }
+  }
+}

@@ -397,11 +397,6 @@ function addCrystalCavernsDecorations(
     ice.position.set(pos.x, 0.01, pos.z);
     group.add(ice);
   }
-
-  // Sparkle light at center
-  const sparkleLight = new THREE.PointLight(0x4488cc, 0.8, 15);
-  sparkleLight.position.set(0, 4, 0);
-  group.add(sparkleLight);
 }
 
 // ---------------------------------------------------------------------------

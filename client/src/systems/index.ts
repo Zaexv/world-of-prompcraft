@@ -1,5 +1,3 @@
-export type { Animatable } from './AnimationSystem';
-export { AnimationSystem } from './AnimationSystem';
 export type { PhysicsEntry } from './CollisionSystem';
 export { CollisionSystem } from './CollisionSystem';
 export { DungeonSystem } from './DungeonSystem';

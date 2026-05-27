@@ -6,7 +6,6 @@ import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
-import { Vegetation } from './Vegetation';
 import { Effects } from './Effects';
 
 export class SceneManager {
@@ -14,13 +13,11 @@ export class SceneManager {
   public camera: THREE.PerspectiveCamera;
   public renderer: THREE.WebGLRenderer;
   public terrain: Terrain;
-  public vegetation: Vegetation;
   public lighting!: Lighting;
 
   private clock: THREE.Clock;
   private water: Water;
-  private effects: Effects;
-  private composer: EffectComposer | null = null;
+  private effects: Effects;  private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
@@ -93,9 +90,6 @@ export class SceneManager {
 
     this.terrain = new Terrain(this.scene);
     this.water = new Water(this.scene);
-
-    // Vegetation now only needs terrain (footprints will come from WorldManifest later)
-    this.vegetation = new Vegetation(this.scene, this.terrain, []);
 
     // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);

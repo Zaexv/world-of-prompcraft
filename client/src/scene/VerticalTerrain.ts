@@ -1,42 +1,32 @@
 import type { Terrain } from './Terrain';
+import type { WorldManifest } from '../state/WorldManifest';
 
-export interface VerticalPlace {
-  id: string;
-  centerX: number;
-  centerZ: number;
-  innerRadius: number;
-  outerRadius: number;
-  height: number;
+let worldManifest: WorldManifest | null = null;
+
+export function setWorldManifest(wm: WorldManifest): void {
+  worldManifest = wm;
 }
-
-// Shared authored vertical places. All runtime height queries should use this.
-export const VERTICAL_PLACES: VerticalPlace[] = [
-  {
-    id: 'blasted-suarezlands-mountain',
-    centerX: -140,
-    centerZ: -245,
-    innerRadius: 26,
-    outerRadius: 74,
-    height: 16,
-  },
-];
 
 function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
 export function getVerticalLiftAt(x: number, z: number): number {
+  if (!worldManifest) return 0;
+  
   let lift = 0;
-  for (const place of VERTICAL_PLACES) {
-    const dx = x - place.centerX;
-    const dz = z - place.centerZ;
+  const places = worldManifest.getTerrainFeatures();
+  
+  for (const place of places) {
+    const dx = x - place.transform.x;
+    const dz = z - place.transform.z;
     const dist = Math.sqrt(dx * dx + dz * dz);
-    if (dist >= place.outerRadius) continue;
-    if (dist <= place.innerRadius) {
+    if (dist >= place.radii.outer) continue;
+    if (dist <= place.radii.inner) {
       lift = Math.max(lift, place.height);
       continue;
     }
-    const t = (dist - place.innerRadius) / (place.outerRadius - place.innerRadius);
+    const t = (dist - place.radii.inner) / (place.radii.outer - place.radii.inner);
     const localLift = place.height * (1 - smoothstep(Math.min(1, Math.max(0, t))));
     lift = Math.max(lift, localLift);
   }

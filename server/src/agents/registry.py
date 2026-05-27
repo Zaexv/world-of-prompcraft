@@ -87,6 +87,51 @@ class AgentRegistry:
         }
         logger.info("Dynamically registered agent for NPC %s (%s)", npc_id, npc_data.name)
 
+    def refresh_agents(self) -> None:
+        """Synchronize AI agents with the current world state population."""
+        # 1. Remove agents for NPCs no longer in world state
+        current_ids = set(self._agents.keys())
+        manifest_ids = set(self._world_state.npcs.keys())
+        for npc_id in current_ids - manifest_ids:
+            logger.info("Removing agent for NPC %s", npc_id)
+            del self._agents[npc_id]
+            del self._shared_state[npc_id]
+
+        # 2. Add agents for new NPCs
+        for npc_id, npc_data in self._world_state.npcs.items():
+            if npc_id in self._agents:
+                # Update existing (if personality changed)
+                self._shared_state[npc_id]["personality"] = npc_data.personality
+                continue
+
+            npc_config = {
+                "name": npc_data.name,
+                "personality": npc_data.personality,
+            }
+
+            pending_actions: list[Any] = []
+            world_snapshot: dict[str, Any] = {}
+
+            tools = get_all_tools(
+                pending_actions=pending_actions,
+                world_state=world_snapshot,
+            )
+
+            agent = create_npc_agent(
+                npc_id=npc_id,
+                npc_config=npc_config,
+                llm=self._llm,
+                tools=tools,
+                shared_pending_actions=pending_actions,
+                world_state=self._world_state,
+            )
+            self._agents[npc_id] = agent
+            self._shared_state[npc_id] = {
+                "pending_actions": pending_actions,
+                "world_snapshot": world_snapshot,
+            }
+            logger.info("Registered agent for NPC %s (%s)", npc_id, npc_data.name)
+
     def _populate_world_snapshot(self, npc_id: str, player_id: str) -> None:
         """Fill the tool-closure world_snapshot dict with current data."""
         snapshot = self._shared_state[npc_id]["world_snapshot"]

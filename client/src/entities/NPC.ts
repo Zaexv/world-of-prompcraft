@@ -33,6 +33,7 @@ export class NPC {
 
   public homePosition: THREE.Vector3;
   public wanderRadius = 8;
+  public isGrounded = false;
 
   private readonly motionProfile: NPCMotionProfile;
   private readonly placeholderStyle: NPCPlaceholderStyle;
@@ -77,6 +78,15 @@ export class NPC {
     this.mesh.position.copy(this.position);
     this.animator = new NPCAnimator(this.mesh, this.motionProfile);
     this.wander = new NPCWander(this.mesh, this.position, this.motionProfile, this.animator, this.id);
+  }
+
+  /** Force immediate ground snapping. Useful during initialization. */
+  snapToGround(getHeightAt: (x: number, z: number) => number): void {
+    const y = getHeightAt(this.position.x, this.position.z);
+    this.mesh.position.y = y;
+    this.position.y = y;
+    this.homePosition.y = y;
+    this.animator.setBaseY(y);
   }
 
   static create(config: NPCConfig, assetLoader?: AssetLoader): NPC {

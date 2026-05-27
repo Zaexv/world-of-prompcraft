@@ -90,3 +90,5 @@ The world is extended via two primary channels:
 - **[DONE] BVH Shapecast Fix:** Implemented the actual `three-mesh-bvh` logic in `BVH.ts` (replaced the placeholder) so that mesh collisions function correctly.
 - **[DONE] Tabula Rasa Purge:** Cleared procedural spawning logic from `Vegetation.ts` and removed hardcoded `NPC_CONFIGS` from `GameBootstrapper.ts` to enforce a clean 0-state world.
 - **[DONE] Character Floating Fix:** Corrected `StepDetector` to only trigger if the path is blocked, and fixed `GroundSnap` distance calculations to subtract the capsule radius, preventing the physics solver loop from pushing the player into the air.
+- **[DONE] Exact Math Update:** Replaced the jittery, approximation-based intersection loop with the exact `triangleCapsuleIntersect` and `lineToLineClosestPoints` mathematical formulas ported directly from Three.js `Octree.js`. Corrected capsule radius scaling to respect the local transform matrices of WorldBuilder objects.
+- **[DONE] Test Structures:** Hardcoded a pavilion, a tower, and ruins directly in front of the player's spawn point so you can walk around and test the exact mesh collision logic.

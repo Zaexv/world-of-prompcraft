@@ -110,6 +110,12 @@ export class EntityManager {
   /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
   update(delta: number, getHeightAt?: (x: number, z: number) => number, collisionSystem?: CollisionSystem): void {
     for (const npc of this.npcs.values()) {
+      // Robust snapping check: ensure NPCs aren't flying/buried
+      if (getHeightAt && !npc.isGrounded) {
+        npc.snapToGround(getHeightAt);
+        npc.isGrounded = true;
+      }
+
       const dx = npc.position.x - this.playerX;
       const dz = npc.position.z - this.playerZ;
       const distSq = dx * dx + dz * dz;
