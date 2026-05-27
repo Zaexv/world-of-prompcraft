@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import * as structures from './structures';
+import * as mediterranean from './mediterranean';
 import * as vegetation from './vegetation';
 import * as furniture from './furniture';
 
@@ -11,6 +12,7 @@ export type ObjectType =
 
 export function buildObject(type: string, pos: THREE.Vector3, scale: number, label?: string): THREE.Group {
   switch (type) {
+    // Basic Structures
     case 'moonwell': return structures.buildMoonwell(pos, scale);
     case 'tower': return structures.buildTower(pos, scale);
     case 'ruins': return structures.buildRuins(pos, scale);
@@ -19,11 +21,13 @@ export function buildObject(type: string, pos: THREE.Vector3, scale: number, lab
     case 'wooden_fence': return structures.buildWoodenFence(pos, scale);
     case 'pavilion': return structures.buildPavilion(pos, scale);
     case 'portal_arch': return structures.buildPortalArch(pos, scale);
-    case 'malaka_house': return structures.buildMalakaHouse(pos, scale);
-    case 'malaka_church': return structures.buildMalakaChurch(pos, scale);
-    case 'malaka_castle': return structures.buildMalakaCastle(pos, scale);
-    case 'roman_amphitheatre': return structures.buildRomanAmphitheatre(pos, scale);
     case 'road': return structures.buildRoad(pos, scale);
+
+    // Mediterranean City
+    case 'malaka_house': return mediterranean.buildMalakaHouse(pos, scale);
+    case 'malaka_church': return mediterranean.buildMalakaChurch(pos, scale);
+    case 'malaka_castle': return mediterranean.buildMalakaCastle(pos, scale);
+    case 'roman_amphitheatre': return mediterranean.buildRomanAmphitheatre(pos, scale);
     
     case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);
     case 'ancient_tree': 
