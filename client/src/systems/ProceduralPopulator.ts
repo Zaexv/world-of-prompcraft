@@ -258,9 +258,9 @@ export class ProceduralPopulator {
         if (this.scene) {
           group.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(group);
-          // Collision intentionally skipped for procedural content:
-          // computeBoundsTree() on each mesh is the #1 source of frame spikes.
-          // Handcrafted WorldBuilder objects keep full collision.
+          // addCollidableFiltered is now instant — BVH trees are built lazily
+          // by CollisionSystem.update() at max 2/frame (no burst spikes).
+          void this.collisionSystem?.addCollidableFiltered(group);
           objs.push(group);
         }
 
@@ -305,6 +305,7 @@ export class ProceduralPopulator {
       if (building && this.scene) {
         building.rotation.y = rng.nextRange(0, Math.PI * 2);
         this.scene.add(building);
+        void this.collisionSystem?.addCollidableFiltered(building);
         objs.push(building);
       }
     }

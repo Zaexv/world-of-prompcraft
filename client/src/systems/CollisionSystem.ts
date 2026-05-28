@@ -75,7 +75,6 @@ export class CollisionSystem {
 
       const body = this.createCollisionBody(child, true);
       if (body) {
-        console.info(`CollisionSystem: Registering static body for ${child.name || 'unnamed mesh'} type=${body.type}`);
         await this.bvhManager.addBody(body);
         this.statics.push({ obj: child, body });
       }
@@ -201,7 +200,8 @@ export class CollisionSystem {
   }
 
   update(): void {
-    // Dynamic body sync would go here
+    // Drain max 2 BVH builds per frame — prevents burst spikes when chunks load.
+    this.bvhManager.drainBvhQueue(2);
     this.debug?.update();
   }
 }
