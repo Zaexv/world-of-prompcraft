@@ -67,7 +67,7 @@ export class InventoryPanel extends UIComponent {
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
     } as CSSStyleDeclaration);
-    title.textContent = "Inventory";
+    title.textContent = "Inventory [I]";
     header.appendChild(title);
 
     const closeBtn = document.createElement("button");
@@ -216,13 +216,14 @@ export class InventoryPanel extends UIComponent {
 
     const label = document.createElement("span");
     Object.assign(label.style, {
-      fontSize: "10px",
+      fontSize: "11px",
       color: "#e8dcc8",
       textAlign: "center",
       padding: "2px 4px",
-      lineHeight: "1.2",
+      lineHeight: "1.25",
       wordBreak: "break-word",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+      letterSpacing: "0.02em",
     } as CSSStyleDeclaration);
     label.textContent = itemName;
     slot.appendChild(label);
