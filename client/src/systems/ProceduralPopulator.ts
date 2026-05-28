@@ -1,19 +1,18 @@
 /**
- * ProceduralPopulator — deterministic per-chunk world population.
+ * ProceduralPopulator — deferred, proximity-gated world population.
  *
- * Every chunk gets a seeded PRNG so spawns are consistent across sessions
- * (same chunk coords → same content, always). Biome is sampled at the chunk
- * centre; the dominant biome drives the content theme.
+ * WHY DEFERRED:
+ *   WorldGenerator.onChunkLoaded() fires for all 121 chunks during startup
+ *   preload.  Spawning geometry synchronously in that callback creates thousands
+ *   of Three.js objects in one frame → guaranteed lag spike.
  *
- * Content per chunk (1-in-N chance gates):
- *  • 1-in-4  → a biome building / structure
- *  • 1-in-3  → a monster NPC encounter group
- *  • 1-in-2  → 2-6 ambient props (rocks, crystals, stumps, etc.)
+ *   Instead we enqueue every chunk and drain 1-2 entries per frame in update(),
+ *   but ONLY when the chunk is within SPAWN_RADIUS of the player.  Chunks that
+ *   are preloaded but out of range sit in the queue until the player walks close.
  *
- * Monsters are spawned as client-side NPC entities and are NOT server-
- * authoritative — they are decorative wanderers driven by the existing
- * NPCWander system.  If you want them to respond to player interaction,
- * add them to world_manifest.json (the server picks those up).
+ * DETERMINISM:
+ *   All RNG is seeded by (chunkX, chunkZ) so the world is identical across
+ *   sessions and page reloads.
  */
 
 import * as THREE from 'three';
@@ -22,189 +21,244 @@ import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
 import { buildBiomeBuilding, buildBiomeProp } from './worldbuilder/objects/biomeProps';
+import { getBiomeEntry } from './BiomeRegistry';
 
-// ── Seeded PRNG (xorshift32) ──────────────────────────────────────────────────
-
-function hash(cx: number, cz: number, salt: number): number {
-  let s = (cx * 73856093) ^ (cz * 19349663) ^ salt;
-  s |= 0;
-  s ^= s << 13; s ^= s >> 17; s ^= s << 5;
-  return ((s >>> 0) / 0xffffffff);
-}
+// ── Seeded PRNG ───────────────────────────────────────────────────────────────
 
 class SeededRng {
   private s: number;
   constructor(cx: number, cz: number, salt = 0) {
-    this.s = (cx * 73856093) ^ (cz * 19349663) ^ salt;
+    this.s = ((cx * 73856093) ^ (cz * 19349663) ^ salt) | 0;
     if (this.s === 0) this.s = 1;
+    // Warm up the state
+    for (let i = 0; i < 4; i++) this._step();
   }
-  next(): number {
+  private _step(): void {
     this.s ^= this.s << 13;
     this.s ^= this.s >> 17;
     this.s ^= this.s << 5;
-    return ((this.s >>> 0) / 0xffffffff);
   }
+  next(): number { this._step(); return (this.s >>> 0) / 0xffffffff; }
   nextInt(n: number): number { return Math.floor(this.next() * n); }
   nextRange(lo: number, hi: number): number { return lo + this.next() * (hi - lo); }
   chance(p: number): boolean { return this.next() < p; }
-  pick<T>(arr: T[]): T { return arr[this.nextInt(arr.length)]!; }
+  pick<T>(arr: readonly T[]): T { return arr[this.nextInt(arr.length)]!; }
 }
 
-// ── Spawn result ──────────────────────────────────────────────────────────────
+// ── Monster catalogue ─────────────────────────────────────────────────────────
 
-export interface SpawnedChunkContent {
-  objects: THREE.Object3D[];
+interface MonsterDef { id: string; name: string; hp: number; maxHp: number; scale: number; }
+
+function mon(id: string, name: string, hp: number, scale: number): MonsterDef {
+  return { id, name, hp, maxHp: hp, scale };
 }
 
-// ── Monster catalogue (visual NPC spawns, no server agent) ───────────────────
-
-interface MonsterDef {
-  id: string;
-  name: string;
-  hp: number;
-  hostile: boolean;
-  scale: number;
-}
-
-const BIOME_MONSTERS: Record<number, MonsterDef[]> = {
+const BIOME_MONSTERS: Partial<Record<BiomeType, MonsterDef[]>> = {
   [BiomeType.Teldrassil]: [
-    { id: 'wraith',        name: 'Forest Wraith',    hp: 60,  hostile: true,  scale: 1.1 },
-    { id: 'spider',        name: 'Moon Spider',      hp: 45,  hostile: true,  scale: 0.85 },
-    { id: 'corrupted_elf', name: 'Corrupted Sentinel', hp: 80, hostile: true, scale: 1.0 },
+    mon('wraith',   'Forest Wraith',     60, 1.1),
+    mon('spider',   'Moon Spider',       45, 0.85),
+    mon('sentinel', 'Corrupted Sentinel',80, 1.0),
   ],
   [BiomeType.EmberWastes]: [
-    { id: 'lava_hound',   name: 'Lava Hound',       hp: 70,  hostile: true,  scale: 1.0 },
-    { id: 'obsidian_golem',name:'Obsidian Golem',    hp: 140, hostile: true,  scale: 1.6 },
-    { id: 'fire_sprite',  name: 'Fire Sprite',       hp: 40,  hostile: true,  scale: 0.75 },
+    mon('lava_hound',    'Lava Hound',       70,  1.0),
+    mon('obs_golem',     'Obsidian Golem',   140, 1.6),
+    mon('fire_sprite',   'Fire Sprite',      40,  0.75),
   ],
   [BiomeType.CrystalTundra]: [
-    { id: 'frost_wraith', name: 'Frost Wraith',      hp: 65,  hostile: true,  scale: 1.15 },
-    { id: 'glacial_golem',name: 'Glacial Golem',     hp: 160, hostile: true,  scale: 1.7 },
-    { id: 'ice_wolf',     name: 'Ice Wolf',           hp: 55,  hostile: true,  scale: 0.9 },
+    mon('frost_wraith',  'Frost Wraith',     65,  1.15),
+    mon('glacial_golem', 'Glacial Golem',    160, 1.7),
+    mon('ice_wolf',      'Ice Wolf',         55,  0.9),
   ],
   [BiomeType.TwilightMarsh]: [
-    { id: 'bog_lurker',   name: 'Bog Lurker',        hp: 75,  hostile: true,  scale: 1.2 },
-    { id: 'shadow_serpent',name:'Shadow Serpent',     hp: 50,  hostile: true,  scale: 0.8 },
-    { id: 'swamp_troll',  name: 'Swamp Troll',       hp: 120, hostile: true,  scale: 1.4 },
+    mon('bog_lurker',    'Bog Lurker',       75,  1.2),
+    mon('shadow_snake',  'Shadow Serpent',   50,  0.8),
+    mon('swamp_troll',   'Swamp Troll',      120, 1.4),
   ],
   [BiomeType.SunlitMeadows]: [
-    { id: 'stone_boar',   name: 'Stone Boar',        hp: 60,  hostile: true,  scale: 0.95 },
-    { id: 'sunstone_golem',name:'Sunstone Golem',     hp: 130, hostile: true,  scale: 1.5 },
-    { id: 'giant_wasp',   name: 'Giant Wasp',        hp: 45,  hostile: true,  scale: 0.8 },
+    mon('stone_boar',    'Stone Boar',       60,  0.95),
+    mon('sunstone_golem','Sunstone Golem',   130, 1.5),
+    mon('giant_wasp',    'Giant Wasp',       45,  0.8),
   ],
   [BiomeType.Desert]: [
-    { id: 'sand_wraith',  name: 'Sand Wraith',       hp: 55,  hostile: true,  scale: 1.05 },
-    { id: 'dune_crawler', name: 'Dune Crawler',      hp: 80,  hostile: true,  scale: 1.1 },
-    { id: 'desert_golem', name: 'Desert Golem',      hp: 110, hostile: true,  scale: 1.4 },
+    mon('sand_wraith',   'Sand Wraith',      55,  1.05),
+    mon('dune_crawler',  'Dune Crawler',     80,  1.1),
+    mon('desert_golem',  'Desert Golem',     110, 1.4),
   ],
 };
 
-// ── Main populator ────────────────────────────────────────────────────────────
+// ── Queue entry ───────────────────────────────────────────────────────────────
+
+interface PendingChunk {
+  chunkX: number; chunkZ: number;
+  worldX: number; worldZ: number;
+  /** Centre of the chunk in world space — used for distance sorting. */
+  cx: number; cz: number;
+}
+
+// ── Main class ────────────────────────────────────────────────────────────────
 
 export class ProceduralPopulator {
   private terrain: Terrain;
+  private scene: THREE.Scene | null = null;
   private collisionSystem: CollisionSystem | null = null;
   private entityManager: EntityManager | null = null;
 
-  // Unique counter so each procedural NPC gets a distinct id
   private npcCounter = 0;
 
-  constructor(terrain: Terrain) {
-    this.terrain = terrain;
-  }
+  /** Chunks waiting to be populated. */
+  private queue: PendingChunk[] = [];
+  /** Chunks already populated (de-dup guard). */
+  private populated = new Set<string>();
 
+  /**
+   * Only populate chunks whose centre is within this many world-units of
+   * the player.  3 chunks × 64 wu/chunk = 192 wu.
+   */
+  private readonly SPAWN_RADIUS = 200;
+  /** Max chunks to process per frame. Keep at 1 to avoid frame spikes. */
+  private readonly CHUNKS_PER_FRAME = 1;
+
+  // Reusable sort scratch
+  private _sortPlayerX = 0;
+  private _sortPlayerZ = 0;
+
+  constructor(terrain: Terrain) { this.terrain = terrain; }
+
+  setScene(scene: THREE.Scene): void { this.scene = scene; }
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
   setEntityManager(em: EntityManager): void { this.entityManager = em; }
 
+  /** Called by WorldGenerator.onChunkLoaded — zero work done here. */
+  queueChunk(chunkX: number, chunkZ: number, worldX: number, worldZ: number): void {
+    const key = `${chunkX},${chunkZ}`;
+    if (this.populated.has(key)) return;
+
+    const cx = worldX + 32; // chunk centre (CHUNK_SIZE = 64)
+    const cz = worldZ + 32;
+
+    // Skip within 60 wu of origin (hand-authored starting area)
+    if (cx * cx + cz * cz < 60 * 60) return;
+
+    this.queue.push({ chunkX, chunkZ, worldX, worldZ, cx, cz });
+  }
+
+  /** Remove tracking for a chunk so it can be re-populated if it reloads. */
+  releaseChunk(chunkX: number, chunkZ: number): void {
+    this.populated.delete(`${chunkX},${chunkZ}`);
+  }
+
   /**
-   * Generate all content for a chunk.  Returns the spawned Three.js objects
-   * so the caller can track them for later cleanup.
+   * Call once per frame from the game loop.
+   * Processes the closest queued chunk that is within SPAWN_RADIUS.
    */
-  populateChunk(
-    scene: THREE.Scene,
-    chunkX: number,
-    chunkZ: number,
-    worldX: number,
-    worldZ: number,
-    chunkSize: number,
-  ): THREE.Object3D[] {
-    const cx = worldX + chunkSize / 2;
-    const cz = worldZ + chunkSize / 2;
-    const biome = getDominantBiome(cx, cz);
+  update(playerX: number, playerZ: number): void {
+    if (this.queue.length === 0 || !this.scene) return;
 
-    // Skip tiny chunks and the very centre (where hand-authored content lives)
+    const r2 = this.SPAWN_RADIUS * this.SPAWN_RADIUS;
+
+    // Sort cheaply: bring the closest item to front
+    this._sortPlayerX = playerX;
+    this._sortPlayerZ = playerZ;
+    this.queue.sort(this._distSort);
+
+    let processed = 0;
+    while (processed < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
+      const next = this.queue[0]!;
+      const dx = next.cx - playerX, dz = next.cz - playerZ;
+      if (dx * dx + dz * dz > r2) break; // closest is still too far
+
+      this.queue.shift();
+      const key = `${next.chunkX},${next.chunkZ}`;
+      if (!this.populated.has(key)) {
+        this.populated.add(key);
+        this._populateNow(next);
+        processed++;
+      }
+    }
+  }
+
+  // ── Private ──────────────────────────────────────────────────────────────────
+
+  private readonly _distSort = (a: PendingChunk, b: PendingChunk): number => {
+    const px = this._sortPlayerX, pz = this._sortPlayerZ;
+    const da = (a.cx - px) ** 2 + (a.cz - pz) ** 2;
+    const db = (b.cx - px) ** 2 + (b.cz - pz) ** 2;
+    return da - db;
+  };
+
+  private _populateNow(chunk: PendingChunk): void {
+    const { worldX, worldZ, chunkX, chunkZ, cx, cz } = chunk;
+    const chunkSize = 64;
     const distFromOrigin = Math.sqrt(cx * cx + cz * cz);
-    if (distFromOrigin < 60) return [];
-
+    const biome = getDominantBiome(cx, cz);
     const rng = new SeededRng(chunkX, chunkZ, 0xdeadbeef);
-    const spawned: THREE.Object3D[] = [];
 
-    // ── Building (1-in-4 chunks) ──────────────────────────────────────────
+    // Check if this biome has a registry entry (extensible path)
+    const registryEntry = getBiomeEntry(biome);
+
+    // ── Building (1-in-4 chunks) ───────────────────────────────────────
     if (rng.chance(0.25)) {
       const bx = worldX + rng.nextRange(8, chunkSize - 8);
       const bz = worldZ + rng.nextRange(8, chunkSize - 8);
       const by = this.terrain.getHeightAt(bx, bz);
       const pos = new THREE.Vector3(bx, by, bz);
-      const rot = rng.nextRange(0, Math.PI * 2);
 
-      const building = buildBiomeBuilding(biome, pos, rng, distFromOrigin);
-      if (building) {
-        building.rotation.y = rot;
-        scene.add(building);
-        if (this.collisionSystem) {
-          void this.collisionSystem.addCollidableFiltered(building);
-        }
-        spawned.push(building);
+      // Registry entry takes priority; fall back to built-in biomeProps
+      const building = registryEntry
+        ? registryEntry.buildingFn(pos, rng, distFromOrigin)
+        : buildBiomeBuilding(biome, pos, rng, distFromOrigin);
+
+      if (building && this.scene) {
+        building.rotation.y = rng.nextRange(0, Math.PI * 2);
+        this.scene.add(building);
+        if (this.collisionSystem) void this.collisionSystem.addCollidableFiltered(building);
       }
     }
 
-    // ── Monster encounter (1-in-3 chunks, gets denser far from origin) ───
-    const monsterChance = Math.min(0.45, 0.12 + distFromOrigin * 0.0006);
+    // ── Monsters (density scales with distance) ────────────────────────
+    const monsterChance = Math.min(0.40, 0.08 + distFromOrigin * 0.0005);
     if (rng.chance(monsterChance) && this.entityManager) {
-      const mDefs = BIOME_MONSTERS[biome] ?? BIOME_MONSTERS[BiomeType.Teldrassil]!;
-      const count = rng.nextInt(2) + 1; // 1-2 monsters per encounter
+      // Registry entry monsters > inline catalogue
+      const defs = registryEntry?.monsters
+        ?? BIOME_MONSTERS[biome]
+        ?? BIOME_MONSTERS[BiomeType.Teldrassil]!;
+      const count = rng.nextInt(2) + 1;
       for (let i = 0; i < count; i++) {
         const mx = worldX + rng.nextRange(6, chunkSize - 6);
         const mz = worldZ + rng.nextRange(6, chunkSize - 6);
         const my = this.terrain.getHeightAt(mx, mz);
-        const def = rng.pick(mDefs);
+        const def = rng.pick(defs);
         const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
-
         this.entityManager.addNPC({
-          id: npcId,
-          name: def.name,
+          id: npcId, name: def.name,
           position: new THREE.Vector3(mx, my, mz),
-          hp: def.hp,
-          maxHp: def.hp,
-          personality: `Hostile creature in the wild. Attack on sight.`,
+          hp: def.maxHp ?? (def as { hp?: number }).hp ?? 60,
+          maxHp: def.maxHp ?? (def as { hp?: number }).hp ?? 60,
+          personality: `Hostile creature — attack on sight.`,
           scale: def.scale,
         });
       }
     }
 
-    // ── Ambient props (1-in-2 chunks) ────────────────────────────────────
+    // ── Ambient props (1-in-2 chunks) ──────────────────────────────────
     if (rng.chance(0.50)) {
-      const propCount = rng.nextInt(4) + 2; // 2-5 props
+      const propCount = rng.nextInt(3) + 2; // 2–4 props
       for (let i = 0; i < propCount; i++) {
         const px = worldX + rng.nextRange(3, chunkSize - 3);
         const pz = worldZ + rng.nextRange(3, chunkSize - 3);
         const py = this.terrain.getHeightAt(px, pz);
         const pos = new THREE.Vector3(px, py, pz);
-        const rot = rng.nextRange(0, Math.PI * 2);
-        const scale = rng.nextRange(0.7, 1.4);
+        const scale = rng.nextRange(0.75, 1.3);
 
-        const prop = buildBiomeProp(biome, pos, scale, rng);
-        if (prop) {
-          prop.rotation.y = rot;
-          scene.add(prop);
-          spawned.push(prop);
+        const prop = registryEntry
+          ? registryEntry.propFn(pos, scale, rng)
+          : buildBiomeProp(biome, pos, scale, rng);
+
+        if (prop && this.scene) {
+          prop.rotation.y = rng.nextRange(0, Math.PI * 2);
+          this.scene.add(prop);
         }
       }
     }
-
-    return spawned;
   }
 }
-
-/** Simple deterministic hash helper (exported for tests). */
-export { hash as chunkHash };

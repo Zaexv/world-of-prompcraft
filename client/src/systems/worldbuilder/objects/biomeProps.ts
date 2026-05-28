@@ -1,571 +1,572 @@
 /**
- * Biome-specific procedural props and buildings for the ProceduralPopulator.
+ * Biome-specific procedural props and buildings.
  *
- * All solid meshes carry userData.isCollider = true.
- * All purely visual meshes carry userData.noCollision = true.
+ * Design principles:
+ *  • flatShading: true on every material — stylized, readable silhouettes
+ *  • Max 8–10 mesh pieces per structure to keep draw-calls low
+ *  • Strong silhouettes: tall spires, interesting rooflines, clear forms
+ *  • isCollider:true on solid parts, noCollision:true on decorative/emissive parts
  */
 
 import * as THREE from 'three';
 import { BiomeType } from '../../../scene/Biomes';
 
-// ── Shared material helpers ──────────────────────────────────────────────────
+// ── Material cache ────────────────────────────────────────────────────────────
 
-const MAT_CACHE = new Map<string, THREE.MeshStandardMaterial>();
-function mat(hex: number, rough = 0.8, metal = 0, emHex?: number, emInt?: number): THREE.MeshStandardMaterial {
-  const key = `${hex}_${rough}_${metal}_${emHex}_${emInt}`;
-  let m = MAT_CACHE.get(key);
-  if (!m) {
-    m = new THREE.MeshStandardMaterial({ color: hex, roughness: rough, metalness: metal });
-    if (emHex !== undefined) { m.emissive = new THREE.Color(emHex); m.emissiveIntensity = emInt ?? 1; }
-    MAT_CACHE.set(key, m);
+const _cache = new Map<string, THREE.MeshStandardMaterial>();
+function m(
+  hex: number,
+  rough = 0.82,
+  metal = 0,
+  emHex?: number,
+  emInt?: number,
+): THREE.MeshStandardMaterial {
+  const key = `${hex}|${rough}|${metal}|${emHex ?? ''}|${emInt ?? ''}`;
+  let mat = _cache.get(key);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({
+      color: hex, roughness: rough, metalness: metal, flatShading: true,
+    });
+    if (emHex !== undefined) {
+      mat.emissive = new THREE.Color(emHex);
+      mat.emissiveIntensity = emInt ?? 1;
+    }
+    _cache.set(key, mat);
   }
-  return m;
+  return mat;
 }
 
-function addMesh(parent: THREE.Group, geo: THREE.BufferGeometry, material: THREE.MeshStandardMaterial,
-  x = 0, y = 0, z = 0, rx = 0, ry = 0, rz = 0, solid = true): THREE.Mesh {
-  const m = new THREE.Mesh(geo, material);
-  m.position.set(x, y, z);
-  m.rotation.set(rx, ry, rz);
-  m.castShadow = true;
-  m.receiveShadow = true;
-  m.userData.isCollider = solid;
-  if (!solid) m.userData.noCollision = true;
-  parent.add(m);
-  return m;
+// ── Mesh helpers ──────────────────────────────────────────────────────────────
+
+type Geo = THREE.BufferGeometry;
+
+function solid(
+  g: THREE.Group,
+  geo: Geo,
+  mat: THREE.MeshStandardMaterial,
+  x = 0, y = 0, z = 0,
+  rx = 0, ry = 0, rz = 0,
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.rotation.set(rx, ry, rz);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.userData.isCollider = true;
+  g.add(mesh);
+  return mesh;
 }
 
-/** A PRNG duck-type that only needs next() returning [0,1). */
-interface Rng { next(): number; nextRange(lo: number, hi: number): number; nextInt(n: number): number; }
+function deco(
+  g: THREE.Group,
+  geo: Geo,
+  mat: THREE.MeshStandardMaterial,
+  x = 0, y = 0, z = 0,
+  rx = 0, ry = 0, rz = 0,
+): THREE.Mesh {
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x, y, z);
+  mesh.rotation.set(rx, ry, rz);
+  mesh.userData.noCollision = true;
+  g.add(mesh);
+  return mesh;
+}
+
+interface Rng {
+  next(): number;
+  nextInt(n: number): number;
+  nextRange(lo: number, hi: number): number;
+  chance(p: number): boolean;
+  pick<T>(arr: readonly T[]): T;
+}
 
 // ════════════════════════════════════════════════════════════════════════════
-//  BUILDINGS
+//  BUILDINGS — one per biome, 3 variants each
 // ════════════════════════════════════════════════════════════════════════════
 
 export function buildBiomeBuilding(
   biome: BiomeType,
   pos: THREE.Vector3,
   rng: Rng,
-  distFromOrigin: number,
+  dist: number,
 ): THREE.Group | null {
   switch (biome) {
-    case BiomeType.Teldrassil:  return buildTeldrassilStructure(pos, rng);
-    case BiomeType.EmberWastes: return buildEmberStructure(pos, rng, distFromOrigin);
-    case BiomeType.CrystalTundra: return buildTundraStructure(pos, rng);
-    case BiomeType.TwilightMarsh: return buildMarshStructure(pos, rng);
-    case BiomeType.SunlitMeadows: return buildMeadowStructure(pos, rng);
-    case BiomeType.Desert:      return buildDesertStructure(pos, rng);
+    case BiomeType.Teldrassil:   return _teldrassil(pos, rng);
+    case BiomeType.EmberWastes:  return _ember(pos, rng, dist);
+    case BiomeType.CrystalTundra:return _tundra(pos, rng);
+    case BiomeType.TwilightMarsh:return _marsh(pos, rng);
+    case BiomeType.SunlitMeadows:return _meadow(pos, rng);
+    case BiomeType.Desert:       return _desert(pos, rng);
     default: return null;
   }
 }
 
-// ── Teldrassil: Elven Ruins & Moon Shrines ───────────────────────────────────
+// ── Teldrassil ────────────────────────────────────────────────────────────────
 
-function buildTeldrassilStructure(pos: THREE.Vector3, rng: Rng): THREE.Group {
-  const pick = Math.floor(rng.next() * 3);
-  switch (pick) {
-    case 0: return buildElvenShrine(pos);
-    case 1: return buildMossyRuins(pos);
-    default: return buildAncientPillarCircle(pos);
-  }
+function _teldrassil(pos: THREE.Vector3, rng: Rng): THREE.Group {
+  return [_elvenTower, _moonShrine, _ruinedOutpost][rng.nextInt(3)]!(pos);
 }
 
-function buildElvenShrine(pos: THREE.Vector3): THREE.Group {
+function _elvenTower(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const stone = mat(0x8899aa, 0.75);
-  const glowMat = mat(0x99aaff, 0.2, 0, 0x5566ff, 1.4);
-  // Base
-  addMesh(g, new THREE.CylinderGeometry(1.8, 2.2, 0.4, 8), stone, 0, 0.2);
-  addMesh(g, new THREE.CylinderGeometry(0.9, 1.0, 0.25, 8), stone, 0, 0.6);
-  // Central obelisk
-  addMesh(g, new THREE.CylinderGeometry(0.18, 0.22, 3.5, 6), stone, 0, 2.15);
-  // Top crystal
-  addMesh(g, new THREE.OctahedronGeometry(0.4), glowMat, 0, 4.1, 0, 0, 0, 0, false);
-  // Ring of small pillars
-  for (let i = 0; i < 6; i++) {
-    const a = (i / 6) * Math.PI * 2;
-    const px = Math.cos(a) * 1.4, pz = Math.sin(a) * 1.4;
-    addMesh(g, new THREE.CylinderGeometry(0.08, 0.10, 1.2, 6), stone, px, 0.8, pz);
-  }
-  return g;
-}
-
-function buildMossyRuins(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const stone = mat(0x667755, 0.9);
-  // Partial wall sections
-  addMesh(g, new THREE.BoxGeometry(3, 2.5, 0.5), stone, 0, 1.25, -1.2);
-  addMesh(g, new THREE.BoxGeometry(0.5, 1.8, 2.5), stone, 1.25, 0.9, 0);
-  addMesh(g, new THREE.BoxGeometry(1.2, 1.0, 0.5), stone, -0.9, 0.5, 1.5);
-  // Fallen column
-  addMesh(g, new THREE.CylinderGeometry(0.3, 0.35, 2.5, 8), stone, -0.6, 0.3, 0.5, 0, 0, Math.PI / 2.2);
-  // Floor stones
-  for (let i = 0; i < 5; i++) {
-    const fx = (i % 3 - 1) * 0.8, fz = Math.floor(i / 3) * 0.8 - 0.4;
-    addMesh(g, new THREE.BoxGeometry(0.7, 0.12, 0.65), stone, fx, 0.06, fz);
-  }
-  return g;
-}
-
-function buildAncientPillarCircle(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const stone = mat(0x7788aa, 0.8);
-  const glow = mat(0x2244ff, 0.15, 0, 0x1133cc, 0.8);
-  // Floor circle
-  addMesh(g, new THREE.CylinderGeometry(3, 3.2, 0.18, 12), stone, 0, 0.09);
-  // 8 standing pillars, some broken
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const px = Math.cos(a) * 2.5, pz = Math.sin(a) * 2.5;
-    const h = i % 3 === 0 ? 1.2 : 2.8; // some broken
-    addMesh(g, new THREE.CylinderGeometry(0.22, 0.25, h, 6), stone, px, h / 2, pz);
-  }
-  // Central glowing rune stone
-  addMesh(g, new THREE.OctahedronGeometry(0.5), glow, 0, 0.5, 0, 0, 0, 0, false);
-  return g;
-}
-
-// ── Ember Wastes: Volcanic Forges & Obsidian Towers ──────────────────────────
-
-function buildEmberStructure(pos: THREE.Vector3, rng: Rng, dist: number): THREE.Group {
-  const pick = dist > 300 ? 2 : Math.floor(rng.next() * 3);
-  switch (pick) {
-    case 0: return buildAbandonedForge(pos);
-    case 1: return buildLavaShrine(pos);
-    default: return buildObsidianWatchtower(pos);
-  }
-}
-
-function buildAbandonedForge(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const obsidian = mat(0x1a1a2a, 0.3, 0.6);
-  const iron = mat(0x444455, 0.5, 0.8);
-  const lava = mat(0xff4400, 0.1, 0, 0xff2200, 2.2);
-  // Building walls
-  addMesh(g, new THREE.BoxGeometry(4, 0.3, 3.5), obsidian, 0, 0.15);
-  addMesh(g, new THREE.BoxGeometry(0.35, 3, 3.5), obsidian, -1.8, 1.5);
-  addMesh(g, new THREE.BoxGeometry(0.35, 3, 3.5), obsidian,  1.8, 1.5);
-  addMesh(g, new THREE.BoxGeometry(4, 3, 0.35), obsidian, 0, 1.5, -1.6);
-  // Chimney
-  addMesh(g, new THREE.CylinderGeometry(0.35, 0.4, 3, 8), iron, 1.2, 1.5, -1.2);
-  // Lava pool inside
-  addMesh(g, new THREE.CylinderGeometry(0.8, 0.9, 0.3, 10), lava, 0, 0.45, 0.3, 0, 0, 0, false);
-  // Anvil shape
-  addMesh(g, new THREE.BoxGeometry(0.6, 0.6, 0.9), iron, -0.8, 0.6, 0.5);
-  addMesh(g, new THREE.BoxGeometry(0.9, 0.2, 0.7), iron, -0.8, 1.0, 0.5);
-  return g;
-}
-
-function buildLavaShrine(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const dark = mat(0x220a00, 0.9);
-  const obsidian = mat(0x111122, 0.2, 0.7);
-  const lava = mat(0xff6600, 0.05, 0, 0xff3300, 2.5);
-  // Stepped base
-  addMesh(g, new THREE.CylinderGeometry(2.5, 3, 0.5, 8), dark, 0, 0.25);
-  addMesh(g, new THREE.CylinderGeometry(1.8, 2.0, 0.5, 8), dark, 0, 0.75);
-  addMesh(g, new THREE.CylinderGeometry(1.0, 1.2, 0.5, 8), dark, 0, 1.25);
-  // Altar top
-  addMesh(g, new THREE.BoxGeometry(1.2, 0.3, 0.9), obsidian, 0, 1.65);
-  // Lava bowl on top
-  addMesh(g, new THREE.SphereGeometry(0.5, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), lava, 0, 1.95, 0, 0, 0, 0, false);
-  // 4 horn pillars
-  for (let i = 0; i < 4; i++) {
-    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
-    const px = Math.cos(a) * 2, pz = Math.sin(a) * 2;
-    addMesh(g, new THREE.CylinderGeometry(0.15, 0.2, 2.5, 5), dark, px, 1.25, pz);
-    addMesh(g, new THREE.ConeGeometry(0.15, 0.6, 5), dark, px, 2.8, pz);
-  }
-  return g;
-}
-
-function buildObsidianWatchtower(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const obsidian = mat(0x1a1020, 0.25, 0.7);
-  const iron = mat(0x222244, 0.5, 0.8);
-  const torch = mat(0xff8800, 0.1, 0, 0xff4400, 2.0);
-  // Main tower shaft
-  addMesh(g, new THREE.CylinderGeometry(1.2, 1.5, 8, 8), obsidian, 0, 4);
-  // Battlement top
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const px = Math.cos(a) * 1.1, pz = Math.sin(a) * 1.1;
-    if (i % 2 === 0) addMesh(g, new THREE.BoxGeometry(0.4, 0.8, 0.4), obsidian, px, 8.4, pz);
-  }
-  // Floor ring
-  addMesh(g, new THREE.CylinderGeometry(1.8, 1.8, 0.2, 8), iron, 0, 8.1);
-  // Door arch
-  addMesh(g, new THREE.BoxGeometry(0.6, 1.8, 0.2), obsidian, 0, 0.9, 1.5);
-  // Torches on sides
-  for (let i = 0; i < 2; i++) {
-    const px = (i === 0 ? -1 : 1) * 1.3;
-    addMesh(g, new THREE.CylinderGeometry(0.06, 0.06, 0.6, 5), iron, px, 5.3, 1.2, 0, 0, 0, false);
-    addMesh(g, new THREE.SphereGeometry(0.12, 6, 6), torch, px, 5.75, 1.2, 0, 0, 0, false);
-  }
-  return g;
-}
-
-// ── Crystal Tundra: Ice Structures ───────────────────────────────────────────
-
-function buildTundraStructure(pos: THREE.Vector3, _rng?: Rng): THREE.Group {
-  const pick = Math.floor((_rng?.next() ?? Math.random()) * 3);
-  switch (pick) {
-    case 0: return buildIceFortressRuin(pos);
-    case 1: return buildFrozenCaravan(pos);
-    default: return buildCrystalObservatory(pos);
-  }
-}
-
-function buildIceFortressRuin(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const ice = mat(0x88bbdd, 0.05, 0.3, 0x6699cc, 0.3);
-  const snow = mat(0xddeeee, 0.95);
-  // Partial wall
-  addMesh(g, new THREE.BoxGeometry(5, 3, 0.6), ice, 0, 1.5, -2);
-  addMesh(g, new THREE.BoxGeometry(0.6, 4, 3.5), ice, 2.2, 2, 0);
-  addMesh(g, new THREE.BoxGeometry(0.6, 2, 3.5), ice, -2.2, 1, 0);
-  // Snow on top
-  addMesh(g, new THREE.BoxGeometry(5.2, 0.3, 0.8), snow, 0, 3.15, -2, 0, 0, 0, false);
-  // Ice pillars
+  const stone = m(0x556677, 0.75);
+  const glowTeal = m(0x44ccaa, 0.15, 0, 0x22aa88, 1.6);
+  const cap = m(0x334455, 0.8);
+  // Base plinth
+  solid(g, new THREE.CylinderGeometry(1.8, 2.1, 0.6, 8), stone, 0, 0.3);
+  // Tower shaft — tapered hexagonal
+  solid(g, new THREE.CylinderGeometry(0.9, 1.3, 6, 6), stone, 0, 3.6);
+  // Pointed cap
+  solid(g, new THREE.ConeGeometry(1.1, 2.2, 6), cap, 0, 7.7);
+  // Three windows — glowing apertures
   for (let i = 0; i < 3; i++) {
-    const px = (i - 1) * 1.8;
-    addMesh(g, new THREE.CylinderGeometry(0.25, 0.35, 2 + i * 0.5, 6), ice, px, (2 + i * 0.5) / 2, -0.5);
+    const a = (i / 3) * Math.PI * 2;
+    deco(g, new THREE.BoxGeometry(0.25, 0.5, 0.12), glowTeal,
+      Math.cos(a) * 0.9, 4.2, Math.sin(a) * 0.9);
   }
-  // Floor slab
-  addMesh(g, new THREE.BoxGeometry(5, 0.2, 4), snow, 0, 0.1);
+  // Orb at tip
+  deco(g, new THREE.OctahedronGeometry(0.35, 1), glowTeal, 0, 9.1);
   return g;
 }
 
-function buildFrozenCaravan(pos: THREE.Vector3): THREE.Group {
+function _moonShrine(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const wood = mat(0x4a3520, 0.9);
-  const canvas = mat(0xccddee, 0.85, 0, 0x8899aa, 0.05);
-  const ice = mat(0xaaccdd, 0.1, 0.2);
-  const snow = mat(0xeef5f5, 0.95);
-  // Wagon body
-  addMesh(g, new THREE.BoxGeometry(3, 1.2, 1.8), wood, 0, 0.8);
-  // Wheels (4, half buried)
-  const wGeo = new THREE.TorusGeometry(0.55, 0.1, 6, 12);
-  for (const [wx, wz] of [[-1.1, -0.7], [-1.1, 0.7], [1.1, -0.7], [1.1, 0.7]] as [number,number][]) {
-    addMesh(g, wGeo, wood, wx, 0.55, wz, Math.PI / 2);
-  }
-  // Tarp / canvas cover
-  addMesh(g, new THREE.BoxGeometry(2.8, 0.8, 1.6), canvas, 0, 1.8, 0, 0, 0, 0, false);
-  // Snow accumulation
-  addMesh(g, new THREE.BoxGeometry(3.2, 0.25, 2), snow, 0, 2.3, 0, 0, 0, 0, false);
-  // Ice encroachment
-  addMesh(g, new THREE.SphereGeometry(1.2, 8, 8), ice, -1.5, 0, 0.5, 0, 0, 0, false);
-  addMesh(g, new THREE.SphereGeometry(0.8, 8, 8), ice, 1.2, 0, -0.8, 0, 0, 0, false);
-  return g;
-}
-
-function buildCrystalObservatory(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const stone = mat(0x667788, 0.7);
-  const crystal = mat(0x88ccff, 0.05, 0.4, 0x44aaee, 1.2);
-  // Dome base
-  addMesh(g, new THREE.CylinderGeometry(2.5, 2.8, 1, 12), stone, 0, 0.5);
-  addMesh(g, new THREE.CylinderGeometry(2, 2.5, 0.5, 12), stone, 0, 1.25);
-  // Dome (glass-like crystal)
-  addMesh(g, new THREE.SphereGeometry(2, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2), crystal, 0, 1.5, 0, 0, 0, 0, false);
-  // Central crystal spire through dome
-  addMesh(g, new THREE.CylinderGeometry(0.15, 0.25, 4, 6), crystal, 0, 3.5, 0, 0, 0, 0, false);
-  addMesh(g, new THREE.ConeGeometry(0.3, 1, 6), crystal, 0, 5.5, 0, 0, 0, 0, false);
-  // Outer ring of smaller crystals
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const px = Math.cos(a) * 2.2, pz = Math.sin(a) * 2.2;
-    const h = 0.6 + (i % 3) * 0.3;
-    addMesh(g, new THREE.ConeGeometry(0.1, h, 5), crystal, px, h / 2 + 0.3, pz, 0, 0, 0, false);
-  }
-  return g;
-}
-
-// ── Twilight Marsh: Swamp Structures ─────────────────────────────────────────
-
-function buildMarshStructure(pos: THREE.Vector3, _rng?: Rng): THREE.Group {
-  const pick = Math.floor((_rng?.next() ?? Math.random()) * 3);
-  switch (pick) {
-    case 0: return buildSwampHut(pos);
-    case 1: return buildDrownedTemple(pos);
-    default: return buildWillowLanternPost(pos);
-  }
-}
-
-function buildSwampHut(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const darkWood = mat(0x1a1208, 0.95);
-  const thatch = mat(0x2d3a1a, 0.9);
-  const bone = mat(0xc8c8a8, 0.85);
-  const glow = mat(0x44ff88, 0.2, 0, 0x22ee66, 1.5);
-  // Stilts (4 legs lifting the hut)
-  for (const [sx, sz] of [[-1.2,-1],[-1.2,1],[1.2,-1],[1.2,1]] as [number,number][]) {
-    addMesh(g, new THREE.CylinderGeometry(0.12, 0.15, 2.5, 6), darkWood, sx, 1.25, sz);
-  }
-  // Floor
-  addMesh(g, new THREE.BoxGeometry(2.8, 0.25, 2.2), darkWood, 0, 2.62);
-  // Walls
-  addMesh(g, new THREE.BoxGeometry(2.8, 1.8, 0.2), darkWood, 0, 3.65, -1);
-  addMesh(g, new THREE.BoxGeometry(2.8, 1.8, 0.2), darkWood, 0, 3.65,  1);
-  addMesh(g, new THREE.BoxGeometry(0.2, 1.8, 2.2), darkWood, -1.3, 3.65, 0);
-  addMesh(g, new THREE.BoxGeometry(0.2, 1.8, 2.2), darkWood,  1.3, 3.65, 0);
-  // Roof
-  addMesh(g, new THREE.ConeGeometry(2.2, 1.5, 4), thatch, 0, 5.3, 0, 0, Math.PI / 4);
-  // Hanging bones / charms
-  for (let i = 0; i < 3; i++) {
-    const bx = (i - 1) * 0.8;
-    addMesh(g, new THREE.SphereGeometry(0.08, 5, 5), bone, bx, 4.5, -1.1, 0, 0, 0, false);
-    addMesh(g, new THREE.CylinderGeometry(0.04, 0.04, 0.5, 4), bone, bx, 4.2, -1.1, 0, 0, 0, false);
-  }
-  // Glow orb inside (visible through gaps)
-  addMesh(g, new THREE.SphereGeometry(0.25, 8, 8), glow, 0, 3.3, 0, 0, 0, 0, false);
-  return g;
-}
-
-function buildDrownedTemple(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const mossy = mat(0x2d4a20, 0.95);
-  const stone = mat(0x445555, 0.85);
-  const algae = mat(0x1a5520, 0.7, 0, 0x0a3310, 0.2);
-  // Partially sunk base (at/below ground level to simulate sinking)
-  addMesh(g, new THREE.BoxGeometry(5, 1.5, 5), mossy, 0, -0.5);
-  addMesh(g, new THREE.BoxGeometry(4, 1, 4), stone, 0, 0.5);
-  // Columns (some tilted from sinking)
-  const angles = [0, 0.12, 0, -0.08, 0.05, 0, 0, -0.1];
-  for (let i = 0; i < 8; i++) {
-    const a = (i / 8) * Math.PI * 2;
-    const px = Math.cos(a) * 1.8, pz = Math.sin(a) * 1.8;
-    const h = 1.5 + (i % 3 === 0 ? 0 : 1.8);
-    addMesh(g, new THREE.CylinderGeometry(0.25, 0.3, h, 8), stone, px, 1 + h / 2, pz, angles[i] ?? 0);
-  }
-  // Algae on ground
-  for (let i = 0; i < 6; i++) {
-    const ax = (Math.random() - 0.5) * 3.5, az = (Math.random() - 0.5) * 3.5;
-    addMesh(g, new THREE.CylinderGeometry(0.4 + Math.random() * 0.3, 0.5, 0.05, 8), algae, ax, 1.05, az, 0, 0, 0, false);
-  }
-  return g;
-}
-
-function buildWillowLanternPost(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const darkWood = mat(0x1a1a0a, 0.9);
-  const lanternGlow = mat(0x88ffaa, 0.1, 0, 0x44ee88, 2.0);
-  const chain = mat(0x333333, 0.5, 0.7);
-  // Cluster of 3 posts at different heights
-  const heights = [3.5, 2.8, 4.2];
-  const offsets: [number,number][] = [[0,0],[-1.0,0.6],[0.8,-0.8]];
-  for (let i = 0; i < 3; i++) {
-    const [ox, oz] = offsets[i]!;
-    const h = heights[i]!;
-    addMesh(g, new THREE.CylinderGeometry(0.08, 0.12, h, 6), darkWood, ox, h / 2, oz);
-    // Lantern cage
-    addMesh(g, new THREE.BoxGeometry(0.3, 0.35, 0.3), lanternGlow, ox, h + 0.2, oz, 0, 0, 0, false);
-    // Chain
-    addMesh(g, new THREE.CylinderGeometry(0.02, 0.02, 0.25, 4), chain, ox, h - 0.1, oz, 0, 0, 0, false);
-  }
-  return g;
-}
-
-// ── Sunlit Meadows: Cozy Settlements ────────────────────────────────────────
-
-function buildMeadowStructure(pos: THREE.Vector3, _rng?: Rng): THREE.Group {
-  const pick = Math.floor((_rng?.next() ?? Math.random()) * 4);
-  switch (pick) {
-    case 0: return buildRoadsideInn(pos);
-    case 1: return buildMarketStall(pos);
-    case 2: return buildStoneWindmill(pos);
-    default: return buildFarmhouseRuin(pos);
-  }
-}
-
-function buildRoadsideInn(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const plaster = mat(0xd4b896, 0.88);
-  const timber = mat(0x5a3a1a, 0.85);
-  const thatch = mat(0x7a5a1a, 0.92);
-  const sign = mat(0x8b5e2f, 0.85);
-  const lanternGlow = mat(0xffaa33, 0.1, 0, 0xff7700, 1.6);
-  const stone = mat(0x888888, 0.8);
-  // Foundation
-  addMesh(g, new THREE.BoxGeometry(6, 0.35, 4), stone, 0, 0.17);
-  // Walls
-  addMesh(g, new THREE.BoxGeometry(6, 3.5, 0.3), plaster, 0, 1.75+0.17, -1.85);
-  addMesh(g, new THREE.BoxGeometry(6, 3.5, 0.3), plaster, 0, 1.75+0.17,  1.85);
-  addMesh(g, new THREE.BoxGeometry(0.3, 3.5, 4), plaster, -2.85, 1.75+0.17);
-  addMesh(g, new THREE.BoxGeometry(0.3, 3.5, 4), plaster,  2.85, 1.75+0.17);
-  // Timber cross-beams on front wall
-  for (let i = 0; i < 3; i++) {
-    addMesh(g, new THREE.BoxGeometry(0.12, 0.12, 3.7), timber, (i-1)*2.2, 1.5+0.17, -1.85);
-  }
-  addMesh(g, new THREE.BoxGeometry(6, 0.12, 0.12), timber, 0, 2.8+0.17, -1.85);
-  // Thatched roof (gabled)
-  addMesh(g, new THREE.BoxGeometry(6.4, 0.2, 4.4), thatch, 0, 3.55);
-  addMesh(g, new THREE.CylinderGeometry(0.1, 3.6, 1.8, 4), thatch, 0, 4.55, 0, 0, Math.PI/4);
-  // Chimney
-  addMesh(g, new THREE.BoxGeometry(0.7, 2, 0.7), stone, 1.8, 4, -1.2);
-  // Sign post
-  addMesh(g, new THREE.CylinderGeometry(0.06, 0.07, 3, 6), timber, 2.5, 1.5, -1.5);
-  addMesh(g, new THREE.BoxGeometry(1.2, 0.5, 0.1), sign, 2.5, 2.8, -1.5);
-  // Lanterns flanking door
-  for (const lx of [-0.6, 0.6]) {
-    addMesh(g, new THREE.SphereGeometry(0.15, 8, 8), lanternGlow, lx, 2.2, -1.85, 0, 0, 0, false);
-  }
-  return g;
-}
-
-function buildMarketStall(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const wood = mat(0x5a3a1a, 0.9);
-  const canvas = mat(0xe8c87a, 0.85);
-  const goods = mat(0x8b4513, 0.9);
-  // 4 poles
-  for (const [px, pz] of [[-1.5,-1],[-1.5,1],[1.5,-1],[1.5,1]] as [number,number][]) {
-    addMesh(g, new THREE.CylinderGeometry(0.07, 0.09, 3, 6), wood, px, 1.5, pz);
-  }
-  // Awning
-  addMesh(g, new THREE.BoxGeometry(3.2, 0.1, 2.2), canvas, 0, 3.1, 0, 0.15, 0, 0, false);
-  // Counter
-  addMesh(g, new THREE.BoxGeometry(2.8, 0.15, 0.6), wood, 0, 1.1, -0.7);
-  addMesh(g, new THREE.BoxGeometry(2.8, 0.9, 0.4), wood, 0, 0.6, -0.7);
-  // Goods on counter
-  for (let i = 0; i < 5; i++) {
-    const gx = (i - 2) * 0.5;
-    const h = 0.1 + Math.random() * 0.2;
-    addMesh(g, new THREE.CylinderGeometry(0.12, 0.14, h, 6), goods, gx, 1.25 + h / 2, -0.65, 0, 0, 0, false);
-  }
-  return g;
-}
-
-function buildStoneWindmill(pos: THREE.Vector3): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const stone = mat(0x888070, 0.85);
-  const wood = mat(0x4a2e10, 0.92);
-  const canvas = mat(0xd8c8a0, 0.88);
-  // Tower
-  addMesh(g, new THREE.CylinderGeometry(1.2, 1.6, 6, 12), stone, 0, 3);
-  // Cap
-  addMesh(g, new THREE.ConeGeometry(1.4, 2, 12), wood, 0, 7);
-  // Door
-  addMesh(g, new THREE.BoxGeometry(0.65, 1.2, 0.25), stone, 0, 0.6, 1.55);
-  // Sails (4) — visual only
+  const stone = m(0x7788aa, 0.78);
+  const silver = m(0xaabbcc, 0.3, 0.5);
+  const glow = m(0x8899ff, 0.1, 0, 0x4455cc, 1.3);
+  // Circular platform
+  solid(g, new THREE.CylinderGeometry(2.4, 2.7, 0.35, 10), stone, 0, 0.17);
+  // Four standing stones arranged in circle
   for (let i = 0; i < 4; i++) {
     const a = (i / 4) * Math.PI * 2;
-    const sx = Math.cos(a) * 2, sy = Math.sin(a) * 2;
-    const slab = new THREE.Mesh(new THREE.BoxGeometry(0.15, 2.5, 0.5), canvas);
-    slab.position.set(sx, 7 + sy, 1.3);
-    slab.rotation.z = a;
-    slab.castShadow = true;
-    slab.userData.noCollision = true;
-    g.add(slab);
+    const px = Math.cos(a) * 1.8, pz = Math.sin(a) * 1.8;
+    solid(g, new THREE.BoxGeometry(0.45, 2.8 - (i % 2) * 0.6, 0.3), stone, px, 1.75, pz, 0, a);
   }
+  // Lintel connecting two opposite stones
+  solid(g, new THREE.BoxGeometry(0.35, 0.35, 3.7), silver, 0, 2.95);
+  // Glowing moon disc
+  deco(g, new THREE.CylinderGeometry(0.6, 0.6, 0.08, 12), glow, 0, 0.53);
   return g;
 }
 
-function buildFarmhouseRuin(pos: THREE.Vector3): THREE.Group {
+function _ruinedOutpost(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const stone = mat(0x7a6a5a, 0.9);
-  const moss = mat(0x3a5a2a, 0.95);
-  // Partial walls
-  addMesh(g, new THREE.BoxGeometry(4.5, 2, 0.4), stone, 0, 1, -2);
-  addMesh(g, new THREE.BoxGeometry(0.4, 2.8, 4.5), stone, -2, 1.4, 0);
-  addMesh(g, new THREE.BoxGeometry(2, 1.2, 0.4), stone, 1, 0.6, 2);
-  // Fallen roof beam
-  addMesh(g, new THREE.CylinderGeometry(0.15, 0.18, 4, 7), stone, 0.5, 0.35, 0, 0, 0, Math.PI / 2.5);
-  // Moss on top of walls
-  addMesh(g, new THREE.BoxGeometry(4.7, 0.2, 0.5), moss, 0, 2.1, -2, 0, 0, 0, false);
-  addMesh(g, new THREE.BoxGeometry(0.5, 0.2, 4.7), moss, -2, 2.9, 0, 0, 0, 0, false);
-  // Overgrown floor
-  addMesh(g, new THREE.BoxGeometry(4, 0.15, 4), moss, 0, 0.07, 0, 0, 0, 0, false);
+  const mossy = m(0x4a5a3a, 0.95);
+  const dark = m(0x2a3a2a, 0.95);
+  // L-shaped partial wall
+  solid(g, new THREE.BoxGeometry(4.2, 2.8, 0.55), mossy, 0, 1.4, -2);
+  solid(g, new THREE.BoxGeometry(0.55, 2.2, 3.0), mossy, -1.9, 1.1, -0.5);
+  // Crumbled section — shorter wall
+  solid(g, new THREE.BoxGeometry(2.0, 1.4, 0.5), dark, 1.1, 0.7, 1.5);
+  // Fallen column
+  solid(g, new THREE.CylinderGeometry(0.28, 0.33, 3.0, 7), mossy, 0.4, 0.3, 0.8, 0, 0, Math.PI / 2.5);
+  // Floor slabs
+  solid(g, new THREE.BoxGeometry(3.5, 0.15, 3.5), dark, 0, 0.07);
   return g;
 }
 
-// ── Desert: Ancient Ruins & Tombs ───────────────────────────────────────────
+// ── Ember Wastes ─────────────────────────────────────────────────────────────
 
-function buildDesertStructure(pos: THREE.Vector3, _rng?: Rng): THREE.Group {
-  const pick = Math.floor((_rng?.next() ?? Math.random()) * 3);
-  switch (pick) {
-    case 0: return buildSandTomb(pos);
-    case 1: return buildObeliskPair(pos);
-    default: return buildAncientGate(pos);
-  }
+function _ember(pos: THREE.Vector3, rng: Rng, dist: number): THREE.Group {
+  const v = dist > 280 ? 2 : rng.nextInt(3);
+  return [_obsidianSpire, _forge, _fireTemple][v]!(pos);
 }
 
-function buildSandTomb(pos: THREE.Vector3): THREE.Group {
+function _obsidianSpire(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const sandstone = mat(0xd4a850, 0.9);
-  const dark = mat(0x1a0a00, 0.85);
-  const glow = mat(0xffcc00, 0.1, 0, 0xdd9900, 1.0);
-  // Main pyramid
-  addMesh(g, new THREE.ConeGeometry(4, 4, 4), sandstone, 0, 2, 0, 0, Math.PI / 4);
-  // Door
-  addMesh(g, new THREE.BoxGeometry(1, 1.5, 0.5), dark, 0, 0.75, 2.8);
-  // Hieroglyph tablets (flat stones leaning against pyramid)
+  const obs = m(0x161625, 0.2, 0.65);
+  const lava = m(0xff5500, 0.05, 0, 0xff2200, 2.8);
+  const dark = m(0x222233, 0.4, 0.5);
+  // Main spire — tall hexagonal shaft
+  solid(g, new THREE.CylinderGeometry(0.8, 1.4, 9, 6), obs, 0, 4.5);
+  // Base buttresses (3)
   for (let i = 0; i < 3; i++) {
-    const a = (i / 3) * Math.PI * 2 + 0.5;
-    const px = Math.cos(a) * 2.5, pz = Math.sin(a) * 2.5;
-    addMesh(g, new THREE.BoxGeometry(0.7, 1.2, 0.15), sandstone, px, 0.6, pz, 0, -a);
+    const a = (i / 3) * Math.PI * 2;
+    solid(g, new THREE.BoxGeometry(0.5, 3.0, 0.5), dark, Math.cos(a) * 1.5, 1.5, Math.sin(a) * 1.5);
   }
-  // Gold capstone
-  addMesh(g, new THREE.OctahedronGeometry(0.3), glow, 0, 4.2, 0, 0, 0, 0, false);
+  // Battlements
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2;
+    solid(g, new THREE.BoxGeometry(0.35, 0.7, 0.35), obs, Math.cos(a) * 0.75, 9.35, Math.sin(a) * 0.75);
+  }
+  // Lava runes — emissive stripes up the shaft
+  for (let y = 1; y < 9; y += 2.5) {
+    deco(g, new THREE.TorusGeometry(0.82, 0.04, 5, 12), lava, 0, y, 0, Math.PI / 2);
+  }
   return g;
 }
 
-function buildObeliskPair(pos: THREE.Vector3): THREE.Group {
+function _forge(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const sandstone = mat(0xcc9940, 0.85);
-  const gold = mat(0xffdd44, 0.2, 0.8, 0xddaa00, 0.5);
-  const base = mat(0xaa7830, 0.9);
-  // Two obelisks
-  for (const ox of [-2.5, 2.5]) {
-    addMesh(g, new THREE.BoxGeometry(0.9, 0.4, 0.9), base, ox, 0.2);
-    addMesh(g, new THREE.BoxGeometry(0.7, 5, 0.7), sandstone, ox, 2.9);
-    addMesh(g, new THREE.ConeGeometry(0.45, 0.8, 4), gold, ox, 6.2, 0, 0, Math.PI / 4, 0, false);
-  }
-  // Linking stone arch base
-  addMesh(g, new THREE.BoxGeometry(5.4, 0.35, 0.6), sandstone, 0, 5.2);
+  const obs = m(0x1a1a28, 0.3, 0.6);
+  const iron = m(0x333344, 0.5, 0.8);
+  const lava = m(0xff6600, 0.05, 0, 0xff3300, 2.4);
+  // Thick walls of a square building
+  const wall = new THREE.BoxGeometry(0.4, 3.2, 4.4);
+  solid(g, wall, obs, -2.0, 1.6, 0);
+  solid(g, wall, obs,  2.0, 1.6, 0);
+  solid(g, new THREE.BoxGeometry(4.4, 3.2, 0.4), obs, 0, 1.6, -2.0);
+  // Floor
+  solid(g, new THREE.BoxGeometry(4.4, 0.3, 4.4), iron, 0, 0.15);
+  // Chimney
+  solid(g, new THREE.CylinderGeometry(0.4, 0.5, 4.5, 8), iron, 1.2, 2.5, -1.5);
+  deco(g, new THREE.CylinderGeometry(0.45, 0.45, 0.2, 8), lava, 1.2, 4.85, -1.5);
+  // Central lava pool — emissive disc
+  deco(g, new THREE.CylinderGeometry(0.9, 1.0, 0.2, 10), lava, 0, 0.4, 0.3);
   return g;
 }
 
-function buildAncientGate(pos: THREE.Vector3): THREE.Group {
+function _fireTemple(pos: THREE.Vector3): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const sandstone = mat(0xc8904a, 0.88);
-  const dark = mat(0x1a0500, 0.9);
-  const gold = mat(0xffee55, 0.1, 0.8, 0xddcc00, 0.8);
-  // Two pillars
-  for (const ox of [-2, 2]) {
-    addMesh(g, new THREE.BoxGeometry(1.1, 5.5, 1.1), sandstone, ox, 2.75);
-    addMesh(g, new THREE.BoxGeometry(1.3, 0.4, 1.3), sandstone, ox, 5.7);
+  const dark = m(0x1a0800, 0.9);
+  const stone = m(0x2a1510, 0.85);
+  const lava = m(0xff7700, 0.05, 0, 0xff4400, 2.6);
+  // 3-step pyramid
+  const steps = [[3.0, 0.55, 0], [2.2, 0.55, 0.55], [1.4, 0.55, 1.1]] as const;
+  steps.forEach(([r, h, y]) => solid(g, new THREE.CylinderGeometry(r, r + 0.2, h, 8), dark, 0, y + h / 2));
+  // Altar block
+  solid(g, new THREE.BoxGeometry(1.1, 0.6, 0.9), stone, 0, 1.95);
+  // Lava chalice top
+  deco(g, new THREE.SphereGeometry(0.45, 8, 8, 0, Math.PI * 2, 0, Math.PI / 2), lava, 0, 2.58);
+  // Four horn pillars
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2 + Math.PI / 4;
+    const px = Math.cos(a) * 2.2, pz = Math.sin(a) * 2.2;
+    solid(g, new THREE.CylinderGeometry(0.14, 0.2, 3.0, 5), dark, px, 1.5, pz);
+    deco(g, new THREE.ConeGeometry(0.14, 0.5, 5), lava, px, 3.25, pz);
+  }
+  return g;
+}
+
+// ── Crystal Tundra ────────────────────────────────────────────────────────────
+
+function _tundra(pos: THREE.Vector3, rng?: Rng): THREE.Group {
+  const v = rng?.nextInt(3) ?? 0;
+  return [_iceCastle, _frozenCaravan, _crystalSpire][v]!(pos);
+}
+
+function _iceCastle(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const ice = m(0x88bbdd, 0.07, 0.35, 0x55aacc, 0.25);
+  const snow = m(0xddeeff, 0.95);
+  const dark = m(0x334455, 0.85);
+  // Main keep — thick walls
+  solid(g, new THREE.CylinderGeometry(1.6, 2.0, 5.5, 8), ice, 0, 2.75);
+  // Battlements
+  for (let i = 0; i < 8; i++) {
+    if (i % 2 === 0) {
+      const a = (i / 8) * Math.PI * 2;
+      solid(g, new THREE.BoxGeometry(0.5, 0.9, 0.5), dark, Math.cos(a) * 1.55, 5.95, Math.sin(a) * 1.55);
+    }
+  }
+  // Conical roof
+  solid(g, new THREE.ConeGeometry(1.75, 2.5, 8), ice, 0, 7.45);
+  // Snow cap
+  deco(g, new THREE.SphereGeometry(1.8, 8, 5, 0, Math.PI * 2, 0, Math.PI / 3), snow, 0, 5.5);
+  // Side tower (shorter)
+  solid(g, new THREE.CylinderGeometry(0.75, 0.95, 4, 6), dark, 2.2, 2, 0);
+  solid(g, new THREE.ConeGeometry(0.85, 1.5, 6), ice, 2.2, 4.75);
+  return g;
+}
+
+function _frozenCaravan(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const wood = m(0x3a2510, 0.95);
+  const frost = m(0xbbddee, 0.08, 0.2, 0x88bbcc, 0.2);
+  const snow = m(0xeef5f5, 0.95);
+  const wheel = m(0x2a1a08, 0.9);
+  // Wagon body
+  solid(g, new THREE.BoxGeometry(3.2, 1.1, 1.8), wood, 0, 0.85);
+  // Arched canvas cover
+  for (let i = 0; i < 5; i++) {
+    const t = i / 4;
+    const x = -1.4 + t * 2.8;
+    const h = 0.8 * Math.sin(t * Math.PI);
+    deco(g, new THREE.CylinderGeometry(0.05, 0.05, 1.8, 5), wood, x, 1.5 + h, 0, Math.PI / 2);
+  }
+  deco(g, new THREE.BoxGeometry(3.2, 0.06, 2.0), frost, 0, 2.15);
+  // Wheels (buried in ice)
+  const wg = new THREE.TorusGeometry(0.5, 0.09, 5, 10);
+  for (const [wx, wz] of [[-1.2, -0.7], [-1.2, 0.7], [1.2, -0.7], [1.2, 0.7]] as [number, number][])
+    solid(g, wg, wheel, wx, 0.5, wz, Math.PI / 2);
+  // Snow drift on top
+  deco(g, new THREE.BoxGeometry(3.4, 0.35, 2.1), snow, 0, 2.4);
+  return g;
+}
+
+function _crystalSpire(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const crystal = m(0x88ccff, 0.04, 0.45, 0x55aaee, 1.3);
+  const darkIce = m(0x445566, 0.2, 0.4);
+  // Central tall spire
+  deco(g, new THREE.ConeGeometry(0.55, 7.5, 5), crystal, 0, 3.75);
+  // Ringed ice base
+  solid(g, new THREE.CylinderGeometry(2.0, 2.3, 0.6, 8), darkIce, 0, 0.3);
+  // Satellite crystals
+  const offsets: [number, number, number, number][] = [
+    [1.5, 0, 1.5, 4], [-1.4, 0, 0.8, 3], [0.6, 0, -1.7, 5], [-1.0, 0, -1.4, 3.5],
+  ];
+  offsets.forEach(([px, , pz, h]) => {
+    deco(g, new THREE.ConeGeometry(0.22, h, 5), crystal, px, h / 2, pz);
+  });
+  return g;
+}
+
+// ── Twilight Marsh ────────────────────────────────────────────────────────────
+
+function _marsh(pos: THREE.Vector3, rng?: Rng): THREE.Group {
+  const v = rng?.nextInt(3) ?? 0;
+  return [_swampHut, _drownedTemple, _witchTower][v]!(pos);
+}
+
+function _swampHut(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const darkWood = m(0x1c1208, 0.95);
+  const thatch = m(0x2d3a1a, 0.92);
+  const glow = m(0x44ff88, 0.05, 0, 0x22ee66, 1.8);
+  // Four stilts
+  const stilt = new THREE.CylinderGeometry(0.1, 0.13, 2.8, 5);
+  for (const [sx, sz] of [[-1.1, -0.9], [-1.1, 0.9], [1.1, -0.9], [1.1, 0.9]] as [number, number][])
+    solid(g, stilt, darkWood, sx, 1.4, sz);
+  // Floor & walls
+  solid(g, new THREE.BoxGeometry(2.6, 0.22, 1.9), darkWood, 0, 2.91);
+  solid(g, new THREE.BoxGeometry(2.6, 1.9, 0.18), darkWood, 0, 3.86, -0.86);
+  solid(g, new THREE.BoxGeometry(2.6, 1.9, 0.18), darkWood, 0, 3.86,  0.86);
+  solid(g, new THREE.BoxGeometry(0.18, 1.9, 1.9), darkWood, -1.21, 3.86);
+  // Lean-to door cutout side (open)
+  solid(g, new THREE.BoxGeometry(0.18, 1.2, 1.9), darkWood, 1.21, 4.51);
+  // Thatched cone roof
+  solid(g, new THREE.ConeGeometry(1.8, 1.6, 5), thatch, 0, 5.6);
+  // Glow orb inside — visible through cracks
+  deco(g, new THREE.SphereGeometry(0.22, 7, 7), glow, 0, 3.3);
+  return g;
+}
+
+function _drownedTemple(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const mossy = m(0x2d4a20, 0.95);
+  const stone = m(0x3d4a45, 0.88);
+  const algae = m(0x1a5a28, 0.7, 0, 0x0a3318, 0.2);
+  // Sunken base (half below ground)
+  solid(g, new THREE.BoxGeometry(5.5, 1.8, 5.5), mossy, 0, -0.6);
+  solid(g, new THREE.BoxGeometry(4.5, 1.0, 4.5), stone, 0, 0.4);
+  // Columns, some tilted by sinking
+  const tilts = [0, 0.14, 0, -0.1, 0.06, 0, 0, -0.12] as const;
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2;
+    const h = i % 3 === 0 ? 1.4 : 3.2;
+    solid(g, new THREE.CylinderGeometry(0.27, 0.32, h, 7), stone,
+      Math.cos(a) * 2.0, 1.0 + h / 2, Math.sin(a) * 2.0, tilts[i] ?? 0);
+  }
+  // Algae patches on floor
+  for (let i = 0; i < 4; i++) {
+    const ax = (i % 2 - 0.5) * 2, az = (Math.floor(i / 2) - 0.5) * 2;
+    deco(g, new THREE.CylinderGeometry(0.5, 0.65, 0.07, 8), algae, ax, 1.08, az);
+  }
+  return g;
+}
+
+function _witchTower(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const darkWood = m(0x1a1208, 0.9);
+  const wicker = m(0x3a2a10, 0.92);
+  const wisp = m(0x88ffaa, 0.05, 0, 0x44ee88, 2.2);
+  // Twisted trunk-like shaft (tapered octagonal)
+  solid(g, new THREE.CylinderGeometry(0.55, 1.0, 7.5, 7), darkWood, 0, 3.75);
+  // Wicker platform
+  solid(g, new THREE.CylinderGeometry(1.7, 1.7, 0.25, 10), wicker, 0, 7.62);
+  // Pointed cap
+  solid(g, new THREE.ConeGeometry(1.8, 2.2, 7), darkWood, 0, 8.85);
+  // Hanging cage lanterns
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    deco(g, new THREE.BoxGeometry(0.22, 0.3, 0.22), wicker, Math.cos(a) * 1.4, 7.3, Math.sin(a) * 1.4);
+    deco(g, new THREE.SphereGeometry(0.1, 6, 6), wisp, Math.cos(a) * 1.4, 7.05, Math.sin(a) * 1.4);
+  }
+  return g;
+}
+
+// ── Sunlit Meadows ────────────────────────────────────────────────────────────
+
+function _meadow(pos: THREE.Vector3, rng?: Rng): THREE.Group {
+  const v = rng?.nextInt(4) ?? 0;
+  return [_inn, _windmill, _marketStall, _ruinedFarm][v]!(pos);
+}
+
+function _inn(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const plaster = m(0xd4b896, 0.88);
+  const timber = m(0x5a3a1a, 0.88);
+  const thatch = m(0x7a5a1a, 0.9);
+  const lantern = m(0xffaa33, 0.05, 0, 0xff7700, 1.8);
+  const stone = m(0x888880, 0.85);
+  // Stone foundation
+  solid(g, new THREE.BoxGeometry(6.5, 0.4, 4.5), stone, 0, 0.2);
+  // Walls
+  solid(g, new THREE.BoxGeometry(6.5, 3.8, 0.3), plaster, 0, 2.1, -2.1);
+  solid(g, new THREE.BoxGeometry(6.5, 3.8, 0.3), plaster, 0, 2.1,  2.1);
+  solid(g, new THREE.BoxGeometry(0.3, 3.8, 4.5), plaster, -3.1, 2.1);
+  solid(g, new THREE.BoxGeometry(0.3, 3.8, 4.5), plaster,  3.1, 2.1);
+  // Timber cross-bracing (decorative, flat to wall)
+  deco(g, new THREE.BoxGeometry(6.3, 0.12, 0.1), timber, 0, 3.0, -2.05);
+  deco(g, new THREE.BoxGeometry(6.3, 0.12, 0.1), timber, 0, 1.5, -2.05);
+  // Thatched gabled roof
+  solid(g, new THREE.BoxGeometry(6.9, 0.2, 4.9), thatch, 0, 4.1);
+  solid(g, new THREE.CylinderGeometry(0.1, 3.6, 2.0, 4), thatch, 0, 5.1, 0, 0, Math.PI / 4);
+  // Chimney
+  solid(g, new THREE.BoxGeometry(0.75, 2.2, 0.75), stone, 1.8, 4.5, -1.6);
+  // Lanterns flanking door
+  deco(g, new THREE.SphereGeometry(0.15, 7, 7), lantern, -0.7, 2.5, -2.1);
+  deco(g, new THREE.SphereGeometry(0.15, 7, 7), lantern,  0.7, 2.5, -2.1);
+  return g;
+}
+
+function _windmill(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const stone = m(0x887a68, 0.88);
+  const wood = m(0x4a2e10, 0.9);
+  const sail = m(0xd4c4a0, 0.88);
+  // Tapered stone tower
+  solid(g, new THREE.CylinderGeometry(1.0, 1.5, 7, 10), stone, 0, 3.5);
+  // Cone cap
+  solid(g, new THREE.ConeGeometry(1.15, 1.8, 10), wood, 0, 7.9);
+  // Door
+  solid(g, new THREE.BoxGeometry(0.7, 1.4, 0.2), stone, 0, 0.7, 1.52);
+  // Sails — 4 boards
+  for (let i = 0; i < 4; i++) {
+    const a = (i / 4) * Math.PI * 2;
+    const sx = Math.sin(a) * 2.2, sy = -Math.cos(a) * 2.2;
+    deco(g, new THREE.BoxGeometry(0.18, 2.8, 0.45), sail, sx, 7.5 + sy, 1.1, 0, 0, a);
+  }
+  return g;
+}
+
+function _marketStall(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const wood = m(0x5a3a1a, 0.9);
+  const canvas = m(0xe8c87a, 0.88);
+  const goods = m(0x8b4513, 0.9);
+  const accent = m(0xcc6622, 0.8);
+  // Four sturdy posts
+  const post = new THREE.CylinderGeometry(0.09, 0.12, 3.2, 6);
+  for (const [px, pz] of [[-1.6, -1.1], [-1.6, 1.1], [1.6, -1.1], [1.6, 1.1]] as [number, number][])
+    solid(g, post, wood, px, 1.6, pz);
+  // Awning — slightly sloped
+  deco(g, new THREE.BoxGeometry(3.5, 0.12, 2.5), canvas, 0, 3.25, 0, 0.12, 0);
+  // Fringe stripe
+  deco(g, new THREE.BoxGeometry(3.5, 0.18, 0.12), accent, 0, 3.1, -1.27);
+  // Counter
+  solid(g, new THREE.BoxGeometry(3.0, 0.18, 0.7), wood, 0, 1.15, -0.8);
+  solid(g, new THREE.BoxGeometry(3.0, 0.9, 0.45), wood, 0, 0.57, -0.8);
+  // Goods on counter (5 barrels/crates)
+  const crate = new THREE.BoxGeometry(0.38, 0.38, 0.38);
+  for (let i = 0; i < 4; i++) {
+    deco(g, crate, goods, -1.2 + i * 0.8, 1.44, -0.78);
+  }
+  return g;
+}
+
+function _ruinedFarm(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const stone = m(0x7a6a5a, 0.92);
+  const moss = m(0x3a5a28, 0.95);
+  // L-shaped partial walls
+  solid(g, new THREE.BoxGeometry(5.0, 2.4, 0.5), stone, 0, 1.2, -2.2);
+  solid(g, new THREE.BoxGeometry(0.5, 3.0, 4.0), stone, -2.2, 1.5, -0.2);
+  solid(g, new THREE.BoxGeometry(2.5, 1.4, 0.45), stone, 0.8, 0.7, 2.2);
+  // Fallen wall segment
+  solid(g, new THREE.BoxGeometry(2.0, 0.5, 0.45), stone, -0.2, 0.25, 2.2, Math.PI / 12);
+  // Moss overgrowth on floor
+  solid(g, new THREE.BoxGeometry(4.5, 0.12, 4.5), moss, 0, 0.06);
+  // Collapsed chimney pile
+  for (let i = 0; i < 3; i++) {
+    solid(g, new THREE.BoxGeometry(0.55, 0.35, 0.55), stone, 1.8 + (Math.random() - 0.5) * 0.3, 0.17 + i * 0.35, -1.5 + (Math.random() - 0.5) * 0.3);
+  }
+  return g;
+}
+
+// ── Desert ────────────────────────────────────────────────────────────────────
+
+function _desert(pos: THREE.Vector3, rng?: Rng): THREE.Group {
+  const v = rng?.nextInt(3) ?? 0;
+  return [_pyramid, _ancientGate, _obelisk][v]!(pos);
+}
+
+function _pyramid(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const sand = m(0xc8904a, 0.88);
+  const dark = m(0x1a0800, 0.85);
+  const gold = m(0xffdd55, 0.12, 0.7, 0xddaa00, 0.8);
+  // Main pyramid body
+  solid(g, new THREE.ConeGeometry(4.5, 4.8, 4), sand, 0, 2.4, 0, 0, Math.PI / 4);
+  // Entrance
+  solid(g, new THREE.BoxGeometry(1.1, 1.6, 0.4), dark, 0, 0.8, 3.18);
+  // Decorative step bands
+  for (let i = 1; i <= 3; i++) {
+    const r = 4.5 - i * 1.05;
+    const y = i * 1.12;
+    deco(g, new THREE.CylinderGeometry(r + 0.05, r + 0.05, 0.1, 4), sand, 0, y, 0, 0, Math.PI / 4);
+  }
+  // Golden capstone
+  deco(g, new THREE.OctahedronGeometry(0.38), gold, 0, 5.15);
+  return g;
+}
+
+function _ancientGate(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const sand = m(0xc09040, 0.88);
+  const dark = m(0x1a0800, 0.88);
+  const gold = m(0xffdd44, 0.12, 0.7, 0xddbb00, 0.6);
+  // Two massive pillars
+  for (const ox of [-2.3, 2.3]) {
+    solid(g, new THREE.BoxGeometry(1.2, 6.5, 1.2), sand, ox, 3.25);
+    solid(g, new THREE.BoxGeometry(1.5, 0.55, 1.5), sand, ox, 6.8);
   }
   // Lintel
-  addMesh(g, new THREE.BoxGeometry(4.5, 0.8, 1.0), sandstone, 0, 6.1);
-  // Arch detail
-  addMesh(g, new THREE.BoxGeometry(4.5, 0.2, 0.8), dark, 0, 5.5, 0, 0, 0, 0, false);
-  // Gold rune carvings on lintel
-  addMesh(g, new THREE.BoxGeometry(3.5, 0.3, 0.15), gold, 0, 6.1, -0.48, 0, 0, 0, false);
-  // Scattered debris
-  for (let i = 0; i < 4; i++) {
-    const dx = (Math.random() - 0.5) * 5, dz = (Math.random() - 0.5) * 2;
-    addMesh(g, new THREE.BoxGeometry(0.4 + Math.random() * 0.4, 0.2, 0.4 + Math.random() * 0.3), sandstone, dx, 0.1, dz);
+  solid(g, new THREE.BoxGeometry(5.3, 0.9, 1.0), sand, 0, 7.35);
+  // Carved inscription (gold strip)
+  deco(g, new THREE.BoxGeometry(4.0, 0.22, 0.15), gold, 0, 7.35, -0.51);
+  // Fallen debris
+  for (const [dx, dz, r] of [[1.5, 1.0, 0.4], [-2.0, 0.5, 0.55], [0.8, -1.2, 0.35]] as [number,number,number][])
+    solid(g, new THREE.BoxGeometry(r * 2, r * 0.6, r * 1.5), sand, dx, r * 0.3, dz);
+  // Hieroglyph panel leaning against pillar
+  solid(g, new THREE.BoxGeometry(0.8, 1.5, 0.12), dark, -3.0, 0.75, 0, 0.15);
+  return g;
+}
+
+function _obelisk(pos: THREE.Vector3): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const sand = m(0xbb8840, 0.88);
+  const gold = m(0xffee55, 0.12, 0.7, 0xddcc00, 0.9);
+  // Two obelisks — one intact, one cracked
+  for (const [ox, h] of [[-2.6, 7.5], [2.4, 5.0]] as [number, number][]) {
+    solid(g, new THREE.BoxGeometry(0.95, h, 0.95), sand, ox, h / 2);
+    solid(g, new THREE.BoxGeometry(1.2, 0.45, 1.2), sand, ox, 0.22);
+    deco(g, new THREE.ConeGeometry(0.5, 0.9, 4), gold, ox, h + 0.45, 0, 0, Math.PI / 4);
   }
+  // Linking pedestal
+  solid(g, new THREE.BoxGeometry(5.5, 0.3, 1.0), sand, 0, 0.15);
+  // Cracked chunk on ground
+  solid(g, new THREE.BoxGeometry(1.0, 0.7, 0.95), sand, 3.4, 0.35, 0.4, 0.3);
   return g;
 }
 
@@ -577,246 +578,200 @@ export function buildBiomeProp(
   biome: BiomeType,
   pos: THREE.Vector3,
   scale: number,
-  _rng: Rng,
+  rng: Rng,
 ): THREE.Group | null {
   switch (biome) {
-    case BiomeType.Teldrassil:  return buildTeldrassilProp(pos, scale, _rng);
-    case BiomeType.EmberWastes: return buildEmberProp(pos, scale, _rng);
-    case BiomeType.CrystalTundra: return buildTundraProp(pos, scale, _rng);
-    case BiomeType.TwilightMarsh: return buildMarshProp(pos, scale, _rng);
-    case BiomeType.SunlitMeadows: return buildMeadowProp(pos, scale, _rng);
-    case BiomeType.Desert:      return buildDesertProp(pos, scale, _rng);
+    case BiomeType.Teldrassil:   return _propTeld(pos, scale, rng);
+    case BiomeType.EmberWastes:  return _propEmber(pos, scale, rng);
+    case BiomeType.CrystalTundra:return _propTundra(pos, scale, rng);
+    case BiomeType.TwilightMarsh:return _propMarsh(pos, scale, rng);
+    case BiomeType.SunlitMeadows:return _propMeadow(pos, scale, rng);
+    case BiomeType.Desert:       return _propDesert(pos, scale, rng);
     default: return null;
   }
 }
 
-function buildTeldrassilProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
+function _propTeld(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const pick = rng.nextInt(4);
-  if (pick === 0) {
+  const v = rng.nextInt(4);
+  if (v === 0) {
     // Giant mushroom
-    const stem = mat(0xc8b090, 0.8);
-    const cap = mat(0x6622aa, 0.6, 0, 0x440088, 0.6);
-    addMesh(g, new THREE.CylinderGeometry(0.2 * scale, 0.3 * scale, 2 * scale, 7), stem, 0, scale);
-    addMesh(g, new THREE.SphereGeometry(0.9 * scale, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), cap, 0, 2.1 * scale, 0, 0, 0, 0, false);
-    // Spore particles
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2, r = 0.6 * scale;
-      addMesh(g, new THREE.SphereGeometry(0.06 * scale, 5, 5), cap, Math.cos(a) * r, (1.8 + Math.random() * 0.4) * scale, Math.sin(a) * r, 0, 0, 0, false);
+    const stem = m(0xc8b090, 0.82);
+    const cap = m(0x7733bb, 0.62, 0, 0x551199, 0.7);
+    solid(g, new THREE.CylinderGeometry(0.22 * s, 0.3 * s, 2.0 * s, 7), stem, 0, s);
+    deco(g, new THREE.SphereGeometry(0.9 * s, 9, 6, 0, Math.PI * 2, 0, Math.PI / 2), cap, 0, 2.1 * s);
+  } else if (v === 1) {
+    // Moonstone shard cluster
+    const crystal = m(0x8899dd, 0.2, 0.4, 0x5566bb, 0.5);
+    for (let i = 0; i < 3; i++) {
+      const a = (i / 3) * Math.PI * 2, h = (0.8 + i * 0.3) * s;
+      deco(g, new THREE.ConeGeometry(0.18 * s, h, 5), crystal, Math.cos(a) * 0.35 * s, h / 2, Math.sin(a) * 0.35 * s);
     }
-  } else if (pick === 1) {
-    // Moonstone pillar
-    const stone = mat(0x8899bb, 0.5, 0.3, 0x5566aa, 0.3);
-    addMesh(g, new THREE.CylinderGeometry(0.35 * scale, 0.45 * scale, 2.5 * scale, 6), stone, 0, 1.25 * scale);
-    addMesh(g, new THREE.OctahedronGeometry(0.4 * scale), stone, 0, 2.8 * scale, 0, 0, 0, 0, false);
-  } else if (pick === 2) {
-    // Glowing root cluster
-    const root = mat(0x3a2210, 0.95);
-    const glow = mat(0xaaddff, 0.2, 0, 0x66aaff, 0.8);
+    solid(g, new THREE.CylinderGeometry(0.5 * s, 0.6 * s, 0.2 * s, 8), m(0x6677aa, 0.78), 0, 0.1 * s);
+  } else if (v === 2) {
+    // Ancient stump with glowing core
+    const bark = m(0x3a2510, 0.95);
+    const glow = m(0x88aaff, 0.1, 0, 0x5577dd, 0.9);
+    solid(g, new THREE.CylinderGeometry(0.55 * s, 0.72 * s, 1.0 * s, 9), bark, 0, 0.5 * s);
+    deco(g, new THREE.CylinderGeometry(0.3 * s, 0.3 * s, 0.1 * s, 9), glow, 0, 1.05 * s);
+  } else {
+    // Mossy rock pile
+    const rock = m(0x556644, 0.9);
+    solid(g, new THREE.DodecahedronGeometry(0.65 * s, 0), rock, 0, 0.5 * s);
+    solid(g, new THREE.DodecahedronGeometry(0.4 * s, 0), rock, 0.5 * s, 0.3 * s, -0.2 * s);
+  }
+  return g;
+}
+
+function _propEmber(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const v = rng.nextInt(3);
+  if (v === 0) {
+    // Obsidian shard cluster
+    const obs = m(0x111122, 0.18, 0.72);
+    solid(g, new THREE.ConeGeometry(0.28 * s, 1.8 * s, 5), obs, 0, 0.9 * s);
+    solid(g, new THREE.ConeGeometry(0.2 * s, 1.2 * s, 5), obs, 0.5 * s, 0.6 * s, 0.2 * s, 0, 0, 0.3);
+    solid(g, new THREE.ConeGeometry(0.15 * s, 0.9 * s, 5), obs, -0.4 * s, 0.45 * s, -0.2 * s, 0, 0, -0.25);
+  } else if (v === 1) {
+    // Lava crack
+    const basalt = m(0x1a0800, 0.92);
+    const lava = m(0xff5500, 0.04, 0, 0xff2200, 3.0);
+    solid(g, new THREE.BoxGeometry(2.4 * s, 0.28, 0.4 * s), basalt, 0, 0.14);
+    deco(g, new THREE.BoxGeometry(2.0 * s, 0.08, 0.24 * s), lava, 0, 0.08);
+  } else {
+    // Scorched boulder
+    const scorch = m(0x221100, 0.88);
+    solid(g, new THREE.DodecahedronGeometry(0.7 * s, 0), scorch, 0, 0.6 * s);
+  }
+  return g;
+}
+
+function _propTundra(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const v = rng.nextInt(3);
+  if (v === 0) {
+    // Ice spike cluster
+    const ice = m(0x88ccee, 0.04, 0.42, 0x55aacc, 0.65);
     for (let i = 0; i < 4; i++) {
-      const a = (i / 4) * Math.PI * 2;
-      const rx = Math.cos(a) * 0.5 * scale, rz = Math.sin(a) * 0.5 * scale;
-      addMesh(g, new THREE.CylinderGeometry(0.1 * scale, 0.18 * scale, 0.6 * scale + Math.random() * 0.4 * scale, 5), root, rx, 0.3 * scale, rz, Math.random() * 0.3, 0, 0);
+      const a = (i / 4) * Math.PI * 2, h = (0.5 + Math.random() * 0.9) * s;
+      deco(g, new THREE.ConeGeometry(0.13 * s, h, 5), ice, Math.cos(a) * 0.28 * s, h / 2, Math.sin(a) * 0.28 * s);
     }
-    addMesh(g, new THREE.SphereGeometry(0.22 * scale, 7, 7), glow, 0, 0.22 * scale, 0, 0, 0, 0, false);
+    deco(g, new THREE.ConeGeometry(0.2 * s, 1.4 * s, 5), ice, 0, 0.7 * s);
+  } else if (v === 1) {
+    // Snow-buried rock
+    const rock = m(0x556677, 0.88);
+    const snow = m(0xddeeff, 0.95);
+    solid(g, new THREE.SphereGeometry(0.7 * s, 8, 8), rock, 0, 0.4 * s);
+    deco(g, new THREE.SphereGeometry(0.75 * s, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), snow, 0, 0.72 * s);
   } else {
-    // Ancient tree stump
-    const stump = mat(0x3a2510, 0.95);
-    const moss = mat(0x2a5a1a, 0.9);
-    addMesh(g, new THREE.CylinderGeometry(0.55 * scale, 0.7 * scale, 1.0 * scale, 10), stump, 0, 0.5 * scale);
-    addMesh(g, new THREE.CylinderGeometry(0.6 * scale, 0.6 * scale, 0.15 * scale, 10), moss, 0, 1.07 * scale, 0, 0, 0, 0, false);
+    // Frozen tree stub
+    const bark = m(0x334455, 0.92);
+    solid(g, new THREE.CylinderGeometry(0.22 * s, 0.3 * s, 2.5 * s, 7), bark, 0, 1.25 * s);
+    deco(g, new THREE.SphereGeometry(0.85 * s, 7, 5), m(0xbbddee, 0.1, 0.15), 0, 2.7 * s);
   }
   return g;
 }
 
-function buildEmberProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
+function _propMarsh(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const pick = rng.nextInt(3);
-  if (pick === 0) {
-    // Obsidian boulder cluster
-    const obs = mat(0x111122, 0.2, 0.7);
+  const v = rng.nextInt(3);
+  if (v === 0) {
+    // Rotting log with mushrooms
+    const log = m(0x1a1208, 0.95);
+    const cap = m(0x228833, 0.72, 0, 0x114422, 0.25);
+    solid(g, new THREE.CylinderGeometry(0.3 * s, 0.36 * s, 2.5 * s, 8), log, 0, 0.3 * s, 0, 0, 0, Math.PI / 2.1);
     for (let i = 0; i < 3; i++) {
-      const ox = (Math.random() - 0.5) * scale, oz = (Math.random() - 0.5) * scale;
-      const s = (0.4 + Math.random() * 0.5) * scale;
-      addMesh(g, new THREE.DodecahedronGeometry(s, 0), obs, ox, s * 0.5, oz);
+      const bx = (-1 + i) * 0.6 * s;
+      const h = 0.25 * s;
+      deco(g, new THREE.CylinderGeometry(0.06 * s, 0.08 * s, h, 6), m(0xd4c090, 0.82), bx, 0.5 * s);
+      deco(g, new THREE.SphereGeometry(0.22 * s, 7, 5, 0, Math.PI * 2, 0, Math.PI / 2), cap, bx, 0.5 * s + h);
     }
-  } else if (pick === 1) {
-    // Lava fissure (crack in ground with emissive glow)
-    const rock = mat(0x1a0800, 0.9);
-    const lava = mat(0xff5500, 0.05, 0, 0xff2200, 3.0);
-    addMesh(g, new THREE.BoxGeometry(2.5 * scale, 0.3, 0.4 * scale), rock, 0, 0.15, 0, 0, 0.1, 0);
-    addMesh(g, new THREE.BoxGeometry(2 * scale, 0.1, 0.25 * scale), lava, 0, 0.1, 0, 0, 0, 0, false);
-    // Ember particles above fissure
-    for (let i = 0; i < 4; i++) {
-      const ex = (Math.random() - 0.5) * 1.5 * scale;
-      addMesh(g, new THREE.SphereGeometry(0.05 * scale, 4, 4), lava, ex, 0.3 + Math.random() * 0.4, 0, 0, 0, 0, false);
-    }
+  } else if (v === 1) {
+    // Wisp lantern on post
+    const wood = m(0x1a0f08, 0.95);
+    const wisp = m(0x88ffaa, 0.04, 0, 0x44ee88, 3.0);
+    solid(g, new THREE.CylinderGeometry(0.07 * s, 0.1 * s, 2.2 * s, 6), wood, 0, 1.1 * s);
+    deco(g, new THREE.OctahedronGeometry(0.22 * s), wisp, 0, 2.4 * s);
   } else {
-    // Bone pile
-    const bone = mat(0xc8c0a0, 0.9);
-    for (let i = 0; i < 5; i++) {
-      const bx = (Math.random() - 0.5) * 1.5 * scale;
-      const bz = (Math.random() - 0.5) * 1.0 * scale;
-      const blen = (0.3 + Math.random() * 0.4) * scale;
-      addMesh(g, new THREE.CylinderGeometry(0.05 * scale, 0.08 * scale, blen, 5), bone, bx, 0.05 * scale, bz, 0, 0, Math.random() * Math.PI, false);
-    }
-    // Skull
-    addMesh(g, new THREE.SphereGeometry(0.2 * scale, 8, 8), bone, 0, 0.2 * scale, 0, 0, 0, 0, false);
+    // Algae-covered boulder
+    const algae = m(0x1a4a20, 0.9, 0, 0x0a2a10, 0.15);
+    solid(g, new THREE.SphereGeometry(0.7 * s, 8, 8), algae, 0, 0.55 * s);
   }
   return g;
 }
 
-function buildTundraProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
+function _propMeadow(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const pick = rng.nextInt(3);
-  if (pick === 0) {
-    // Ice shard cluster
-    const ice = mat(0x88ccee, 0.05, 0.4, 0x55aacc, 0.6);
-    for (let i = 0; i < 5; i++) {
-      const a = (i / 5) * Math.PI * 2;
-      const r = 0.3 * scale, h = (0.4 + Math.random() * 0.8) * scale;
-      addMesh(g, new THREE.ConeGeometry(0.12 * scale, h, 5), ice, Math.cos(a) * r, h / 2, Math.sin(a) * r, Math.random() * 0.2, 0, 0, false);
-    }
-    addMesh(g, new THREE.ConeGeometry(0.2 * scale, 1.5 * scale, 5), ice, 0, 0.75 * scale, 0, 0, 0, 0, false);
-  } else if (pick === 1) {
-    // Frozen tree
-    const bark = mat(0x334455, 0.9);
-    const frost = mat(0xcceeee, 0.1, 0.1);
-    addMesh(g, new THREE.CylinderGeometry(0.2 * scale, 0.3 * scale, 3 * scale, 7), bark, 0, 1.5 * scale);
-    for (let i = 0; i < 3; i++) {
-      const a = (i / 3) * Math.PI * 2, h = (1 + i * 0.6) * scale;
-      addMesh(g, new THREE.CylinderGeometry(0.08 * scale, 0.12 * scale, 1.2 * scale, 5), bark, Math.cos(a) * 0.4 * scale, h, Math.sin(a) * 0.4 * scale, 0, 0, Math.PI / 6);
-    }
-    addMesh(g, new THREE.SphereGeometry(1.0 * scale, 8, 6), frost, 0, 3.5 * scale, 0, 0, 0, 0, false);
-  } else {
-    // Snowdrift over rock
-    const rock = mat(0x556677, 0.85);
-    const snow = mat(0xeef5f5, 0.95);
-    addMesh(g, new THREE.SphereGeometry(0.7 * scale, 8, 8), rock, 0, 0.4 * scale);
-    addMesh(g, new THREE.SphereGeometry(0.75 * scale, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), snow, 0, 0.7 * scale, 0, 0, 0, 0, false);
-  }
-  return g;
-}
-
-function buildMarshProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const pick = rng.nextInt(3);
-  if (pick === 0) {
-    // Gnarled bog log
-    const log = mat(0x1a1208, 0.95);
-    const moss = mat(0x1a4a12, 0.9);
-    addMesh(g, new THREE.CylinderGeometry(0.25 * scale, 0.3 * scale, 2.5 * scale, 7), log, 0, 0.25 * scale, 0, 0, 0, Math.PI / 2.2);
-    // Moss patches
-    for (let i = 0; i < 3; i++) {
-      addMesh(g, new THREE.SphereGeometry(0.28 * scale, 6, 5, 0, Math.PI * 2, 0, Math.PI / 2), moss, (i - 1) * 0.6 * scale, 0.4 * scale, 0, 0, 0, 0, false);
-    }
-  } else if (pick === 1) {
-    // Will-o-wisp orb on stake
-    const wood = mat(0x1a0f08, 0.95);
-    const wisp = mat(0x88ffaa, 0.05, 0, 0x44ee88, 2.8);
-    addMesh(g, new THREE.CylinderGeometry(0.05 * scale, 0.07 * scale, 2 * scale, 5), wood, 0, scale);
-    addMesh(g, new THREE.SphereGeometry(0.22 * scale, 8, 8), wisp, 0, 2.3 * scale, 0, 0, 0, 0, false);
-  } else {
-    // Mushroom ring
-    const stem = mat(0xd4c490, 0.8);
-    const cap = mat(0x228833, 0.7, 0, 0x114422, 0.3);
-    for (let i = 0; i < 6; i++) {
-      const a = (i / 6) * Math.PI * 2;
-      const r = 0.8 * scale;
-      const h = (0.25 + Math.random() * 0.25) * scale;
-      const px = Math.cos(a) * r, pz = Math.sin(a) * r;
-      addMesh(g, new THREE.CylinderGeometry(0.08 * scale, 0.1 * scale, h, 6), stem, px, h / 2, pz, 0, 0, 0, false);
-      addMesh(g, new THREE.SphereGeometry(0.22 * scale, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), cap, px, h, pz, 0, 0, 0, false);
-    }
-  }
-  return g;
-}
-
-function buildMeadowProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const pick = rng.nextInt(4);
-  if (pick === 0) {
+  const v = rng.nextInt(4);
+  if (v === 0) {
     // Wildflower cluster
-    const stem = mat(0x3a6a20, 0.9);
-    const flower = mat(0xee6644, 0.7, 0, 0xdd4422, 0.15);
-    const flower2 = mat(0xeecc22, 0.7, 0, 0xddaa00, 0.1);
-    for (let i = 0; i < 8; i++) {
-      const a = (i / 8) * Math.PI * 2, r = Math.random() * 0.6 * scale;
+    const stem = m(0x3a6a20, 0.9);
+    const f1 = m(0xff6644, 0.72, 0, 0xee4422, 0.18);
+    const f2 = m(0xeecc22, 0.72, 0, 0xddaa00, 0.12);
+    for (let i = 0; i < 7; i++) {
+      const a = (i / 7) * Math.PI * 2, r = (0.1 + Math.random() * 0.55) * s;
+      const h = (0.3 + Math.random() * 0.4) * s;
       const px = Math.cos(a) * r, pz = Math.sin(a) * r;
-      const h = (0.3 + Math.random() * 0.4) * scale;
-      addMesh(g, new THREE.CylinderGeometry(0.04 * scale, 0.04 * scale, h, 4), stem, px, h / 2, pz, 0, 0, 0, false);
-      const fMat = i % 2 === 0 ? flower : flower2;
-      addMesh(g, new THREE.SphereGeometry(0.1 * scale, 6, 5), fMat, px, h, pz, 0, 0, 0, false);
+      deco(g, new THREE.CylinderGeometry(0.03 * s, 0.04 * s, h, 4), stem, px, h / 2, pz);
+      deco(g, new THREE.SphereGeometry(0.1 * s, 6, 5), i % 2 ? f1 : f2, px, h, pz);
     }
-  } else if (pick === 1) {
-    // Stone wall section
-    const stone = mat(0x887766, 0.92);
-    addMesh(g, new THREE.BoxGeometry(2.5 * scale, 0.9 * scale, 0.4 * scale), stone, 0, 0.45 * scale);
-    // Irregular top stones
-    for (let i = 0; i < 5; i++) {
-      const sx = (i - 2) * 0.45 * scale, sy = (0.1 + Math.random() * 0.15) * scale;
-      addMesh(g, new THREE.BoxGeometry(0.4 * scale, sy, 0.38 * scale), stone, sx, 0.9 * scale + sy / 2);
-    }
-  } else if (pick === 2) {
+  } else if (v === 1) {
     // Hay bale
-    const hay = mat(0xd4aa44, 0.9);
-    addMesh(g, new THREE.CylinderGeometry(0.7 * scale, 0.7 * scale, 1.2 * scale, 12), hay, 0, 0.7 * scale, 0, 0, 0, Math.PI / 2);
-    // Binding twine rings
-    const twine = mat(0x8a6a20, 0.95);
-    for (const ty of [0.3, 0.9]) {
-      addMesh(g, new THREE.TorusGeometry(0.72 * scale, 0.03 * scale, 5, 12), twine, 0, ty * scale + 0.15, 0, Math.PI / 2, 0, 0, false);
+    const hay = m(0xd4aa44, 0.9);
+    const twine = m(0x8a6a20, 0.95);
+    solid(g, new THREE.CylinderGeometry(0.7 * s, 0.7 * s, 1.2 * s, 11), hay, 0, 0.7 * s, 0, 0, 0, Math.PI / 2);
+    for (const ty of [0.35, 0.85]) {
+      deco(g, new THREE.TorusGeometry(0.72 * s, 0.04 * s, 5, 11), twine, 0, ty * s + 0.15, 0, Math.PI / 2);
+    }
+  } else if (v === 2) {
+    // Stone wall section
+    const stone = m(0x887766, 0.92);
+    solid(g, new THREE.BoxGeometry(2.5 * s, 0.85 * s, 0.42 * s), stone, 0, 0.42 * s);
+    // Top stones
+    for (let i = 0; i < 5; i++) {
+      const h = (0.08 + (i % 2) * 0.12) * s;
+      solid(g, new THREE.BoxGeometry(0.42 * s, h, 0.38 * s), stone, (i - 2) * 0.46 * s, 0.88 * s + h / 2);
     }
   } else {
-    // Old well
-    const stone = mat(0x887766, 0.88);
-    const wood = mat(0x5a3a1a, 0.9);
-    const rope = mat(0xaa8833, 0.95);
-    addMesh(g, new THREE.CylinderGeometry(0.7 * scale, 0.8 * scale, 0.9 * scale, 10), stone, 0, 0.45 * scale);
-    // Rim
-    addMesh(g, new THREE.TorusGeometry(0.75 * scale, 0.08 * scale, 6, 12), stone, 0, 0.94 * scale, 0, Math.PI / 2, 0, 0);
-    // Posts
-    addMesh(g, new THREE.CylinderGeometry(0.06 * scale, 0.07 * scale, 1.5 * scale, 6), wood, -0.65 * scale, 1.65 * scale, 0);
-    addMesh(g, new THREE.CylinderGeometry(0.06 * scale, 0.07 * scale, 1.5 * scale, 6), wood, 0.65 * scale, 1.65 * scale, 0);
-    // Crossbar
-    addMesh(g, new THREE.CylinderGeometry(0.05 * scale, 0.05 * scale, 1.5 * scale, 6), wood, 0, 2.35 * scale, 0, 0, 0, Math.PI / 2);
-    // Bucket rope
-    addMesh(g, new THREE.CylinderGeometry(0.02 * scale, 0.02 * scale, 0.8 * scale, 4), rope, 0, 1.95 * scale, 0, 0, 0, 0, false);
+    // Wooden signpost
+    const wood = m(0x5a3a1a, 0.9);
+    solid(g, new THREE.CylinderGeometry(0.08 * s, 0.1 * s, 2.0 * s, 6), wood, 0, s);
+    solid(g, new THREE.BoxGeometry(1.1 * s, 0.45 * s, 0.12 * s), wood, 0.2 * s, 1.75 * s, 0, 0, 0.15);
+    solid(g, new THREE.BoxGeometry(0.9 * s, 0.38 * s, 0.12 * s), wood, -0.1 * s, 1.3 * s, 0, 0, -0.1);
   }
   return g;
 }
 
-function buildDesertProp(pos: THREE.Vector3, scale: number, rng: Rng): THREE.Group {
+function _propDesert(pos: THREE.Vector3, s: number, rng: Rng): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
-  const pick = rng.nextInt(3);
-  if (pick === 0) {
-    // Sandstone boulder
-    const sand = mat(0xc8a050, 0.88);
-    addMesh(g, new THREE.DodecahedronGeometry(0.8 * scale, 0), sand, 0, 0.6 * scale);
-    addMesh(g, new THREE.DodecahedronGeometry(0.5 * scale, 0), sand, 0.7 * scale, 0.4 * scale, -0.3 * scale);
-  } else if (pick === 1) {
-    // Cactus cluster (Desert biome exists but hasn't specific procedural spawns yet)
-    const cactus = mat(0x2a6a1a, 0.8);
-    const bloom = mat(0xff4466, 0.7, 0, 0xee2244, 0.5);
-    addMesh(g, new THREE.CylinderGeometry(0.18 * scale, 0.2 * scale, 2.5 * scale, 6), cactus, 0, 1.25 * scale);
-    // Arms
-    for (const [cx, cy, cz, rx] of [[0.4, 0.6, 0, 0], [-0.35, 0.8, 0, 0]] as [number,number,number,number][]) {
-      addMesh(g, new THREE.CylinderGeometry(0.12 * scale, 0.14 * scale, scale, 5), cactus, cx * scale, cy * scale + scale * 0.5, cz, rx + Math.PI / 2.5, 0, 0);
-    }
-    addMesh(g, new THREE.SphereGeometry(0.14 * scale, 6, 6), bloom, 0, 2.65 * scale, 0, 0, 0, 0, false);
+  const v = rng.nextInt(3);
+  if (v === 0) {
+    // Sandstone boulder(s)
+    const sand = m(0xc8a050, 0.88);
+    solid(g, new THREE.DodecahedronGeometry(0.8 * s, 0), sand, 0, 0.65 * s);
+    solid(g, new THREE.DodecahedronGeometry(0.5 * s, 0), sand, 0.75 * s, 0.4 * s, 0.2 * s);
+  } else if (v === 1) {
+    // Cactus (multi-segment)
+    const cactus = m(0x2a6a1a, 0.82);
+    const bloom = m(0xff4466, 0.72, 0, 0xee2244, 0.6);
+    solid(g, new THREE.CylinderGeometry(0.2 * s, 0.25 * s, 2.5 * s, 7), cactus, 0, 1.25 * s);
+    solid(g, new THREE.CylinderGeometry(0.13 * s, 0.16 * s, s, 6), cactus, 0.42 * s, 0.8 * s, 0, 0, 0, Math.PI / 2.3);
+    solid(g, new THREE.CylinderGeometry(0.13 * s, 0.16 * s, s, 6), cactus, -0.38 * s, 1.1 * s, 0, 0, 0, -Math.PI / 2.2);
+    deco(g, new THREE.SphereGeometry(0.15 * s, 6, 6), bloom, 0, 2.65 * s);
   } else {
-    // Sun-bleached skeleton
-    const bone = mat(0xe8dcc0, 0.9);
-    addMesh(g, new THREE.SphereGeometry(0.22 * scale, 7, 7), bone, 0, 0.22 * scale);
+    // Sun-bleached bones
+    const bone = m(0xe8dcc0, 0.9);
+    solid(g, new THREE.SphereGeometry(0.22 * s, 7, 7), bone, 0, 0.22 * s);
     for (let i = 0; i < 4; i++) {
       const a = (i / 4) * Math.PI * 2;
-      const bx = Math.cos(a) * 0.6 * scale, bz = Math.sin(a) * 0.6 * scale;
-      addMesh(g, new THREE.CylinderGeometry(0.05 * scale, 0.07 * scale, 0.9 * scale, 5), bone, bx, 0.1, bz, 0, 0, Math.PI / 2 + a, false);
+      deco(g, new THREE.CylinderGeometry(0.05 * s, 0.07 * s, 0.85 * s, 5), bone,
+        Math.cos(a) * 0.55 * s, 0.1, Math.sin(a) * 0.55 * s, 0, 0, Math.PI / 2 + a);
     }
   }
   return g;

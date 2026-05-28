@@ -301,6 +301,7 @@ export class GameEngine {
     d.sceneManager.terrain.update(px, pz);
     d.sceneManager.setPlayerPosition(px, pz);
     d.worldBuilder.update(px, pz);
+    d.worldGenerator.update(px, pz); // drain procedural spawn queue
     d.entityManager.setPlayerPosition(px, pz);
     d.entityManager.update(delta, (x, z) => this.getTerrainHeight(x, z), d.collisionSystem);
     d.collisionSystem.update();

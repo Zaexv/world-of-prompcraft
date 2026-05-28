@@ -45,7 +45,13 @@ export class WorldGenerator {
     this.scene = scene;
     this.entityManager = entityManager;
     this.populator = new ProceduralPopulator(terrain);
+    this.populator.setScene(scene);
     this.populator.setEntityManager(entityManager);
+  }
+
+  /** Call once per frame from the game loop to drain the spawn queue. */
+  update(playerX: number, playerZ: number): void {
+    this.populator.update(playerX, playerZ);
   }
 
   /** Set minimap reference for registering markers. */
@@ -103,6 +109,7 @@ export class WorldGenerator {
     }
 
     this.generatedChunks.delete(key);
+    this.populator.releaseChunk(chunkX, chunkZ);
   }
 
   /** Main entry point: called when a new terrain chunk loads. */
@@ -143,11 +150,8 @@ export class WorldGenerator {
       }
     }
 
-    // Procedural population (buildings, monsters, props)
-    const proceduralObjects = this.populator.populateChunk(
-      this.scene, chunkX, chunkZ, worldX, worldZ, CHUNK_SIZE,
-    );
-    chunkObjects.push(...proceduralObjects);
+    // Procedural population — deferred via queue (zero work here)
+    this.populator.queueChunk(chunkX, chunkZ, worldX, worldZ);
 
     if (chunkObjects.length > 0) {
       this.chunkObjects.set(key, chunkObjects);
