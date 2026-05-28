@@ -22,6 +22,7 @@ export class NPCStateStore {
       relationship_score: 0,
       name: "",
       personality: "",
+      scale: 1.0,
     };
 
     const updated: NPCStateData = {
@@ -32,6 +33,7 @@ export class NPCStateStore {
       relationship_score: partial.relationship_score ?? existing.relationship_score,
       name: partial.name ?? existing.name,
       personality: partial.personality ?? existing.personality,
+      scale: partial.scale ?? existing.scale,
     };
 
     this.states.set(npcId, updated);

@@ -86,6 +86,16 @@ export function getPlaceholderAppearance(style: NPCPlaceholderStyle): Appearance
         beltColor: 0xffdd66,
         hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
+    case "oracle":
+      return {
+        bodyWidth: 0.60, bodyDepth: 0.38, bodyColor: 0x4a5a8a,
+        headWidth: 0.52, headDepth: 0.52, headColor: 0xc8a070,
+        eyeColor: 0xccff00, eyeEmissive: 0x88ee00, eyeEmissiveIntensity: 1.5,
+        armRadius: 0.11, armColor: 0x4a5a8a,
+        legRadius: 0.13, legColor: 0x223355,
+        beltColor: 0x8877aa,
+        hatRadius: 0.0, hatHeight: 0.0, hatColor: 0x000000,
+      };
     case 'sage':
     case 'mage':
       return {

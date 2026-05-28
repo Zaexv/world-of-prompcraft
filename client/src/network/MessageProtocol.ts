@@ -214,6 +214,7 @@ export interface NPCStateData {
   hp: number;
   maxHp: number;
   position: [number, number, number];
+  scale: number;
   mood: string;
   relationship_score: number;
   personality?: string;
@@ -226,6 +227,7 @@ export interface NPCInitData {
   hp: number;
   maxHp: number;
   position: [number, number, number];
+  scale: number;
   mood: string;
   personality: string;
 }

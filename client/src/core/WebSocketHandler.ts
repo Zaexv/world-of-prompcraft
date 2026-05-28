@@ -42,56 +42,68 @@ export class WebSocketHandler {
       this.d.runtime.localPlayerId = data.playerId as string;
       this.d.runtime.joinedServer = true;
       this.d.playerState.playerId = data.playerId as string;
-      
-      this.d.uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${this.d.username}!`);
-      
-      if (data.players) {
-        for (const p of data.players) {
-          if (p.playerId !== this.d.runtime.localPlayerId) {
-            this.d.entityManager.addRemotePlayer(p);
+
+      try {
+        this.d.uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${this.d.username}!`);
+
+        if (data.players) {
+          for (const p of data.players) {
+            if (p.playerId !== this.d.runtime.localPlayerId) {
+              try {
+                this.d.entityManager.addRemotePlayer(p);
+              } catch (err) {
+                console.error('join_ok: failed to add remote player', p.playerId, err);
+              }
+            }
           }
         }
-      }
 
-      if (data.npcs) {
-        console.info(`Received ${data.npcs.length} NPCs from server.`);
-        for (const n of data.npcs) {
-          const id = n.npc_id || n.id;
-          const pos = n.position;
-          
-          if (!id || !pos || !Array.isArray(pos) || pos.length < 3) {
-            console.warn('Skipping invalid NPC data (missing id or position array):', n);
-            continue;
+        if (data.npcs) {
+          console.info(`Received ${data.npcs.length} NPCs from server.`);
+          for (const n of data.npcs) {
+            const id = n.npc_id || n.id;
+            const pos = n.position;
+
+            if (!id || !pos || !Array.isArray(pos) || pos.length < 3) {
+              console.warn('Skipping invalid NPC data (missing id or position array):', n);
+              continue;
+            }
+
+            this.d.npcNameMap.set(id, n.name);
+
+            try {
+              this.d.entityManager.addNPC({
+                id,
+                name: n.name,
+                position: new THREE.Vector3(pos[0], pos[1], pos[2]),
+                hp: n.hp,
+                maxHp: n.maxHp,
+                personality: n.personality,
+                scale: n.scale,
+              });
+            } catch (err) {
+              console.error(`join_ok: failed to spawn NPC ${n.name} (${id}):`, err);
+            }
+
+            this.d.npcStateStore.updateState(id, {
+              name: n.name,
+              hp: n.hp,
+              maxHp: n.maxHp,
+              personality: n.personality,
+              scale: n.scale,
+              mood: n.mood,
+            });
           }
-
-          // Update lookup maps
-          this.d.npcNameMap.set(id, n.name);
-
-          console.info(`Spawning NPC: ${n.name} (${id}) at ${pos}`);
-          this.d.entityManager.addNPC({
-            id,
-            name: n.name,
-            position: new THREE.Vector3(pos[0], pos[1], pos[2]),
-            hp: n.hp,
-            maxHp: n.maxHp,
-            personality: n.personality,
-          });
-
-          this.d.npcStateStore.updateState(id, {
-            name: n.name,
-            hp: n.hp,
-            maxHp: n.maxHp,
-            personality: n.personality,
-            mood: n.mood,
-          });
+        } else {
+          console.warn('No NPCs received in join_ok message.');
         }
-      } else {
-        console.warn('No NPCs received in join_ok message.');
+      } catch (err) {
+        console.error('join_ok: unexpected error during world setup:', err);
+      } finally {
+        this.d.loginScreen.hide();
+        this.d.loadingOverlay.hide();
+        this.d.startIntroCinematic();
       }
-
-      this.d.loginScreen.hide();
-      this.d.loadingOverlay.hide();
-      this.d.startIntroCinematic();
       return;
     }
 

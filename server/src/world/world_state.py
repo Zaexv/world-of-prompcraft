@@ -22,6 +22,7 @@ class NPCData:
     max_hp: int = 100
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     mood: str = "neutral"
+    scale: float = 1.0
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -32,6 +33,7 @@ class NPCData:
             "position": list(self.position),
             "personality": self.personality,
             "mood": self.mood,
+            "scale": self.scale,
         }
 
 
@@ -84,6 +86,7 @@ class WorldState:
                 self.npcs[npc_id].name = npc_def["name"]
                 self.npcs[npc_id].personality = system_prompt
                 self.npcs[npc_id].position = list(npc_def["position"])
+                self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
             else:
                 # Add new
                 npc = NPCData(
@@ -93,6 +96,7 @@ class WorldState:
                     hp=initial_hp,
                     max_hp=initial_hp,
                     position=list(npc_def["position"]),
+                    scale=npc_def.get("scale", 1.0),
                 )
                 self.npcs[npc_id] = npc
 

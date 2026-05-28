@@ -346,7 +346,80 @@ export function addPlaceholderAccessory(mesh: THREE.Group, style: NPCPlaceholder
     }
 
     // ── Undead ────────────────────────────────────────────────────────────────
-    case 'undead': {
+    case "oracle": {
+      // ── Fishing Pole ────────────────────────────────────────────────────────
+      const poleBaseMat = npcMat(0x4a321f); // Dark wood
+      const poleGeo = new THREE.CylinderGeometry(0.015, 0.005, 3.2, 5);
+      // Shift geometry so the handle is at the bottom (origin) instead of the middle
+      poleGeo.translate(0, 1.6, 0); 
+      const fishingPole = new THREE.Mesh(poleGeo, poleBaseMat);
+      fishingPole.name = "staff"; // Keeping name for outline selection
+      
+      // Position at the hand/arm height and pivot it forward over the water
+      fishingPole.position.set(0.62, NPC_Y_ARM - 0.1, 0.2);
+      fishingPole.rotation.x = Math.PI * 0.35; // Tilted forward
+      fishingPole.rotation.z = Math.PI * 0.1;  // Slightly outward
+      
+      // Add fishing line dropping down from the tip
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.5 });
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 3.2, 0),       // Top of the pole
+        new THREE.Vector3(0, -1.0, 0)       // Drop down to the water
+      ]);
+      const fishingLine = new THREE.Line(lineGeo, lineMat);
+      fishingPole.add(fishingLine);
+      
+      mesh.add(fishingPole);
+
+      // ── Cigar / Blunt ───────────────────────────────────────────────────────
+      // Cone-shaped rolled blunt wrap (greenish-brown)
+      const bluntMat = npcMat(0x5c4d30);
+      // CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
+      // Tip is slightly thicker than the mouth end
+      const bluntGeo = new THREE.CylinderGeometry(0.028, 0.012, 0.18, 7);
+      const blunt = new THREE.Mesh(bluntGeo, bluntMat);
+      blunt.name = "blunt";
+      // Positioned near the mouth (slightly lower front of the head)
+      blunt.position.set(0.12, NPC_Y_HEAD - 0.16, 0.30);
+      blunt.rotation.set(Math.PI * 0.5, 0.1, Math.PI * 0.4); // Tilted sticking out
+      mesh.add(blunt);
+
+      // Ash tip
+      const ashMat = npcMat(0x777777, 0.9, 0);
+      // Matches the radius of the thick end (0.028) tapering to 0.022
+      const ashGeo = new THREE.CylinderGeometry(0.022, 0.028, 0.04, 7);
+      const ash = new THREE.Mesh(ashGeo, ashMat);
+      ash.name = "bluntAsh";
+      // Slightly further out along the same axis
+      ash.position.set(0.20, NPC_Y_HEAD - 0.16, 0.34);
+      ash.rotation.copy(blunt.rotation);
+      mesh.add(ash);
+
+      // Glowing cherry at the very tip
+      const cherryMat = npcMat(0xff4400, 0.1, 0, 0xff2200, 2.5);
+      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), cherryMat);
+      cherry.name = "cherry";
+      cherry.position.set(0.22, NPC_Y_HEAD - 0.16, 0.35);
+      mesh.add(cherry);
+
+      // Smoke particles gently rising from the tip
+      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, transparent: true, opacity: 0.4, flatShading: true });
+      for (let i = 0; i < 4; i++) {
+        const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.015 + i * 0.01, 5, 4), smokeMat);
+        smoke.name = `smoke${i}`;
+        // Curve the smoke path up and slightly back
+        smoke.position.set(
+          0.22 + i * 0.02, 
+          NPC_Y_HEAD - 0.10 + i * 0.10, 
+          0.35 + Math.sin(i * 1.5) * 0.04
+        );
+        mesh.add(smoke);
+      }
+      break;
+    }
+
+
+    case "undead": {
       const bonePale  = 0xc8d0b8;
       const soulGreen = 0x44ffaa;
 
@@ -465,7 +538,7 @@ export function addNPCVisualOutline(mesh: THREE.Group, style: NPCPlaceholderStyl
     'shield', 'halo', 'staff', 'orb',
     'leftTusk', 'rightTusk',
     'leftEye', 'rightEye',
-    'pack', 'satchel',
+    'pack', 'satchel', 'blunt', 'bluntAsh', 'cherry',
   ];
   const scale = style === 'dragon' || style === 'monster' ? 1.06 : 1.048;
   addOutlineShell(mesh, {

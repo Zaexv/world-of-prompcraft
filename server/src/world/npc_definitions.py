@@ -48,6 +48,7 @@ def load_npc_definitions() -> dict[str, dict[str, Any]]:
                 "position": n["transform"]["position"],
                 "initial_hp": n["stats"].get("max_hp", 100),
                 "personality_key": n["ai"].get("personality_key", n["id"]),
+                "scale": n["transform"].get("scale", 1.0),
                 "zone_id": zone_id,
             }
 
