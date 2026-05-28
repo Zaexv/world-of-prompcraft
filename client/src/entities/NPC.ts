@@ -176,6 +176,18 @@ export class NPC {
     this.wander.update(delta, getHeightAt, collisionSystem, this.wanderRadius, this.homePosition, waterHoverY);
   }
 
+  walkToPlayer(playerPosition: THREE.Vector3): void {
+    this.wander.walkTo(playerPosition);
+  }
+
+  updateApproachTarget(playerPosition: THREE.Vector3): void {
+    this.wander.updateApproachTarget(playerPosition);
+  }
+
+  resumeWander(): void {
+    this.wander.resumeWander();
+  }
+
   playEmote(emote: string): void {
     this.animator.play(emote === 'attack' ? 'attack' : 'emote');
     this.actionIcon.displayAction(emote, 2.5);

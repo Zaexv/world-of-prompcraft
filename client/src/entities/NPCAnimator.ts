@@ -25,6 +25,7 @@ export class NPCAnimator {
   private emoteTimer = 0;
   private attackOrigin: THREE.Vector3 = new THREE.Vector3();
   private attackDirection: THREE.Vector3 = new THREE.Vector3(0, 0, 1);
+  private still = false;
 
   // GLTF mode — set via setMixer()
   private mixer: THREE.AnimationMixer | null = null;
@@ -66,6 +67,10 @@ export class NPCAnimator {
   /** Update the base Y position (e.g. after the NPC moves to new terrain height). */
   setBaseY(y: number): void {
     this.baseY = y;
+  }
+
+  setStill(value: boolean): void {
+    this.still = value;
   }
 
   play(animationName: string): void {
@@ -121,8 +126,10 @@ export class NPCAnimator {
 
   // --- Idle: gentle vertical bob ---
   private animateIdle(delta: number): void {
-    this.group.position.y = this.baseY + Math.sin(this.phase * this.profile.idleBobSpeed) * this.profile.idleBobAmplitude;
-    this.group.rotation.z = Math.sin(this.phase * this.profile.swaySpeed) * this.profile.swayAmplitude;
+    if (!this.still) {
+      this.group.position.y = this.baseY + Math.sin(this.phase * this.profile.idleBobSpeed) * this.profile.idleBobAmplitude;
+      this.group.rotation.z = Math.sin(this.phase * this.profile.swaySpeed) * this.profile.swayAmplitude;
+    }
     // Return limbs to rest
     if (this.leftLeg) this.leftLeg.rotation.x *= 0.9;
     if (this.rightLeg) this.rightLeg.rotation.x *= 0.9;

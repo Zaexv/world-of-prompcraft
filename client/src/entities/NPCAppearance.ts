@@ -275,20 +275,28 @@ export function buildProceduralMesh(
   const bootMat = npcMat(darken(a.legColor, 0.22), 0.80);
   const bootGeo = new THREE.CylinderGeometry(a.legRadius + 0.01, a.legRadius + 0.02, 0.22, 10);
   const toeGeo  = new THREE.SphereGeometry(a.legRadius + 0.015, 8, 5);
+  const legHalfHeight = 0.41;
+  const hipY = NPC_Y_LEG + legHalfHeight;
 
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-LEG_X, hipY, 0);
+  group.add(lLegPivot);
   const lLeg = new THREE.Mesh(legGeo, legMat);
-  lLeg.name = 'leftLeg';
-  lLeg.position.set(-LEG_X, NPC_Y_LEG, 0);
+  lLeg.position.set(0, -legHalfHeight, 0);
   lLeg.castShadow = true;
-  group.add(lLeg);
+  lLegPivot.add(lLeg);
   const lBoot = childMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
   childMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
 
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(LEG_X, hipY, 0);
+  group.add(rLegPivot);
   const rLeg = new THREE.Mesh(legGeo, legMat);
-  rLeg.name = 'rightLeg';
-  rLeg.position.set(LEG_X, NPC_Y_LEG, 0);
+  rLeg.position.set(0, -legHalfHeight, 0);
   rLeg.castShadow = true;
-  group.add(rLeg);
+  rLegPivot.add(rLeg);
   const rBoot = childMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
   childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
   materials.push(legMat);

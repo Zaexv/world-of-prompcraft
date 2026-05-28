@@ -10,10 +10,10 @@ export const NetworkConfig = {
   // Server Endpoints
   server: {
     // Main WebSocket connection
-    url: isDev ? 'ws://localhost:8000/ws' : 'wss://api.promptcraft.game/ws',
+    url: isDev ? 'ws://127.0.0.1:8000/ws' : 'wss://api.promptcraft.game/ws',
 
     // REST API (fallback, for health checks, etc.)
-    api: isDev ? 'http://localhost:8000' : 'https://api.promptcraft.game',
+    api: isDev ? 'http://127.0.0.1:8000' : 'https://api.promptcraft.game',
 
     // Alternative servers for load balancing
     alternates: [
