@@ -150,8 +150,8 @@ export class Minimap extends UIComponent {
     const scale = this.SCALE;
     const halfWorld = (S * scale) / 2;
 
-    // Clear
-    ctx.fillStyle = '#0a0612';
+    // Clear with a slightly visible dark base
+    ctx.fillStyle = '#12141e';
     ctx.fillRect(0, 0, S, S);
 
     // Draw biome-colored terrain pixels (every 4px for performance)
@@ -161,13 +161,13 @@ export class Minimap extends UIComponent {
         const wx = playerX + (px - S / 2) * scale;
         const wz = playerZ + (py - S / 2) * scale;
         const biome = getDominantBiome(wx, wz);
-        ctx.fillStyle = BIOME_COLORS[biome] ?? BIOME_COLORS[BiomeType.Teldrassil] ?? '#1a2a1f';
+        ctx.fillStyle = BIOME_COLORS[biome];
         ctx.fillRect(px, py, step, step);
       }
     }
 
     // Draw grid lines (every 64 units = chunk boundary)
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.14)';
     ctx.lineWidth = 0.5;
     const chunkSize = 64;
     const startWX = playerX - halfWorld;
@@ -392,11 +392,12 @@ export class Minimap extends UIComponent {
   }
 }
 
-// Biome display colors for the minimap
-const BIOME_COLORS: Partial<Record<BiomeType, string>> = {
-  [BiomeType.Teldrassil]: '#1a2a1f',
-  [BiomeType.EmberWastes]: '#3a1508',
-  [BiomeType.CrystalTundra]: '#4a5a6a',
-  [BiomeType.TwilightMarsh]: '#0a1a0a',
-  [BiomeType.SunlitMeadows]: '#3a4a1a',
+// Biome display colors — deliberately vivid so they read clearly on the dark canvas.
+const BIOME_COLORS: Record<BiomeType, string> = {
+  [BiomeType.Teldrassil]: '#2d6b38',   // forest green
+  [BiomeType.EmberWastes]: '#9c3a12',  // lava orange-red
+  [BiomeType.CrystalTundra]: '#4a7fa8', // icy blue
+  [BiomeType.TwilightMarsh]: '#1e5c3a', // swamp teal
+  [BiomeType.SunlitMeadows]: '#7a9422', // meadow yellow-green
+  [BiomeType.Desert]: '#9a7230',        // sandy gold
 };

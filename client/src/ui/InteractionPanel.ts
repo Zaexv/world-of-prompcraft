@@ -104,19 +104,62 @@ export class InteractionPanel extends UIComponent {
       overflow: "hidden",
     } as CSSStyleDeclaration);
 
+    const headerRow = document.createElement("div");
+    Object.assign(headerRow.style, {
+      display: "flex",
+      alignItems: "center",
+      padding: "10px 16px",
+      borderBottom: "1px solid rgba(197,165,90,0.3)",
+      flexShrink: "0",
+      position: "relative",
+    } as CSSStyleDeclaration);
+
     this.header = document.createElement("div");
     Object.assign(this.header.style, {
-      padding: "10px 16px",
+      flex: "1",
       fontSize: "18px",
       fontWeight: "700",
       color: "#c5a55a",
       textAlign: "center",
-      borderBottom: "1px solid rgba(197,165,90,0.3)",
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
-      flexShrink: "0",
     } as CSSStyleDeclaration);
-    this.container.appendChild(this.header);
+    headerRow.appendChild(this.header);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "✕";
+    Object.assign(closeBtn.style, {
+      position: "absolute",
+      right: "10px",
+      top: "50%",
+      transform: "translateY(-50%)",
+      background: "none",
+      border: "1px solid rgba(197,165,90,0.35)",
+      borderRadius: "4px",
+      color: "#c5a55a",
+      fontSize: "14px",
+      cursor: "pointer",
+      width: "24px",
+      height: "24px",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: "0",
+      lineHeight: "1",
+      fontFamily: "inherit",
+    } as CSSStyleDeclaration);
+    closeBtn.addEventListener("mouseenter", () => {
+      closeBtn.style.background = "rgba(197,165,90,0.15)";
+    });
+    closeBtn.addEventListener("mouseleave", () => {
+      closeBtn.style.background = "none";
+    });
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onClose?.();
+    });
+    headerRow.appendChild(closeBtn);
+    this.container.appendChild(headerRow);
 
     this.statusBar = document.createElement("div");
     Object.assign(this.statusBar.style, {
