@@ -85,8 +85,10 @@ export class BVHManager {
       body.object.raycast(raycaster, intersects);
     }
     
-    // Sort by distance
-    intersects.sort((a, b) => a.distance - b.distance);
+    // Sort only when there are multiple hits (skip trivial single-result case)
+    if (intersects.length > 1) {
+      intersects.sort((a, b) => a.distance - b.distance);
+    }
   }
 
   /**
@@ -123,14 +125,18 @@ export class BVHManager {
     return hit;
   }
 
+  // Reusable scratch objects — avoids per-query allocation (GC pressure fix)
+  private static _invMatrix = new THREE.Matrix4();
+  private static _localBox  = new THREE.Box3();
+
   /** Check if an AABB intersects any static mesh. */
   public intersectsBox(box: THREE.Box3): boolean {
     for (const mesh of this.staticBodies) {
       if (!mesh.geometry.boundsTree) continue;
 
-      // Local mesh check
-      const meshInvMatrix = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
-      const localBox = box.clone().applyMatrix4(meshInvMatrix);
+      // Reuse static scratch objects instead of allocating per-query
+      BVHManager._invMatrix.copy(mesh.matrixWorld).invert();
+      const localBox = BVHManager._localBox.copy(box).applyMatrix4(BVHManager._invMatrix);
       
       const hit = mesh.geometry.boundsTree.shapecast({
         intersectsBounds: (b) => b.intersectsBox(localBox),

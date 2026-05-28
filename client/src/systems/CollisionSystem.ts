@@ -15,6 +15,9 @@ export class CollisionSystem {
   private statics: PhysicsEntry[] = [];
   private dynamicBodies: Map<THREE.Object3D, CollisionBody> = new Map();
 
+  // O(1) dedup check — replacing the O(n) Array.some() call
+  private _staticSet = new Set<THREE.Object3D>();
+
   // Reusable
   private _box3 = new THREE.Box3();
 
@@ -30,12 +33,13 @@ export class CollisionSystem {
   // ── Registration ──────────────────────────────────────────────────────
 
   async addCollidable(obj: THREE.Object3D): Promise<void> {
-    if (this.statics.some(e => e.obj === obj)) return;
+    if (this._staticSet.has(obj)) return; // O(1) instead of O(n)
 
     const body = this.createCollisionBody(obj, true);
     if (body) {
       await this.bvhManager.addBody(body);
       this.statics.push({ obj, body });
+      this._staticSet.add(obj);
       this.debug?.update();
     }
   }
@@ -71,12 +75,13 @@ export class CollisionSystem {
     group.updateWorldMatrix(true, true);
 
     await Promise.all(targets.map(async (child) => {
-      if (this.statics.some(e => e.obj === child)) return;
+      if (this._staticSet.has(child)) return; // O(1) dedup
 
       const body = this.createCollisionBody(child, true);
       if (body) {
         await this.bvhManager.addBody(body);
         this.statics.push({ obj: child, body });
+        this._staticSet.add(child);
       }
     }));
     this.debug?.update();
@@ -87,27 +92,33 @@ export class CollisionSystem {
   }
 
   removeCollidable(obj: THREE.Object3D): void {
+    // Fast path: direct match
     const idx = this.statics.findIndex((e) => e.obj === obj);
     if (idx !== -1) {
       this.bvhManager.removeBody(this.statics[idx].body.id);
+      this._staticSet.delete(this.statics[idx].obj);
       this.statics.splice(idx, 1);
       this.debug?.update();
       return;
     }
 
-    const children: number[] = [];
+    // Slow path: remove all children of this ancestor.
+    // Build the removal list in one pass using the Set for quick membership.
+    const toRemove: number[] = [];
     for (let i = 0; i < this.statics.length; i++) {
       let ancestor = this.statics[i].obj.parent;
       while (ancestor) {
-        if (ancestor === obj) { children.push(i); break; }
+        if (ancestor === obj) { toRemove.push(i); break; }
         ancestor = ancestor.parent;
       }
     }
-    for (let i = children.length - 1; i >= 0; i--) {
-      this.bvhManager.removeBody(this.statics[children[i]].body.id);
-      this.statics.splice(children[i], 1);
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      const entry = this.statics[toRemove[i]!]!;
+      this.bvhManager.removeBody(entry.body.id);
+      this._staticSet.delete(entry.obj);
+      this.statics.splice(toRemove[i]!, 1);
     }
-    if (children.length > 0) this.debug?.update();
+    if (toRemove.length > 0) this.debug?.update();
   }
 
   removeCollidablesWhere(predicate: (obj: THREE.Object3D) => boolean): void {

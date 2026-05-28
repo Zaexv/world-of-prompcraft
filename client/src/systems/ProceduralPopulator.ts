@@ -140,6 +140,9 @@ export class ProceduralPopulator {
   private _sortPX = 0;
   private _sortPZ = 0;
 
+  // Reusable scratch Vector3 — avoids per-chunk allocation (GC pressure)
+  private static _v = new THREE.Vector3();
+
   constructor(terrain: Terrain) { this.terrain = terrain; }
 
   setScene(scene: THREE.Scene): void { this.scene = scene; }
@@ -252,7 +255,7 @@ export class ProceduralPopulator {
         const ex = worldX + rng.nextRange(8, SIZE - 8);
         const ez = worldZ + rng.nextRange(8, SIZE - 8);
         const ey = this.terrain.getHeightAt(ex, ez);
-        const anchor = new THREE.Vector3(ex, ey, ez);
+        const anchor = ProceduralPopulator._v.set(ex, ey, ez);
 
         const group = enc.buildFn(anchor, rng);
         if (this.scene) {
@@ -276,7 +279,7 @@ export class ProceduralPopulator {
             this.entityManager.addNPC({
               id: npcId,
               name: npcDef.name,
-              position: new THREE.Vector3(nx, ny, nz),
+              position: new THREE.Vector3(nx, ny, nz), // needs own Vector3 (stored by EntityManager)
               hp: npcDef.maxHp, maxHp: npcDef.maxHp,
               personality: npcDef.hostile
                 ? `Hostile — attack on sight.`
@@ -296,7 +299,7 @@ export class ProceduralPopulator {
       const bx = worldX + rng.nextRange(8, SIZE - 8);
       const bz = worldZ + rng.nextRange(8, SIZE - 8);
       const by = this.terrain.getHeightAt(bx, bz);
-      const pos = new THREE.Vector3(bx, by, bz);
+      const pos = ProceduralPopulator._v.set(bx, by, bz);
 
       const building = registryEntry
         ? registryEntry.buildingFn(pos, rng, dist)
@@ -341,7 +344,7 @@ export class ProceduralPopulator {
         const px = worldX + rng.nextRange(3, SIZE - 3);
         const pz = worldZ + rng.nextRange(3, SIZE - 3);
         const py = this.terrain.getHeightAt(px, pz);
-        const pos = new THREE.Vector3(px, py, pz);
+        const pos = ProceduralPopulator._v.set(px, py, pz);
         const scale = rng.nextRange(0.7, 1.35);
 
         const prop = registryEntry
