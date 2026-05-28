@@ -8,12 +8,14 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    llm_provider: Literal["claude", "openai"] = "openai"
+    llm_provider: Literal["claude", "openai", "ollama"] = "openai"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_api_base: str = "https://api.openai.com/v1"
     anthropic_model: str = "claude-sonnet-4-20250514"
     openai_model: str = "gpt-4o-mini"
+    ollama_base_url: str = "http://localhost:11434/v1"
+    ollama_model: str = "qwen3.5:9b"
     llm_temperature: float = 0.1
     max_tokens: int = 4096
     ws_port: int = 8000
