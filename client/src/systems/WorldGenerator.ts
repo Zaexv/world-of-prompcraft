@@ -13,6 +13,7 @@ import type { Minimap, MinimapWaypoint } from '../ui/Minimap';
 import type { CollisionSystem } from './CollisionSystem';
 import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
+import { ProceduralPopulator } from './ProceduralPopulator';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
 
@@ -30,18 +31,21 @@ export class WorldGenerator {
   private worldManifest: WorldManifest | null = null;
   private worldBuilder: WorldBuilder | null = null;
   private minimap: Minimap | null = null;
+  private populator: ProceduralPopulator;
 
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
   private chunkNPCs: Map<string, string[]> = new Map();
 
   constructor(
     scene: THREE.Scene,
-    _terrain: Terrain,
+    terrain: Terrain,
     entityManager: EntityManager,
     _ws: WebSocketClient,
   ) {
     this.scene = scene;
     this.entityManager = entityManager;
+    this.populator = new ProceduralPopulator(terrain);
+    this.populator.setEntityManager(entityManager);
   }
 
   /** Set minimap reference for registering markers. */
@@ -53,6 +57,7 @@ export class WorldGenerator {
   /** Set collision system so spawned trees become collidable. */
   setCollisionSystem(cs: CollisionSystem): void {
     this.collisionSystem = cs;
+    this.populator.setCollisionSystem(cs);
   }
 
   /** Set the world manifest for data-driven landmark spawning. */
@@ -137,6 +142,12 @@ export class WorldGenerator {
         }
       }
     }
+
+    // Procedural population (buildings, monsters, props)
+    const proceduralObjects = this.populator.populateChunk(
+      this.scene, chunkX, chunkZ, worldX, worldZ, CHUNK_SIZE,
+    );
+    chunkObjects.push(...proceduralObjects);
 
     if (chunkObjects.length > 0) {
       this.chunkObjects.set(key, chunkObjects);
