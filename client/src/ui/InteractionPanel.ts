@@ -87,6 +87,7 @@ export class InteractionPanel extends UIComponent {
   declare private chatHistory: HTMLDivElement;
   declare private input: HTMLInputElement;
   private npcId = "";
+  private npcName = "";
   private chatHistories: Map<string, string> = new Map();
 
   /** Fired when the player submits a message. */
@@ -245,15 +246,12 @@ export class InteractionPanel extends UIComponent {
     this.actionBar = document.createElement("div");
     Object.assign(this.actionBar.style, {
       display: "none",
-      flexWrap: "nowrap",
-      gap: "6px",
+      flexWrap: "wrap",
+      gap: "5px",
       padding: "8px 14px",
-      overflowX: "auto",
-      borderBottom: "1px solid rgba(197,165,90,0.3)",
+      borderBottom: "1px solid rgba(197,165,90,0.2)",
       flexShrink: "0",
     } as CSSStyleDeclaration);
-    // Hide the action bar's scrollbar — it scrolls silently
-    (this.actionBar as unknown as Record<string, string>)['scrollbarWidth'] = 'none';
     this.container.appendChild(this.actionBar);
 
     this.chatHistory = document.createElement("div");
@@ -271,41 +269,68 @@ export class InteractionPanel extends UIComponent {
     const inputWrap = document.createElement("div");
     Object.assign(inputWrap.style, {
       padding: "8px 10px",
-      borderTop: "1px solid rgba(197,165,90,0.3)",
+      borderTop: "1px solid rgba(197,165,90,0.2)",
       flexShrink: "0",
+      display: "flex",
+      gap: "6px",
+      alignItems: "center",
     } as CSSStyleDeclaration);
 
     this.input = document.createElement("input");
     this.input.type = "text";
-    this.input.placeholder = "Type your action...";
+    this.input.placeholder = "Say something or type an action...";
     Object.assign(this.input.style, {
-      width: "100%",
+      flex: "1",
       padding: "8px 12px",
-      border: "1px solid #c5a55a",
-      borderRadius: "4px",
-      background: "rgba(0,0,0,0.5)",
+      border: "1px solid rgba(197,165,90,0.35)",
+      borderRadius: "20px",
+      background: "rgba(255,255,255,0.05)",
       color: "#e8dcc8",
-      fontSize: "14px",
+      fontSize: "13px",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       outline: "none",
+      transition: "border-color 0.2s",
     } as CSSStyleDeclaration);
+    this.input.addEventListener("focus",  () => { this.input.style.borderColor = "rgba(197,165,90,0.7)"; });
+    this.input.addEventListener("blur",   () => { this.input.style.borderColor = "rgba(197,165,90,0.35)"; });
+
+    const sendFn = () => {
+      const text = this.input.value.trim();
+      if (text.length > 0) {
+        this.addMessage("player", text);
+        this.input.value = "";
+        this.showThinking();
+        this.onSendMessage?.(text);
+      }
+    };
 
     this.input.addEventListener("keydown", (e: KeyboardEvent) => {
-      if (e.key === "Enter") {
-        const text = this.input.value.trim();
-        if (text.length > 0) {
-          this.addMessage("player", text);
-          this.input.value = "";
-          this.showThinking();
-          this.onSendMessage?.(text);
-        }
-      } else if (e.key === "Escape") {
-        this.onClose?.();
-      }
+      if (e.key === "Enter") sendFn();
+      else if (e.key === "Escape") this.onClose?.();
       e.stopPropagation();
     });
 
+    const sendBtn = document.createElement("button");
+    sendBtn.textContent = "Send";
+    Object.assign(sendBtn.style, {
+      padding: "7px 14px",
+      border: "1px solid rgba(197,165,90,0.45)",
+      borderRadius: "20px",
+      background: "rgba(197,165,90,0.18)",
+      color: "#c5a55a",
+      fontSize: "12px",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
+      cursor: "pointer",
+      flexShrink: "0",
+      transition: "background 0.15s",
+      letterSpacing: "0.04em",
+    } as CSSStyleDeclaration);
+    sendBtn.addEventListener("mouseenter", () => { sendBtn.style.background = "rgba(197,165,90,0.3)"; });
+    sendBtn.addEventListener("mouseleave", () => { sendBtn.style.background = "rgba(197,165,90,0.18)"; });
+    sendBtn.addEventListener("click", (e) => { e.stopPropagation(); sendFn(); });
+
     inputWrap.appendChild(this.input);
+    inputWrap.appendChild(sendBtn);
     this.container.appendChild(inputWrap);
   }
 
@@ -320,6 +345,7 @@ export class InteractionPanel extends UIComponent {
       }
 
       this.npcId = npcId;
+      this.npcName = npcName;
       this.header.textContent = npcName;
       this.chatHistory.innerHTML = this.chatHistories.get(npcId) ?? "";
 
@@ -387,43 +413,94 @@ export class InteractionPanel extends UIComponent {
   }
 
   addMessage(sender: "player" | "npc" | "system", text: string): void {
-    const bubble = document.createElement("div");
     const isPlayer = sender === "player";
     const isSystem = sender === "system";
+    const now = new Date();
+    const ts = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
 
-    const bgMap = {
-      player: "rgba(100, 160, 220, 0.25)",
-      npc: "rgba(160, 120, 50, 0.3)",
-      system: "rgba(200, 60, 60, 0.25)",
-    } as const;
-    const borderMap = {
-      player: "1px solid rgba(100, 160, 220, 0.4)",
-      npc: "1px solid rgba(197, 165, 90, 0.35)",
-      system: "1px solid rgba(200, 60, 60, 0.35)",
-    } as const;
-    const colorMap = {
-      player: "#b8d8f8",
-      npc: "#e8d8b8",
-      system: "#f8b8b8",
-    } as const;
+    if (isSystem) {
+      const line = document.createElement("div");
+      Object.assign(line.style, {
+        alignSelf: "center",
+        fontSize: "11px",
+        fontStyle: "italic",
+        color: "rgba(200,100,100,0.8)",
+        padding: "3px 8px",
+        background: "rgba(200,60,60,0.12)",
+        borderRadius: "4px",
+        border: "1px solid rgba(200,60,60,0.2)",
+        textAlign: "center",
+        maxWidth: "90%",
+      } as CSSStyleDeclaration);
+      line.textContent = text;
+      this.appendToChatAndScroll(line);
+      return;
+    }
 
-    Object.assign(bubble.style, {
-      maxWidth: "80%",
-      padding: "8px 12px",
-      borderRadius: "8px",
-      fontSize: isSystem ? "12px" : "13px",
-      lineHeight: "1.45",
-      wordBreak: "break-word",
-      fontStyle: isSystem ? "italic" : "normal",
-      alignSelf: isPlayer ? "flex-end" : "flex-start",
-      background: bgMap[sender],
-      border: borderMap[sender],
-      color: colorMap[sender],
+    // Row wrapper for alignment
+    const row = document.createElement("div");
+    Object.assign(row.style, {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: isPlayer ? "flex-end" : "flex-start",
+      gap: "2px",
     } as CSSStyleDeclaration);
 
+    // Speaker meta line (name + timestamp)
+    const meta = document.createElement("div");
+    Object.assign(meta.style, {
+      display: "flex",
+      gap: "6px",
+      alignItems: "baseline",
+      flexDirection: isPlayer ? "row-reverse" : "row",
+    } as CSSStyleDeclaration);
+
+    const speakerName = document.createElement("span");
+    Object.assign(speakerName.style, {
+      fontSize: "10px",
+      fontWeight: "700",
+      letterSpacing: "0.06em",
+      color: isPlayer ? "rgba(130,180,240,0.7)" : "#c5a55a",
+      textTransform: "uppercase",
+    } as CSSStyleDeclaration);
+    speakerName.textContent = isPlayer ? "You" : (this.npcName || "NPC");
+
+    const timestamp = document.createElement("span");
+    Object.assign(timestamp.style, {
+      fontSize: "9px",
+      color: "rgba(255,255,255,0.2)",
+      fontVariantNumeric: "tabular-nums",
+    } as CSSStyleDeclaration);
+    timestamp.textContent = ts;
+
+    meta.appendChild(speakerName);
+    meta.appendChild(timestamp);
+    row.appendChild(meta);
+
+    // Bubble
+    const bubble = document.createElement("div");
+    Object.assign(bubble.style, {
+      maxWidth: "82%",
+      padding: "9px 13px",
+      borderRadius: isPlayer ? "14px 14px 4px 14px" : "14px 14px 14px 4px",
+      fontSize: "13px",
+      lineHeight: "1.5",
+      wordBreak: "break-word",
+      background: isPlayer ? "rgba(70,120,200,0.22)" : "rgba(197,165,90,0.14)",
+      border: isPlayer
+        ? "1px solid rgba(100,160,220,0.35)"
+        : "1px solid rgba(197,165,90,0.28)",
+      color: isPlayer ? "#c8dff8" : "#e8dcc8",
+    } as CSSStyleDeclaration);
     bubble.textContent = text;
-    const isAtBottom = this.chatHistory.scrollHeight - this.chatHistory.scrollTop - this.chatHistory.clientHeight < 50;
-    this.chatHistory.appendChild(bubble);
+
+    row.appendChild(bubble);
+    this.appendToChatAndScroll(row);
+  }
+
+  private appendToChatAndScroll(el: HTMLElement): void {
+    const isAtBottom = this.chatHistory.scrollHeight - this.chatHistory.scrollTop - this.chatHistory.clientHeight < 60;
+    this.chatHistory.appendChild(el);
     if (isAtBottom) {
       this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
     }
@@ -431,21 +508,35 @@ export class InteractionPanel extends UIComponent {
 
   showThinking(): void {
     if (this.chatHistory.querySelector('#wop-thinking-bubble')) return;
+    const row = document.createElement("div");
+    row.id = "wop-thinking-bubble";
+    Object.assign(row.style, {
+      display: "flex",
+      flexDirection: "column",
+      alignItems: "flex-start",
+      gap: "2px",
+    } as CSSStyleDeclaration);
+
+    const meta = document.createElement("div");
+    Object.assign(meta.style, { fontSize: "10px", fontWeight: "700", letterSpacing: "0.06em",
+      color: "#c5a55a", textTransform: "uppercase" } as CSSStyleDeclaration);
+    meta.textContent = this.npcName || "NPC";
+    row.appendChild(meta);
+
     const bubble = document.createElement("div");
-    bubble.id = "wop-thinking-bubble";
     Object.assign(bubble.style, {
-      maxWidth: "80%",
-      padding: "8px 12px",
-      borderRadius: "8px",
-      fontSize: "13px",
-      alignSelf: "flex-start",
-      background: "rgba(160, 120, 50, 0.2)",
-      border: "1px solid rgba(197, 165, 90, 0.25)",
+      padding: "9px 14px",
+      borderRadius: "14px 14px 14px 4px",
+      background: "rgba(197,165,90,0.1)",
+      border: "1px solid rgba(197,165,90,0.2)",
       color: "#c5a55a",
       fontStyle: "italic",
+      fontSize: "13px",
     } as CSSStyleDeclaration);
     bubble.innerHTML = `<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>`;
-    this.chatHistory.appendChild(bubble);
+    row.appendChild(bubble);
+
+    this.chatHistory.appendChild(row);
     this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
