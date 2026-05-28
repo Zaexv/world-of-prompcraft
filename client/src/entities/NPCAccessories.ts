@@ -347,36 +347,66 @@ export function addPlaceholderAccessory(mesh: THREE.Group, style: NPCPlaceholder
 
     // ── Undead ────────────────────────────────────────────────────────────────
     case "oracle": {
-      const staff = new THREE.Mesh(
-        new THREE.CylinderGeometry(0.03, 0.03, 2.5, 6),
-        npcMat(0x4a321f),
-      );
-      staff.name = "staff";
-      staff.position.set(0.62, NPC_Y_TORSO + 0.2, 0);
-      mesh.add(staff);
+      // ── Fishing Pole ────────────────────────────────────────────────────────
+      const poleBaseMat = npcMat(0x4a321f); // Dark wood
+      const poleGeo = new THREE.CylinderGeometry(0.015, 0.005, 3.2, 5);
+      // Shift geometry so the handle is at the bottom (origin) instead of the middle
+      poleGeo.translate(0, 1.6, 0); 
+      const fishingPole = new THREE.Mesh(poleGeo, poleBaseMat);
+      fishingPole.name = "staff"; // Keeping name for outline selection
+      
+      // Position at the hand/arm height and pivot it forward over the water
+      fishingPole.position.set(0.62, NPC_Y_ARM - 0.1, 0.2);
+      fishingPole.rotation.x = Math.PI * 0.35; // Tilted forward
+      fishingPole.rotation.z = Math.PI * 0.1;  // Slightly outward
+      
+      // Add fishing line dropping down from the tip
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xeeeeee, transparent: true, opacity: 0.5 });
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(0, 3.2, 0),       // Top of the pole
+        new THREE.Vector3(0, -1.0, 0)       // Drop down to the water
+      ]);
+      const fishingLine = new THREE.Line(lineGeo, lineMat);
+      fishingPole.add(fishingLine);
+      
+      mesh.add(fishingPole);
 
-      const bluntMat = npcMat(0x3d2b1f);
-      const blunt = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.18, 5), bluntMat);
-      blunt.name = "blunt";
-      blunt.position.set(0.08, NPC_Y_HEAD - 0.12, 0.28);
-      blunt.rotation.set(0, 0.4, Math.PI / 2);
-      mesh.add(blunt);
+      // ── Cigar / Blunt ───────────────────────────────────────────────────────
+      // A thicker, brown cylinder to represent a proper cigar/blunt
+      const cigarMat = npcMat(0x4b3621);
+      const cigar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.16, 6), cigarMat);
+      cigar.name = "blunt";
+      // Positioned near the mouth (slightly lower front of the head)
+      cigar.position.set(0.12, NPC_Y_HEAD - 0.16, 0.30);
+      cigar.rotation.set(Math.PI * 0.5, 0.1, Math.PI * 0.4); // Tilted sticking out
+      mesh.add(cigar);
 
-      const cherryMat = npcMat(0xff4400, 0.1, 0, 0xff2200, 2.0);
-      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), cherryMat);
+      // Ash tip
+      const ashMat = npcMat(0x888888, 0.9, 0);
+      const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.04, 6), ashMat);
+      ash.name = "bluntAsh";
+      ash.position.set(0.20, NPC_Y_HEAD - 0.16, 0.34);
+      ash.rotation.copy(cigar.rotation);
+      mesh.add(ash);
+
+      // Glowing cherry at the very tip
+      const cherryMat = npcMat(0xff3300, 0.1, 0, 0xff1100, 2.0);
+      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.015, 5, 4), cherryMat);
       cherry.name = "cherry";
-      cherry.position.set(0.18, NPC_Y_HEAD - 0.12, 0.32);
+      cherry.position.set(0.215, NPC_Y_HEAD - 0.16, 0.35);
       mesh.add(cherry);
 
-      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.4, flatShading: true });
+      // Smoke particles gently rising from the tip
+      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.35, flatShading: true });
       for (let i = 0; i < 3; i++) {
         const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.02 + i * 0.015, 5, 4), smokeMat);
         smoke.name = `smoke${i}`;
-        smoke.position.set(0.20 + i * 0.05, NPC_Y_HEAD - 0.08 + i * 0.08, 0.35 + i * 0.05);
+        smoke.position.set(0.22 + i * 0.04, NPC_Y_HEAD - 0.10 + i * 0.12, 0.36 + Math.sin(i)*0.03);
         mesh.add(smoke);
       }
       break;
     }
+
 
     case "undead": {
       const bonePale  = 0xc8d0b8;
@@ -497,7 +527,7 @@ export function addNPCVisualOutline(mesh: THREE.Group, style: NPCPlaceholderStyl
     'shield', 'halo', 'staff', 'orb',
     'leftTusk', 'rightTusk',
     'leftEye', 'rightEye',
-    'pack', 'satchel', 'blunt', 'cherry',
+    'pack', 'satchel', 'blunt', 'bluntAsh', 'cherry',
   ];
   const scale = style === 'dragon' || style === 'monster' ? 1.06 : 1.048;
   addOutlineShell(mesh, {
