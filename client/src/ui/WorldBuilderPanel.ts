@@ -125,9 +125,11 @@ export class WorldBuilderPanel extends UIComponent {
       <div style="display:flex; gap:8px; align-items:flex-end;">
         <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
           <textarea
-            placeholder="Describe what you want to build..."
-            rows="2"
+            placeholder="Describe what you want to build or change..."
+            rows="3"
             style="
+              width: 100%;
+              box-sizing: border-box;
               background: rgba(10, 8, 20, 0.8);
               border: 1px solid rgba(197, 165, 90, 0.3);
               border-radius: 6px;
