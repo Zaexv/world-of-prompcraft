@@ -62,7 +62,21 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 http://192.168.0.148:5173/)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/)",
       "Bash(curl -s http://localhost:8000/docs)",
-      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/health)"
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:8000/health)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object -ExpandProperty Name)",
+      "WebFetch(domain:api.polyhaven.com)",
+      "PowerShell(New-Item *)",
+      "Bash(powershell.exe -command \"Get-Content 'C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\\\\systems\\\\worldbuilder\\\\WorldBuilder.ts'\")",
+      "Bash(xargs grep -l \"malaka\\\\|landmark\")",
+      "WebFetch(domain:polyhaven.com)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\\\\systems\\\\*.ts\")",
+      "PowerShell(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\public\" | Where-Object { $_.Name -match \"sky|cube|env|px|nx|py|ny|pz|nz\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\public\" -Recurse | Select-Object FullName | Where-Object { $_.FullName -match \"skybox\" })",
+      "PowerShell(Head-Object *)",
+      "PowerShell(git *)",
+      "Bash(node *)",
+      "Bash(xargs wc -l)"
     ]
   },
   "hooks": {

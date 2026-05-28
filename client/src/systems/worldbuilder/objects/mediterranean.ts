@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyStonePBR } from '../../../utils/PBRMaps';
 
 // ─── Procedural Canvas Texture Generators ──────────────────────────────────────
 
@@ -143,10 +144,11 @@ function getMaterials(): MedMaterials {
         map: createTerracottaRoofTexture(),
         roughness: 0.8,
       }),
-      stone: new THREE.MeshStandardMaterial({
-        map: createStoneWallTexture(),
-        roughness: 0.9,
-      }),
+      stone: (() => {
+        const m = new THREE.MeshStandardMaterial({ map: createStoneWallTexture(), roughness: 0.9 });
+        applyStonePBR(m);
+        return m;
+      })(),
       wood: new THREE.MeshStandardMaterial({
         map: createWoodTexture(),
         roughness: 0.8,
@@ -342,34 +344,38 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   return g;
 }
 
-export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Group {
+// ─── Castle LOD helpers ────────────────────────────────────────────────────────
+
+function castleKeep(scale: number, mats: MedMaterials, segments: number): THREE.Mesh {
+  const keepRadiusB = 8 * scale;
+  const keepH = 10 * scale;
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(7 * scale, keepRadiusB, keepH, segments),
+    mats.stone,
+  );
+  mesh.rotation.y = Math.PI / 4;
+  mesh.position.y = keepH / 2;
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  mesh.userData.isCollider = true;
+  return mesh;
+}
+
+function castleCornerDist(scale: number): number {
+  return (8 * scale * Math.sqrt(2)) / 2;
+}
+
+function buildCastleHigh(scale: number): THREE.Group {
   const g = new THREE.Group();
-  g.position.copy(pos);
   const mats = getMaterials();
 
-  // Central Keep (Massive slanted walls)
-  const keepRadiusB = 8 * scale;
-  const keepRadiusT = 7 * scale;
-  const keepH = 10 * scale;
-  
-  // Use cylinder with 4 segments for a pyramid frustum
-  const keepGeo = new THREE.CylinderGeometry(keepRadiusT, keepRadiusB, keepH, 4);
-  const keep = new THREE.Mesh(keepGeo, mats.stone);
-  keep.rotation.y = Math.PI / 4; // Align flat with X/Z
-  keep.position.y = keepH / 2;
-  keep.castShadow = true;
-  keep.receiveShadow = true;
-  keep.userData.isCollider = true;
-  g.add(keep);
+  g.add(castleKeep(scale, mats, 4));
 
-  // Corner towers (Cylindrical)
   const towerRadius = 2.5 * scale;
   const towerH = 14 * scale;
-  const towerGeo = new THREE.CylinderGeometry(towerRadius, towerRadius + 0.5*scale, towerH, 12);
-  
-  // Actually, diagonal distance for a square of width 2*R is R * sqrt(2)
-  const cornerDist = (keepRadiusB * Math.sqrt(2)) / 2;
-  
+  const towerGeo = new THREE.CylinderGeometry(towerRadius, towerRadius + 0.5 * scale, towerH, 12);
+  const cornerDist = castleCornerDist(scale);
+
   for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
     const tower = new THREE.Mesh(towerGeo, mats.stone);
     tower.position.set(x, towerH / 2, z);
@@ -378,26 +384,22 @@ export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Grou
     tower.userData.isCollider = true;
     g.add(tower);
 
-    // Crenellations for towers
-    const crenelRadius = towerRadius + 0.2*scale;
+    const crenelRadius = towerRadius + 0.2 * scale;
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
       const cren = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, 1 * scale, 0.8 * scale), mats.stone);
       cren.position.set(x + Math.cos(a) * crenelRadius, towerH + 0.5 * scale, z + Math.sin(a) * crenelRadius);
-      cren.userData.noCollision = true; // Optimization
+      cren.userData.noCollision = true;
       g.add(cren);
     }
   }
 
-  // Gatehouse
-  const gateW = 5 * scale;
   const gateH = 6 * scale;
-  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(gateW, gateH, 3 * scale), mats.stone);
+  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
   gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
   gatehouse.castShadow = true;
   gatehouse.userData.isCollider = true;
   g.add(gatehouse);
 
-  // Portcullis (Wood grate)
   const archGeo = new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, 0.5 * scale, 12, 1, false, 0, Math.PI);
   const arch = new THREE.Mesh(archGeo, mats.wood);
   arch.rotation.x = Math.PI / 2;
@@ -406,6 +408,77 @@ export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Grou
   g.add(arch);
 
   return g;
+}
+
+function buildCastleMid(scale: number): THREE.Group {
+  const g = new THREE.Group();
+  const mats = getMaterials();
+
+  g.add(castleKeep(scale, mats, 4));
+
+  const towerRadius = 2.5 * scale;
+  const towerH = 14 * scale;
+  const towerGeo = new THREE.CylinderGeometry(towerRadius, towerRadius + 0.5 * scale, towerH, 7);
+  const cornerDist = castleCornerDist(scale);
+
+  for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
+    const tower = new THREE.Mesh(towerGeo, mats.stone);
+    tower.position.set(x, towerH / 2, z);
+    tower.castShadow = true;
+    tower.receiveShadow = true;
+    tower.userData.isCollider = true;
+    g.add(tower);
+  }
+
+  const gateH = 6 * scale;
+  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
+  gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
+  gatehouse.castShadow = true;
+  gatehouse.userData.isCollider = true;
+  g.add(gatehouse);
+
+  return g;
+}
+
+function buildCastleLow(scale: number): THREE.Group {
+  const g = new THREE.Group();
+  const mats = getMaterials();
+  const cornerDist = castleCornerDist(scale);
+
+  // Keep as a simple box
+  const keepH = 10 * scale;
+  const keepBox = new THREE.Mesh(new THREE.BoxGeometry(14 * scale, keepH, 14 * scale), mats.stone);
+  keepBox.position.y = keepH / 2;
+  keepBox.userData.isCollider = true;
+  g.add(keepBox);
+
+  // Corner towers as boxes
+  const towerH = 14 * scale;
+  const towerBox = new THREE.BoxGeometry(5 * scale, towerH, 5 * scale);
+  for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
+    const tower = new THREE.Mesh(towerBox, mats.stone);
+    tower.position.set(x, towerH / 2, z);
+    tower.userData.isCollider = true;
+    g.add(tower);
+  }
+
+  // Gatehouse
+  const gateH = 6 * scale;
+  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
+  gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
+  gatehouse.userData.isCollider = true;
+  g.add(gatehouse);
+
+  return g;
+}
+
+export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.LOD {
+  const lod = new THREE.LOD();
+  lod.position.copy(pos);
+  lod.addLevel(buildCastleHigh(scale), 0);    // Full detail  (0–140 units)
+  lod.addLevel(buildCastleMid(scale),  140);  // No crenels, fewer segments (140–360)
+  lod.addLevel(buildCastleLow(scale),  360);  // Box silhouette (360+)
+  return lod;
 }
 
 export function buildRomanAmphitheatre(pos: THREE.Vector3, scale: number): THREE.Group {

@@ -1,21 +1,80 @@
 import * as THREE from 'three';
 import { Water as ThreeWater } from 'three/examples/jsm/objects/Water.js';
+import { SUN_DIR } from './Lighting';
+
+// ── Shore foam overlay shader ───────────────────────────────────────────────
+
+const FOAM_VERT = /* glsl */`
+varying vec2 vUv;
+void main() {
+  vUv = uv;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}
+`;
+
+const FOAM_FRAG = /* glsl */`
+uniform float time;
+varying vec2 vUv;
+
+float hash(vec2 p) {
+  return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  f = f * f * (3.0 - 2.0 * f);
+  return mix(
+    mix(hash(i),               hash(i + vec2(1.0, 0.0)), f.x),
+    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
+    f.y
+  );
+}
+
+void main() {
+  // Scroll in the wave-approach direction at two frequencies for organic streaks
+  vec2 uv1 = vUv * 12.0 + vec2(time * 0.14,  time * 0.06);
+  vec2 uv2 = vUv *  6.0 + vec2(time * 0.09, -time * 0.04);
+  float foam = smoothstep(0.50, 0.72, vnoise(uv1) * vnoise(uv2) * 1.6);
+
+  // Pulse opacity with the wave cycle so foam is brightest when water peaks
+  float pulse = clamp(sin(time * 0.38) * 0.65 + 0.55, 0.0, 1.0);
+
+  gl_FragColor = vec4(0.92, 0.97, 1.0, foam * pulse * 0.20);
+}
+`;
+
+// ── Water class ─────────────────────────────────────────────────────────────
 
 /**
- * Reflective water plane using Three.js Water (planar reflections).
- * Teldrassil-inspired: teal tint, gentle waves, real scene reflections.
+ * Reflective water plane using Three.js Water (planar reflections) with an
+ * animated shore wave.
+ *
+ * The visual mesh (this.water) oscillates around Water.LEVEL so the beach
+ * appears to breathe.  Water.LEVEL itself stays constant so physics / NPC
+ * wander code is unaffected.
  */
 export class Water {
   public mesh: THREE.Mesh;
   private water: ThreeWater;
+  private foam: THREE.Mesh;
+  private foamMat: THREE.ShaderMaterial;
+  private waveTime = 0;
 
-  /** Water surface Y level */
+  /** Water surface Y level — physics / collision reference, never changes. */
   public static readonly LEVEL = -1.0;
 
   /** Convenience accessor for collision code. */
   static getWaterLevel(): number {
     return Water.LEVEL;
   }
+
+  // Wave parameters: two-component oscillation for organic feel.
+  // Combined amplitude ≈ ±0.35 — enough to lap over gently sloped beaches.
+  private static readonly AMP_A  = 0.26;   // main tide
+  private static readonly AMP_B  = 0.09;   // secondary ripple
+  private static readonly FREQ_A = 0.38;   // rad/s  (~16 s period)
+  private static readonly FREQ_B = 1.25;   // rad/s  (~5 s period)
+  private static readonly PHASE_B = 1.05;  // phase offset between the two
 
   constructor(scene: THREE.Scene) {
     // Large water plane — repositioned each frame to follow the player
@@ -31,9 +90,9 @@ export class Water {
       textureWidth: reflectionResolution,
       textureHeight: reflectionResolution,
       waterNormals: normalTexture,
-      sunDirection: new THREE.Vector3(0.3, 1.0, 0.5).normalize(),
-      sunColor: 0x8899bb,
-      waterColor: 0x0a3a3a,
+      sunDirection: SUN_DIR,
+      sunColor: 0xffffcc,
+      waterColor: 0x0d4a5a,
       distortionScale: 2.5,
       fog: true,
       clipBias: 0.003,
@@ -50,19 +109,51 @@ export class Water {
 
     this.mesh = this.water;
     scene.add(this.water);
+
+    // Shore foam overlay — lives just above the water surface and pulses with
+    // the wave cycle to show organic whitecap / wash streaks.
+    this.foamMat = new THREE.ShaderMaterial({
+      uniforms: { time: { value: 0 } },
+      vertexShader: FOAM_VERT,
+      fragmentShader: FOAM_FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.NormalBlending,
+    });
+    this.foam = new THREE.Mesh(
+      new THREE.PlaneGeometry(2048, 2048, 1, 1),
+      this.foamMat,
+    );
+    this.foam.rotation.x = -Math.PI / 2;
+    this.foam.position.y = Water.LEVEL + 0.02;
+    scene.add(this.foam);
   }
 
-  /** Call every frame. Pass player position to keep water centered. */
+  /** Call every frame. Pass player position to keep water centred. */
   update(delta: number, playerX?: number, playerZ?: number): void {
+    this.waveTime += delta;
+
     const mat = this.water.material as THREE.ShaderMaterial;
     if (mat.uniforms['time']) {
       mat.uniforms['time'].value += delta * 0.5;
     }
 
+    this.foamMat.uniforms['time'].value = this.waveTime;
+
+    // Two-component shore wave: slow tide + faster ripple
+    const waveY =
+      Water.AMP_A * Math.sin(this.waveTime * Water.FREQ_A) +
+      Water.AMP_B * Math.sin(this.waveTime * Water.FREQ_B + Water.PHASE_B);
+
+    this.water.position.y = Water.LEVEL + waveY;
+    this.foam.position.y  = Water.LEVEL + waveY + 0.02;
+
     // Follow player so water extends to the horizon in every direction
     if (playerX !== undefined && playerZ !== undefined) {
       this.water.position.x = playerX;
       this.water.position.z = playerZ;
+      this.foam.position.x  = playerX;
+      this.foam.position.z  = playerZ;
     }
   }
 

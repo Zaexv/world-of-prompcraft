@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { TemporalAAPass } from './TemporalAAPass';
 import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
@@ -23,7 +24,6 @@ export class SceneManager {
   private effects: Effects;
   private skybox: Skybox;
   private composer: EffectComposer | null = null;
-  private bloomPass: UnrealBloomPass | null = null;
   private forest: StartingForest;
   private desert: DesertScenery;
   private dynamicPixelRatio: number;
@@ -36,19 +36,24 @@ export class SceneManager {
   private readonly SHADOW_UPDATE_INTERVAL = 0.3;
   private readonly DEFAULT_SHADOW_DISTANCE = 42;
   private readonly _tmpShadowPos = new THREE.Vector3();
+  // Cached scene-object lists — rebuilt periodically to avoid per-frame traversal.
+  private _lodObjects: THREE.LOD[] = [];
+  private _shadowCasters: Array<THREE.Mesh | THREE.InstancedMesh> = [];
+  private _lodCacheFrame = 0;
+  private _shadowCacheFrame = 0;
+  private readonly CACHE_REBUILD_FRAMES = 120; // ~2 s at 60 fps
 
   constructor(container: HTMLElement) {
     // --- Core renderer setup ---
     this.scene = new THREE.Scene();
 
-    // Deep purple fallback background in case skybox hasn't loaded
-    this.scene.background = new THREE.Color(0x0a0612);
+    this.scene.background = new THREE.Color(0x87ceeb);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
       0.1,
-      1600,
+      2500,
     );
     this.camera.position.set(0, 30, 60);
     this.camera.lookAt(0, 0, 0);
@@ -62,33 +67,36 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 0.96;
+    this.renderer.toneMappingExposure = 1.2;
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
 
-    // --- Post-processing bloom (makes wisps, mushrooms, runes glow) ---
+    // --- Post-processing: render → TAA → bloom ---
     try {
       this.composer = new EffectComposer(this.renderer);
-      const renderPass = new RenderPass(this.scene, this.camera);
-      this.composer.addPass(renderPass);
+
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+      // Exponential-blend TAA: blends each frame with the last ~5 frames.
+      // composer.setSize() propagates to TemporalAAPass.setSize(), which
+      // discards stale history on resize automatically.
+      this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
 
       // Half-resolution bloom for performance
       const bloomRes = new THREE.Vector2(
         Math.floor(window.innerWidth / 2),
         Math.floor(window.innerHeight / 2),
       );
-      this.bloomPass = new UnrealBloomPass(
+      this.composer.addPass(new UnrealBloomPass(
         bloomRes,
         0.22,  // lower strength keeps scene cooler/darker
         0.35,  // tighter spread to avoid haze
         0.9,   // bloom only on truly bright emissive elements
-      );
-      this.composer.addPass(this.bloomPass);
+      ));
     } catch {
       // Fallback: if post-processing fails, render normally
       this.composer = null;
-      this.bloomPass = null;
     }
 
     // --- World systems (order matters: lighting first, then geometry) ---
@@ -121,6 +129,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
     if (this.composer) {
       this.composer.setSize(window.innerWidth, window.innerHeight);
+      // composer.setSize propagates to TemporalAAPass.setSize, which resets history.
     }
   }
 
@@ -141,18 +150,11 @@ export class SceneManager {
     if (Math.abs(nextRatio - this.dynamicPixelRatio) < 0.01) return;
     this.dynamicPixelRatio = nextRatio;
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
+    // Only resize the renderer drawing buffer — skipping composer.setSize avoids
+    // resetting the TAA history (which causes a dark flash) and GPU pipeline stalls.
+    // The composer targets stay at the previous logical size; the minor mismatch
+    // is imperceptible compared to the artifacts it prevents.
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-    if (this.composer) {
-      this.composer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    if (this.bloomPass) {
-      if (this.frameTimeMs > 22 && this.bloomPass.enabled) {
-        this.bloomPass.enabled = false;
-      } else if (this.frameTimeMs < 16 && !this.bloomPass.enabled) {
-        this.bloomPass.enabled = true;
-      }
-    }
   }
 
   private updateDistanceShadowCasters(delta: number): void {
@@ -160,25 +162,31 @@ export class SceneManager {
     if (this.shadowTimer < this.SHADOW_UPDATE_INTERVAL) return;
     this.shadowTimer = 0;
 
-    let changed = false;
-    for (const obj of this.scene.children) {
-      obj.traverse((child) => {
-        if (!child.userData.distanceShadowCaster) return;
-        if (!(child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh)) return;
-
-        child.getWorldPosition(this._tmpShadowPos);
-        const dx = this._tmpShadowPos.x - this.playerX;
-        const dz = this._tmpShadowPos.z - this.playerZ;
-        const shadowDistance = typeof child.userData.shadowDistance === 'number'
-          ? child.userData.shadowDistance
-          : this.DEFAULT_SHADOW_DISTANCE;
-        const shouldCast = (dx * dx + dz * dz) <= shadowDistance * shadowDistance;
-
-        if (child.castShadow !== shouldCast) {
-          child.castShadow = shouldCast;
-          changed = true;
+    // Rebuild shadow-caster cache every ~2 s (objects are static after world gen).
+    if (++this._shadowCacheFrame >= this.CACHE_REBUILD_FRAMES) {
+      this._shadowCacheFrame = 0;
+      this._shadowCasters = [];
+      this.scene.traverse((child) => {
+        if (child.userData.distanceShadowCaster &&
+            (child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh)) {
+          this._shadowCasters.push(child as THREE.Mesh | THREE.InstancedMesh);
         }
       });
+    }
+
+    let changed = false;
+    for (const child of this._shadowCasters) {
+      child.getWorldPosition(this._tmpShadowPos);
+      const dx = this._tmpShadowPos.x - this.playerX;
+      const dz = this._tmpShadowPos.z - this.playerZ;
+      const shadowDistance = typeof child.userData.shadowDistance === 'number'
+        ? child.userData.shadowDistance
+        : this.DEFAULT_SHADOW_DISTANCE;
+      const shouldCast = (dx * dx + dz * dz) <= shadowDistance * shadowDistance;
+      if (child.castShadow !== shouldCast) {
+        child.castShadow = shouldCast;
+        changed = true;
+      }
     }
 
     if (changed) {
@@ -186,12 +194,27 @@ export class SceneManager {
     }
   }
 
-  /** Update player position for effects and water tracking. */
+  private updateLOD(): void {
+    // Rebuild LOD list every ~2 s — LOD objects are static after world gen.
+    if (++this._lodCacheFrame >= this.CACHE_REBUILD_FRAMES) {
+      this._lodCacheFrame = 0;
+      this._lodObjects = [];
+      this.scene.traverse((obj) => {
+        if (obj.type === 'LOD') this._lodObjects.push(obj as THREE.LOD);
+      });
+    }
+    for (const lod of this._lodObjects) {
+      lod.update(this.camera);
+    }
+  }
+
+  /** Update player position for effects, water, and shadow frustum tracking. */
   setPlayerPosition(x: number, z: number): void {
     this.effects.setPlayerPosition(x, z);
     this.desert.setPlayerPosition(x, z);
     this.playerX = x;
     this.playerZ = z;
+    this.lighting.trackPlayer(x, z);
   }
 
   private playerX = 0;
@@ -206,8 +229,10 @@ export class SceneManager {
     this.forest.update(delta);
     this.desert.update(delta);
     this.effects.update(delta);
+    this.lighting.updateCelestialDiscs(this.camera.position, this.camera);
     this.updateAdaptiveQuality(delta);
     this.updateDistanceShadowCasters(delta);
+    this.updateLOD();
 
     // Use post-processing composer if available, otherwise fall back to direct render
     if (this.composer) {

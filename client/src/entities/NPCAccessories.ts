@@ -570,13 +570,16 @@ function npcMat(
   emissive?: number,
   emissiveIntensity?: number,
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     color,
     roughness,
     metalness,
-    emissive: emissive !== undefined && emissive !== 0 ? new THREE.Color(emissive) : undefined,
-    emissiveIntensity,
     flatShading: true,
-  });
+  };
+  if (emissive !== undefined && emissive !== 0) {
+    params.emissive = new THREE.Color(emissive);
+    if (emissiveIntensity !== undefined) params.emissiveIntensity = emissiveIntensity;
+  }
+  return new THREE.MeshStandardMaterial(params);
 }
 

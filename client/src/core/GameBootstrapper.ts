@@ -21,6 +21,7 @@ import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
 import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../scene/VerticalTerrain';
 import { setWorldManifest as setBiomeManifest } from '../scene/Biomes';
+import { warmUpTextures } from '../utils/PBRMaps';
 import { setWorldManifest as setDungeonManifest } from '../scene/DungeonConfig';
 import { GameEngine } from './GameEngine';
 import { WebSocketHandler } from './WebSocketHandler';
@@ -290,11 +291,17 @@ export function bootstrap(
     if (e.code === 'Escape' && uiManager.chatPanel.isFocused) e.preventDefault();
   }, { capture: true });
 
-  engine = new GameEngine({  
+  engine = new GameEngine({
     sceneManager, playerController, player, entityManager, collisionSystem,
     interactionSystem, reactionSystem, worldGenerator, worldBuilder, zoneTracker, zoneAtmosphere,
     dungeonSystem, uiManager, ws, playerState, npcStateStore, runtime,
   });
+
+  // Compile every shader program and upload every texture while the loading
+  // screen is still visible. Shader compilation on first frustum entry causes
+  // the deterministic freeze the player experiences a few meters from spawn.
+  renderer.compile(scene, camera);
+  warmUpTextures(renderer);
 
   return engine;
 }

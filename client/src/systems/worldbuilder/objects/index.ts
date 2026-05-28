@@ -10,7 +10,7 @@ export type ObjectType =
   | 'mushroom_cluster' | 'ancient_tree' | 'crystal_cluster'
   | 'campfire' | 'bonfire' | 'lantern';
 
-export function buildObject(type: string, pos: THREE.Vector3, scale: number, label?: string): THREE.Group {
+export function buildObject(type: string, pos: THREE.Vector3, scale: number, label?: string): THREE.Object3D {
   switch (type) {
     // Basic Structures
     case 'moonwell': return structures.buildMoonwell(pos, scale);
@@ -45,7 +45,7 @@ export function buildObject(type: string, pos: THREE.Vector3, scale: number, lab
   }
 }
 
-function buildDefaultMarker(pos: THREE.Vector3, scale: number, _label: string): THREE.Group {
+function buildDefaultMarker(pos: THREE.Vector3, scale: number, _label: string): THREE.Object3D {
   const g = new THREE.Group();
   g.position.copy(pos);
 
