@@ -372,36 +372,47 @@ export function addPlaceholderAccessory(mesh: THREE.Group, style: NPCPlaceholder
       mesh.add(fishingPole);
 
       // ── Cigar / Blunt ───────────────────────────────────────────────────────
-      // A thicker, brown cylinder to represent a proper cigar/blunt
-      const cigarMat = npcMat(0x4b3621);
-      const cigar = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.16, 6), cigarMat);
-      cigar.name = "blunt";
+      // Cone-shaped rolled blunt wrap (greenish-brown)
+      const bluntMat = npcMat(0x5c4d30);
+      // CylinderGeometry(radiusTop, radiusBottom, height, radialSegments)
+      // Tip is slightly thicker than the mouth end
+      const bluntGeo = new THREE.CylinderGeometry(0.028, 0.012, 0.18, 7);
+      const blunt = new THREE.Mesh(bluntGeo, bluntMat);
+      blunt.name = "blunt";
       // Positioned near the mouth (slightly lower front of the head)
-      cigar.position.set(0.12, NPC_Y_HEAD - 0.16, 0.30);
-      cigar.rotation.set(Math.PI * 0.5, 0.1, Math.PI * 0.4); // Tilted sticking out
-      mesh.add(cigar);
+      blunt.position.set(0.12, NPC_Y_HEAD - 0.16, 0.30);
+      blunt.rotation.set(Math.PI * 0.5, 0.1, Math.PI * 0.4); // Tilted sticking out
+      mesh.add(blunt);
 
       // Ash tip
-      const ashMat = npcMat(0x888888, 0.9, 0);
-      const ash = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.02, 0.04, 6), ashMat);
+      const ashMat = npcMat(0x777777, 0.9, 0);
+      // Matches the radius of the thick end (0.028) tapering to 0.022
+      const ashGeo = new THREE.CylinderGeometry(0.022, 0.028, 0.04, 7);
+      const ash = new THREE.Mesh(ashGeo, ashMat);
       ash.name = "bluntAsh";
+      // Slightly further out along the same axis
       ash.position.set(0.20, NPC_Y_HEAD - 0.16, 0.34);
-      ash.rotation.copy(cigar.rotation);
+      ash.rotation.copy(blunt.rotation);
       mesh.add(ash);
 
       // Glowing cherry at the very tip
-      const cherryMat = npcMat(0xff3300, 0.1, 0, 0xff1100, 2.0);
-      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.015, 5, 4), cherryMat);
+      const cherryMat = npcMat(0xff4400, 0.1, 0, 0xff2200, 2.5);
+      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), cherryMat);
       cherry.name = "cherry";
-      cherry.position.set(0.215, NPC_Y_HEAD - 0.16, 0.35);
+      cherry.position.set(0.22, NPC_Y_HEAD - 0.16, 0.35);
       mesh.add(cherry);
 
       // Smoke particles gently rising from the tip
-      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.35, flatShading: true });
-      for (let i = 0; i < 3; i++) {
-        const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.02 + i * 0.015, 5, 4), smokeMat);
+      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xdddddd, transparent: true, opacity: 0.4, flatShading: true });
+      for (let i = 0; i < 4; i++) {
+        const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.015 + i * 0.01, 5, 4), smokeMat);
         smoke.name = `smoke${i}`;
-        smoke.position.set(0.22 + i * 0.04, NPC_Y_HEAD - 0.10 + i * 0.12, 0.36 + Math.sin(i)*0.03);
+        // Curve the smoke path up and slightly back
+        smoke.position.set(
+          0.22 + i * 0.02, 
+          NPC_Y_HEAD - 0.10 + i * 0.10, 
+          0.35 + Math.sin(i * 1.5) * 0.04
+        );
         mesh.add(smoke);
       }
       break;
