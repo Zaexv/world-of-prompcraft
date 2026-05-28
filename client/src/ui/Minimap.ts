@@ -72,7 +72,7 @@ export class Minimap extends UIComponent {
       border: '1px solid rgba(197, 165, 90, 0.45)',
       borderRadius: '8px',
       pointerEvents: 'auto',
-      zIndex: '1000',
+      zIndex: '100',
       boxShadow: '0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(197,165,90,0.15)',
       overflow: 'hidden',
     } as Partial<CSSStyleDeclaration>);
@@ -126,19 +126,60 @@ export class Minimap extends UIComponent {
     } as Partial<CSSStyleDeclaration>);
     this.container.appendChild(this.canvas);
 
-    // ── Footer: coordinates ────────────────────────────────────────────────
+    // ── Footer: coordinates + compact biome legend ─────────────────────────
+    const footer = document.createElement('div');
+    Object.assign(footer.style, {
+      borderTop: '1px solid rgba(197,165,90,0.15)',
+      padding: '4px 8px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+    } as Partial<CSSStyleDeclaration>);
+
     this.coordLabel = document.createElement('div');
     Object.assign(this.coordLabel.style, {
-      padding: '3px 10px 5px',
       color: 'rgba(197,165,90,0.6)',
       fontSize: '9px',
       fontFamily: "'Cinzel', serif",
       letterSpacing: '0.5px',
       textAlign: 'center',
-      borderTop: '1px solid rgba(197,165,90,0.15)',
     } as Partial<CSSStyleDeclaration>);
     this.coordLabel.textContent = 'x: 0  z: 0';
-    this.container.appendChild(this.coordLabel);
+    footer.appendChild(this.coordLabel);
+
+    // Compact legend: 3 dots per row, 2 rows
+    const legendEntries: Array<[string, string]> = [
+      ['#2d6b38', 'Forest'], ['#9c3a12', 'Lava'], ['#4a7fa8', 'Tundra'],
+      ['#1e5c3a', 'Marsh'], ['#7a9422', 'Meadow'], ['#9a7230', 'Desert'],
+    ];
+    const legendRow = document.createElement('div');
+    Object.assign(legendRow.style, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '3px 8px',
+      justifyContent: 'center',
+    } as Partial<CSSStyleDeclaration>);
+    for (const [color, label] of legendEntries) {
+      const entry = document.createElement('div');
+      Object.assign(entry.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '3px',
+        fontSize: '8px',
+        color: 'rgba(197,165,90,0.5)',
+        fontFamily: "'Cinzel', serif",
+      } as Partial<CSSStyleDeclaration>);
+      const dot = document.createElement('div');
+      Object.assign(dot.style, {
+        width: '6px', height: '6px', borderRadius: '1px',
+        background: color, flexShrink: '0',
+      } as Partial<CSSStyleDeclaration>);
+      entry.appendChild(dot);
+      entry.appendChild(document.createTextNode(label));
+      legendRow.appendChild(entry);
+    }
+    footer.appendChild(legendRow);
+    this.container.appendChild(footer);
 
     this.ctx = this.canvas.getContext('2d')!;
   }
