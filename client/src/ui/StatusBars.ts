@@ -30,7 +30,12 @@ export class StatusBars extends UIComponent {
       left: "16px",
       display: "flex",
       flexDirection: "column",
-      gap: "6px",
+      gap: "4px",
+      padding: "8px 10px",
+      background: "rgba(8,6,18,0.75)",
+      border: "1px solid rgba(197,165,90,0.2)",
+      borderRadius: "6px",
+      boxShadow: "0 2px 12px rgba(0,0,0,0.5)",
       pointerEvents: "auto",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       userSelect: "none",
@@ -105,9 +110,14 @@ export class StatusBars extends UIComponent {
   }
 
   update(state: PlayerState): void {
-    // HP (clamped to 0-100%)
+    // HP (clamped 0-100%, color shifts green→yellow→red)
     const hpPct = state.maxHp > 0 ? Math.min(100, Math.max(0, (state.hp / state.maxHp) * 100)) : 0;
     this.hpFill.style.width = `${hpPct}%`;
+    this.hpFill.style.background = hpPct > 50
+      ? 'linear-gradient(90deg, #1a7a1a 0%, #33cc33 100%)'
+      : hpPct > 25
+        ? 'linear-gradient(90deg, #7a5a00 0%, #ccaa00 100%)'
+        : 'linear-gradient(90deg, #8b0000 0%, #cc2222 100%)';
     this.hpText.textContent = `${state.hp} / ${state.maxHp}`;
 
     // Mana (clamped to 0-100%)

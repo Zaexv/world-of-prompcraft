@@ -45,9 +45,6 @@ export class CombatHUD extends UIComponent {
       .combat-hp-flash {
         animation: combat-hud-flash 0.25s ease-out;
       }
-      #combat-log-entries::-webkit-scrollbar { width: 4px; }
-      #combat-log-entries::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 2px; }
-      #combat-log-entries::-webkit-scrollbar-thumb { background: #c5a55a; border-radius: 2px; }
     `;
     document.head.appendChild(this.styleTag);
 

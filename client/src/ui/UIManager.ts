@@ -117,11 +117,11 @@ export class UIManager {
       zIndex: '15',
     } as CSSStyleDeclaration);
 
-    const btnDefs: Array<{ icon: string; label: string; key: string; action: () => void }> = [
-      { icon: '🎒', label: 'Bag',    key: 'I', action: () => this.toggleInventory() },
-      { icon: '🗺️', label: 'Map',    key: 'M', action: () => this.toggleMinimap() },
-      { icon: '📜', label: 'Quests', key: 'L', action: () => this.toggleQuestLog(this._playerState ?? undefined) },
-      { icon: '🔨', label: 'Build',  key: 'B', action: () => this.worldBuilderToggle?.() },
+    const btnDefs: Array<{ label: string; key: string; action: () => void }> = [
+      { label: 'Bag',    key: 'I', action: () => this.toggleInventory() },
+      { label: 'Map',    key: 'M', action: () => this.toggleMinimap() },
+      { label: 'Quests', key: 'L', action: () => this.toggleQuestLog(this._playerState ?? undefined) },
+      { label: 'Build',  key: 'B', action: () => this.worldBuilderToggle?.() },
     ];
 
     for (const def of btnDefs) {
@@ -132,8 +132,8 @@ export class UIManager {
         display: 'inline-flex',
         alignItems: 'center',
         gap: '5px',
-        padding: '5px 9px',
-        background: 'rgba(12,8,3,0.82)',
+        padding: '5px 10px',
+        background: 'rgba(8,6,18,0.85)',
         border: '1px solid rgba(197,165,90,0.35)',
         borderRadius: '4px',
         color: '#c5a55a',
@@ -142,15 +142,10 @@ export class UIManager {
         cursor: 'pointer',
         pointerEvents: 'auto',
         userSelect: 'none',
-        letterSpacing: '0.04em',
+        letterSpacing: '0.06em',
         transition: 'border-color 0.15s, background 0.15s',
-        backdropFilter: 'blur(2px)',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.5)',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.6)',
       } as CSSStyleDeclaration);
-
-      const icon = document.createElement('span');
-      icon.textContent = def.icon;
-      icon.style.fontSize = '13px';
 
       const text = document.createElement('span');
       text.textContent = def.label;
@@ -158,16 +153,16 @@ export class UIManager {
       const kbd = document.createElement('span');
       Object.assign(kbd.style, {
         fontSize: '9px',
-        padding: '1px 3px',
-        background: 'rgba(0,0,0,0.35)',
-        border: '1px solid rgba(197,165,90,0.25)',
+        padding: '1px 4px',
+        background: 'rgba(0,0,0,0.4)',
+        border: '1px solid rgba(197,165,90,0.2)',
         borderRadius: '2px',
-        color: 'rgba(197,165,90,0.6)',
-        marginLeft: '1px',
+        color: 'rgba(197,165,90,0.55)',
+        marginLeft: '2px',
+        fontFamily: 'monospace',
       } as CSSStyleDeclaration);
       kbd.textContent = def.key;
 
-      btn.appendChild(icon);
       btn.appendChild(text);
       btn.appendChild(kbd);
 
