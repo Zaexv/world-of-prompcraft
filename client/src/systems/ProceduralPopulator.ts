@@ -119,6 +119,7 @@ export class ProceduralPopulator {
   private npcCounter = 0;
 
   private queue: PendingChunk[] = [];
+  private _queueDirty = false; // sort only when new chunks are queued
   private populated = new Set<string>();
 
   /**
@@ -158,6 +159,7 @@ export class ProceduralPopulator {
     if (cx * cx + cz * cz < 60 * 60) return;
 
     this.queue.push({ chunkX, chunkZ, worldX, worldZ, cx, cz });
+    this._queueDirty = true;
   }
 
   /**
@@ -190,7 +192,7 @@ export class ProceduralPopulator {
       this.spawnedNpcs.delete(key);
     }
 
-    // Remove from queue if still pending
+    // Remove from queue if still pending (no need to mark dirty — removing doesn't change sort order)
     const qi = this.queue.findIndex((c) => c.chunkX === chunkX && c.chunkZ === chunkZ);
     if (qi !== -1) this.queue.splice(qi, 1);
   }
@@ -200,8 +202,13 @@ export class ProceduralPopulator {
     if (this.queue.length === 0 || !this.scene) return;
 
     const r2 = this.SPAWN_RADIUS * this.SPAWN_RADIUS;
-    this._sortPX = playerX; this._sortPZ = playerZ;
-    this.queue.sort(this._distSort);
+
+    // Re-sort only when new chunks have been queued — avoid per-frame sort cost.
+    if (this._queueDirty) {
+      this._sortPX = playerX; this._sortPZ = playerZ;
+      this.queue.sort(this._distSort);
+      this._queueDirty = false;
+    }
 
     let done = 0;
     while (done < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
@@ -251,7 +258,9 @@ export class ProceduralPopulator {
         if (this.scene) {
           group.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(group);
-          void this.collisionSystem?.addCollidableFiltered(group);
+          // Collision intentionally skipped for procedural content:
+          // computeBoundsTree() on each mesh is the #1 source of frame spikes.
+          // Handcrafted WorldBuilder objects keep full collision.
           objs.push(group);
         }
 
@@ -296,7 +305,6 @@ export class ProceduralPopulator {
       if (building && this.scene) {
         building.rotation.y = rng.nextRange(0, Math.PI * 2);
         this.scene.add(building);
-        void this.collisionSystem?.addCollidableFiltered(building);
         objs.push(building);
       }
     }
