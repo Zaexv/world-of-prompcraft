@@ -8,7 +8,7 @@ import { WorldBuilderPersistence, PersistedObject } from './worldbuilder/WorldBu
 export interface PlacedObject {
   id: string;
   type: string;
-  group: THREE.Group;
+  group: THREE.Object3D;
   label?: string;
 }
 
@@ -60,9 +60,9 @@ export class WorldBuilder {
     rotation?: [number, number, number];
     scale?: number;
     label?: string;
-  }, pushToUndo = true): THREE.Group | undefined {
+  }, pushToUndo = true): THREE.Object3D | undefined {
     let placed = this.objects.get(params.objectId);
-    let group: THREE.Group;
+    let group: THREE.Object3D;
 
     if (placed) {
       group = placed.group;
@@ -75,9 +75,7 @@ export class WorldBuilder {
       const pos = new THREE.Vector3(params.position[0], y, params.position[2]);
       const scale = params.scale ?? 1;
 
-      const builtGroup = buildObject(params.objectType, pos, scale, params.label);
-      if (!builtGroup) return undefined;
-      group = builtGroup;
+      group = buildObject(params.objectType, pos, scale, params.label);
 
       if (params.rotation) {
         group.rotation.set(params.rotation[0], params.rotation[1], params.rotation[2]);
@@ -187,7 +185,7 @@ export class WorldBuilder {
 
   // ── Distance Culling ──────────────────────────────────────────────────
 
-  private readonly VISIBLE_RADIUS_SQ = 180 * 180;
+  private readonly VISIBLE_RADIUS_SQ = 350 * 350;
 
   /** Update object visibility based on distance to player. */
   update(playerX: number, playerZ: number): void {

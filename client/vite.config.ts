@@ -9,6 +9,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5173,
+      allowedHosts: ['wow.rafaelpernil.com'],
       fs: {
         allow: ['..'],
       },

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { TemporalAAPass } from './TemporalAAPass';
 import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
@@ -17,7 +18,8 @@ export class SceneManager {
 
   private clock: THREE.Clock;
   private water: Water;
-  private effects: Effects;  private composer: EffectComposer | null = null;
+  private effects: Effects;
+  private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
@@ -34,14 +36,14 @@ export class SceneManager {
     // --- Core renderer setup ---
     this.scene = new THREE.Scene();
 
-    // Deep purple fallback background in case skybox hasn't loaded
-    this.scene.background = new THREE.Color(0x0a0612);
+    // Night sky fallback background in case skybox hasn't loaded
+    this.scene.background = new THREE.Color(0x05080f);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
       window.innerWidth / window.innerHeight,
       0.1,
-      1600,
+      2500,
     );
     this.camera.position.set(0, 30, 60);
     this.camera.lookAt(0, 0, 0);
@@ -55,16 +57,21 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 0.8;
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
 
-    // --- Post-processing bloom (makes wisps, mushrooms, runes glow) ---
+    // --- Post-processing: render → TAA → bloom ---
     try {
       this.composer = new EffectComposer(this.renderer);
-      const renderPass = new RenderPass(this.scene, this.camera);
-      this.composer.addPass(renderPass);
+
+      this.composer.addPass(new RenderPass(this.scene, this.camera));
+
+      // Exponential-blend TAA: blends each frame with the last ~5 frames.
+      // composer.setSize() propagates to TemporalAAPass.setSize(), which
+      // discards stale history on resize automatically.
+      this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
 
       // Half-resolution bloom for performance
       const bloomRes = new THREE.Vector2(
@@ -107,6 +114,7 @@ export class SceneManager {
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
     if (this.composer) {
       this.composer.setSize(window.innerWidth, window.innerHeight);
+      // composer.setSize propagates to TemporalAAPass.setSize, which resets history.
     }
   }
 
@@ -172,11 +180,20 @@ export class SceneManager {
     }
   }
 
-  /** Update player position for effects and water tracking. */
+  private updateLOD(): void {
+    this.scene.traverse((obj) => {
+      if (obj.type === 'LOD') {
+        (obj as THREE.LOD).update(this.camera);
+      }
+    });
+  }
+
+  /** Update player position for effects, water, and shadow frustum tracking. */
   setPlayerPosition(x: number, z: number): void {
     this.effects.setPlayerPosition(x, z);
     this.playerX = x;
     this.playerZ = z;
+    this.lighting.trackPlayer(x, z);
   }
 
   private playerX = 0;
@@ -188,8 +205,10 @@ export class SceneManager {
     this.water.update(delta, this.playerX, this.playerZ);
 
     this.effects.update(delta);
+    this.lighting.updateCelestialDiscs(this.camera.position);
     this.updateAdaptiveQuality(delta);
     this.updateDistanceShadowCasters(delta);
+    this.updateLOD();
 
     // Use post-processing composer if available, otherwise fall back to direct render
     if (this.composer) {

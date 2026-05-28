@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyTerrainPBR } from '../utils/PBRMaps';
 import {
   BiomeType,
   getBiomeWeights,
@@ -23,10 +24,10 @@ import { getVerticalLiftAt } from './VerticalTerrain';
 // ── Chunk constants ──────────────────────────────────────────────────────────
 const CHUNK_SIZE = 64;          // world-units per chunk side
 const CHUNK_SEGMENTS = 32;      // vertex subdivisions per chunk side
-const VIEW_RADIUS = 3;          // chunks visible in each direction (7x7 = 49 chunks)
+const VIEW_RADIUS = 5;          // chunks visible in each direction (11x11 = 121 chunks)
 const UNLOAD_RADIUS = VIEW_RADIUS + 2; // buffer before disposal
 const INITIAL_PRELOAD_RADIUS = 1; // smaller warm-up to reduce initial hitch
-const CHUNK_LOADS_PER_UPDATE = 3; // throttle mesh generation per frame
+const CHUNK_LOADS_PER_UPDATE = 2; // throttle mesh generation per frame (reduced to avoid hitching)
 
 // ── Shared material (created once, reused for every chunk) ───────────────────
 let sharedMaterial: THREE.MeshStandardMaterial | null = null;
@@ -41,6 +42,8 @@ function getSharedMaterial(): THREE.MeshStandardMaterial {
     flatShading: false,
     emissive: new THREE.Color(0x000000),
   });
+
+  applyTerrainPBR(sharedMaterial);
 
   // Patch the standard material shader to add per-vertex emissive contribution
   sharedMaterial.onBeforeCompile = (shader) => {
@@ -402,6 +405,14 @@ export class Terrain {
 
     geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('aEmissive', new THREE.BufferAttribute(emissiveColors, 3));
+
+    // World-space tiling UVs: one texture tile = 2 world units, seamless across chunk boundaries.
+    const uvArray = new Float32Array(vertexCount * 2);
+    for (let i = 0; i < vertexCount; i++) {
+      uvArray[i * 2]     = positions.getX(i) * 0.5;
+      uvArray[i * 2 + 1] = positions.getZ(i) * 0.5;
+    }
+    geometry.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
 
     // Compute a proper bounding box so frustum culling works per-chunk.
     geometry.computeBoundingBox();

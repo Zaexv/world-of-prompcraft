@@ -2,6 +2,7 @@
  * NPCAppearance — Roblox-style procedural mesh for NPCs.
  * Box torso, box head, cylinder arms/legs — same proportions grid as Player.
  */
+import { applyCharacterPBR } from '../utils/PBRMaps';
 
 import * as THREE from 'three';
 import type { NPCPlaceholderStyle } from './NPCModels';
@@ -283,6 +284,7 @@ export function buildProceduralMesh(
   childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
   materials.push(legMat);
 
+  applyCharacterPBR(group);
   return materials;
 }
 
