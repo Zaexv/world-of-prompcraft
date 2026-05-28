@@ -23,27 +23,45 @@ export class ChatPanel extends UIComponent {
   render(): void {
     Object.assign(this.container.style, {
       position: 'absolute',
-      bottom: '12px',
+      bottom: '62px',
       left: '12px',
-      width: '320px',
-      height: '200px',
+      width: '300px',
+      height: '180px',
       display: 'flex',
       flexDirection: 'column',
-      background: 'rgba(10, 8, 4, 0.85)',
-      border: '1px solid #c5a55a',
-      borderRadius: '4px',
+      background: 'rgba(8,6,18,0.88)',
+      border: '1px solid rgba(197,165,90,0.3)',
+      borderRadius: '6px',
+      boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
       fontFamily: "'Cinzel', Georgia, serif",
       fontSize: '12px',
       pointerEvents: 'auto',
       zIndex: '20',
+      overflow: 'hidden',
     } as CSSStyleDeclaration);
+
+    // ── Compact header ─────────────────────────────────────────────────────
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      padding: '4px 8px',
+      fontSize: '9px',
+      fontWeight: '700',
+      color: 'rgba(197,165,90,0.6)',
+      letterSpacing: '2px',
+      textTransform: 'uppercase',
+      borderBottom: '1px solid rgba(197,165,90,0.15)',
+      flexShrink: '0',
+    } as CSSStyleDeclaration);
+    header.textContent = 'Chat — Enter to type';
+    this.container.appendChild(header);
 
     // ── Messages area ──────────────────────────────────────────────────────
     this.messagesArea = document.createElement('div');
     Object.assign(this.messagesArea.style, {
       flex: '1',
+      minHeight: '0',
       overflowY: 'auto',
-      padding: '6px 8px',
+      padding: '4px 8px',
       display: 'flex',
       flexDirection: 'column',
       gap: '2px',
@@ -66,10 +84,10 @@ export class ChatPanel extends UIComponent {
       width: '100%',
       boxSizing: 'border-box',
       padding: '6px 8px',
-      background: 'rgba(20, 16, 8, 0.9)',
+      background: 'rgba(0,0,0,0.3)',
       border: 'none',
-      borderTop: '1px solid rgba(197, 165, 90, 0.3)',
-      color: '#ddd',
+      borderTop: '1px solid rgba(197, 165, 90, 0.2)',
+      color: '#e8dcc8',
       fontFamily: "'Cinzel', Georgia, serif",
       fontSize: '12px',
       outline: 'none',

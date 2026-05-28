@@ -53,6 +53,24 @@ const NPC_ACTIONS: Record<string, Array<{ label: string; prompt: string }>> = {
   ],
 };
 
+/** Returns colour tokens for an action button based on its label. */
+function getActionColor(label: string): { border: string; text: string; hover: string; glow: string } {
+  const l = label.toLowerCase();
+  if (/attack|challenge|fight|flee|defend|strike/.test(l)) {
+    return { border: 'rgba(200,60,60,0.5)', text: '#f08888', hover: 'rgba(200,60,60,0.2)', glow: 'rgba(200,60,60,0.4)' };
+  }
+  if (/heal|heal|bless|protect|restore/.test(l)) {
+    return { border: 'rgba(60,180,100,0.5)', text: '#88ddb0', hover: 'rgba(60,180,100,0.2)', glow: 'rgba(60,180,100,0.4)' };
+  }
+  if (/trade|browse|sell|buy|bribe/.test(l)) {
+    return { border: 'rgba(197,165,90,0.5)', text: '#d4b86a', hover: 'rgba(197,165,90,0.2)', glow: 'rgba(197,165,90,0.4)' };
+  }
+  if (/quest|story|lore|wisdom/.test(l)) {
+    return { border: 'rgba(130,160,220,0.5)', text: '#a0b8f0', hover: 'rgba(130,160,220,0.2)', glow: 'rgba(130,160,220,0.4)' };
+  }
+  return { border: 'rgba(197,165,90,0.3)', text: '#c8c0b0', hover: 'rgba(197,165,90,0.12)', glow: 'rgba(197,165,90,0.3)' };
+}
+
 /**
  * Bottom-center chat panel for NPC interactions.
  * WoW-inspired dark-fantasy styling, no framework dependencies.
@@ -322,26 +340,28 @@ export class InteractionPanel extends UIComponent {
     for (const action of actions) {
       const btn = document.createElement("button");
       btn.textContent = action.label;
+      const actionColor = getActionColor(action.label);
       Object.assign(btn.style, {
         padding: "4px 10px",
-        border: "1px solid #c5a55a",
+        border: `1px solid ${actionColor.border}`,
         borderRadius: "4px",
-        background: "rgba(0,0,0,0.4)",
-        color: "#e8dcc8",
+        background: "rgba(0,0,0,0.45)",
+        color: actionColor.text,
         cursor: "pointer",
-        fontSize: "12px",
+        fontSize: "11px",
         whiteSpace: "nowrap",
         fontFamily: "'Cinzel', 'Times New Roman', serif",
         flexShrink: "0",
         transition: "background 0.15s, box-shadow 0.15s",
+        letterSpacing: "0.03em",
       } as CSSStyleDeclaration);
 
       btn.addEventListener("mouseenter", () => {
-        btn.style.background = "rgba(197,165,90,0.2)";
-        btn.style.boxShadow = "0 0 8px rgba(197,165,90,0.4)";
+        btn.style.background = actionColor.hover;
+        btn.style.boxShadow = `0 0 8px ${actionColor.glow}`;
       });
       btn.addEventListener("mouseleave", () => {
-        btn.style.background = "rgba(0,0,0,0.4)";
+        btn.style.background = "rgba(0,0,0,0.45)";
         btn.style.boxShadow = "none";
       });
 
