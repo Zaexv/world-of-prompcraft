@@ -189,6 +189,12 @@ export class GameEngine {
       if (d.playerState.isDead) return;
       d.runtime.activeNpcId = npcId;
       this.lastInteractedNpcName = npcName;
+
+      const npc = d.entityManager.getNPC(npcId);
+      if (npc) {
+        npc.walkToPlayer(d.playerController.position.clone());
+      }
+
       d.uiManager.showInteractionPanel(npcId, npcName);
       if (HOSTILE_NPCS.has(npcId)) {
         const npcState = d.npcStateStore.getState(npcId);
@@ -199,10 +205,15 @@ export class GameEngine {
     };
 
     d.uiManager.interactionPanel.onClose = () => {
+      const previousNpcId = d.runtime.activeNpcId;
       d.runtime.activeNpcId = null;
       d.playerController.facingYawOverride = null;
       d.uiManager.hideInteractionPanel();
       d.uiManager.hideCombatHUD();
+      if (previousNpcId) {
+        const npc = d.entityManager.getNPC(previousNpcId);
+        npc?.resumeWander();
+      }
     };
 
     // Death
@@ -269,6 +280,11 @@ export class GameEngine {
         d.playerController.position.y,
         d.playerController.position.z,
       ];
+    }
+
+    if (dialogFocusActive && d.runtime.activeNpcId) {
+      const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
+      npc?.updateApproachTarget(d.playerController.position);
     }
 
     if (this.introCinematicActive) {
