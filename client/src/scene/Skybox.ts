@@ -27,35 +27,7 @@ export class Skybox {
     this.skyDome.frustumCulled = false;
     scene.add(this.skyDome);
 
-    // 2. The Sun (Brilliant Sphere)
-    this.sunMesh = new THREE.Group();
-    
-    // Core of the sun
-    const sunGeo = new THREE.SphereGeometry(100, 32, 32);
-    // Multiply scalar by 3 to force UnrealBloomPass to make it glow brightly
-    const sunColor = new THREE.Color(0xffffee).multiplyScalar(3.0);
-    const sunMat = new THREE.MeshBasicMaterial({ color: sunColor, fog: false });
-    const sunCore = new THREE.Mesh(sunGeo, sunMat);
-    this.sunMesh.add(sunCore);
-
-    // Huge, intense glow corona
-    const glowGeo = new THREE.SphereGeometry(180, 32, 32);
-    const glowColor = new THREE.Color(0xffa500).multiplyScalar(2.0); // Orange-ish glow
-    const glowMat = new THREE.MeshBasicMaterial({ 
-      color: glowColor, 
-      transparent: true, 
-      opacity: 0.3,
-      fog: false,
-      blending: THREE.AdditiveBlending, // Additive blending for better glow
-      depthWrite: false
-    });
-    const glowCore = new THREE.Mesh(glowGeo, glowMat);
-    this.sunMesh.add(glowCore);
-    
-    // Position it initially, we'll update it to follow the player
-    scene.add(this.sunMesh);
-
-    // 3. Minecraft-like Clouds
+    // 2. Minecraft-like Clouds
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;

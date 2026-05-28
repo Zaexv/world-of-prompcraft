@@ -6,6 +6,7 @@ import { buildRaceModel } from './RaceModels';
 import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
 import type { AssetLoader } from '../utils/asset/AssetLoader';
 import { lerpAngle } from '../utils/math/MathHelpers';
+import { applyCharacterPBR } from '../utils/PBRMaps';
 
 /**
  * Player character built from race-specific models, with optional rigged GLTF skins.
@@ -49,6 +50,7 @@ export class Player {
     this.group = new THREE.Group();
 
     this.visualRoot = buildRaceModel(race);
+    applyCharacterPBR(this.visualRoot);
     this.group.add(this.visualRoot);
 
     this.leftLeg = (this.group.getObjectByName('leftLeg') as THREE.Mesh) ?? null;

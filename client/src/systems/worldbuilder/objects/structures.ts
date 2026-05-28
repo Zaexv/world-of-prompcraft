@@ -1,10 +1,12 @@
 import * as THREE from 'three';
+import { applyStonePBR } from '../../../utils/PBRMaps';
 
 export function buildMoonwell(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x8899aa, roughness: 0.7 });
+  applyStonePBR(stoneMat);
   const basinGeo = new THREE.CylinderGeometry(2 * scale, 2.2 * scale, 0.5 * scale, 12);
   const basin = new THREE.Mesh(basinGeo, stoneMat);
   basin.position.y = 0.25 * scale;
@@ -51,80 +53,100 @@ export function buildMoonwell(pos: THREE.Vector3, scale: number): THREE.Group {
   return g;
 }
 
-export function buildTower(pos: THREE.Vector3, scale: number): THREE.Group {
+function buildTowerGroup(scale: number, bodySegs: number, addWindow: boolean): THREE.Group {
   const g = new THREE.Group();
-  g.position.copy(pos);
-
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.85 });
-  const bodyGeo = new THREE.CylinderGeometry(1.2 * scale, 1.5 * scale, 8 * scale, 8);
-  const body = new THREE.Mesh(bodyGeo, stoneMat);
+  applyStonePBR(stoneMat);
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2 * scale, 1.5 * scale, 8 * scale, bodySegs), stoneMat);
   body.position.y = 4 * scale;
   body.castShadow = true;
   body.receiveShadow = true;
   body.userData.isCollider = true;
   g.add(body);
 
-  const capGeo = new THREE.ConeGeometry(1.5 * scale, 2.5 * scale, 8);
   const capMat = new THREE.MeshStandardMaterial({ color: 0x2a0845, roughness: 0.7 });
-  const cap = new THREE.Mesh(capGeo, capMat);
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(1.5 * scale, 2.5 * scale, bodySegs), capMat);
   cap.position.y = 9.25 * scale;
   cap.castShadow = true;
   cap.userData.noCollision = true;
   g.add(cap);
 
-  const winGeo = new THREE.BoxGeometry(0.4 * scale, 0.6 * scale, 0.1 * scale);
-  const winMat = new THREE.MeshStandardMaterial({
-    color: 0xffee88,
-    emissive: new THREE.Color(0xffcc44),
-    emissiveIntensity: 0.8,
-  });
-  const win = new THREE.Mesh(winGeo, winMat);
-  win.position.set(0, 5 * scale, 1.21 * scale);
-  win.userData.noCollision = true;
-  g.add(win);
-
+  if (addWindow) {
+    const winMat = new THREE.MeshStandardMaterial({
+      color: 0xffee88,
+      emissive: new THREE.Color(0xffcc44),
+      emissiveIntensity: 0.8,
+    });
+    const win = new THREE.Mesh(new THREE.BoxGeometry(0.4 * scale, 0.6 * scale, 0.1 * scale), winMat);
+    win.position.set(0, 5 * scale, 1.21 * scale);
+    win.userData.noCollision = true;
+    g.add(win);
+  }
   return g;
 }
 
-export function buildRuins(pos: THREE.Vector3, scale: number): THREE.Group {
-  const g = new THREE.Group();
-  g.position.copy(pos);
-  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6a7a88, roughness: 0.9 });
+export function buildTower(pos: THREE.Vector3, scale: number): THREE.LOD {
+  const lod = new THREE.LOD();
+  lod.position.copy(pos);
+  lod.addLevel(buildTowerGroup(scale, 8, true), 0);    // Full (0–120)
+  lod.addLevel(buildTowerGroup(scale, 6, false), 120); // Mid (120–280)
+  lod.addLevel(buildTowerGroup(scale, 4, false), 280); // Low (280+)
+  return lod;
+}
 
-  const wallDefs = [
-    { x: 0, z: 0, h: 1.8, rx: 0 },
-    { x: 3, z: 1, h: 1.2, rx: 0.1 },
-    { x: -2, z: 2, h: 2.2, rx: -0.05 },
-    { x: 1, z: -3, h: 0.8, rx: 0.08 },
-  ];
-  for (const p of wallDefs) {
-    const geo = new THREE.BoxGeometry(1.2 * scale, p.h * scale, 0.4 * scale);
-    const mesh = new THREE.Mesh(geo, stoneMat);
+interface RuinWall { x: number; z: number; h: number; rx: number; ry: number; }
+interface RuinDebris { px: number; pz: number; size: number; ry: number; }
+
+function buildRuinsGroup(scale: number, walls: RuinWall[], debris: RuinDebris[], includeDebris: boolean): THREE.Group {
+  const g = new THREE.Group();
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x6a7a88, roughness: 0.9 });
+  applyStonePBR(stoneMat);
+
+  for (const p of walls) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(1.2 * scale, p.h * scale, 0.4 * scale), stoneMat);
     mesh.position.set(p.x * scale, (p.h / 2) * scale, p.z * scale);
     mesh.rotation.x = p.rx;
-    mesh.rotation.y = Math.random() * 0.3;
+    mesh.rotation.y = p.ry;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     mesh.userData.isCollider = true;
     g.add(mesh);
   }
 
-  for (let i = 0; i < 6; i++) {
-    const size = (0.3 + Math.random() * 0.4) * scale;
-    const geo = new THREE.BoxGeometry(size, size * 0.5, size);
-    const mesh = new THREE.Mesh(geo, stoneMat);
-    mesh.position.set(
-      (Math.random() - 0.5) * 6 * scale,
-      size * 0.25,
-      (Math.random() - 0.5) * 6 * scale,
-    );
-    mesh.rotation.y = Math.random() * Math.PI;
-    mesh.castShadow = true;
-    mesh.userData.noCollision = true;
-    g.add(mesh);
+  if (includeDebris) {
+    for (const d of debris) {
+      const mesh = new THREE.Mesh(new THREE.BoxGeometry(d.size, d.size * 0.5, d.size), stoneMat);
+      mesh.position.set(d.px, d.size * 0.25, d.pz);
+      mesh.rotation.y = d.ry;
+      mesh.castShadow = true;
+      mesh.userData.noCollision = true;
+      g.add(mesh);
+    }
   }
-
   return g;
+}
+
+export function buildRuins(pos: THREE.Vector3, scale: number): THREE.LOD {
+  const lod = new THREE.LOD();
+  lod.position.copy(pos);
+
+  const walls: RuinWall[] = [
+    { x: 0, z: 0, h: 1.8, rx: 0, ry: Math.random() * 0.3 },
+    { x: 3, z: 1, h: 1.2, rx: 0.1, ry: Math.random() * 0.3 },
+    { x: -2, z: 2, h: 2.2, rx: -0.05, ry: Math.random() * 0.3 },
+    { x: 1, z: -3, h: 0.8, rx: 0.08, ry: Math.random() * 0.3 },
+  ];
+  const debris: RuinDebris[] = Array.from({ length: 6 }, () => ({
+    px: (Math.random() - 0.5) * 6 * scale,
+    pz: (Math.random() - 0.5) * 6 * scale,
+    size: (0.3 + Math.random() * 0.4) * scale,
+    ry: Math.random() * Math.PI,
+  }));
+
+  lod.addLevel(buildRuinsGroup(scale, walls, debris, true), 0);    // Full (0–100)
+  lod.addLevel(buildRuinsGroup(scale, walls, debris, false), 100); // Mid (100+) — walls only
+  return lod;
 }
 
 export function buildAltar(pos: THREE.Vector3, scale: number): THREE.Group {
@@ -132,6 +154,7 @@ export function buildAltar(pos: THREE.Vector3, scale: number): THREE.Group {
   g.position.copy(pos);
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x445566, roughness: 0.8 });
+  applyStonePBR(stoneMat);
   const runeMat = new THREE.MeshStandardMaterial({
     color: 0x8844ff,
     emissive: new THREE.Color(0x6633ff),
@@ -169,6 +192,7 @@ export function buildRunicStone(pos: THREE.Vector3, scale: number): THREE.Group 
   g.position.copy(pos);
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x556677, roughness: 0.88 });
+  applyStonePBR(stoneMat);
   const runeMat = new THREE.MeshStandardMaterial({
     color: 0x88ffcc,
     emissive: new THREE.Color(0x00ffaa),
@@ -268,6 +292,7 @@ export function buildPortalArch(pos: THREE.Vector3, scale: number): THREE.Group 
   g.position.copy(pos);
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x334455, roughness: 0.75 });
+  applyStonePBR(stoneMat);
   const portalMat = new THREE.MeshStandardMaterial({
     color: 0x8844ff,
     emissive: new THREE.Color(0x6622ff),
@@ -317,6 +342,7 @@ export function buildRoad(pos: THREE.Vector3, scale: number): THREE.Group {
   g.position.copy(pos);
 
   const stoneMat = new THREE.MeshStandardMaterial({ color: 0x999988, roughness: 1.0 });
+  applyStonePBR(stoneMat);
 
   // A flat plane for the road. We raise it slightly (0.05) to avoid z-fighting with terrain.
   const roadGeo = new THREE.BoxGeometry(4 * scale, 0.1 * scale, 8 * scale);

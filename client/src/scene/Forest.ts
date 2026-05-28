@@ -3,6 +3,8 @@ import { AssetPaths } from '../config/AssetPaths';
 import type { CollisionSystem } from '../systems/CollisionSystem';
 import { buildBonfire } from '../systems/worldbuilder/objects/furniture';
 import { buildMoonwell, buildPavilion } from '../systems/worldbuilder/objects/structures';
+import { applyBarkPBR, applyCanopyPBR } from '../utils/PBRMaps';
+import { Water } from './Water';
 import type { Terrain } from './Terrain';
 
 const FOREST_RADIUS = 320;
@@ -262,20 +264,25 @@ export class StartingForest {
   }
 
   private buildTrees(): void {
+    // Trees within this radius from origin get PBR textures; beyond → flat color.
+    const NEAR_THRESHOLD = 160;
+
     const trunkGeo = new THREE.CylinderGeometry(0.34, 0.48, 5.8, 7);
     const canopyGeo = new THREE.ConeGeometry(2.9, 6.2, 8, 1);
-    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
-    const canopyMat = new THREE.MeshStandardMaterial({
-      color: 0x234d2e,
-      emissive: new THREE.Color(0x112a1a),
-      emissiveIntensity: 0.3,
-      roughness: 0.85,
-    });
+
+    const trunkMatNear = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
+    applyBarkPBR(trunkMatNear);
+    const canopyMatNear = new THREE.MeshStandardMaterial({ color: 0x234d2e, roughness: 0.85 });
+    applyCanopyPBR(canopyMatNear);
+
+    const trunkMatFar = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
+    const canopyMatFar = new THREE.MeshStandardMaterial({ color: 0x234d2e, roughness: 0.85 });
 
     const trees: Array<{ x: number; z: number; scale: number; tilt: number }> = [];
     const pushTree = (x: number, z: number, scale: number, tilt: number): void => {
       const radius = Math.hypot(x, z);
       if (radius < FOREST_CLEARING_RADIUS || radius > FOREST_RADIUS) return;
+      if (this.terrain.getHeightAt(x, z) <= Water.LEVEL) return;
       trees.push({ x, z, scale, tilt });
     };
 
@@ -328,53 +335,76 @@ export class StartingForest {
       this.treePositions.push({ x: tree.x, z: tree.z, scale: tree.scale });
     }
 
-    const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, count);
-    const canopyMesh = new THREE.InstancedMesh(canopyGeo, canopyMat, count);
-    trunkMesh.castShadow = true;
-    trunkMesh.receiveShadow = true;
-    canopyMesh.castShadow = true;
-    canopyMesh.receiveShadow = true;
-    trunkMesh.userData.noCollision = true;
-    canopyMesh.userData.noCollision = true;
+    // Split into near (PBR) and far (flat). Preserve the original sort index so
+    // hash-based random values (rotation, scale) stay identical to the old single-batch.
+    const nearBatch: Array<{ x: number; z: number; scale: number; tilt: number; idx: number }> = [];
+    const farBatch:  Array<{ x: number; z: number; scale: number; tilt: number; idx: number }> = [];
+    for (let i = 0; i < count; i++) {
+      const tree = trees[i]!;
+      (Math.hypot(tree.x, tree.z) <= NEAR_THRESHOLD ? nearBatch : farBatch).push({ ...tree, idx: i });
+    }
+
+    const buildBatch = (
+      batch: typeof nearBatch,
+      trunkMat: THREE.MeshStandardMaterial,
+      canopyMat: THREE.MeshStandardMaterial,
+      castShadow: boolean,
+    ): void => {
+      if (batch.length === 0) return;
+      const trunkMesh = new THREE.InstancedMesh(trunkGeo, trunkMat, batch.length);
+      const canopyMesh = new THREE.InstancedMesh(canopyGeo, canopyMat, batch.length);
+      trunkMesh.castShadow = castShadow;
+      trunkMesh.receiveShadow = true;
+      canopyMesh.castShadow = castShadow;
+      canopyMesh.receiveShadow = castShadow;
+      trunkMesh.userData.noCollision = true;
+      canopyMesh.userData.noCollision = true;
+
+      for (let j = 0; j < batch.length; j++) {
+        const tree = batch[j]!;
+        const i = tree.idx; // use original index to keep hash values stable
+        const y = this.terrain.getHeightAt(tree.x, tree.z);
+        const trunkHeight = 5.8 * tree.scale;
+        const canopyLift = trunkHeight * 0.55 + 6.2 * tree.scale * 0.28;
+
+        this.tempPosition.set(tree.x, y, tree.z);
+        this.tempQuat.setFromEuler(new THREE.Euler(tree.tilt * 0.2, hash2(i, i, 6) * Math.PI * 2, tree.tilt * 0.12));
+        this.tempScale.setScalar(tree.scale);
+        this.tempMatrix.compose(this.tempPosition, this.tempQuat, this.tempScale);
+        trunkMesh.setMatrixAt(j, this.tempMatrix);
+
+        this.tempPosition.set(tree.x, y + canopyLift, tree.z);
+        this.tempQuat.setFromEuler(new THREE.Euler(0, hash2(i, i, 7) * Math.PI * 2, 0));
+        this.tempScale.setScalar(tree.scale * lerp(0.9, 1.15, hash2(i, i, 8)));
+        this.tempMatrix.compose(this.tempPosition, this.tempQuat, this.tempScale);
+        canopyMesh.setMatrixAt(j, this.tempMatrix);
+      }
+
+      trunkMesh.instanceMatrix.needsUpdate = true;
+      canopyMesh.instanceMatrix.needsUpdate = true;
+      this.root.add(trunkMesh);
+      this.root.add(canopyMesh);
+    };
+
+    buildBatch(nearBatch, trunkMatNear, canopyMatNear, true);
+    buildBatch(farBatch,  trunkMatFar,  canopyMatFar,  false);
 
     const colliderGroup = new THREE.Group();
     colliderGroup.name = 'starting-forest-colliders';
-
     for (let i = 0; i < count; i++) {
       const tree = trees[i]!;
       const y = this.terrain.getHeightAt(tree.x, tree.z);
-      const baseY = y;
       const trunkHeight = 5.8 * tree.scale;
-      const canopyHeight = 6.2 * tree.scale;
-      const canopyLift = trunkHeight * 0.55 + canopyHeight * 0.28;
-
-      this.tempPosition.set(tree.x, baseY, tree.z);
-      this.tempQuat.setFromEuler(new THREE.Euler(tree.tilt * 0.2, hash2(i, i, 6) * Math.PI * 2, tree.tilt * 0.12));
-      this.tempScale.setScalar(tree.scale);
-      this.tempMatrix.compose(this.tempPosition, this.tempQuat, this.tempScale);
-      trunkMesh.setMatrixAt(i, this.tempMatrix);
-
-      this.tempPosition.set(tree.x, baseY + canopyLift, tree.z);
-      this.tempQuat.setFromEuler(new THREE.Euler(0, hash2(i, i, 7) * Math.PI * 2, 0));
-      this.tempScale.setScalar(tree.scale * lerp(0.9, 1.15, hash2(i, i, 8)));
-      this.tempMatrix.compose(this.tempPosition, this.tempQuat, this.tempScale);
-      canopyMesh.setMatrixAt(i, this.tempMatrix);
-
       const collider = new THREE.Mesh(
         new THREE.CylinderGeometry(0.48 * tree.scale, 0.62 * tree.scale, trunkHeight, 7),
         new THREE.MeshBasicMaterial({ visible: false }),
       );
-      collider.position.set(tree.x, baseY + trunkHeight * 0.5, tree.z);
+      collider.position.set(tree.x, y + trunkHeight * 0.5, tree.z);
       collider.rotation.y = hash2(i, i, 9) * Math.PI * 2;
       collider.userData.isCollider = true;
       collider.userData.noCollision = false;
       colliderGroup.add(collider);
     }
-
-    trunkMesh.instanceMatrix.needsUpdate = true;
-    canopyMesh.instanceMatrix.needsUpdate = true;
-    this.root.add(trunkMesh);
-    this.root.add(canopyMesh);
     this.root.add(colliderGroup);
   }
 
@@ -408,6 +438,7 @@ export class StartingForest {
         const pz = nest.z + Math.sin(angle) * (radial + jitter);
         if (Math.hypot(px, pz) > FOREST_RADIUS * 0.98) continue;
         if (hash2(i, nest.seed + 6, nest.seed + 7) > 0.55 * nest.density) continue;
+        if (this.terrain.getHeightAt(px, pz) <= Water.LEVEL) continue;
         positions.push({
           x: px,
           z: pz,
@@ -427,6 +458,7 @@ export class StartingForest {
         const pz = tree.z + Math.sin(angle) * dist + (hash2(t, i, 105) - 0.5) * 1.6;
         if (Math.hypot(px, pz) > FOREST_RADIUS * 0.98) continue;
         if (hash2(t, i, 106) > 0.6) continue;
+        if (this.terrain.getHeightAt(px, pz) <= Water.LEVEL) continue;
         positions.push({
           x: px,
           z: pz,
@@ -515,6 +547,7 @@ export class StartingForest {
         const dist = Math.hypot(px, pz);
         if (dist < 24 || dist > FOREST_RADIUS * 0.985) continue;
         if (hash2(i, vein.seed + 6, vein.seed + 7) > 0.6 * vein.density) continue;
+        if (this.terrain.getHeightAt(px, pz) <= Water.LEVEL) continue;
         positions.push({
           x: px,
           z: pz,

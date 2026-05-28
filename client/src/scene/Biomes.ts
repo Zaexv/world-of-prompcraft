@@ -3,8 +3,30 @@ import type { WorldManifest } from '../state/WorldManifest';
 
 let worldManifest: WorldManifest | null = null;
 
+// ── Cached env params (computed once on first use, invalidated on manifest change) ─
+// Avoids calling worldManifest.getEnvironment() + optional-chaining on every vertex.
+let _biomeStart     = 120;
+let _transitionWidth = 100;
+let _biomeAmplitudes: Record<string, number> = {};
+let _envCached = false;
+
+function _cacheEnv(): void {
+  if (_envCached) return;
+  const env = worldManifest?.getEnvironment();
+  _biomeStart      = env?.biome_start      ?? 120;
+  _transitionWidth = env?.transition_width ?? 100;
+  _biomeAmplitudes = {};
+  if (env?.biomes) {
+    for (const [k, v] of Object.entries(env.biomes)) {
+      _biomeAmplitudes[k] = v.height_modifier_amplitude ?? 1.0;
+    }
+  }
+  _envCached = true;
+}
+
 export function setWorldManifest(wm: WorldManifest): void {
   worldManifest = wm;
+  _envCached = false; // invalidate so next call re-reads from the new manifest
 }
 
 function distToSegment(x: number, z: number, startX: number, startZ: number, endX: number, endZ: number): number {
@@ -45,6 +67,8 @@ export interface BiomeWeights {
  * Weights always sum to 1.
  */
 export function getBiomeWeights(x: number, z: number): BiomeWeights {
+  _cacheEnv();
+
   const weights: BiomeWeights = {
     [BiomeType.Teldrassil]: 0,
     [BiomeType.EmberWastes]: 0,
@@ -54,15 +78,11 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
     [BiomeType.Desert]: 0,
   };
 
-  const env = worldManifest?.getEnvironment();
-  const biomeStart = env?.biome_start ?? 120;
-  const transition = env?.transition_width ?? 100;
-
   // Distance from origin
   const dist = Math.sqrt(x * x + z * z);
 
   // Continuous transition factor [0..1] from center (0) to outer (1)
-  const transitionT = THREE.MathUtils.clamp((dist - (biomeStart - transition)) / transition, 0, 1);
+  const transitionT = THREE.MathUtils.clamp((dist - (_biomeStart - _transitionWidth)) / _transitionWidth, 0, 1);
   const centerWeight = 1.0 - transitionT;
   const outerWeight = transitionT;
 
@@ -151,10 +171,8 @@ function directionalWeight(angle: number, targetAngle: number): number {
 
 /** Per-biome height contribution. Blended by weights in Terrain. */
 export function biomeHeightModifier(x: number, z: number, biome: BiomeType): number {
-  // Get amplitude from manifest
-  const env = worldManifest?.getEnvironment();
-  const biomeKey = getBiomeKey(biome);
-  const amplitude = env?.biomes[biomeKey]?.height_modifier_amplitude ?? 1.0;
+  _cacheEnv();
+  const amplitude = _biomeAmplitudes[getBiomeKey(biome)] ?? 1.0;
 
   switch (biome) {
     case BiomeType.Teldrassil:
@@ -268,14 +286,20 @@ const _biomeKeys = [
   BiomeType.Desert,
 ] as const;
 
+// Lazily-populated cache so manifest Color objects are allocated once, not per vertex.
+const _manifestPaletteCache = new Map<string, BiomeColors>();
+const _roadColor = new THREE.Color(0x8a8270);
+const _roadStoneColor = new THREE.Color(0x333333);
+
 /** Smoothstep: eliminates linear transition terracing by using a cubic ease. */
 function smoothstep(edge0: number, edge1: number, x: number): number {
   const t = THREE.MathUtils.clamp((x - edge0) / (edge1 - edge0), 0, 1);
   return t * t * (3 - 2 * t);
 }
 
-export function getBiomeColor(x: number, z: number, y: number, t: number): THREE.Color {
-  const weights = getBiomeWeights(x, z);
+export function getBiomeColor(x: number, z: number, y: number, t: number, cachedWeights?: BiomeWeights): THREE.Color {
+  _cacheEnv();
+  const weights = cachedWeights ?? getBiomeWeights(x, z);
   const env = worldManifest?.getEnvironment();
   _colorResult.setRGB(0, 0, 0);
 
@@ -288,12 +312,17 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
 
     let p: BiomeColors;
     if (manifestColors) {
-      p = {
-        low: new THREE.Color(manifestColors.low[0] / 255, manifestColors.low[1] / 255, manifestColors.low[2] / 255),
-        mid: new THREE.Color(manifestColors.mid[0] / 255, manifestColors.mid[1] / 255, manifestColors.mid[2] / 255),
-        high: new THREE.Color(manifestColors.high[0] / 255, manifestColors.high[1] / 255, manifestColors.high[2] / 255),
-        peak: new THREE.Color(manifestColors.peak[0] / 255, manifestColors.peak[1] / 255, manifestColors.peak[2] / 255),
-      };
+      let cached = _manifestPaletteCache.get(biomeKey);
+      if (!cached) {
+        cached = {
+          low:  new THREE.Color(manifestColors.low[0]  / 255, manifestColors.low[1]  / 255, manifestColors.low[2]  / 255),
+          mid:  new THREE.Color(manifestColors.mid[0]  / 255, manifestColors.mid[1]  / 255, manifestColors.mid[2]  / 255),
+          high: new THREE.Color(manifestColors.high[0] / 255, manifestColors.high[1] / 255, manifestColors.high[2] / 255),
+          peak: new THREE.Color(manifestColors.peak[0] / 255, manifestColors.peak[1] / 255, manifestColors.peak[2] / 255),
+        };
+        _manifestPaletteCache.set(biomeKey, cached);
+      }
+      p = cached;
     } else {
       p = DEFAULT_PALETTES[biome];
     }
@@ -319,7 +348,7 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
   }
 
   // Paint roads on the terrain
-  const paths = worldManifest?.getPaths() || [];
+  const paths = worldManifest?.getPaths?.() ?? [];
   let roadBlend = 0;
   for (const path of paths) {
     const d = distToSegment(x, z, path.start[0], path.start[1], path.end[0], path.end[1]);
@@ -341,22 +370,22 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     const pattern = Math.abs(Math.sin(stoneX) * Math.sin(stoneZ));
     const grout = smoothstep(0.7, 0.9, pattern); // Dark gaps between stones
 
-    const roadColor = new THREE.Color(0x8a8270); // Base warm stone
+    _roadColor.setHex(0x8a8270);
     const stoneVariation = (Math.sin(stoneX * 0.5) + Math.cos(stoneZ * 0.5)) * 0.05;
 
-    roadColor.r += stoneVariation;
-    roadColor.g += stoneVariation;
-    roadColor.b += stoneVariation;
+    _roadColor.r += stoneVariation;
+    _roadColor.g += stoneVariation;
+    _roadColor.b += stoneVariation;
 
     // Apply grout (darken the gaps)
-    roadColor.lerp(new THREE.Color(0x333333), grout * 0.6);
+    _roadColor.lerp(_roadStoneColor, grout * 0.6);
 
     // Add dirt/weathering noise
     const dirt = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.04;
-    roadColor.r += dirt;
-    roadColor.g += dirt;
+    _roadColor.r += dirt;
+    _roadColor.g += dirt;
 
-    _colorResult.lerp(roadColor, roadBlend * 0.9);
+    _colorResult.lerp(_roadColor, roadBlend * 0.9);
   }
 
   return _colorResult;
@@ -427,8 +456,8 @@ const _teldEmB = new THREE.Color(0x225566);
 const _emissiveResult = new THREE.Color();
 const _emissiveTemp = new THREE.Color();
 
-export function getBiomeEmissive(x: number, z: number, y: number, t: number): THREE.Color {
-  const weights = getBiomeWeights(x, z);
+export function getBiomeEmissive(x: number, z: number, y: number, t: number, cachedWeights?: BiomeWeights): THREE.Color {
+  const weights = cachedWeights ?? getBiomeWeights(x, z);
   _emissiveResult.setRGB(0, 0, 0);
 
   if (weights[BiomeType.Teldrassil] > 0.01 && t < 0.25) {

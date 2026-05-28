@@ -2,6 +2,7 @@
  * NPCAppearance — Roblox-style procedural mesh for NPCs.
  * Box torso, box head, cylinder arms/legs — same proportions grid as Player.
  */
+import { applyCharacterPBR } from '../utils/PBRMaps';
 
 import * as THREE from 'three';
 import type { NPCPlaceholderStyle } from './NPCModels';
@@ -301,6 +302,7 @@ export function buildProceduralMesh(
   childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
   materials.push(legMat);
 
+  applyCharacterPBR(group);
   return materials;
 }
 
@@ -311,14 +313,17 @@ function npcMat(
   emissive?: number,
   emissiveIntensity?: number,
 ): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     color,
     roughness,
     metalness,
-    emissive: emissive !== undefined && emissive !== 0 ? new THREE.Color(emissive) : undefined,
-    emissiveIntensity,
     flatShading: true,
-  });
+  };
+  if (emissive !== undefined && emissive !== 0) {
+    params.emissive = new THREE.Color(emissive);
+    if (emissiveIntensity !== undefined) params.emissiveIntensity = emissiveIntensity;
+  }
+  return new THREE.MeshStandardMaterial(params);
 }
 
 function childMesh(
