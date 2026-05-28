@@ -13,7 +13,7 @@ function distToSegment(x: number, z: number, startX: number, startZ: number, end
   let t = ((x - startX) * (endX - startX) + (z - startZ) * (endZ - startZ)) / l2;
   t = Math.max(0, Math.min(1, t));
   return Math.sqrt((x - (startX + t * (endX - startX))) * (x - (startX + t * (endX - startX))) +
-                   (z - (startZ + t * (endZ - startZ))) * (z - (startZ + t * (endZ - startZ))));
+    (z - (startZ + t * (endZ - startZ))) * (z - (startZ + t * (endZ - startZ))));
 }
 
 /**
@@ -28,6 +28,7 @@ export enum BiomeType {
   CrystalTundra = 2,
   TwilightMarsh = 3,
   SunlitMeadows = 4,
+  Desert = 5,
 }
 
 export interface BiomeWeights {
@@ -36,6 +37,7 @@ export interface BiomeWeights {
   [BiomeType.CrystalTundra]: number;
   [BiomeType.TwilightMarsh]: number;
   [BiomeType.SunlitMeadows]: number;
+  [BiomeType.Desert]: number;
 }
 
 /**
@@ -49,6 +51,7 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
     [BiomeType.CrystalTundra]: 0,
     [BiomeType.TwilightMarsh]: 0,
     [BiomeType.SunlitMeadows]: 0,
+    [BiomeType.Desert]: 0,
   };
 
   const env = worldManifest?.getEnvironment();
@@ -57,7 +60,7 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
 
   // Distance from origin
   const dist = Math.sqrt(x * x + z * z);
-  
+
   // Continuous transition factor [0..1] from center (0) to outer (1)
   const transitionT = THREE.MathUtils.clamp((dist - (biomeStart - transition)) / transition, 0, 1);
   const centerWeight = 1.0 - transitionT;
@@ -71,12 +74,18 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
   const meadows = directionalWeight(angle, Math.PI);      // west (also handle -PI)
   const meadowsNeg = directionalWeight(angle, -Math.PI);
   const marsh = directionalWeight(angle, -Math.PI / 2);   // south
+  const desertMask = THREE.MathUtils.clamp(
+    ((Math.max(Math.abs(x), Math.abs(z)) - 280) / 180) * ((Math.min(Math.abs(x), Math.abs(z)) - 220) / 160),
+    0,
+    1,
+  );
 
   weights[BiomeType.Teldrassil] = centerWeight;
   weights[BiomeType.EmberWastes] = ember * outerWeight;
   weights[BiomeType.CrystalTundra] = tundra * outerWeight;
   weights[BiomeType.TwilightMarsh] = marsh * outerWeight;
   weights[BiomeType.SunlitMeadows] = Math.max(meadows, meadowsNeg) * outerWeight;
+  weights[BiomeType.Desert] = desertMask * outerWeight;
 
   // Normalize so weights sum to 1
   const total =
@@ -84,7 +93,8 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
     weights[BiomeType.EmberWastes] +
     weights[BiomeType.CrystalTundra] +
     weights[BiomeType.TwilightMarsh] +
-    weights[BiomeType.SunlitMeadows];
+    weights[BiomeType.SunlitMeadows] +
+    weights[BiomeType.Desert];
 
   if (total > 0.0001) {
     weights[BiomeType.Teldrassil] /= total;
@@ -92,6 +102,7 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
     weights[BiomeType.CrystalTundra] /= total;
     weights[BiomeType.TwilightMarsh] /= total;
     weights[BiomeType.SunlitMeadows] /= total;
+    weights[BiomeType.Desert] /= total;
   } else {
     weights[BiomeType.Teldrassil] = 1;
   }
@@ -110,6 +121,7 @@ export function getDominantBiome(x: number, z: number): BiomeType {
     BiomeType.CrystalTundra,
     BiomeType.TwilightMarsh,
     BiomeType.SunlitMeadows,
+    BiomeType.Desert,
   ]) {
     if (w[key] > bestVal) {
       bestVal = w[key];
@@ -151,26 +163,33 @@ export function biomeHeightModifier(x: number, z: number, biome: BiomeType): num
       // Steeper, jagged volcanic terrain
       return (
         (Math.sin(x * 0.02 + 5.0) * Math.cos(z * 0.025 - 2.0) * 6 +
-        Math.abs(Math.sin(x * 0.06) * Math.cos(z * 0.07)) * 4 +
-        Math.sin(x * 0.12 + z * 0.08) * 2) * amplitude
+          Math.abs(Math.sin(x * 0.06) * Math.cos(z * 0.07)) * 4 +
+          Math.sin(x * 0.12 + z * 0.08) * 2) * amplitude
       );
     case BiomeType.CrystalTundra:
       // High peaks and plateaus
       return (
         (Math.abs(Math.sin(x * 0.008 + 1.0) * Math.cos(z * 0.01 - 0.5)) * 12 +
-        Math.sin(x * 0.03 + z * 0.02) * 3) * amplitude
+          Math.sin(x * 0.03 + z * 0.02) * 3) * amplitude
       );
     case BiomeType.TwilightMarsh:
       // Very flat, low terrain with slight undulation
       return (
         (-Math.abs(Math.sin(x * 0.01) * Math.cos(z * 0.012)) * 5 +
-        Math.sin(x * 0.04 + z * 0.05) * 0.5 - 2) * amplitude
+          Math.sin(x * 0.04 + z * 0.05) * 0.5 - 2) * amplitude
       );
     case BiomeType.SunlitMeadows:
       // Gentle rolling hills
       return (
         (Math.sin(x * 0.015 + 3.0) * Math.cos(z * 0.018 + 1.0) * 3 +
-        Math.sin(x * 0.04 - 1.0) * Math.cos(z * 0.035 + 2.0) * 1.5) * amplitude
+          Math.sin(x * 0.04 - 1.0) * Math.cos(z * 0.035 + 2.0) * 1.5) * amplitude
+      );
+    case BiomeType.Desert:
+      // Low dunes and ridges
+      return (
+        (Math.sin(x * 0.012 + 1.7) * Math.cos(z * 0.014 - 0.9) * 2.5 +
+          Math.sin(x * 0.03 + z * 0.02) * 1.1 +
+          Math.abs(Math.sin(x * 0.05 - z * 0.04)) * 0.8 - 1.0) * amplitude
       );
   }
 }
@@ -182,6 +201,7 @@ function getBiomeKey(biome: BiomeType): string {
     case BiomeType.CrystalTundra: return 'crystal_tundra';
     case BiomeType.TwilightMarsh: return 'twilight_marsh';
     case BiomeType.SunlitMeadows: return 'sunlit_meadows';
+    case BiomeType.Desert: return 'desert';
   }
 }
 
@@ -225,6 +245,12 @@ const DEFAULT_PALETTES: Record<BiomeType, BiomeColors> = {
     high: new THREE.Color(0x7a7a3a),
     peak: new THREE.Color(0x8a8a5a),
   },
+  [BiomeType.Desert]: {
+    low: new THREE.Color(0x8d6a39),
+    mid: new THREE.Color(0xbb8f4f),
+    high: new THREE.Color(0xe0b86c),
+    peak: new THREE.Color(0xf7e0b0),
+  },
 };
 
 /**
@@ -239,6 +265,7 @@ const _biomeKeys = [
   BiomeType.CrystalTundra,
   BiomeType.TwilightMarsh,
   BiomeType.SunlitMeadows,
+  BiomeType.Desert,
 ] as const;
 
 /** Smoothstep: eliminates linear transition terracing by using a cubic ease. */
@@ -258,14 +285,14 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
 
     const biomeKey = getBiomeKey(biome);
     const manifestColors = env?.biomes[biomeKey]?.colors;
-    
+
     let p: BiomeColors;
     if (manifestColors) {
       p = {
-        low: new THREE.Color(manifestColors.low[0]/255, manifestColors.low[1]/255, manifestColors.low[2]/255),
-        mid: new THREE.Color(manifestColors.mid[0]/255, manifestColors.mid[1]/255, manifestColors.mid[2]/255),
-        high: new THREE.Color(manifestColors.high[0]/255, manifestColors.high[1]/255, manifestColors.high[2]/255),
-        peak: new THREE.Color(manifestColors.peak[0]/255, manifestColors.peak[1]/255, manifestColors.peak[2]/255),
+        low: new THREE.Color(manifestColors.low[0] / 255, manifestColors.low[1] / 255, manifestColors.low[2] / 255),
+        mid: new THREE.Color(manifestColors.mid[0] / 255, manifestColors.mid[1] / 255, manifestColors.mid[2] / 255),
+        high: new THREE.Color(manifestColors.high[0] / 255, manifestColors.high[1] / 255, manifestColors.high[2] / 255),
+        peak: new THREE.Color(manifestColors.peak[0] / 255, manifestColors.peak[1] / 255, manifestColors.peak[2] / 255),
       };
     } else {
       p = DEFAULT_PALETTES[biome];
@@ -309,21 +336,21 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
     const stoneScale = 1.8;
     const stoneX = x * stoneScale;
     const stoneZ = z * stoneScale;
-    
+
     // Interlocking grid pattern
     const pattern = Math.abs(Math.sin(stoneX) * Math.sin(stoneZ));
     const grout = smoothstep(0.7, 0.9, pattern); // Dark gaps between stones
-    
+
     const roadColor = new THREE.Color(0x8a8270); // Base warm stone
     const stoneVariation = (Math.sin(stoneX * 0.5) + Math.cos(stoneZ * 0.5)) * 0.05;
-    
+
     roadColor.r += stoneVariation;
     roadColor.g += stoneVariation;
     roadColor.b += stoneVariation;
-    
+
     // Apply grout (darken the gaps)
     roadColor.lerp(new THREE.Color(0x333333), grout * 0.6);
-    
+
     // Add dirt/weathering noise
     const dirt = Math.sin(x * 0.1) * Math.cos(z * 0.1) * 0.04;
     roadColor.r += dirt;
@@ -338,6 +365,8 @@ export function getBiomeColor(x: number, z: number, y: number, t: number): THREE
 /**
  * Returns a per-biome surface noise value [-1..1] at (x, z).
  */
+
+// Here the biome surface is generated, TODO -> Rework This 
 export function getBiomeSurfaceNoise(
   x: number,
   z: number,
@@ -377,6 +406,15 @@ export function getBiomeSurfaceNoise(
     r += flower * 0.9 * w;
     g += flower * 0.7 * w;
     b += flower * 0.1 * w;
+  }
+
+  if (weights[BiomeType.Desert] > 0.01) {
+    const w = weights[BiomeType.Desert];
+    const ripple = Math.abs(Math.sin(x * 0.14 + z * 0.11)) * 0.03;
+    const dune = Math.max(0, Math.sin(x * 0.05 + z * 0.04)) * 0.035;
+    r += (0.03 + ripple * 0.9 + dune * 0.6) * w;
+    g += (0.02 + ripple * 0.5 + dune * 0.35) * w;
+    b += (0.01 + ripple * 0.15) * w;
   }
 
   return { r, g, b };
@@ -427,6 +465,13 @@ export function getBiomeEmissive(x: number, z: number, y: number, t: number): TH
     _emissiveResult.r += 0.8 * str;
     _emissiveResult.g += 0.6 * str;
     _emissiveResult.b += 0.1 * str;
+  }
+
+  if (weights[BiomeType.Desert] > 0.01 && t > 0.55) {
+    const str = ((t - 0.55) / 0.45) * 0.08 * weights[BiomeType.Desert];
+    _emissiveResult.r += 0.45 * str;
+    _emissiveResult.g += 0.3 * str;
+    _emissiveResult.b += 0.08 * str;
   }
 
   return _emissiveResult;

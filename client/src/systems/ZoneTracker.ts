@@ -153,6 +153,9 @@ export class ZoneTracker {
         return zone.description;
       }
     }
+    if (name === "Wilderness") {
+      return "A windswept desert of cacti, pale sand, and lonely stones where the map falls away.";
+    }
     return "An uncharted stretch of land.";
   }
 }

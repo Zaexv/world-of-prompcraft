@@ -153,7 +153,7 @@ export class PlayerController {
       if (!this.isRotatingCamera) return;
       this.dragDistance += Math.abs(e.movementX) + Math.abs(e.movementY);
       this.yaw -= e.movementX * this.mouseSensitivity;
-      this.pitch -= e.movementY * this.mouseSensitivity;
+      this.pitch += e.movementY * this.mouseSensitivity;
       this.pitch = clamp(this.pitch, this.minPitch, this.maxPitch);
       if (this.activeOrbitButton === 2) {
         this.facingYawOverride = this.yaw;
@@ -331,8 +331,7 @@ export class PlayerController {
 
     // --- Third-person camera (WoW-style) ---
     const target = this.computeCameraTarget(delta);
-    const lerpFactor = 1 - Math.pow(0.001, delta);
-    this.cameraPos.lerp(target, lerpFactor);
+    this.cameraPos.copy(target);
     this.camera.position.copy(this.cameraPos);
 
     // Look at the orbit center (character head)

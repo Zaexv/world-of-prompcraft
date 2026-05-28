@@ -7,6 +7,9 @@ import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Effects } from './Effects';
+import { StartingForest } from './Forest';
+import { DesertScenery } from './Desert';
+import type { CollisionSystem } from '../systems/CollisionSystem';
 
 export class SceneManager {
   public scene: THREE.Scene;
@@ -17,8 +20,12 @@ export class SceneManager {
 
   private clock: THREE.Clock;
   private water: Water;
-  private effects: Effects;  private composer: EffectComposer | null = null;
+  private effects: Effects;
+  private skybox: Skybox;
+  private composer: EffectComposer | null = null;
   private bloomPass: UnrealBloomPass | null = null;
+  private forest: StartingForest;
+  private desert: DesertScenery;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
   private readonly minPixelRatio = 0.9;
@@ -55,7 +62,7 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 0.96;
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
@@ -85,7 +92,7 @@ export class SceneManager {
     }
 
     // --- World systems (order matters: lighting first, then geometry) ---
-    new Skybox(this.scene);
+    this.skybox = new Skybox(this.scene);
     this.lighting = new Lighting(this.scene);
 
     this.terrain = new Terrain(this.scene);
@@ -93,9 +100,16 @@ export class SceneManager {
 
     // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);
+    this.forest = new StartingForest(this.scene, this.terrain);
+    this.desert = new DesertScenery(this.scene, this.terrain);
 
     // --- Resize handling ---
     window.addEventListener('resize', this.onResize.bind(this));
+  }
+
+  setCollisionSystem(collisionSystem: CollisionSystem): void {
+    this.forest.setCollisionSystem(collisionSystem);
+    this.desert.setCollisionSystem(collisionSystem);
   }
 
   private onResize(): void {
@@ -175,6 +189,7 @@ export class SceneManager {
   /** Update player position for effects and water tracking. */
   setPlayerPosition(x: number, z: number): void {
     this.effects.setPlayerPosition(x, z);
+    this.desert.setPlayerPosition(x, z);
     this.playerX = x;
     this.playerZ = z;
   }
@@ -186,7 +201,10 @@ export class SceneManager {
     const delta = this.clock.getDelta();
 
     this.water.update(delta, this.playerX, this.playerZ);
+    this.skybox.update(delta, this.playerX, this.playerZ);
 
+    this.forest.update(delta);
+    this.desert.update(delta);
     this.effects.update(delta);
     this.updateAdaptiveQuality(delta);
     this.updateDistanceShadowCasters(delta);
