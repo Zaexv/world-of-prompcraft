@@ -98,8 +98,8 @@ export class EntityManager {
   // Player position for distance-based culling
   private playerX = 0;
   private playerZ = 0;
-  private readonly UPDATE_RADIUS_SQ = 200 * 200;   // full update within 200 units
-  private readonly VISIBLE_RADIUS_SQ = 350 * 350;  // hide beyond 350 units
+  private readonly UPDATE_RADIUS_SQ = 400 * 400;   // full update within 400 units (covers Fort Malaka ~273u from spawn)
+  private readonly VISIBLE_RADIUS_SQ = 450 * 450;  // hide beyond 450 units
 
   /** Set the player position so NPCs can be distance-culled. */
   setPlayerPosition(x: number, z: number): void {

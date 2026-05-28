@@ -22,8 +22,7 @@ export class NPCWander {
     id: string,
   ) {
     this.patrolSeed = hashString(id);
-    this.wanderCooldown =
-      motionProfile.pauseMin + Math.random() * (motionProfile.pauseMax - motionProfile.pauseMin);
+    this.wanderCooldown = -Math.random() * 3; // start expired so NPC moves immediately on first update
   }
 
   update(
