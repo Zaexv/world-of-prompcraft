@@ -1,4 +1,13 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+
+vi.mock('../utils/PBRMaps', () => ({
+  applyTerrainPBR: vi.fn(),
+  applyCharacterPBR: vi.fn(),
+  applyBarkPBR: vi.fn(),
+  applyCanopyPBR: vi.fn(),
+  applyStonePBR: vi.fn(),
+  warmUpTextures: vi.fn(),
+}));
 import * as THREE from 'three';
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
