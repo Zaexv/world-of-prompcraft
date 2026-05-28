@@ -9,17 +9,17 @@ interface ZoneTheme {
 }
 
 const ZONE_THEMES: Record<string, ZoneTheme> = {
-  "Blasted Suarezlands": { accent: "#cc88ff", category: "✦ MAGE DISTRICT ✦",         glyph: "⟨⟩" },
-  "Fort Malaka":          { accent: "#ffdd88", category: "⚔ MEDITERRANEAN CITY",       glyph: "~" },
-  "Elders' Village":      { accent: "#88ffcc", category: "✿ STARTING VILLAGE",         glyph: "~" },
-  "Dark Forest":          { accent: "#55dd55", category: "☽ FORBIDDEN FOREST",         glyph: "~" },
-  "Ember Peaks":          { accent: "#ff7733", category: "🔥 VOLCANIC MOUNTAINS",      glyph: "~" },
-  "Crystal Lake":         { accent: "#66ddff", category: "✧ ENCHANTED WATERS",         glyph: "~" },
-  "Ember Wastes":         { accent: "#ff3300", category: "☠ VOLCANIC WASTELAND",       glyph: "~" },
-  "Crystal Tundra":       { accent: "#aaeeff", category: "❄ FROZEN EXPANSE",           glyph: "~" },
-  "Twilight Marsh":       { accent: "#66bb44", category: "≋ SWAMPLAND",                glyph: "~" },
-  "Sunlit Meadows":       { accent: "#eecc44", category: "☀ ROLLING GRASSLANDS",      glyph: "~" },
-  "Teldrassil Wilds":     { accent: "#9966ff", category: "✦ ANCIENT FOREST ✦",        glyph: "⟨⟩" },
+  "Blasted Suarezlands": { accent: "#cc88ff", category: "MAGE DISTRICT",        glyph: "—" },
+  "Fort Malaka":          { accent: "#ffdd88", category: "MEDITERRANEAN CITY",   glyph: "—" },
+  "Elders' Village":      { accent: "#88ffcc", category: "STARTING VILLAGE",     glyph: "—" },
+  "Dark Forest":          { accent: "#55dd55", category: "FORBIDDEN FOREST",     glyph: "—" },
+  "Ember Peaks":          { accent: "#ff7733", category: "VOLCANIC MOUNTAINS",   glyph: "—" },
+  "Crystal Lake":         { accent: "#66ddff", category: "ENCHANTED WATERS",     glyph: "—" },
+  "Ember Wastes":         { accent: "#ff3300", category: "VOLCANIC WASTELAND",   glyph: "—" },
+  "Crystal Tundra":       { accent: "#aaeeff", category: "FROZEN EXPANSE",       glyph: "—" },
+  "Twilight Marsh":       { accent: "#66bb44", category: "SWAMPLAND",            glyph: "—" },
+  "Sunlit Meadows":       { accent: "#eecc44", category: "ROLLING GRASSLANDS",   glyph: "—" },
+  "Teldrassil Wilds":     { accent: "#9966ff", category: "ANCIENT FOREST",       glyph: "—" },
 };
 
 const DEFAULT_THEME: ZoneTheme = {
@@ -52,8 +52,8 @@ export class ZoneDisplay extends UIComponent {
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: "fixed",
-      top: "22%",
+      position: "absolute",
+      top: "20%",
       left: "50%",
       transform: "translateX(-50%) translateY(-12px)",
       textAlign: "center",

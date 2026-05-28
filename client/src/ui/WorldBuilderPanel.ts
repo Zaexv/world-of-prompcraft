@@ -28,7 +28,7 @@ export class WorldBuilderPanel extends UIComponent {
     onUndo: () => void,
     onRedo: () => void
   ) {
-    super('ui-root', 'world-builder-panel');
+    super('game-ui', 'world-builder-panel');
     this.onSubmit = onSubmit;
     this.onUndo = onUndo;
     this.onRedo = onRedo;
@@ -61,25 +61,25 @@ export class WorldBuilderPanel extends UIComponent {
       left: "50%",
       transform: "translateX(-50%)",
       width: "520px",
-      background: "rgba(8, 6, 20, 0.92)",
-      border: "1px solid rgba(136, 68, 255, 0.5)",
-      borderRadius: "10px",
+      background: "rgba(10, 8, 20, 0.95)",
+      border: "1px solid rgba(197, 165, 90, 0.4)",
+      borderRadius: "8px",
       padding: "16px",
-      boxShadow: "0 4px 32px rgba(100, 40, 220, 0.3), 0 0 12px rgba(136, 68, 255, 0.15)",
+      boxShadow: "0 4px 32px rgba(0, 0, 0, 0.6), 0 0 12px rgba(197, 165, 90, 0.1)",
       backdropFilter: "blur(8px)",
-      fontFamily: "system-ui, sans-serif",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
       zIndex: "1200",
-      display: "flex",
+      display: "none",
       flexDirection: "column",
       gap: "10px"
     } as CSSStyleDeclaration);
 
     this.container.innerHTML = `
       <div style="display:flex; align-items:center; gap:8px;">
-        <div style="width:10px; height:10px; border-radius:50%; background:#8844ff; box-shadow:0 0 6px #8844ff;"></div>
-        <span style="color:#c8b4ff; font-size:13px; font-weight:600; letter-spacing:0.5px;">WORLD SPIRIT</span>
-        <span style="color:#776699; font-size:11px; margin-left:4px;">— shape the world with words</span>
-        <button class="wb-close" style="margin-left:auto; background:none; border:none; color:#665588; cursor:pointer; font-size:18px; line-height:1;">×</button>
+        <div style="width:10px; height:10px; border-radius:50%; background:#c5a55a; box-shadow:0 0 6px rgba(197,165,90,0.8);"></div>
+        <span style="color:#e8dcc8; font-size:13px; font-weight:600; letter-spacing:0.5px;">WORLD SPIRIT</span>
+        <span style="color:#aaaaaa; font-size:11px; margin-left:4px;">— shape the world with words</span>
+        <button class="wb-close" style="margin-left:auto; background:none; border:none; color:#c5a55a; cursor:pointer; font-size:18px; line-height:1;">×</button>
       </div>
 
       <div class="wb-history" style="
@@ -89,7 +89,7 @@ export class WorldBuilderPanel extends UIComponent {
         border-radius: 4px;
         padding: 4px 8px;
         font-size: 11px;
-        color: #8877aa;
+        color: #aaaaaa;
         display: none;
       "></div>
 
@@ -97,13 +97,13 @@ export class WorldBuilderPanel extends UIComponent {
         min-height: 32px;
         max-height: 80px;
         overflow-y: auto;
-        color: #b8a0e0;
+        color: #e8dcc8;
         font-size: 12px;
         font-style: italic;
         padding: 6px 8px;
-        background: rgba(80, 40, 120, 0.2);
+        background: rgba(197, 165, 90, 0.08);
         border-radius: 6px;
-        border-left: 2px solid rgba(136, 68, 255, 0.4);
+        border-left: 2px solid rgba(197, 165, 90, 0.4);
         display: none;
       "></div>
 
@@ -113,25 +113,27 @@ export class WorldBuilderPanel extends UIComponent {
           <span class="wb-progress-text">0%</span>
         </div>
         <div style="width:100%; height:4px; background:rgba(255,255,255,0.1); border-radius:2px; overflow:hidden;">
-          <div class="wb-progress-bar" style="width:0%; height:100%; background:#8844ff; transition:width 0.2s;"></div>
+          <div class="wb-progress-bar" style="width:0%; height:100%; background:#c5a55a; transition:width 0.2s;"></div>
         </div>
       </div>
 
-      <div class="wb-attachment-preview" style="display:none; align-items:center; gap:8px; background:rgba(136,68,255,0.1); padding:4px 8px; border-radius:4px;">
-        <span style="font-size:11px; color:#c8b4ff; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
+      <div class="wb-attachment-preview" style="display:none; align-items:center; gap:8px; background:rgba(197,165,90,0.1); padding:4px 8px; border-radius:4px;">
+        <span style="font-size:11px; color:#e8dcc8; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></span>
         <button class="wb-remove-attachment" style="background:none; border:none; color:#ff4444; cursor:pointer; font-size:14px;">×</button>
       </div>
 
       <div style="display:flex; gap:8px; align-items:flex-end;">
         <div style="flex:1; display:flex; flex-direction:column; gap:4px;">
           <textarea
-            placeholder="Describe what you want to build..."
-            rows="2"
+            placeholder="Describe what you want to build or change..."
+            rows="3"
             style="
-              background: rgba(30, 20, 50, 0.8);
-              border: 1px solid rgba(136, 68, 255, 0.3);
+              width: 100%;
+              box-sizing: border-box;
+              background: rgba(10, 8, 20, 0.8);
+              border: 1px solid rgba(197, 165, 90, 0.3);
               border-radius: 6px;
-              color: #e0d4ff;
+              color: #e8dcc8;
               font-size: 13px;
               padding: 8px 10px;
               resize: none;
@@ -143,29 +145,29 @@ export class WorldBuilderPanel extends UIComponent {
         <div style="display:flex; flex-direction:column; gap:4px;">
           <input type="file" class="wb-file-input" style="display:none;" accept="image/*">
           <button class="wb-attach" title="Attach Image" style="
-            background: rgba(136, 68, 255, 0.2);
-            border: 1px solid rgba(136, 68, 255, 0.3);
+            background: rgba(197, 165, 90, 0.15);
+            border: 1px solid rgba(197, 165, 90, 0.3);
             border-radius: 6px;
-            color: #c8b4ff;
+            color: #c5a55a;
             padding: 8px;
             cursor: pointer;
             height: 36px;
           ">📷</button>
           <button class="wb-send" style="
-            background: linear-gradient(135deg, #5522aa, #8844ff);
+            background: linear-gradient(135deg, #3a2408, #c5a55a);
             border: none;
             border-radius: 6px;
-            color: white;
+            color: #1a1108;
             font-size: 13px;
-            font-weight: 600;
+            font-weight: 700;
             padding: 8px 16px;
             cursor: pointer;
             white-space: nowrap;
             height: 36px;
-          ">✦ Build</button>
+          ">Build</button>
         </div>
       </div>
-      <div style="color:#554477; font-size:10px; text-align:center;">Ctrl+Z undo · Ctrl+Shift+Z redo · Enter build</div>
+      <div style="color:#666666; font-size:10px; text-align:center;">Ctrl+Z undo · Ctrl+Shift+Z redo · Enter to build</div>
     `;
 
     this.input = this.container.querySelector('textarea')!;
@@ -284,6 +286,7 @@ export class WorldBuilderPanel extends UIComponent {
   }
 
   protected override onShow(): void {
+    this.container.style.display = 'flex';
     setTimeout(() => this.input.focus(), 50);
   }
 

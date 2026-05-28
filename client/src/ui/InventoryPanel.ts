@@ -35,9 +35,8 @@ export class InventoryPanel extends UIComponent {
       width: "260px",
       display: "none",
       flexDirection: "column",
-      background:
-        "linear-gradient(180deg, rgba(26,17,8,0.94) 0%, rgba(20,12,4,0.97) 100%)",
-      border: "2px solid #c5a55a",
+      background: "rgba(8,6,18,0.94)",
+      border: "1px solid rgba(197,165,90,0.4)",
       borderRadius: "8px",
       boxShadow:
         "0 0 20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(197,165,90,0.25)",
@@ -67,7 +66,7 @@ export class InventoryPanel extends UIComponent {
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
     } as CSSStyleDeclaration);
-    title.textContent = "Inventory";
+    title.textContent = "Inventory [I]";
     header.appendChild(title);
 
     const closeBtn = document.createElement("button");
@@ -140,11 +139,13 @@ export class InventoryPanel extends UIComponent {
       fontSize: "12px",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       pointerEvents: "none",
-      zIndex: "100",
-      whiteSpace: "nowrap",
+      zIndex: "30",
+      maxWidth: "180px",
+      textAlign: "center",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+      lineHeight: "1.4",
     } as CSSStyleDeclaration);
-    document.body.appendChild(this.tooltip);
+    this.container.appendChild(this.tooltip);
 
     this.renderSlots([]);
   }
@@ -214,13 +215,14 @@ export class InventoryPanel extends UIComponent {
 
     const label = document.createElement("span");
     Object.assign(label.style, {
-      fontSize: "10px",
+      fontSize: "11px",
       color: "#e8dcc8",
       textAlign: "center",
       padding: "2px 4px",
-      lineHeight: "1.2",
+      lineHeight: "1.25",
       wordBreak: "break-word",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+      letterSpacing: "0.02em",
     } as CSSStyleDeclaration);
     label.textContent = itemName;
     slot.appendChild(label);
@@ -246,55 +248,71 @@ export class InventoryPanel extends UIComponent {
     } as CSSStyleDeclaration);
 
     const lower = itemName.toLowerCase();
-    if (/sword|blade|axe|dagger|mace|hammer|spear/i.test(lower)) {
+    const isEquipment = /sword|blade|axe|dagger|mace|hammer|spear|bow|staff|shield|armor|charm|amulet|rune|ring|trinket|cloak/i.test(lower);
+
+    if (isEquipment) {
       useBtn.textContent = "Equip";
     } else if (/scroll/i.test(lower)) {
       useBtn.textContent = "Read";
-    } else if (/shield|armor/i.test(lower)) {
-      useBtn.textContent = "Equip";
     } else {
       useBtn.textContent = "Use";
     }
-    const isEquipment = /sword|blade|axe|dagger|mace|hammer|spear|bow|staff|shield|armor|charm|amulet|rune|ring|trinket|cloak/i.test(lower);
+
     useBtn.addEventListener("click", (e) => {
       e.stopPropagation();
+      this.tooltip.style.display = "none";
       if (isEquipment) {
+        this.flashSlot(slot, "#ffd700");
         this.onEquipItem?.(itemName);
       } else {
+        this.flashSlot(slot, "#44ff88");
         this.onUseItem?.(itemName);
       }
     });
     slot.appendChild(useBtn);
 
-    slot.addEventListener("mouseenter", (_e) => {
+    const description = this.getItemDescription(lower);
+
+    slot.addEventListener("mouseenter", () => {
       slot.style.borderColor = "#e8cc6a";
       slot.style.background = "rgba(60,42,20,0.9)";
-      this.tooltip.textContent = itemName;
+      this.tooltip.innerHTML = `<strong style="color:#c5a55a">${itemName}</strong><br><span style="color:#aaa;font-size:11px">${description}</span>`;
       this.tooltip.style.display = "block";
       const rect = slot.getBoundingClientRect();
       this.tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      this.tooltip.style.top = `${rect.top - 28}px`;
-      this.tooltip.style.transform = "translateX(-50%)";
-      if (useBtn) useBtn.style.display = "block";
+      this.tooltip.style.top = `${rect.top - 8}px`;
+      this.tooltip.style.transform = "translate(-50%, -100%)";
+      useBtn.style.display = "block";
     });
 
     slot.addEventListener("mouseleave", () => {
       slot.style.borderColor = "#c5a55a";
       slot.style.background = "rgba(40,28,14,0.8)";
       this.tooltip.style.display = "none";
-      if (useBtn) useBtn.style.display = "none";
-    });
-
-    slot.addEventListener("click", () => {
-      this.tooltip.textContent = itemName;
-      this.tooltip.style.display = "block";
-      const rect = slot.getBoundingClientRect();
-      this.tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      this.tooltip.style.top = `${rect.top - 28}px`;
-      this.tooltip.style.transform = "translateX(-50%)";
+      useBtn.style.display = "none";
     });
 
     return slot;
+  }
+
+  private flashSlot(slot: HTMLDivElement, color: string): void {
+    const original = slot.style.borderColor;
+    slot.style.borderColor = color;
+    slot.style.boxShadow = `0 0 8px ${color}`;
+    setTimeout(() => {
+      slot.style.borderColor = original;
+      slot.style.boxShadow = "";
+    }, 350);
+  }
+
+  private getItemDescription(lower: string): string {
+    if (/health|heal|potion/i.test(lower)) return "Restores HP";
+    if (/mana|elixir/i.test(lower)) return "Restores Mana";
+    if (/sword|blade|axe|dagger|mace|hammer|spear|bow|staff/i.test(lower)) return "Equip as weapon";
+    if (/shield|armor/i.test(lower)) return "Equip as shield";
+    if (/charm|amulet|rune|ring|trinket/i.test(lower)) return "Equip as trinket";
+    if (/scroll/i.test(lower)) return "Consumable magic item";
+    return "Use item";
   }
 
   get element(): HTMLElement {

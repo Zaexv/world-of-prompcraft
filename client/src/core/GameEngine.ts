@@ -312,6 +312,16 @@ export class GameEngine {
 
     d.sceneManager.camera.getWorldDirection(this._camDir);
     d.uiManager.updateMinimap(px, pz, Math.atan2(this._camDir.x, this._camDir.z));
+    if (d.uiManager.minimap.getIsVisible()) {
+      d.uiManager.minimap.setNPCDots(
+        d.entityManager.getAllNPCs().map(npc => ({
+          x: npc.position.x,
+          z: npc.position.z,
+          name: npc.name,
+          hostile: HOSTILE_NPCS.has(npc.id),
+        }))
+      );
+    }
     d.uiManager.bubbleSystem?.update();
 
     if (d.runtime.joinedServer) {

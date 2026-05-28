@@ -21,13 +21,13 @@ export class QuestTracker extends UIComponent {
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: "fixed",
-      top: "200px",
+      position: "absolute",
+      top: "336px",
       right: "16px",
       width: "220px",
-      background: "rgba(10, 6, 2, 0.7)",
-      border: "1px solid rgba(197, 165, 90, 0.3)",
-      borderRadius: "4px",
+      background: "rgba(8,6,18,0.88)",
+      border: "1px solid rgba(197,165,90,0.3)",
+      borderRadius: "6px",
       padding: "10px",
       pointerEvents: "auto",
       zIndex: "20",

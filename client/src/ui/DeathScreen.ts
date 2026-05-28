@@ -28,7 +28,7 @@ export class DeathScreen extends UIComponent {
     Object.assign(this.container.style, {
       position: 'absolute',
       inset: '0',
-      zIndex: '900',
+      zIndex: '2000',
       display: 'none',
       flexDirection: 'column',
       alignItems: 'center',

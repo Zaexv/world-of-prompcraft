@@ -22,24 +22,25 @@ export class QuestLog extends UIComponent {
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: "fixed",
+      position: "absolute",
       top: "50%",
       left: "50%",
       transform: "translate(-50%, -50%)",
-      width: "450px",
+      width: "480px",
       maxHeight: "80vh",
       overflowY: "auto",
       display: "none",
-      background: "rgba(10, 6, 2, 0.95)",
-      border: "2px solid #c5a55a",
-      borderRadius: "6px",
+      flexDirection: "column",
+      background: "rgba(8, 6, 18, 0.97)",
+      border: "1px solid rgba(197,165,90,0.45)",
+      borderRadius: "8px",
       padding: "20px",
       pointerEvents: "auto",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       color: "#e8dcc8",
-      zIndex: "50",
+      zIndex: "500",
       userSelect: "none",
-      boxShadow: "0 0 30px rgba(0,0,0,0.8), inset 0 1px 0 rgba(197,165,90,0.15)",
+      boxShadow: "0 0 40px rgba(0,0,0,0.9), inset 0 1px 0 rgba(197,165,90,0.15)",
     } as CSSStyleDeclaration);
 
     // ── Header ──────────────────────────────────────────────────────────
@@ -108,6 +109,7 @@ export class QuestLog extends UIComponent {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   protected override onShow(): void {
+    this.container.style.display = 'flex';
     this.escHandler = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         this.hide();

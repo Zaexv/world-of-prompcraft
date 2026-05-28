@@ -1,6 +1,11 @@
 import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
 
+// Module-level constants so they are defined when render() is called
+// (instance class fields are undefined during super() → render()).
+const MM_SIZE  = 290; // canvas pixels
+const MM_SCALE = 2.0; // world-units per canvas pixel
+
 export interface MinimapWaypoint {
   id: string;
   label: string;
@@ -9,32 +14,31 @@ export interface MinimapWaypoint {
   kind: 'landmark' | 'feature';
 }
 
+export interface MinimapNPCDot {
+  x: number;
+  z: number;
+  hostile: boolean;
+  name: string;
+}
+
 /**
  * Canvas-based minimap overlay toggled with M key.
  * Extends UIComponent for consistent lifecycle management.
- *
- * Shows:
- *  - Biome-colored terrain
- *  - Player position + direction arrow
- *  - Town markers (house icon)
- *  - Cave markers (diamond icon)
- *  - NPC dots
  */
 export class Minimap extends UIComponent {
   declare private canvas: HTMLCanvasElement;
   declare private ctx: CanvasRenderingContext2D;
+  declare private biomeLabel: HTMLDivElement;
+  declare private coordLabel: HTMLDivElement;
 
-  // World waypoints
+  // World waypoints and entity dots
   private waypoints: MinimapWaypoint[] = [];
+  private npcDots: MinimapNPCDot[] = [];
   private hoveredWaypointId: string | null = null;
 
   onWaypointClick: ((waypoint: MinimapWaypoint) => void) | null = null;
 
-  // Map config
-  private readonly SIZE = 280; // pixel size of the minimap
-  private readonly SCALE = 2.0; // world-units per pixel
-
-  // Throttling — only redraw when player moves enough
+  // Throttling
   private lastDrawX = NaN;
   private lastDrawZ = NaN;
   private lastDrawAngle = NaN;
@@ -48,52 +52,147 @@ export class Minimap extends UIComponent {
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave.bind(this));
   }
 
+  /** Update NPC positions so they appear as dots on the map. */
+  setNPCDots(dots: MinimapNPCDot[]): void {
+    this.npcDots = dots;
+  }
+
   /**
    * Render the component's DOM structure.
    * Called during initialization.
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: 'fixed',
+      position: 'absolute',
       top: '16px',
       right: '16px',
-      width: `${this.SIZE + 4}px`,
-      height: `${this.SIZE + 30}px`,
-      background: 'rgba(10, 6, 18, 0.85)',
-      border: '2px solid rgba(170, 68, 255, 0.5)',
-      borderRadius: '8px',
+      width: `${MM_SIZE + 8}px`,
       display: 'none',
+      flexDirection: 'column',
+      background: 'rgba(8, 6, 18, 0.92)',
+      border: '1px solid rgba(197, 165, 90, 0.45)',
+      borderRadius: '8px',
       pointerEvents: 'auto',
-      zIndex: '10000',
-      padding: '2px',
-      boxShadow: '0 0 20px rgba(100, 50, 180, 0.3)',
+      zIndex: '100',
+      boxShadow: '0 4px 24px rgba(0,0,0,0.7), inset 0 1px 0 rgba(197,165,90,0.15)',
+      overflow: 'hidden',
     } as Partial<CSSStyleDeclaration>);
 
-    // Title bar
-    const title = document.createElement('div');
-    Object.assign(title.style, {
-      textAlign: 'center',
-      color: '#ccbbee',
-      fontSize: '11px',
+    // ── Title bar ──────────────────────────────────────────────────────────
+    const titleBar = document.createElement('div');
+    Object.assign(titleBar.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '5px 10px',
+      borderBottom: '1px solid rgba(197, 165, 90, 0.25)',
+      background: 'rgba(0,0,0,0.25)',
+    } as Partial<CSSStyleDeclaration>);
+
+    const titleText = document.createElement('span');
+    Object.assign(titleText.style, {
+      color: '#c5a55a',
+      fontSize: '10px',
       fontFamily: "'Cinzel', serif",
-      padding: '3px 0',
       letterSpacing: '2px',
-      borderBottom: '1px solid rgba(170, 68, 255, 0.3)',
+      textTransform: 'uppercase',
+      fontWeight: '700',
     } as Partial<CSSStyleDeclaration>);
-    title.textContent = 'WORLD MAP [M]';
-    this.container.appendChild(title);
+    titleText.textContent = 'World Map';
+    titleBar.appendChild(titleText);
 
+    this.biomeLabel = document.createElement('div');
+    Object.assign(this.biomeLabel.style, {
+      color: '#888',
+      fontSize: '9px',
+      fontFamily: "'Cinzel', serif",
+      letterSpacing: '1px',
+      fontStyle: 'italic',
+    } as Partial<CSSStyleDeclaration>);
+    this.biomeLabel.textContent = '—';
+    titleBar.appendChild(this.biomeLabel);
+
+    this.container.appendChild(titleBar);
+
+    // ── Canvas ─────────────────────────────────────────────────────────────
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.SIZE;
-    this.canvas.height = this.SIZE;
+    this.canvas.width = MM_SIZE;
+    this.canvas.height = MM_SIZE;
     Object.assign(this.canvas.style, {
       display: 'block',
-      margin: '2px auto 0',
+      width: `${MM_SIZE}px`,
+      height: `${MM_SIZE}px`,
+      margin: '4px auto',
       borderRadius: '4px',
     } as Partial<CSSStyleDeclaration>);
     this.container.appendChild(this.canvas);
 
+    // ── Footer: coordinates + compact biome legend ─────────────────────────
+    const footer = document.createElement('div');
+    Object.assign(footer.style, {
+      borderTop: '1px solid rgba(197,165,90,0.15)',
+      padding: '4px 8px',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px',
+    } as Partial<CSSStyleDeclaration>);
+
+    this.coordLabel = document.createElement('div');
+    Object.assign(this.coordLabel.style, {
+      color: 'rgba(197,165,90,0.6)',
+      fontSize: '9px',
+      fontFamily: "'Cinzel', serif",
+      letterSpacing: '0.5px',
+      textAlign: 'center',
+    } as Partial<CSSStyleDeclaration>);
+    this.coordLabel.textContent = 'x: 0  z: 0';
+    footer.appendChild(this.coordLabel);
+
+    // Compact legend: 3 dots per row, 2 rows
+    const legendEntries: Array<[string, string]> = [
+      ['#2d6b38', 'Forest'], ['#9c3a12', 'Lava'], ['#4a7fa8', 'Tundra'],
+      ['#1e5c3a', 'Marsh'], ['#7a9422', 'Meadow'], ['#9a7230', 'Desert'],
+    ];
+    const legendRow = document.createElement('div');
+    Object.assign(legendRow.style, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '3px 8px',
+      justifyContent: 'center',
+    } as Partial<CSSStyleDeclaration>);
+    for (const [color, label] of legendEntries) {
+      const entry = document.createElement('div');
+      Object.assign(entry.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '3px',
+        fontSize: '8px',
+        color: 'rgba(197,165,90,0.5)',
+        fontFamily: "'Cinzel', serif",
+      } as Partial<CSSStyleDeclaration>);
+      const dot = document.createElement('div');
+      Object.assign(dot.style, {
+        width: '6px', height: '6px', borderRadius: '1px',
+        background: color, flexShrink: '0',
+      } as Partial<CSSStyleDeclaration>);
+      entry.appendChild(dot);
+      entry.appendChild(document.createTextNode(label));
+      legendRow.appendChild(entry);
+    }
+    footer.appendChild(legendRow);
+    this.container.appendChild(footer);
+
     this.ctx = this.canvas.getContext('2d')!;
+  }
+
+  protected override onShow(): void {
+    // The container uses flex layout — UIComponent.show() sets display:'block'
+    // which breaks the column layout, so we correct it here.
+    this.container.style.display = 'flex';
+    // Reset throttle so the canvas redraws immediately on next update() call.
+    this.lastDrawX = NaN;
+    this.lastDrawZ = NaN;
+    this.lastDrawAngle = NaN;
   }
 
   setWaypoints(waypoints: MinimapWaypoint[]): void {
@@ -137,101 +236,127 @@ export class Minimap extends UIComponent {
     this.lastDrawAngle = playerAngle;
 
     const ctx = this.ctx;
-    if (!ctx) return; // no-op in environments without canvas 2D (e.g. test)
-    const S = this.SIZE;
-    const scale = this.SCALE;
+    if (!ctx) return;
+    const S = MM_SIZE;
+    const scale = MM_SCALE;
     const halfWorld = (S * scale) / 2;
 
-    // Clear
-    ctx.fillStyle = '#0a0612';
+    // ── Terrain ────────────────────────────────────────────────────────────
+    ctx.fillStyle = '#12141e';
     ctx.fillRect(0, 0, S, S);
 
-    // Draw biome-colored terrain pixels (every 4px for performance)
-    const step = 4;
+    // step=2 for better resolution (acceptable perf for a 290×290 canvas)
+    const step = 2;
+    let dominantBiome = BiomeType.Teldrassil;
+    let dominantCount = 0;
     for (let px = 0; px < S; px += step) {
       for (let py = 0; py < S; py += step) {
         const wx = playerX + (px - S / 2) * scale;
         const wz = playerZ + (py - S / 2) * scale;
         const biome = getDominantBiome(wx, wz);
-        ctx.fillStyle = BIOME_COLORS[biome] ?? BIOME_COLORS[BiomeType.Teldrassil] ?? '#1a2a1f';
+        ctx.fillStyle = BIOME_COLORS[biome];
         ctx.fillRect(px, py, step, step);
+        // Track dominant biome near centre for the label
+        const dx = px - S / 2, dy = py - S / 2;
+        if (dx * dx + dy * dy < 20 * 20) { dominantBiome = biome; dominantCount++; }
       }
     }
+    void dominantCount; // suppress unused warning
 
-    // Draw grid lines (every 64 units = chunk boundary)
-    ctx.strokeStyle = 'rgba(255,255,255,0.06)';
+    // ── Vignette — darken edges so the centre reads clearly ───────────────
+    const vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.55)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, S, S);
+
+    // ── Grid (chunk boundaries, 64 world-units) ────────────────────────────
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 0.5;
     const chunkSize = 64;
-    const startWX = playerX - halfWorld;
-    const startWZ = playerZ - halfWorld;
-    const firstChunkX = Math.ceil(startWX / chunkSize) * chunkSize;
-    const firstChunkZ = Math.ceil(startWZ / chunkSize) * chunkSize;
-
+    const firstChunkX = Math.ceil((playerX - halfWorld) / chunkSize) * chunkSize;
+    const firstChunkZ = Math.ceil((playerZ - halfWorld) / chunkSize) * chunkSize;
     for (let wx = firstChunkX; wx < playerX + halfWorld; wx += chunkSize) {
       const px = (wx - playerX) / scale + S / 2;
-      ctx.beginPath();
-      ctx.moveTo(px, 0);
-      ctx.lineTo(px, S);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, S); ctx.stroke();
     }
     for (let wz = firstChunkZ; wz < playerZ + halfWorld; wz += chunkSize) {
       const py = (wz - playerZ) / scale + S / 2;
-      ctx.beginPath();
-      ctx.moveTo(0, py);
-      ctx.lineTo(S, py);
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(S, py); ctx.stroke();
     }
 
-    // Draw waypoints
+    // ── NPC dots ───────────────────────────────────────────────────────────
+    for (const npc of this.npcDots) {
+      const nx = (npc.x - playerX) / scale + S / 2;
+      const nz = (npc.z - playerZ) / scale + S / 2;
+      if (nx < -4 || nx > S + 4 || nz < -4 || nz > S + 4) continue;
+      ctx.save();
+      ctx.shadowColor = npc.hostile ? '#ff4444' : '#44ff88';
+      ctx.shadowBlur = 4;
+      ctx.fillStyle = npc.hostile ? '#ff6644' : '#88ffaa';
+      ctx.beginPath();
+      ctx.arc(nx, nz, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    // ── Waypoints ──────────────────────────────────────────────────────────
     for (const waypoint of this.waypoints) {
       const marker = this.getMarkerPoint(waypoint, playerX, playerZ, scale, S);
       if (!marker) continue;
-
       const highlighted = waypoint.id === this.hoveredWaypointId;
       this.drawWaypointMarker(ctx, marker.x, marker.y, waypoint.kind, highlighted);
       this.drawWaypointLabel(ctx, marker.x, marker.y, waypoint.label, highlighted);
     }
 
-    // Player arrow (center)
+    // ── Player indicator ───────────────────────────────────────────────────
     const cx = S / 2;
     const cy = S / 2;
-    const arrowLen = 8;
 
+    // Outer glow ring
+    ctx.save();
+    ctx.shadowColor = '#44ff88';
+    ctx.shadowBlur = 10;
+    ctx.strokeStyle = 'rgba(68,255,136,0.4)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 9, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
+    // Direction chevron
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(playerAngle);
-
-    // Arrow body
+    ctx.shadowColor = '#44ff88';
+    ctx.shadowBlur = 6;
     ctx.fillStyle = '#44ff88';
     ctx.beginPath();
-    ctx.moveTo(0, -arrowLen);
-    ctx.lineTo(-5, arrowLen * 0.5);
-    ctx.lineTo(0, arrowLen * 0.2);
-    ctx.lineTo(5, arrowLen * 0.5);
+    ctx.moveTo(0, -10);
+    ctx.lineTo(-5, 4);
+    ctx.lineTo(0, 1);
+    ctx.lineTo(5, 4);
     ctx.closePath();
     ctx.fill();
-
-    // Arrow outline
-    ctx.strokeStyle = '#ffffff';
-    ctx.lineWidth = 1.2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.8)';
+    ctx.lineWidth = 0.8;
     ctx.stroke();
-
     ctx.restore();
 
-    // Compass labels
-    ctx.fillStyle = 'rgba(200, 180, 255, 0.6)';
-    ctx.font = '9px monospace';
+    // ── Compass (corners) ──────────────────────────────────────────────────
+    ctx.font = 'bold 9px sans-serif';
     ctx.textAlign = 'center';
-    ctx.fillText('N', S / 2, 10);
-    ctx.fillText('S', S / 2, S - 3);
-    ctx.fillText('W', 8, S / 2 + 3);
-    ctx.fillText('E', S - 8, S / 2 + 3);
-
-    // Coordinate readout
-    ctx.fillStyle = 'rgba(200, 180, 255, 0.5)';
-    ctx.font = '8px monospace';
+    ctx.fillStyle = 'rgba(197,165,90,0.7)';
+    ctx.fillText('N', S / 2, 11);
+    ctx.fillText('S', S / 2, S - 2);
     ctx.textAlign = 'left';
-    ctx.fillText(`${Math.round(playerX)}, ${Math.round(playerZ)}`, 4, S - 3);
+    ctx.fillText('W', 3, S / 2 + 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('E', S - 3, S / 2 + 3);
+
+    // ── Biome label + coords (updated in DOM elements, not canvas) ─────────
+    this.biomeLabel.textContent = BIOME_NAMES[dominantBiome] ?? '—';
+    this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
   }
 
   get element(): HTMLElement {
@@ -267,7 +392,7 @@ export class Minimap extends UIComponent {
     const markerRadius = 10;
     let closest: { waypoint: MinimapWaypoint; distanceSq: number } | null = null;
     for (const waypoint of this.waypoints) {
-      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, this.SCALE, this.SIZE);
+      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, MM_SCALE, MM_SIZE);
       if (!marker) continue;
       const dx = x - marker.x;
       const dy = y - marker.y;
@@ -384,11 +509,21 @@ export class Minimap extends UIComponent {
   }
 }
 
-// Biome display colors for the minimap
-const BIOME_COLORS: Partial<Record<BiomeType, string>> = {
-  [BiomeType.Teldrassil]: '#1a2a1f',
-  [BiomeType.EmberWastes]: '#3a1508',
-  [BiomeType.CrystalTundra]: '#4a5a6a',
-  [BiomeType.TwilightMarsh]: '#0a1a0a',
-  [BiomeType.SunlitMeadows]: '#3a4a1a',
+// Biome display colors — vivid enough to read clearly on dark canvas.
+const BIOME_COLORS: Record<BiomeType, string> = {
+  [BiomeType.Teldrassil]: '#2d6b38',    // forest green
+  [BiomeType.EmberWastes]: '#9c3a12',   // lava orange-red
+  [BiomeType.CrystalTundra]: '#4a7fa8', // icy blue
+  [BiomeType.TwilightMarsh]: '#1e5c3a', // swamp teal
+  [BiomeType.SunlitMeadows]: '#7a9422', // meadow yellow-green
+  [BiomeType.Desert]: '#9a7230',        // sandy gold
+};
+
+const BIOME_NAMES: Record<BiomeType, string> = {
+  [BiomeType.Teldrassil]: 'Teldrassil',
+  [BiomeType.EmberWastes]: 'Ember Wastes',
+  [BiomeType.CrystalTundra]: 'Crystal Tundra',
+  [BiomeType.TwilightMarsh]: 'Twilight Marsh',
+  [BiomeType.SunlitMeadows]: 'Sunlit Meadows',
+  [BiomeType.Desert]: 'Desert',
 };

@@ -45,21 +45,23 @@ export class CombatHUD extends UIComponent {
       .combat-hp-flash {
         animation: combat-hud-flash 0.25s ease-out;
       }
-      #combat-log-entries::-webkit-scrollbar { width: 4px; }
-      #combat-log-entries::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 2px; }
-      #combat-log-entries::-webkit-scrollbar-thumb { background: #c5a55a; border-radius: 2px; }
     `;
     document.head.appendChild(this.styleTag);
 
     Object.assign(this.container.style, {
       position: "absolute",
-      top: "80px",
+      top: "16px",
       left: "50%",
       transform: "translateX(-50%)",
       display: "none",
       flexDirection: "column",
       alignItems: "center",
-      gap: "10px",
+      gap: "8px",
+      padding: "10px 16px",
+      background: "rgba(8,6,18,0.82)",
+      border: "1px solid rgba(197,165,90,0.25)",
+      borderRadius: "8px",
+      boxShadow: "0 4px 20px rgba(0,0,0,0.6)",
       pointerEvents: "none",
       zIndex: "20",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
@@ -95,12 +97,9 @@ export class CombatHUD extends UIComponent {
 
     this.combatLog = document.createElement("div");
     Object.assign(this.combatLog.style, {
-      width: "440px",
-      background: "linear-gradient(180deg, rgba(26,17,8,0.88) 0%, rgba(16,10,4,0.92) 100%)",
-      border: "1px solid rgba(197,165,90,0.5)",
-      borderRadius: "6px",
-      padding: "8px 10px",
-      boxShadow: "0 0 12px rgba(0,0,0,0.5)",
+      width: "380px",
+      borderTop: "1px solid rgba(197,165,90,0.2)",
+      paddingTop: "6px",
     } as CSSStyleDeclaration);
 
     const logHeader = document.createElement("div");
