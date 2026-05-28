@@ -78,11 +78,17 @@ export class WebSocketClient {
     };
 
     this.ws.onmessage = (event: MessageEvent) => {
+      let data: unknown;
       try {
-        const data = JSON.parse(event.data as string);
-        this.onMessage?.(data);
+        data = JSON.parse(event.data as string);
       } catch {
-        // ignore non-JSON messages (e.g. pong frames)
+        // ignore non-JSON frames (e.g. raw pong)
+        return;
+      }
+      try {
+        this.onMessage?.(data);
+      } catch (err) {
+        console.error('WebSocketClient: onMessage handler threw:', err);
       }
     };
   }

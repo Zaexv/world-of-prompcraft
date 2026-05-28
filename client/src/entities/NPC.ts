@@ -23,6 +23,7 @@ export interface NPCConfig {
   hp?: number;
   maxHp?: number;
   personality?: string;
+  scale?: number;
 }
 
 export class NPC {
@@ -58,6 +59,7 @@ export class NPC {
     this.placeholderStyle = getNPCPlaceholderStyle(config.id, config.name, config.behavior);
     this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
     this.mesh = new THREE.Group();
+    if (config.scale) this.mesh.scale.setScalar(config.scale);
 
     const color = config.color ?? 0xcc6633;
     const appearance = getPlaceholderAppearance(this.placeholderStyle);
