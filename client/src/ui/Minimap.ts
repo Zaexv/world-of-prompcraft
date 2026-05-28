@@ -1,6 +1,11 @@
 import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
 
+// Module-level constants so they are defined when render() is called
+// (instance class fields are undefined during super() → render()).
+const MM_SIZE  = 290; // canvas pixels
+const MM_SCALE = 2.0; // world-units per canvas pixel
+
 export interface MinimapWaypoint {
   id: string;
   label: string;
@@ -33,10 +38,6 @@ export class Minimap extends UIComponent {
 
   onWaypointClick: ((waypoint: MinimapWaypoint) => void) | null = null;
 
-  // Map config — slightly larger canvas for better readability
-  private readonly SIZE = 290;
-  private readonly SCALE = 2.0; // world-units per pixel
-
   // Throttling
   private lastDrawX = NaN;
   private lastDrawZ = NaN;
@@ -65,7 +66,7 @@ export class Minimap extends UIComponent {
       position: 'absolute',
       top: '16px',
       right: '16px',
-      width: `${this.SIZE + 8}px`,
+      width: `${MM_SIZE + 8}px`,
       display: 'none',
       flexDirection: 'column',
       background: 'rgba(8, 6, 18, 0.92)',
@@ -115,12 +116,12 @@ export class Minimap extends UIComponent {
 
     // ── Canvas ─────────────────────────────────────────────────────────────
     this.canvas = document.createElement('canvas');
-    this.canvas.width = this.SIZE;
-    this.canvas.height = this.SIZE;
+    this.canvas.width = MM_SIZE;
+    this.canvas.height = MM_SIZE;
     Object.assign(this.canvas.style, {
       display: 'block',
-      width: `${this.SIZE}px`,
-      height: `${this.SIZE}px`,
+      width: `${MM_SIZE}px`,
+      height: `${MM_SIZE}px`,
       margin: '4px auto',
       borderRadius: '4px',
     } as Partial<CSSStyleDeclaration>);
@@ -236,8 +237,8 @@ export class Minimap extends UIComponent {
 
     const ctx = this.ctx;
     if (!ctx) return;
-    const S = this.SIZE;
-    const scale = this.SCALE;
+    const S = MM_SIZE;
+    const scale = MM_SCALE;
     const halfWorld = (S * scale) / 2;
 
     // ── Terrain ────────────────────────────────────────────────────────────
@@ -391,7 +392,7 @@ export class Minimap extends UIComponent {
     const markerRadius = 10;
     let closest: { waypoint: MinimapWaypoint; distanceSq: number } | null = null;
     for (const waypoint of this.waypoints) {
-      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, this.SCALE, this.SIZE);
+      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, MM_SCALE, MM_SIZE);
       if (!marker) continue;
       const dx = x - marker.x;
       const dy = y - marker.y;

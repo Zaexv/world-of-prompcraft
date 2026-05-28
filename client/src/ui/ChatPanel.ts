@@ -33,7 +33,7 @@ export class ChatPanel extends UIComponent {
       border: '1px solid rgba(197,165,90,0.3)',
       borderRadius: '6px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.5)',
-      fontFamily: "'Cinzel', Georgia, serif",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
       fontSize: '12px',
       pointerEvents: 'auto',
       zIndex: '20',
@@ -88,7 +88,7 @@ export class ChatPanel extends UIComponent {
       border: 'none',
       borderTop: '1px solid rgba(197, 165, 90, 0.2)',
       color: '#e8dcc8',
-      fontFamily: "'Cinzel', Georgia, serif",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
       fontSize: '12px',
       outline: 'none',
     } as CSSStyleDeclaration);

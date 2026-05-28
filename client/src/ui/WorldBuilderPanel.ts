@@ -63,7 +63,7 @@ export class WorldBuilderPanel extends UIComponent {
       width: "520px",
       background: "rgba(10, 8, 20, 0.95)",
       border: "1px solid rgba(197, 165, 90, 0.4)",
-      borderRadius: "10px",
+      borderRadius: "8px",
       padding: "16px",
       boxShadow: "0 4px 32px rgba(0, 0, 0, 0.6), 0 0 12px rgba(197, 165, 90, 0.1)",
       backdropFilter: "blur(8px)",

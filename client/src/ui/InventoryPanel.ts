@@ -35,9 +35,8 @@ export class InventoryPanel extends UIComponent {
       width: "260px",
       display: "none",
       flexDirection: "column",
-      background:
-        "linear-gradient(180deg, rgba(26,17,8,0.94) 0%, rgba(20,12,4,0.97) 100%)",
-      border: "2px solid #c5a55a",
+      background: "rgba(8,6,18,0.94)",
+      border: "1px solid rgba(197,165,90,0.4)",
       borderRadius: "8px",
       boxShadow:
         "0 0 20px rgba(0,0,0,0.7), inset 0 1px 0 rgba(197,165,90,0.25)",
