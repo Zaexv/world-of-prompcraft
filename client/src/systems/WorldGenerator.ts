@@ -109,6 +109,7 @@ export class WorldGenerator {
     }
 
     this.generatedChunks.delete(key);
+    // Despawn all procedural objects for this chunk (prevents memory/GPU leak)
     this.populator.releaseChunk(chunkX, chunkZ);
   }
 
