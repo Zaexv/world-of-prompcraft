@@ -64,7 +64,7 @@ export class Minimap extends UIComponent {
       borderRadius: '8px',
       display: 'none',
       pointerEvents: 'auto',
-      zIndex: '200',
+      zIndex: '1000',
       padding: '2px',
       boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
     } as Partial<CSSStyleDeclaration>);
@@ -94,6 +94,14 @@ export class Minimap extends UIComponent {
     this.container.appendChild(this.canvas);
 
     this.ctx = this.canvas.getContext('2d')!;
+  }
+
+  protected override onShow(): void {
+    // Reset throttle so the canvas redraws immediately on next update() call,
+    // even if the player hasn't moved since the last time the map was open.
+    this.lastDrawX = NaN;
+    this.lastDrawZ = NaN;
+    this.lastDrawAngle = NaN;
   }
 
   setWaypoints(waypoints: MinimapWaypoint[]): void {
