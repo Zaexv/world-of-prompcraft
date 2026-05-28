@@ -115,8 +115,33 @@ export class InteractionPanel extends UIComponent {
       borderBottom: "1px solid rgba(197,165,90,0.3)",
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
+      position: "relative",
     } as CSSStyleDeclaration);
     this.container.appendChild(this.header);
+
+    const closeBtn = document.createElement("button");
+    closeBtn.textContent = "\u2716";
+    Object.assign(closeBtn.style, {
+      position: "absolute",
+      top: "6px",
+      right: "10px",
+      background: "none",
+      border: "none",
+      color: "#c5a55a",
+      fontSize: "18px",
+      cursor: "pointer",
+      padding: "4px 8px",
+      lineHeight: "1",
+      fontFamily: "serif",
+      transition: "color 0.15s",
+    } as CSSStyleDeclaration);
+    closeBtn.addEventListener("mouseenter", () => { closeBtn.style.color = "#e8dcc8"; });
+    closeBtn.addEventListener("mouseleave", () => { closeBtn.style.color = "#c5a55a"; });
+    closeBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.onClose?.();
+    });
+    this.container.appendChild(closeBtn);
 
     this.statusBar = document.createElement("div");
     Object.assign(this.statusBar.style, {

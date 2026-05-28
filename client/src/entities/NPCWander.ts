@@ -14,6 +14,9 @@ export class NPCWander {
   private patrolIndex = 0;
   private readonly patrolSeed: number;
 
+  private approachTarget: THREE.Vector3 | null = null;
+  private onArrive: (() => void) | null = null;
+
   constructor(
     private readonly mesh: THREE.Group,
     private readonly position: THREE.Vector3,
@@ -22,8 +25,7 @@ export class NPCWander {
     id: string,
   ) {
     this.patrolSeed = hashString(id);
-    this.wanderCooldown =
-      motionProfile.pauseMin + Math.random() * (motionProfile.pauseMax - motionProfile.pauseMin);
+    this.wanderCooldown = -Math.random() * 3; // start expired so NPC moves immediately on first update
   }
 
   update(
@@ -35,6 +37,19 @@ export class NPCWander {
     waterHoverY: number,
   ): void {
     this.tryResolveStuck(getHeightAt, collisionSystem);
+
+    // --- Approach mode: walking toward player or a specific point ---
+    if (this.approachTarget) {
+      const dx = this.approachTarget.x - this.mesh.position.x;
+      const dz = this.approachTarget.z - this.mesh.position.z;
+      const distSq = dx * dx + dz * dz;
+      if (distSq < 2.25) {
+        this.arrived();
+        return;
+      }
+      this.walkToward(dx, dz, delta, getHeightAt);
+      return;
+    }
 
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
@@ -102,6 +117,65 @@ export class NPCWander {
     }
 
     if (nextY < Water.LEVEL + 0.05) nextY = waterHoverY;
+
+    this.mesh.position.x = nextX;
+    this.mesh.position.z = nextZ;
+    this.mesh.position.y = nextY;
+    this.position.copy(this.mesh.position);
+
+    const targetAngle = Math.atan2(nx, nz);
+    this.mesh.rotation.y = lerpAngle(
+      this.mesh.rotation.y, targetAngle,
+      Math.min(1, this.motionProfile.turnSpeed * delta),
+    );
+    this.animator.setBaseY(this.mesh.position.y);
+  }
+
+  walkTo(target: THREE.Vector3, onArrive?: () => void): void {
+    this.isWandering = false;
+    this.hasWanderTarget = false;
+    this.approachTarget = target.clone();
+    this.onArrive = onArrive ?? null;
+    this.animator.play('walk');
+  }
+
+  updateApproachTarget(target: THREE.Vector3): void {
+    if (this.approachTarget) {
+      this.approachTarget.copy(target);
+    }
+  }
+
+  resumeWander(): void {
+    this.approachTarget = null;
+    this.onArrive = null;
+    this.isWandering = false;
+    this.hasWanderTarget = false;
+    this.wanderCooldown = this.nextCooldown();
+    this.animator.setStill(false);
+    this.animator.play('idle');
+  }
+
+  private arrived(): void {
+    this.approachTarget = null;
+    this.isWandering = false;
+    this.hasWanderTarget = false;
+    this.wanderCooldown = 9999;
+    this.animator.setStill(true);
+    this.animator.play('idle');
+    const cb = this.onArrive;
+    this.onArrive = null;
+    cb?.();
+  }
+
+  private walkToward(dx: number, dz: number, delta: number, getHeightAt: (x: number, z: number) => number): void {
+    const dist = Math.sqrt(dx * dx + dz * dz);
+    const speed = this.motionProfile.moveSpeed * 1.5;
+    const step = Math.min(speed * delta, dist);
+    const nx = dx / dist;
+    const nz = dz / dist;
+    const nextX = this.mesh.position.x + nx * step;
+    const nextZ = this.mesh.position.z + nz * step;
+    const nextY = getHeightAt(nextX, nextZ);
 
     this.mesh.position.x = nextX;
     this.mesh.position.z = nextZ;

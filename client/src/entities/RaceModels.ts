@@ -135,20 +135,28 @@ export function buildNightElfModel(): THREE.Group {
   const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.22, 12);
   const bootMat = mat(0x120820, { r: 0.75 });
   const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+  const legHalfHeight = 0.41;
+  const hipY = Y_LEG + legHalfHeight;
 
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-0.16, hipY, 0);
+  group.add(lLegPivot);
   const lLeg = mesh(legGeo, legMat);
-  lLeg.name = 'leftLeg';
-  lLeg.position.set(-0.16, Y_LEG, 0);
+  lLeg.position.set(0, -legHalfHeight, 0);
   lLeg.castShadow = true;
-  group.add(lLeg);
+  lLegPivot.add(lLeg);
   const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
   addChildMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
 
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(0.16, hipY, 0);
+  group.add(rLegPivot);
   const rLeg = mesh(legGeo, legMat);
-  rLeg.name = 'rightLeg';
-  rLeg.position.set(0.16, Y_LEG, 0);
+  rLeg.position.set(0, -legHalfHeight, 0);
   rLeg.castShadow = true;
-  group.add(rLeg);
+  rLegPivot.add(rLeg);
   const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
   addChildMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
 
@@ -275,20 +283,28 @@ export function buildHumanModel(): THREE.Group {
   const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.24, 12);
   const bootMat = mat(0x3a2010, { r: 0.82 });
   const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+  const legHalfHeight = 0.41;
+  const hipY = Y_LEG + legHalfHeight;
 
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-0.16, hipY, 0);
+  group.add(lLegPivot);
   const lLeg = mesh(legGeo, legMat);
-  lLeg.name = 'leftLeg';
-  lLeg.position.set(-0.16, Y_LEG, 0);
+  lLeg.position.set(0, -legHalfHeight, 0);
   lLeg.castShadow = true;
-  group.add(lLeg);
+  lLegPivot.add(lLeg);
   const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
   addChildMesh(lBoot, toeGeo, bootMat, 0, -0.1, 0.045);
 
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(0.16, hipY, 0);
+  group.add(rLegPivot);
   const rLeg = mesh(legGeo, legMat);
-  rLeg.name = 'rightLeg';
-  rLeg.position.set(0.16, Y_LEG, 0);
+  rLeg.position.set(0, -legHalfHeight, 0);
   rLeg.castShadow = true;
-  group.add(rLeg);
+  rLegPivot.add(rLeg);
   const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
   addChildMesh(rBoot, toeGeo, bootMat, 0, -0.1, 0.045);
 
@@ -428,20 +444,28 @@ export function buildOrcModel(): THREE.Group {
   const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.025, 0.26, 12);
   const bootMat = mat(0x1e1008, { r: 0.82 });
   const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+  const legHalfHeight = 0.41;
+  const hipY = Y_LEG + legHalfHeight;
 
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-0.20, hipY, 0);
+  group.add(lLegPivot);
   const lLeg = mesh(legGeo, legMat);
-  lLeg.name = 'leftLeg';
-  lLeg.position.set(-0.20, Y_LEG, 0);
+  lLeg.position.set(0, -legHalfHeight, 0);
   lLeg.castShadow = true;
-  group.add(lLeg);
+  lLegPivot.add(lLeg);
   const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.37, 0);
   addChildMesh(lBoot, toeGeo, bootMat, 0, -0.11, 0.05);
 
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(0.20, hipY, 0);
+  group.add(rLegPivot);
   const rLeg = mesh(legGeo, legMat);
-  rLeg.name = 'rightLeg';
-  rLeg.position.set(0.20, Y_LEG, 0);
+  rLeg.position.set(0, -legHalfHeight, 0);
   rLeg.castShadow = true;
-  group.add(rLeg);
+  rLegPivot.add(rLeg);
   const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.37, 0);
   addChildMesh(rBoot, toeGeo, bootMat, 0, -0.11, 0.05);
 
@@ -542,20 +566,28 @@ export function buildUndeadModel(): THREE.Group {
   const footGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.2, 10);
   const footMat = mat(0x2a2a2a, { r: 0.9 });
   const toeGeo  = new THREE.SphereGeometry(LEG_R + 0.01, 8, 5);
+  const legHalfHeight = 0.41;
+  const hipY = Y_LEG + legHalfHeight;
 
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-0.12, hipY, 0);
+  group.add(lLegPivot);
   const lLeg = mesh(legGeo, legMat);
-  lLeg.name = 'leftLeg';
-  lLeg.position.set(-0.12, Y_LEG, 0);
+  lLeg.position.set(0, -legHalfHeight, 0);
   lLeg.castShadow = true;
-  group.add(lLeg);
+  lLegPivot.add(lLeg);
   const lFoot = addChildMesh(lLeg, footGeo, footMat, 0, -0.38, 0);
   addChildMesh(lFoot, toeGeo, footMat, 0, -0.09, 0.04);
 
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(0.12, hipY, 0);
+  group.add(rLegPivot);
   const rLeg = mesh(legGeo, legMat);
-  rLeg.name = 'rightLeg';
-  rLeg.position.set(0.12, Y_LEG, 0);
+  rLeg.position.set(0, -legHalfHeight, 0);
   rLeg.castShadow = true;
-  group.add(rLeg);
+  rLegPivot.add(rLeg);
   const rFoot = addChildMesh(rLeg, footGeo, footMat, 0, -0.38, 0);
   addChildMesh(rFoot, toeGeo, footMat, 0, -0.09, 0.04);
 
