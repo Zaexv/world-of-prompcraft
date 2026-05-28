@@ -75,6 +75,7 @@ export class WebSocketHandler {
             hp: n.hp,
             maxHp: n.maxHp,
             personality: n.personality,
+            scale: n.scale,
           });
 
           this.d.npcStateStore.updateState(id, {
@@ -82,6 +83,7 @@ export class WebSocketHandler {
             hp: n.hp,
             maxHp: n.maxHp,
             personality: n.personality,
+            scale: n.scale,
             mood: n.mood,
           });
         }

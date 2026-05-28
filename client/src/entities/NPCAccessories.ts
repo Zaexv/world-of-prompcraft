@@ -346,7 +346,39 @@ export function addPlaceholderAccessory(mesh: THREE.Group, style: NPCPlaceholder
     }
 
     // ── Undead ────────────────────────────────────────────────────────────────
-    case 'undead': {
+    case "oracle": {
+      const staff = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.03, 0.03, 2.5, 6),
+        npcMat(0x4a321f),
+      );
+      staff.name = "staff";
+      staff.position.set(0.62, NPC_Y_TORSO + 0.2, 0);
+      mesh.add(staff);
+
+      const bluntMat = npcMat(0x3d2b1f);
+      const blunt = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.18, 5), bluntMat);
+      blunt.name = "blunt";
+      blunt.position.set(0.08, NPC_Y_HEAD - 0.12, 0.28);
+      blunt.rotation.set(0, 0.4, Math.PI / 2);
+      mesh.add(blunt);
+
+      const cherryMat = npcMat(0xff4400, 0.1, 0, 0xff2200, 2.0);
+      const cherry = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), cherryMat);
+      cherry.name = "cherry";
+      cherry.position.set(0.18, NPC_Y_HEAD - 0.12, 0.32);
+      mesh.add(cherry);
+
+      const smokeMat = new THREE.MeshStandardMaterial({ color: 0xcccccc, transparent: true, opacity: 0.4, flatShading: true });
+      for (let i = 0; i < 3; i++) {
+        const smoke = new THREE.Mesh(new THREE.SphereGeometry(0.02 + i * 0.015, 5, 4), smokeMat);
+        smoke.name = `smoke${i}`;
+        smoke.position.set(0.20 + i * 0.05, NPC_Y_HEAD - 0.08 + i * 0.08, 0.35 + i * 0.05);
+        mesh.add(smoke);
+      }
+      break;
+    }
+
+    case "undead": {
       const bonePale  = 0xc8d0b8;
       const soulGreen = 0x44ffaa;
 
@@ -465,7 +497,7 @@ export function addNPCVisualOutline(mesh: THREE.Group, style: NPCPlaceholderStyl
     'shield', 'halo', 'staff', 'orb',
     'leftTusk', 'rightTusk',
     'leftEye', 'rightEye',
-    'pack', 'satchel',
+    'pack', 'satchel', 'blunt', 'cherry',
   ];
   const scale = style === 'dragon' || style === 'monster' ? 1.06 : 1.048;
   addOutlineShell(mesh, {

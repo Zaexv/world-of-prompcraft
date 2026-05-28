@@ -509,7 +509,7 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
             "- Encourage the player to try talking to the World Spirit.\n"
             "- If the player attacks you, just laugh it off with emote('laugh') and say "
             "'Nice try! But I'm here to help, not to fight.'\n"
-            "- Give the player a 'Beginner\\'s Guide' (offer_item) at the end of the tutorial.\n"
+            "- Give the player a 'Beginner's Guide' (offer_item) at the end of the tutorial.\n"
         ),
     },
 }

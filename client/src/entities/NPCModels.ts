@@ -32,7 +32,7 @@ export type NPCPlaceholderStyle =
   | 'dragon'
   | 'monster'
   | 'orc'
-  | 'undead';
+  | 'undead' | 'oracle';
 
 const NPC_TYPE_MODEL_RULES: NPCModelRule[] = [
   { keywords: ['dragon', 'wyrm', 'beast', 'boss'], path: '/models/npcs/dragon.glb' },
@@ -72,6 +72,7 @@ export function getNPCModelPath(
   name: string,
   behavior?: 'friendly' | 'neutral' | 'hostile',
 ): string | null {
+  if (id === "nireg_jenkins") return null;
   const override = NPC_MODEL_MAP[id];
   if (override) return override;
 
@@ -129,7 +130,8 @@ const NPC_PLACEHOLDER_STYLE_RULES: NPCPlaceholderStyleRule[] = [
   { keywords: ['elf', 'elven', 'moonkin', 'nightsong', 'dryad'], style: 'healer' },
   { keywords: ['pyromancer', 'fire', 'ember', 'flame', 'burn'], style: 'pyromancer' },
   { keywords: ['cryomancer', 'frost', 'ice', 'winter', 'glacier'], style: 'cryomancer' },
-  { keywords: ['sage', 'druid', 'seer', 'scholar', 'witch', 'shaman', 'mystic', 'oracle'], style: 'sage' },
+  { keywords: ['sage', 'druid', 'seer', 'scholar', 'witch', 'shaman', 'mystic'], style: 'sage' },
+  { keywords: ['oracle'], style: 'oracle' },
   { keywords: ['mage', 'wizard', 'archmage'], style: 'mage' },
 ];
 
@@ -162,7 +164,9 @@ function getPlaceholderStyleFromId(id: string): NPCPlaceholderStyle | null {
       return 'pyromancer';
     case 'mage_03':
       return 'cryomancer';
-    case 'eltito_01':
+    case "nireg_jenkins":
+      return "oracle";
+    case "eltito_01":
       return 'orc';
     default:
       return null;

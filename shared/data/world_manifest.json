@@ -81,6 +81,13 @@
             "transform": { "position": [2, 0, 5], "rotation": [0, 0, 0] },
             "stats": { "max_hp": 1000, "level": 10 },
             "ai": { "personality_key": "tutorial_01", "wander_radius": 15 }
+          },
+          {
+            "id": "nireg_jenkins",
+            "identity": { "name": "Nireg Jenkins", "role": "oracle" },
+            "transform": { "position": [12, 0, 15], "rotation": [0, -1.2, 0], "scale": 1.6 },
+            "stats": { "max_hp": 5000, "level": 60 },
+            "ai": { "personality_key": "nireg_jenkins", "wander_radius": 2 }
           }
         ]
       },
@@ -97,6 +104,12 @@
             "type": "ancient_tree_cluster",
             "transform": { "position": [-40, 0, -60], "scale": 1.2 },
             "visual": { "label": "Ancient Grove" }
+          },
+          {
+            "id": "nireg_campfire",
+            "type": "campfire",
+            "transform": { "position": [10, 0, 14], "scale": 1.2 },
+            "visual": { "label": "Nireg's Fire" }
           }
         ],
         "dungeons": {}
