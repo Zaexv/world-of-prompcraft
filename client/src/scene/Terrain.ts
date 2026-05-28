@@ -152,9 +152,7 @@ export class Terrain {
     return Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
   }
 
-  /** No-op kept for API compatibility with GameBootstrapper. */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  setManifest(_data: TerrainManifestData): void { /* worker removed */ }
+  setManifest(_data: TerrainManifestData): void { /* no-op: worker removed */ }
 
   // ── Per-frame update ─────────────────────────────────────────────────────
 
