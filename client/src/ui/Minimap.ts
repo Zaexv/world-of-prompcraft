@@ -54,7 +54,7 @@ export class Minimap extends UIComponent {
    */
   render(): void {
     Object.assign(this.container.style, {
-      position: 'fixed',
+      position: 'absolute',
       top: '16px',
       right: '16px',
       width: `${this.SIZE + 4}px`,

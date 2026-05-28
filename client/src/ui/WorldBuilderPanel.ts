@@ -28,7 +28,7 @@ export class WorldBuilderPanel extends UIComponent {
     onUndo: () => void,
     onRedo: () => void
   ) {
-    super('ui-root', 'world-builder-panel');
+    super('game-ui', 'world-builder-panel');
     this.onSubmit = onSubmit;
     this.onUndo = onUndo;
     this.onRedo = onRedo;
