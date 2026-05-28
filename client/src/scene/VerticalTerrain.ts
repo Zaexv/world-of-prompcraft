@@ -11,6 +11,17 @@ function smoothstep(t: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/** Returns true if any terrain feature can affect the given AABB. Cheap pre-check. */
+export function hasLiftInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  if (!worldManifest) return false;
+  for (const place of worldManifest.getTerrainFeatures()) {
+    const dx = Math.max(0, Math.max(minX - place.transform.x, place.transform.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - place.transform.z, place.transform.z - maxZ));
+    if (dx * dx + dz * dz < place.radii.outer * place.radii.outer) return true;
+  }
+  return false;
+}
+
 export function getVerticalLiftAt(x: number, z: number): number {
   if (!worldManifest) return 0;
   

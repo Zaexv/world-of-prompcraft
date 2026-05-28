@@ -30,6 +30,25 @@ function buildTreeGroup(scale: number, segs: number, layers: TreeLayer[], castSh
   return g;
 }
 
+function buildTreeGroupFlat(scale: number, segs: number, layers: TreeLayer[]): THREE.Group {
+  const g = new THREE.Group();
+  const trunkMat = new THREE.MeshBasicMaterial({ color: 0x3a2510 });
+  const canopyMat = new THREE.MeshBasicMaterial({ color: 0x2a5a2a });
+
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * scale, 0.8 * scale, 6 * scale, segs), trunkMat);
+  trunk.position.y = 3 * scale;
+  trunk.userData.isCollider = true;
+  g.add(trunk);
+
+  for (const l of layers) {
+    const mesh = new THREE.Mesh(new THREE.ConeGeometry(l.r * scale, l.h * scale, segs), canopyMat);
+    mesh.position.y = l.y * scale;
+    mesh.userData.noCollision = true;
+    g.add(mesh);
+  }
+  return g;
+}
+
 export function buildAncientTree(pos: THREE.Vector3, scale: number): THREE.LOD {
   const lod = new THREE.LOD();
   lod.position.copy(pos);
@@ -40,14 +59,14 @@ export function buildAncientTree(pos: THREE.Vector3, scale: number): THREE.LOD {
     { y: 11, r: 1.5, h: 2 },
   ];
 
-  // Level 0: Full (0–150) — 8-seg, 3 canopy layers, shadows
+  // Level 0: Full (0–120) — 8-seg, 3 canopy layers, PBR textures, shadows
   lod.addLevel(buildTreeGroup(scale, 8, layers, true), 0);
-  // Level 1: Mid (150–300) — 6-seg, 2 layers, shadows
-  lod.addLevel(buildTreeGroup(scale, 6, layers.slice(0, 2), true), 150);
-  // Level 2: Low (300–500) — 5-seg, 1 layer, no shadows
-  lod.addLevel(buildTreeGroup(scale, 5, layers.slice(0, 1), false), 300);
-  // Level 3: Silhouette (500+) — 4-seg, 1 layer, no shadows
-  lod.addLevel(buildTreeGroup(scale, 4, layers.slice(0, 1), false), 500);
+  // Level 1: Mid (120–240) — 6-seg, 2 layers, PBR textures, shadows
+  lod.addLevel(buildTreeGroup(scale, 6, layers.slice(0, 2), true), 120);
+  // Level 2: Low (240–400) — 5-seg, 1 layer, flat color (no texture sampling)
+  lod.addLevel(buildTreeGroupFlat(scale, 5, layers.slice(0, 1)), 240);
+  // Level 3: Silhouette (400+) — 4-seg, 1 layer, flat color
+  lod.addLevel(buildTreeGroupFlat(scale, 4, layers.slice(0, 1)), 400);
 
   return lod;
 }
@@ -92,9 +111,9 @@ export function buildMushroomCluster(pos: THREE.Vector3, scale: number): THREE.L
     oz: (Math.random() - 0.5) * 3 * scale,
   }));
 
-  lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);    // Full (0–100)
-  lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 100);  // Mid (100–280)
-  lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 280);  // Low (280+)
+  lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);   // Full (0–80)
+  lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 80);  // Mid (80–220)
+  lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 220); // Low (220+)
 
   return lod;
 }
@@ -139,9 +158,9 @@ export function buildCrystalCluster(pos: THREE.Vector3, scale: number): THREE.LO
     rx: (Math.random() - 0.5) * 0.3,
   }));
 
-  lod.addLevel(buildCrystalGroup(scale, crystals, 5, true), 0);    // Full (0–120)
-  lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 120); // Mid (120–320)
-  lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 320); // Low (320+)
+  lod.addLevel(buildCrystalGroup(scale, crystals, 5, true), 0);    // Full (0–100)
+  lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 100); // Mid (100–260)
+  lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 260); // Low (260+)
 
   return lod;
 }

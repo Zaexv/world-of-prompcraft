@@ -1,8 +1,13 @@
 import * as THREE from 'three';
-import { Lensflare, LensflareElement } from 'three/examples/jsm/objects/Lensflare.js';
 
 export const SUN_DIR  = new THREE.Vector3( 200,  160,  100).normalize();
 export const MOON_DIR = new THREE.Vector3(-150,  120, -200).normalize();
+
+interface FlareEntry {
+  sprite: THREE.Sprite;
+  offset: number;      // 0 = at sun, 1 = anti-sun (diametrically opposite)
+  baseOpacity: number;
+}
 
 export class Lighting {
   public sun: THREE.DirectionalLight;
@@ -12,6 +17,12 @@ export class Lighting {
   public rim: THREE.DirectionalLight;
   private readonly sunMesh: THREE.Sprite;
   private readonly moonMesh: THREE.Sprite;
+  private readonly flareSprites: FlareEntry[] = [];
+
+  // Reusable temporaries for flare update — avoids per-frame allocations.
+  private readonly _camFwd = new THREE.Vector3();
+  private readonly _ndcVec = new THREE.Vector3();
+  private readonly _dirVec = new THREE.Vector3();
 
   constructor(scene: THREE.Scene) {
     // ── Sun ──────────────────────────────────────────────────────────────────
@@ -44,15 +55,43 @@ export class Lighting {
     this.sunMesh.scale.set(180, 180, 1);
     scene.add(this.sunMesh);
 
-    const sunLensflare = new Lensflare();
-    sunLensflare.addElement(new LensflareElement(makeFlareTex(256, [255, 255, 220], 0.35), 500, 0.0));
-    sunLensflare.addElement(new LensflareElement(makeFlareTex(64,  [255, 220, 160], 0.20), 120, 0.4));
-    sunLensflare.addElement(new LensflareElement(makeFlareTex(64,  [200, 200, 255], 0.15), 140, 0.65));
-    sunLensflare.addElement(new LensflareElement(makeFlareTex(64,  [255, 180, 140], 0.18), 100, 0.8));
-    sunLensflare.addElement(new LensflareElement(makeFlareTex(64,  [180, 220, 255], 0.12), 130, 1.0));
-    this.sunMesh.add(sunLensflare);
+    // ── Lens flare streak ────────────────────────────────────────────────────
+    // Replaces Three.js Lensflare which called gl.readPixels() every frame —
+    // a CPU↔GPU pipeline sync that caused rendering freezes and produced a
+    // "yellow ball" when the EffectComposer's depth buffer made the occlusion
+    // test return wrong results.
+    //
+    // Sprites are positioned along the screen-space sun→anti-sun axis each
+    // frame.  Visibility is a CPU dot-product — zero GPU readback.
+    const flareDefs: Array<{
+      rgb: [number, number, number];
+      peakAlpha: number;
+      size: number;
+      offset: number;
+    }> = [
+      { rgb: [255, 220, 160], peakAlpha: 0.40, size: 100, offset: 0.40 },
+      { rgb: [200, 200, 255], peakAlpha: 0.30, size: 120, offset: 0.65 },
+      { rgb: [255, 180, 140], peakAlpha: 0.36, size:  85, offset: 0.80 },
+      { rgb: [180, 220, 255], peakAlpha: 0.24, size: 110, offset: 1.00 },
+    ];
+    for (const def of flareDefs) {
+      const mat = new THREE.SpriteMaterial({
+        map: makeFlareTex(64, def.rgb, def.peakAlpha),
+        blending: THREE.AdditiveBlending,
+        depthTest: false,
+        depthWrite: false,
+        fog: false,
+        transparent: true,
+        opacity: 0,
+      });
+      const sprite = new THREE.Sprite(mat);
+      sprite.scale.setScalar(def.size);
+      sprite.visible = false;
+      scene.add(sprite);
+      this.flareSprites.push({ sprite, offset: def.offset, baseOpacity: def.peakAlpha });
+    }
 
-    // ── Moon (primary night light, casts soft shadows) ───────────────────────
+    // ── Moon ─────────────────────────────────────────────────────────────────
     this.moon = new THREE.DirectionalLight(0x9fb9ff, 0); // 0 -> OFF
     this.moon.position.set(-150, 120, -200);
     this.moon.castShadow = true;
@@ -69,7 +108,6 @@ export class Lighting {
     scene.add(this.moon);
     scene.add(this.moon.target);
 
-    // Moon sprite — crisp disc with a subtle cool halo
     this.moonMesh = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: makeMoonTex(256),
@@ -83,12 +121,6 @@ export class Lighting {
     this.moonMesh.scale.set(50, 50, 1);
     this.moonMesh.visible = false;
     scene.add(this.moonMesh);
-
-    const moonLensflare = new Lensflare();
-    moonLensflare.addElement(new LensflareElement(makeFlareTex(256, [200, 220, 255], 0.18), 350, 0.0));
-    moonLensflare.addElement(new LensflareElement(makeFlareTex(64,  [180, 210, 255], 0.10),  80, 0.5));
-    moonLensflare.addElement(new LensflareElement(makeFlareTex(64,  [160, 200, 255], 0.08),  90, 0.8));
-    this.moonMesh.add(moonLensflare);
 
     // ── Daytime sky fill ─────────────────────────────────────────────────────
     this.hemisphere = new THREE.HemisphereLight(0x87ceeb, 0x4a3800, 0.80);
@@ -116,17 +148,63 @@ export class Lighting {
     this.moon.target.updateMatrixWorld();
   }
 
-  /** Pin both celestial discs to their sky directions relative to the camera. */
-  updateCelestialDiscs(cameraPos: THREE.Vector3): void {
+  /** Pin celestial discs to their sky directions and update the flare streak. */
+  updateCelestialDiscs(cameraPos: THREE.Vector3, camera: THREE.PerspectiveCamera): void {
     this.sunMesh.position.copy(SUN_DIR).multiplyScalar(800).add(cameraPos);
     this.moonMesh.position.copy(MOON_DIR).multiplyScalar(800).add(cameraPos);
+    this._updateFlares(camera, cameraPos);
+  }
+
+  // ── Private ─────────────────────────────────────────────────────────────────
+
+  /**
+   * CPU-side lens flare update — no GPU readback.
+   *
+   * Opacity: derived from camera-forward dot SUN_DIR (how directly we look at sun).
+   * Position: each sprite is unprojected onto the screen-space line from the sun
+   * through the screen centre, then placed at 800 world units from the camera so
+   * it matches the sun sprite's distance and never clips the near plane.
+   */
+  private _updateFlares(camera: THREE.PerspectiveCamera, cameraPos: THREE.Vector3): void {
+    camera.getWorldDirection(this._camFwd);
+    const dot = this._camFwd.dot(SUN_DIR);
+    // Fade from invisible (dot ≤ 0.25) to full (dot ≥ 0.6).
+    const opacity = THREE.MathUtils.clamp((dot - 0.25) / 0.35, 0, 1);
+
+    if (opacity < 0.001) {
+      for (const f of this.flareSprites) f.sprite.visible = false;
+      return;
+    }
+
+    // Project the sun's world position to NDC to find its screen location.
+    this._ndcVec.copy(this.sunMesh.position).project(camera);
+    if (this._ndcVec.z >= 1.0) {
+      // Sun is at or beyond the far plane — should never happen, guard anyway.
+      for (const f of this.flareSprites) f.sprite.visible = false;
+      return;
+    }
+    const sx = this._ndcVec.x;
+    const sy = this._ndcVec.y;
+
+    for (const f of this.flareSprites) {
+      // Screen-space position along sun → screen-centre → anti-sun axis.
+      // offset=0 → at sun;  offset=0.5 → screen centre;  offset=1 → anti-sun.
+      const t = f.offset;
+      this._ndcVec.set(sx * (1 - 2 * t), sy * (1 - 2 * t), 0.5);
+      this._ndcVec.unproject(camera);
+
+      // Place sprite at 800 units in the unprojected direction so it sits on
+      // the same virtual sphere as the sun mesh.
+      this._dirVec.copy(this._ndcVec).sub(cameraPos).normalize();
+      f.sprite.position.copy(cameraPos).addScaledVector(this._dirVec, 800);
+      f.sprite.visible = true;
+      (f.sprite.material as THREE.SpriteMaterial).opacity = opacity * f.baseOpacity;
+    }
   }
 }
 
-/**
- * Gaussian sun disc texture — warm white core with a wide corona.
- * The SpriteMaterial color multiplier provides the overbright tint.
- */
+// ── Texture helpers ──────────────────────────────────────────────────────────
+
 function makeSunTex(size: number): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -155,10 +233,6 @@ function makeSunTex(size: number): THREE.Texture {
   return tex;
 }
 
-/**
- * Moon disc texture — sharp white disc with a small cool halo.
- * Intentionally tighter than the sun to read as a physical object.
- */
 function makeMoonTex(size: number): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = size;
@@ -166,7 +240,6 @@ function makeMoonTex(size: number): THREE.Texture {
   const ctx = canvas.getContext('2d')!;
   const cx = size / 2;
 
-  // Hard disc core (fills ~20% of radius)
   const disc = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx * 0.20);
   disc.addColorStop(0.0, 'rgba(240,245,255,1.0)');
   disc.addColorStop(0.7, 'rgba(220,235,255,0.95)');
@@ -174,7 +247,6 @@ function makeMoonTex(size: number): THREE.Texture {
   ctx.fillStyle = disc;
   ctx.fillRect(0, 0, size, size);
 
-  // Soft atmospheric halo
   const halo = ctx.createRadialGradient(cx, cx, 0, cx, cx, cx);
   halo.addColorStop(0.0,  'rgba(200,220,255,0.30)');
   halo.addColorStop(0.25, 'rgba(180,210,255,0.15)');
@@ -188,7 +260,6 @@ function makeMoonTex(size: number): THREE.Texture {
   return tex;
 }
 
-/** Build a radial-gradient canvas texture suitable for lens flare elements. */
 function makeFlareTex(size: number, rgb: [number, number, number], peakAlpha: number): THREE.Texture {
   const canvas = document.createElement('canvas');
   canvas.width = size;

@@ -475,9 +475,9 @@ function buildCastleLow(scale: number): THREE.Group {
 export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.LOD {
   const lod = new THREE.LOD();
   lod.position.copy(pos);
-  lod.addLevel(buildCastleHigh(scale), 0);    // Full detail  (0–180 units)
-  lod.addLevel(buildCastleMid(scale),  180);  // No crenels, fewer segments (180–450)
-  lod.addLevel(buildCastleLow(scale),  450);  // Box silhouette (450+)
+  lod.addLevel(buildCastleHigh(scale), 0);    // Full detail  (0–140 units)
+  lod.addLevel(buildCastleMid(scale),  140);  // No crenels, fewer segments (140–360)
+  lod.addLevel(buildCastleLow(scale),  360);  // Box silhouette (360+)
   return lod;
 }
 

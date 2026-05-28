@@ -40,6 +40,24 @@ canopyDiff.repeat.set(4, 4);
 // Tree canopy detail: procedural leaf-bump normal map
 const canopyNor = makeCanopyNor(256);
 
+/**
+ * Force every PBR texture onto the GPU now (decode + upload + mipmap generation),
+ * instead of lazily on first render. Called once during the loading screen so the
+ * first time a tree, building, or terrain chunk enters view it doesn't trigger a
+ * synchronous texture-upload stall on the main thread.
+ */
+export function warmUpTextures(renderer: THREE.WebGLRenderer): void {
+  const all = [
+    terrainNor, terrainRough,
+    leatherNor, leatherRough,
+    stoneNor, stoneRough,
+    skinNor,
+    barkDiff, barkNor, barkRough,
+    canopyDiff, canopyNor,
+  ];
+  for (const tex of all) renderer.initTexture(tex);
+}
+
 /** Add detail normal + roughness maps to the shared terrain material. */
 export function applyTerrainPBR(m: THREE.MeshStandardMaterial): void {
   m.normalMap = terrainNor;

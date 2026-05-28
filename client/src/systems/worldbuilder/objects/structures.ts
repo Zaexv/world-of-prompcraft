@@ -89,9 +89,9 @@ function buildTowerGroup(scale: number, bodySegs: number, addWindow: boolean): T
 export function buildTower(pos: THREE.Vector3, scale: number): THREE.LOD {
   const lod = new THREE.LOD();
   lod.position.copy(pos);
-  lod.addLevel(buildTowerGroup(scale, 8, true), 0);    // Full (0–150)
-  lod.addLevel(buildTowerGroup(scale, 6, false), 150); // Mid (150–350)
-  lod.addLevel(buildTowerGroup(scale, 4, false), 350); // Low (350+)
+  lod.addLevel(buildTowerGroup(scale, 8, true), 0);    // Full (0–120)
+  lod.addLevel(buildTowerGroup(scale, 6, false), 120); // Mid (120–280)
+  lod.addLevel(buildTowerGroup(scale, 4, false), 280); // Low (280+)
   return lod;
 }
 
@@ -144,8 +144,8 @@ export function buildRuins(pos: THREE.Vector3, scale: number): THREE.LOD {
     ry: Math.random() * Math.PI,
   }));
 
-  lod.addLevel(buildRuinsGroup(scale, walls, debris, true), 0);    // Full (0–120)
-  lod.addLevel(buildRuinsGroup(scale, walls, debris, false), 120); // Mid (120+) — walls only
+  lod.addLevel(buildRuinsGroup(scale, walls, debris, true), 0);    // Full (0–100)
+  lod.addLevel(buildRuinsGroup(scale, walls, debris, false), 100); // Mid (100+) — walls only
   return lod;
 }
 

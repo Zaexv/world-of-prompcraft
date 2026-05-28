@@ -69,7 +69,14 @@
       "PowerShell(New-Item *)",
       "Bash(powershell.exe -command \"Get-Content 'C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\\\\systems\\\\worldbuilder\\\\WorldBuilder.ts'\")",
       "Bash(xargs grep -l \"malaka\\\\|landmark\")",
-      "WebFetch(domain:polyhaven.com)"
+      "WebFetch(domain:polyhaven.com)",
+      "Bash(dir /s /b \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\\\\systems\\\\*.ts\")",
+      "PowerShell(Get-ChildItem -Recurse -Path \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\public\" | Where-Object { $_.Name -match \"sky|cube|env|px|nx|py|ny|pz|nz\" } | Select-Object FullName)",
+      "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\public\" -Recurse | Select-Object FullName | Where-Object { $_.FullName -match \"skybox\" })",
+      "PowerShell(Head-Object *)",
+      "PowerShell(git *)",
+      "Bash(node *)",
+      "Bash(xargs wc -l)"
     ]
   },
   "hooks": {

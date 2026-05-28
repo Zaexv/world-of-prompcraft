@@ -589,16 +589,19 @@ type MatOpts = {
 };
 
 function mat(color: number, opts: MatOpts = {}): THREE.MeshStandardMaterial {
-  return new THREE.MeshStandardMaterial({
+  const params: THREE.MeshStandardMaterialParameters = {
     color,
     roughness: opts.r ?? 0.75,
     metalness: opts.m ?? 0,
-    emissive: opts.em !== undefined ? new THREE.Color(opts.em) : undefined,
-    emissiveIntensity: opts.ei,
-    side: opts.side,
-    transparent: opts.t,
-    opacity: opts.o,
-  });
+  };
+  if (opts.em !== undefined) {
+    params.emissive = new THREE.Color(opts.em);
+    params.emissiveIntensity = opts.ei ?? 1;
+  }
+  if (opts.side !== undefined) params.side = opts.side;
+  if (opts.t !== undefined) params.transparent = opts.t;
+  if (opts.o !== undefined) params.opacity = opts.o;
+  return new THREE.MeshStandardMaterial(params);
 }
 
 function mesh(geo: THREE.BufferGeometry, material: THREE.Material): THREE.Mesh {

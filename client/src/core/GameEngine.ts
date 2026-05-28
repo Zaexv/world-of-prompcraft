@@ -248,7 +248,9 @@ export class GameEngine {
     requestAnimationFrame(() => this.animate());
 
     const { d } = this;
-    const delta = d.sceneManager.tick();
+    // Clamp delta so a chunk-generation stall (which can spike delta to 500ms+)
+    // doesn't snap ZoneAtmosphere or animations to their targets in one step.
+    const delta = Math.min(d.sceneManager.tick(), 0.1);
     const dialogFocusActive = this.updateDialogFocus(delta);
 
     if (!d.playerState.isDead) {

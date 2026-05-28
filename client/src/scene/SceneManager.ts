@@ -24,7 +24,6 @@ export class SceneManager {
   private effects: Effects;
   private skybox: Skybox;
   private composer: EffectComposer | null = null;
-  private bloomPass: UnrealBloomPass | null = null;
   private forest: StartingForest;
   private desert: DesertScenery;
   private dynamicPixelRatio: number;
@@ -37,6 +36,12 @@ export class SceneManager {
   private readonly SHADOW_UPDATE_INTERVAL = 0.3;
   private readonly DEFAULT_SHADOW_DISTANCE = 42;
   private readonly _tmpShadowPos = new THREE.Vector3();
+  // Cached scene-object lists — rebuilt periodically to avoid per-frame traversal.
+  private _lodObjects: THREE.LOD[] = [];
+  private _shadowCasters: Array<THREE.Mesh | THREE.InstancedMesh> = [];
+  private _lodCacheFrame = 0;
+  private _shadowCacheFrame = 0;
+  private readonly CACHE_REBUILD_FRAMES = 120; // ~2 s at 60 fps
 
   constructor(container: HTMLElement) {
     // --- Core renderer setup ---
@@ -83,17 +88,15 @@ export class SceneManager {
         Math.floor(window.innerWidth / 2),
         Math.floor(window.innerHeight / 2),
       );
-      this.bloomPass = new UnrealBloomPass(
+      this.composer.addPass(new UnrealBloomPass(
         bloomRes,
         0.22,  // lower strength keeps scene cooler/darker
         0.35,  // tighter spread to avoid haze
         0.9,   // bloom only on truly bright emissive elements
-      );
-      this.composer.addPass(this.bloomPass);
+      ));
     } catch {
       // Fallback: if post-processing fails, render normally
       this.composer = null;
-      this.bloomPass = null;
     }
 
     // --- World systems (order matters: lighting first, then geometry) ---
@@ -147,18 +150,11 @@ export class SceneManager {
     if (Math.abs(nextRatio - this.dynamicPixelRatio) < 0.01) return;
     this.dynamicPixelRatio = nextRatio;
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
+    // Only resize the renderer drawing buffer — skipping composer.setSize avoids
+    // resetting the TAA history (which causes a dark flash) and GPU pipeline stalls.
+    // The composer targets stay at the previous logical size; the minor mismatch
+    // is imperceptible compared to the artifacts it prevents.
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-    if (this.composer) {
-      this.composer.setSize(window.innerWidth, window.innerHeight);
-    }
-
-    if (this.bloomPass) {
-      if (this.frameTimeMs > 22 && this.bloomPass.enabled) {
-        this.bloomPass.enabled = false;
-      } else if (this.frameTimeMs < 16 && !this.bloomPass.enabled) {
-        this.bloomPass.enabled = true;
-      }
-    }
   }
 
   private updateDistanceShadowCasters(delta: number): void {
@@ -166,25 +162,31 @@ export class SceneManager {
     if (this.shadowTimer < this.SHADOW_UPDATE_INTERVAL) return;
     this.shadowTimer = 0;
 
-    let changed = false;
-    for (const obj of this.scene.children) {
-      obj.traverse((child) => {
-        if (!child.userData.distanceShadowCaster) return;
-        if (!(child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh)) return;
-
-        child.getWorldPosition(this._tmpShadowPos);
-        const dx = this._tmpShadowPos.x - this.playerX;
-        const dz = this._tmpShadowPos.z - this.playerZ;
-        const shadowDistance = typeof child.userData.shadowDistance === 'number'
-          ? child.userData.shadowDistance
-          : this.DEFAULT_SHADOW_DISTANCE;
-        const shouldCast = (dx * dx + dz * dz) <= shadowDistance * shadowDistance;
-
-        if (child.castShadow !== shouldCast) {
-          child.castShadow = shouldCast;
-          changed = true;
+    // Rebuild shadow-caster cache every ~2 s (objects are static after world gen).
+    if (++this._shadowCacheFrame >= this.CACHE_REBUILD_FRAMES) {
+      this._shadowCacheFrame = 0;
+      this._shadowCasters = [];
+      this.scene.traverse((child) => {
+        if (child.userData.distanceShadowCaster &&
+            (child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh)) {
+          this._shadowCasters.push(child as THREE.Mesh | THREE.InstancedMesh);
         }
       });
+    }
+
+    let changed = false;
+    for (const child of this._shadowCasters) {
+      child.getWorldPosition(this._tmpShadowPos);
+      const dx = this._tmpShadowPos.x - this.playerX;
+      const dz = this._tmpShadowPos.z - this.playerZ;
+      const shadowDistance = typeof child.userData.shadowDistance === 'number'
+        ? child.userData.shadowDistance
+        : this.DEFAULT_SHADOW_DISTANCE;
+      const shouldCast = (dx * dx + dz * dz) <= shadowDistance * shadowDistance;
+      if (child.castShadow !== shouldCast) {
+        child.castShadow = shouldCast;
+        changed = true;
+      }
     }
 
     if (changed) {
@@ -193,11 +195,17 @@ export class SceneManager {
   }
 
   private updateLOD(): void {
-    this.scene.traverse((obj) => {
-      if (obj.type === 'LOD') {
-        (obj as THREE.LOD).update(this.camera);
-      }
-    });
+    // Rebuild LOD list every ~2 s — LOD objects are static after world gen.
+    if (++this._lodCacheFrame >= this.CACHE_REBUILD_FRAMES) {
+      this._lodCacheFrame = 0;
+      this._lodObjects = [];
+      this.scene.traverse((obj) => {
+        if (obj.type === 'LOD') this._lodObjects.push(obj as THREE.LOD);
+      });
+    }
+    for (const lod of this._lodObjects) {
+      lod.update(this.camera);
+    }
   }
 
   /** Update player position for effects, water, and shadow frustum tracking. */
@@ -221,7 +229,7 @@ export class SceneManager {
     this.forest.update(delta);
     this.desert.update(delta);
     this.effects.update(delta);
-    this.lighting.updateCelestialDiscs(this.camera.position);
+    this.lighting.updateCelestialDiscs(this.camera.position, this.camera);
     this.updateAdaptiveQuality(delta);
     this.updateDistanceShadowCasters(delta);
     this.updateLOD();
