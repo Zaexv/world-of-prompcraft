@@ -14,6 +14,10 @@ export class NPCAnimator {
   private profile: NPCMotionProfile;
   private leftLeg: THREE.Object3D | null = null;
   private rightLeg: THREE.Object3D | null = null;
+  private leftArm: THREE.Object3D | null = null;
+  private rightArm: THREE.Object3D | null = null;
+  private cloak: THREE.Object3D | null = null;
+  private cloakLean = 0;
   private baseY: number;
   private phase = 0;
   private currentAnim: AnimationName = 'idle';
@@ -31,9 +35,11 @@ export class NPCAnimator {
     this.profile = profile;
     this.baseY = group.position.y;
 
-    // Try to find leg meshes by name (set during NPC construction)
     this.leftLeg = group.getObjectByName('leftLeg') ?? null;
     this.rightLeg = group.getObjectByName('rightLeg') ?? null;
+    this.leftArm = group.getObjectByName('leftArm') ?? null;
+    this.rightArm = group.getObjectByName('rightArm') ?? null;
+    this.cloak = group.getObjectByName('cloak') ?? null;
   }
 
   /**
@@ -114,21 +120,45 @@ export class NPCAnimator {
   }
 
   // --- Idle: gentle vertical bob ---
-  private animateIdle(_delta: number): void {
+  private animateIdle(delta: number): void {
     this.group.position.y = this.baseY + Math.sin(this.phase * this.profile.idleBobSpeed) * this.profile.idleBobAmplitude;
     this.group.rotation.z = Math.sin(this.phase * this.profile.swaySpeed) * this.profile.swayAmplitude;
-    // Return legs to rest
+    // Return limbs to rest
     if (this.leftLeg) this.leftLeg.rotation.x *= 0.9;
     if (this.rightLeg) this.rightLeg.rotation.x *= 0.9;
+    if (this.leftArm) {
+      this.leftArm.rotation.x *= 0.9;
+      this.leftArm.rotation.z = lerp(this.leftArm.rotation.z, -0.04, Math.min(1, delta * 4));
+    }
+    if (this.rightArm) {
+      this.rightArm.rotation.x *= 0.9;
+      this.rightArm.rotation.z = lerp(this.rightArm.rotation.z, 0.04, Math.min(1, delta * 4));
+    }
+    // Cloak settles to rest
+    this.cloakLean = lerp(this.cloakLean, 0, Math.min(1, delta * 3));
+    if (this.cloak) this.cloak.rotation.x = this.cloakLean;
     // Reset scale
     this.group.scale.lerp(new THREE.Vector3(1, 1, 1), 0.1);
   }
 
-  // --- Walk: leg oscillation ---
-  private animateWalk(_delta: number): void {
+  // --- Walk: leg + arm oscillation, cloak trails behind ---
+  private animateWalk(delta: number): void {
     const swing = Math.sin(this.phase) * 0.5;
     if (this.leftLeg) this.leftLeg.rotation.x = swing;
     if (this.rightLeg) this.rightLeg.rotation.x = -swing;
+    if (this.leftArm) {
+      this.leftArm.rotation.x = -swing * 0.55;
+      this.leftArm.rotation.z = lerp(this.leftArm.rotation.z, -0.08, Math.min(1, delta * 4));
+    }
+    if (this.rightArm) {
+      this.rightArm.rotation.x = swing * 0.55;
+      this.rightArm.rotation.z = lerp(this.rightArm.rotation.z, 0.08, Math.min(1, delta * 4));
+    }
+    this.cloakLean = lerp(this.cloakLean, 0.30, Math.min(1, delta * 3.5));
+    if (this.cloak) {
+      const flutter = Math.sin(this.phase * 1.3) * 0.06;
+      this.cloak.rotation.x = this.cloakLean + flutter;
+    }
     this.group.position.y = this.baseY;
     this.group.rotation.z = Math.sin(this.phase * 0.35) * (this.profile.swayAmplitude * 0.6);
   }
@@ -160,4 +190,8 @@ export class NPCAnimator {
       this.play('idle');
     }
   }
+}
+
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
 }

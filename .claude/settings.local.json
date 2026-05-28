@@ -68,7 +68,8 @@
       "WebFetch(domain:api.polyhaven.com)",
       "PowerShell(New-Item *)",
       "Bash(powershell.exe -command \"Get-Content 'C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\\\\client\\\\src\\\\systems\\\\worldbuilder\\\\WorldBuilder.ts'\")",
-      "Bash(xargs grep -l \"malaka\\\\|landmark\")"
+      "Bash(xargs grep -l \"malaka\\\\|landmark\")",
+      "WebFetch(domain:polyhaven.com)"
     ]
   },
   "hooks": {

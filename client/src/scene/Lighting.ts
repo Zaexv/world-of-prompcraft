@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Lensflare, LensflareElement } from 'three/examples/jsm/objects/Lensflare.js';
 
 export const SUN_DIR  = new THREE.Vector3( 200,  160,  100).normalize();
-export const MOON_DIR = new THREE.Vector3(-150, 120, -200).normalize();
+export const MOON_DIR = new THREE.Vector3(-150,  120, -200).normalize();
 
 export class Lighting {
   public sun: THREE.DirectionalLight;
@@ -14,10 +14,10 @@ export class Lighting {
   private readonly moonMesh: THREE.Sprite;
 
   constructor(scene: THREE.Scene) {
-    // ── Sun (disabled — kept for easy re-enable) ─────────────────────────────
-    this.sun = new THREE.DirectionalLight(0xfff8e0, 0);  // intensity=0 → off
+    // ── Sun ──────────────────────────────────────────────────────────────────
+    this.sun = new THREE.DirectionalLight(0xfff8e0, 2.5);
     this.sun.position.set(200, 160, 100);
-    this.sun.castShadow = false;
+    this.sun.castShadow = true;
     this.sun.shadow.mapSize.set(1024, 1024);
     this.sun.shadow.camera.near = 1;
     this.sun.shadow.camera.far = 500;
@@ -31,7 +31,6 @@ export class Lighting {
     scene.add(this.sun);
     scene.add(this.sun.target);
 
-    // Sun sprite — hidden while nighttime
     this.sunMesh = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: makeSunTex(256),
@@ -42,8 +41,7 @@ export class Lighting {
         transparent: true,
       }),
     );
-    this.sunMesh.scale.set(90, 90, 1);
-    this.sunMesh.visible = false;
+    this.sunMesh.scale.set(180, 180, 1);
     scene.add(this.sunMesh);
 
     const sunLensflare = new Lensflare();
@@ -55,7 +53,7 @@ export class Lighting {
     this.sunMesh.add(sunLensflare);
 
     // ── Moon (primary night light, casts soft shadows) ───────────────────────
-    this.moon = new THREE.DirectionalLight(0xc8d8ff, 0.85);
+    this.moon = new THREE.DirectionalLight(0x9fb9ff, 0); // 0 -> OFF
     this.moon.position.set(-150, 120, -200);
     this.moon.castShadow = true;
     this.moon.shadow.mapSize.set(1024, 1024);
@@ -75,7 +73,7 @@ export class Lighting {
     this.moonMesh = new THREE.Sprite(
       new THREE.SpriteMaterial({
         map: makeMoonTex(256),
-        color: new THREE.Color(1.8, 1.9, 2.2), // cool blue-white, mildly overbright
+        color: new THREE.Color(1.8, 1.9, 2.2),
         blending: THREE.AdditiveBlending,
         depthWrite: false,
         fog: false,
@@ -83,29 +81,28 @@ export class Lighting {
       }),
     );
     this.moonMesh.scale.set(50, 50, 1);
+    this.moonMesh.visible = false;
     scene.add(this.moonMesh);
 
-    // Subtle moon lens flare (cooler, dimmer than the sun)
     const moonLensflare = new Lensflare();
     moonLensflare.addElement(new LensflareElement(makeFlareTex(256, [200, 220, 255], 0.18), 350, 0.0));
     moonLensflare.addElement(new LensflareElement(makeFlareTex(64,  [180, 210, 255], 0.10),  80, 0.5));
     moonLensflare.addElement(new LensflareElement(makeFlareTex(64,  [160, 200, 255], 0.08),  90, 0.8));
     this.moonMesh.add(moonLensflare);
 
-    // ── Night sky fill ───────────────────────────────────────────────────────
-    this.hemisphere = new THREE.HemisphereLight(0x0a1535, 0x050a05, 0.45);
+    // ── Daytime sky fill ─────────────────────────────────────────────────────
+    this.hemisphere = new THREE.HemisphereLight(0x87ceeb, 0x4a3800, 0.80);
     scene.add(this.hemisphere);
 
-    this.ambient = new THREE.AmbientLight(0x101828, 0.3);
+    this.ambient = new THREE.AmbientLight(0xfff0cc, 0.50);
     scene.add(this.ambient);
 
-    this.rim = new THREE.DirectionalLight(0x8899cc, 0.08);
+    this.rim = new THREE.DirectionalLight(0xffeebb, 0.30);
     this.rim.position.set(80, 30, 120);
     this.rim.castShadow = false;
     scene.add(this.rim);
 
-    // Night fog — Skybox will sync colour to horizon pixel on load
-    scene.fog = new THREE.FogExp2(0x05080f, 0.004);
+    scene.fog = new THREE.FogExp2(0x9ec8e0, 0.0006);
   }
 
   /** Move both shadow frustums to stay centred on the player. */

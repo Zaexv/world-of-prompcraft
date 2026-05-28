@@ -19,8 +19,8 @@ export class WorldBuilderPersistence {
     const data: PersistedObject[] = Array.from(objects.values()).map(obj => ({
       id: obj.id,
       type: obj.type,
-      position: [obj.group.position.x, obj.group.position.y, obj.group.position.z],
-      scale: obj.group.scale.x, // Assuming uniform scale
+      position: obj.position,
+      scale: obj.scale,
       label: obj.label,
     }));
 

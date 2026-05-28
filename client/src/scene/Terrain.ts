@@ -228,6 +228,19 @@ export class Terrain {
     // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
     h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
+    // Fort Malaka city platform — smoothly flatten terrain so buildings sit flush
+    {
+      const fx = x + 160;
+      const fz = z + 220;
+      const fDist = Math.sqrt(fx * fx + fz * fz);
+      const INNER = 65, OUTER = 120;
+      if (fDist < OUTER) {
+        const raw = Math.max(0, Math.min(1, (fDist - INNER) / (OUTER - INNER)));
+        const flatness = 1 - raw * raw * (3 - 2 * raw); // smoothstep, 1=flat at centre
+        h *= 1 - flatness;
+      }
+    }
+
     // Blend in biome-specific height modifications
     const weights = getBiomeWeights(x, z);
     for (const biome of [
@@ -235,6 +248,7 @@ export class Terrain {
       BiomeType.CrystalTundra,
       BiomeType.TwilightMarsh,
       BiomeType.SunlitMeadows,
+      BiomeType.Desert,
     ]) {
       const w = weights[biome];
       if (w > 0.001) {

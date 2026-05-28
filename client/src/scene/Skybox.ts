@@ -1,69 +1,104 @@
 import * as THREE from 'three';
 
 /**
- * Loads the equirectangular skybox and applies it as both the scene
- * background and the IBL environment map.
- *
- * After loading, samples the horizon pixel (elevation = 0) to synchronise
- * the scene fog colour so geometry fades seamlessly into the sky.
+ * Procedural sky with a brilliant sun and Minecraft-like blocky clouds.
  */
 export class Skybox {
+  private cloudMesh: THREE.Mesh | null = null;
+  private sunMesh: THREE.Group | null = null;
+  private skyDome: THREE.Mesh | null = null;
+
   constructor(scene: THREE.Scene) {
-    const loader = new THREE.TextureLoader();
-    loader.load(
-      '/skybox.png',
-      (texture) => {
-        texture.colorSpace = THREE.SRGBColorSpace;
-        texture.mapping = THREE.EquirectangularReflectionMapping;
-        scene.background = texture;
-        scene.environment = texture;
+    
+    // 1. Sky Color (Vibrant sky blue) using a Sky Dome
+    scene.background = new THREE.Color(0x3ea3ff); // Keep as fallback
+    scene.environment = null;
 
-        // Sync fog to the skybox horizon so fogged terrain blends into the sky.
-        const horizonColor = sampleHorizonColor(texture);
-        if (scene.fog instanceof THREE.FogExp2) {
-          scene.fog.color.copy(horizonColor);
-        }
-        // Also update the solid fallback background colour (visible until texture loads).
-        scene.background = texture;
-      },
-      undefined,
-      () => {
-        // Skybox missing — keep the solid sky-blue set in SceneManager.
-      },
-    );
-  }
-}
+    // Radius must be < 1600 so it doesn't get culled by the camera's far plane!
+    const skyGeo = new THREE.SphereGeometry(1400, 32, 15);
+    const skyMat = new THREE.MeshBasicMaterial({ 
+      color: 0x3ea3ff, 
+      side: THREE.BackSide, 
+      fog: false,
+      depthWrite: false
+    });
+    this.skyDome = new THREE.Mesh(skyGeo, skyMat);
+    this.skyDome.renderOrder = -1; // Render behind everything else
+    this.skyDome.frustumCulled = false;
+    scene.add(this.skyDome);
 
-/**
- * Reads the centre-row pixel of an equirectangular texture.
- * u = 0 (any longitude works for a uniform sky horizon), v = 0.5 (elevation 0).
- */
-function sampleHorizonColor(texture: THREE.Texture): THREE.Color {
-  const img = texture.image as HTMLImageElement | ImageBitmap | undefined;
-  if (!img) return new THREE.Color(0x87ceeb);
-
-  try {
+    // 2. Minecraft-like Clouds
     const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 1;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return new THREE.Color(0x87ceeb);
+    canvas.width = 512;
+    canvas.height = 512;
+    const ctx = canvas.getContext('2d')!;
+    
+    ctx.clearRect(0, 0, 512, 512);
+    
+    // Generate blocky noise
+    const blockSize = 16; 
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)'; // Even more transparent
+    for (let y = 0; y < 512; y += blockSize) {
+      for (let x = 0; x < 512; x += blockSize) {
+        const noise = Math.sin(x * 0.03) * Math.cos(y * 0.03) + 
+                      Math.sin(x * 0.015 - y * 0.01);
+        if (noise > 0.95) { // Even sparser clouds
+          ctx.fillRect(x, y, blockSize, blockSize);
+        }
+      }
+    }
+    
+    const cloudTex = new THREE.CanvasTexture(canvas);
+    cloudTex.magFilter = THREE.NearestFilter; 
+    cloudTex.minFilter = THREE.NearestFilter;
+    cloudTex.wrapS = THREE.RepeatWrapping;
+    cloudTex.wrapT = THREE.RepeatWrapping;
+    cloudTex.repeat.set(12, 12); 
+    
+    const cloudMat = new THREE.MeshBasicMaterial({
+      map: cloudTex,
+      transparent: true,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+      opacity: 0.7,
+      fog: false 
+    });
+    
+    // Large plane for clouds
+    const cloudGeo = new THREE.PlaneGeometry(12000, 12000);
+    this.cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
+    this.cloudMesh.rotation.x = -Math.PI / 2;
+    this.cloudMesh.position.y = 500; // Raised clouds even higher to get out of the way
+    this.cloudMesh.frustumCulled = false;
+    scene.add(this.cloudMesh);
+  }
 
-    const src = img as HTMLImageElement;
-    const sw = src.naturalWidth ?? (src as unknown as { width: number }).width ?? 1;
-    const sh = src.naturalHeight ?? (src as unknown as { height: number }).height ?? 1;
+  update(delta: number, playerX: number, playerZ: number) {
+    if (this.skyDome) {
+      this.skyDome.position.set(playerX, 0, playerZ);
+    }
 
-    // Sample at u=0.25 (90° around the equator), v=0.5 (horizon line).
-    ctx.drawImage(
-      src as CanvasImageSource,
-      Math.floor(sw * 0.25), Math.floor(sh * 0.5),
-      1, 1,
-      0, 0, 1, 1,
-    );
+    if (this.cloudMesh) {
+      this.cloudMesh.position.x = playerX;
+      this.cloudMesh.position.z = playerZ;
 
-    const [r, g, b] = ctx.getImageData(0, 0, 1, 1).data;
-    return new THREE.Color(r / 255, g / 255, b / 255);
-  } catch {
-    return new THREE.Color(0x87ceeb);
+      const mat = this.cloudMesh.material as THREE.MeshBasicMaterial;
+      if (mat.map) {
+        mat.map.offset.x += 0.015 * delta;
+        mat.map.offset.y += 0.008 * delta;
+      }
+    }
+
+    if (this.sunMesh) {
+      // Keep sun relative to player, matching the Lighting.ts direction
+      // Lowered the sun's Y component (120 instead of 300) so it's closer to the horizon
+      const dist = 1200;
+      const dir = new THREE.Vector3(200, 120, -200).normalize();
+      this.sunMesh.position.set(
+        playerX + dir.x * dist,
+        dir.y * dist,
+        playerZ + dir.z * dist
+      );
+    }
   }
 }

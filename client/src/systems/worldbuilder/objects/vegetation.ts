@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { applyBarkPBR, applyCanopyPBR } from '../../../utils/PBRMaps';
 
 // ── Ancient Tree ──────────────────────────────────────────────────────────────
 
@@ -7,7 +8,9 @@ interface TreeLayer { y: number; r: number; h: number; }
 function buildTreeGroup(scale: number, segs: number, layers: TreeLayer[], castShadow: boolean): THREE.Group {
   const g = new THREE.Group();
   const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3a2510, roughness: 0.95 });
+  applyBarkPBR(trunkMat);
   const canopyMat = new THREE.MeshStandardMaterial({ color: 0x2a5a2a, roughness: 0.85 });
+  applyCanopyPBR(canopyMat);
 
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5 * scale, 0.8 * scale, 6 * scale, segs), trunkMat);
   trunk.position.y = 3 * scale;
@@ -20,6 +23,7 @@ function buildTreeGroup(scale: number, segs: number, layers: TreeLayer[], castSh
     const mesh = new THREE.Mesh(new THREE.ConeGeometry(l.r * scale, l.h * scale, segs), canopyMat);
     mesh.position.y = l.y * scale;
     mesh.castShadow = castShadow;
+    mesh.receiveShadow = castShadow;
     mesh.userData.noCollision = true;
     g.add(mesh);
   }
