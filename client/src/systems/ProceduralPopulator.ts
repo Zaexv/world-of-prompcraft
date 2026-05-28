@@ -267,8 +267,9 @@ export class ProceduralPopulator {
           objs.push(group);
         }
 
-        // Spawn encounter NPCs
-        if (enc.npcs && this.entityManager) {
+        // Spawn encounter NPCs (respect same hard cap as monster spawning)
+        const underNpcCap = this.entityManager ? this.entityManager.npcs.size < 80 : false;
+        if (enc.npcs && this.entityManager && underNpcCap) {
           for (const npcDef of enc.npcs) {
             const localX = npcDef.offsetX, localZ = npcDef.offsetZ;
             const gy = group.rotation.y;
@@ -314,8 +315,12 @@ export class ProceduralPopulator {
     }
 
     // ── Monsters (density scales with distance from origin) ────────────
+    // Hard cap on total NPCs: prevents the EntityManager loop growing unbounded.
+    // 36 server NPCs + up to ~44 procedural = comfortable 80 total.
+    const MAX_NPCS = 80;
     const monsterChance = Math.min(0.38, 0.06 + dist * 0.0005);
-    if (rng.chance(monsterChance) && this.entityManager) {
+    if (rng.chance(monsterChance) && this.entityManager &&
+        this.entityManager.npcs.size < MAX_NPCS) {
       const defs = registryEntry?.monsters
         ?? BIOME_MONSTERS[biome]
         ?? BIOME_MONSTERS[BiomeType.Teldrassil]!;

@@ -110,24 +110,25 @@ export class EntityManager {
   /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
   update(delta: number, getHeightAt?: (x: number, z: number) => number, _collisionSystem?: CollisionSystem): void {
     for (const npc of this.npcs.values()) {
-      // Robust snapping check: ensure NPCs aren't flying/buried
+      // Distance check FIRST — skip all work for distant NPCs immediately.
+      const dx = npc.position.x - this.playerX;
+      const dz = npc.position.z - this.playerZ;
+      const distSq = dx * dx + dz * dz;
+
+      if (distSq > this.VISIBLE_RADIUS_SQ) {
+        if (npc.mesh.visible) npc.mesh.visible = false;
+        // Do NOT snap distant NPCs — snapToGround calls getHeightAt (terrain query) and is expensive.
+        continue;
+      }
+      if (!npc.mesh.visible) npc.mesh.visible = true;
+
+      // Snap to ground only for visible NPCs that need it
       if (getHeightAt && !npc.isGrounded) {
         npc.snapToGround(getHeightAt);
         npc.isGrounded = true;
       }
 
-      const dx = npc.position.x - this.playerX;
-      const dz = npc.position.z - this.playerZ;
-      const distSq = dx * dx + dz * dz;
-
-      // Hide NPCs beyond visible range
-      if (distSq > this.VISIBLE_RADIUS_SQ) {
-        if (npc.mesh.visible) npc.mesh.visible = false;
-        continue;
-      }
-      if (!npc.mesh.visible) npc.mesh.visible = true;
-
-      // Only run full AI + animation for NPCs within update radius
+      // Full AI + animation only within the closer update radius
       if (distSq < this.UPDATE_RADIUS_SQ) {
         npc.update(delta);
         if (getHeightAt) {
