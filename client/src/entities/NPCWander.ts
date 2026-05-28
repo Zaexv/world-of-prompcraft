@@ -151,6 +151,7 @@ export class NPCWander {
     this.isWandering = false;
     this.hasWanderTarget = false;
     this.wanderCooldown = this.nextCooldown();
+    this.animator.setStill(false);
     this.animator.play('idle');
   }
 
@@ -158,6 +159,8 @@ export class NPCWander {
     this.approachTarget = null;
     this.isWandering = false;
     this.hasWanderTarget = false;
+    this.wanderCooldown = 9999;
+    this.animator.setStill(true);
     this.animator.play('idle');
     const cb = this.onArrive;
     this.onArrive = null;
