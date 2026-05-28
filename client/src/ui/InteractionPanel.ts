@@ -3,53 +3,53 @@ import { UIComponent } from "./core/UIComponent";
 /**
  * Default action buttons shown for any NPC without specific overrides.
  */
-const DEFAULT_ACTIONS: Array<{ icon: string; label: string; prompt: string }> = [
-  { icon: "\uD83D\uDDE3\uFE0F", label: "Talk", prompt: "Hello, what can you tell me about this place?" },
-  { icon: "\u2694\uFE0F", label: "Attack", prompt: "I attack you with my weapon!" },
-  { icon: "\uD83D\uDED2", label: "Trade", prompt: "Do you have anything to trade?" },
-  { icon: "\uD83D\uDCDC", label: "Quest", prompt: "Do you have any quests for me?" },
+const DEFAULT_ACTIONS: Array<{ label: string; prompt: string }> = [
+  { label: "Talk",   prompt: "Hello, what can you tell me about this place?" },
+  { label: "Attack", prompt: "I attack you with my weapon!" },
+  { label: "Trade",  prompt: "Do you have anything to trade?" },
+  { label: "Quest",  prompt: "Do you have any quests for me?" },
 ];
 
 /**
  * Pre-defined action buttons per NPC, keyed by NPC id.
  * Any NPC not listed here gets DEFAULT_ACTIONS.
  */
-const NPC_ACTIONS: Record<string, Array<{ icon: string; label: string; prompt: string }>> = {
+const NPC_ACTIONS: Record<string, Array<{ label: string; prompt: string }>> = {
   dragon_01: [
-    { icon: "\u2694\uFE0F", label: "Attack", prompt: "I attack you with my weapon!" },
-    { icon: "\uD83D\uDEE1\uFE0F", label: "Defend", prompt: "I raise my shield and take a defensive stance" },
-    { icon: "\uD83D\uDDE3\uFE0F", label: "Negotiate", prompt: "I wish to negotiate peacefully with you" },
-    { icon: "\uD83C\uDFC3", label: "Flee", prompt: "I turn and flee!" },
+    { label: "Attack",    prompt: "I attack you with my weapon!" },
+    { label: "Defend",    prompt: "I raise my shield and take a defensive stance" },
+    { label: "Negotiate", prompt: "I wish to negotiate peacefully with you" },
+    { label: "Flee",      prompt: "I turn and flee!" },
   ],
   merchant_01: [
-    { icon: "\uD83D\uDED2", label: "Browse Wares", prompt: "Show me what you have for sale" },
-    { icon: "\uD83D\uDCB0", label: "Sell Items", prompt: "I'd like to sell some items" },
-    { icon: "\uD83D\uDDE3\uFE0F", label: "Chat", prompt: "Hello, what can you tell me about this place?" },
-    { icon: "\uD83D\uDCD6", label: "Tell a Story", prompt: "Let me tell you an interesting story" },
+    { label: "Browse",      prompt: "Show me what you have for sale" },
+    { label: "Sell",        prompt: "I'd like to sell some items" },
+    { label: "Chat",        prompt: "Hello, what can you tell me about this place?" },
+    { label: "Tell a Story", prompt: "Let me tell you an interesting story" },
   ],
   sage_01: [
-    { icon: "\uD83D\uDCDC", label: "Ask for Quest", prompt: "Do you have any quests for me?" },
-    { icon: "\uD83D\uDD2E", label: "Seek Wisdom", prompt: "I seek your ancient wisdom" },
-    { icon: "\uD83D\uDDE3\uFE0F", label: "Chat", prompt: "Hello, what can you tell me about this place?" },
-    { icon: "\uD83D\uDE4F", label: "Request Blessing", prompt: "Could you bless me for my journey?" },
+    { label: "Quest",    prompt: "Do you have any quests for me?" },
+    { label: "Wisdom",   prompt: "I seek your ancient wisdom" },
+    { label: "Chat",     prompt: "Hello, what can you tell me about this place?" },
+    { label: "Blessing", prompt: "Could you bless me for my journey?" },
   ],
   guard_01: [
-    { icon: "\uD83D\uDDE3\uFE0F", label: "Chat", prompt: "Hello, what can you tell me about this place?" },
-    { icon: "\u2694\uFE0F", label: "Challenge", prompt: "I challenge you to combat!" },
-    { icon: "\uD83D\uDCB0", label: "Bribe", prompt: "Perhaps some gold would change your mind..." },
-    { icon: "\u2139\uFE0F", label: "Ask Directions", prompt: "Which way should I go?" },
+    { label: "Chat",       prompt: "Hello, what can you tell me about this place?" },
+    { label: "Challenge",  prompt: "I challenge you to combat!" },
+    { label: "Bribe",      prompt: "Perhaps some gold would change your mind..." },
+    { label: "Directions", prompt: "Which way should I go?" },
   ],
   healer_01: [
-    { icon: "\u2764\uFE0F", label: "Request Healing", prompt: "Please heal my wounds" },
-    { icon: "\uD83D\uDE4F", label: "Request Blessing", prompt: "Could you bless me for my journey?" },
-    { icon: "\uD83D\uDDE3\uFE0F", label: "Chat", prompt: "Hello, what can you tell me about this place?" },
-    { icon: "\uD83D\uDEE1\uFE0F", label: "Ask for Protection", prompt: "Can you protect me from the dangers ahead?" },
+    { label: "Heal",       prompt: "Please heal my wounds" },
+    { label: "Blessing",   prompt: "Could you bless me for my journey?" },
+    { label: "Chat",       prompt: "Hello, what can you tell me about this place?" },
+    { label: "Protection", prompt: "Can you protect me from the dangers ahead?" },
   ],
   eltito_01: [
-    { icon: "\u2728", label: "Quest", prompt: "Hey tio, got any quests or adventures for me?" },
-    { icon: "\uD83C\uDF3F", label: "Chill", prompt: "Hey tio, what's up? Pass me some of that herbal tea" },
-    { icon: "\uD83C\uDFAE", label: "Talk WoW", prompt: "So what are you playing in WoW right now?" },
-    { icon: "\uD83D\uDCDA", label: "Lore", prompt: "Tell me about the Night Elves and Teldrassil" },
+    { label: "Quest",    prompt: "Hey tio, got any quests or adventures for me?" },
+    { label: "Chill",    prompt: "Hey tio, what's up? Pass me some of that herbal tea" },
+    { label: "Talk WoW", prompt: "So what are you playing in WoW right now?" },
+    { label: "Lore",     prompt: "Tell me about the Night Elves and Teldrassil" },
   ],
 };
 
@@ -68,7 +68,6 @@ export class InteractionPanel extends UIComponent {
   declare private actionBar: HTMLDivElement;
   declare private chatHistory: HTMLDivElement;
   declare private input: HTMLInputElement;
-  declare private thinkingEl: HTMLDivElement;
   private npcId = "";
   private chatHistories: Map<string, string> = new Map();
 
@@ -92,7 +91,7 @@ export class InteractionPanel extends UIComponent {
       left: "50%",
       transform: "translateX(-50%)",
       width: "600px",
-      maxHeight: "400px",
+      height: "380px",
       display: "none",
       flexDirection: "column",
       background: "linear-gradient(180deg, rgba(26,17,8,0.92) 0%, rgba(20,12,4,0.96) 100%)",
@@ -115,6 +114,7 @@ export class InteractionPanel extends UIComponent {
       borderBottom: "1px solid rgba(197,165,90,0.3)",
       textShadow: "0 1px 3px rgba(0,0,0,0.8)",
       letterSpacing: "1px",
+      flexShrink: "0",
     } as CSSStyleDeclaration);
     this.container.appendChild(this.header);
 
@@ -126,6 +126,7 @@ export class InteractionPanel extends UIComponent {
       padding: "4px 16px",
       fontSize: "12px",
       borderBottom: "1px solid rgba(197,165,90,0.15)",
+      flexShrink: "0",
     } as CSSStyleDeclaration);
 
     this.moodLabel = document.createElement("span");
@@ -187,65 +188,29 @@ export class InteractionPanel extends UIComponent {
       padding: "8px 14px",
       overflowX: "auto",
       borderBottom: "1px solid rgba(197,165,90,0.3)",
+      flexShrink: "0",
     } as CSSStyleDeclaration);
+    // Hide the action bar's scrollbar — it scrolls silently
+    (this.actionBar as unknown as Record<string, string>)['scrollbarWidth'] = 'none';
     this.container.appendChild(this.actionBar);
-
-    const actionBarStyle = document.createElement("style");
-    actionBarStyle.textContent = `
-      #interaction-action-bar::-webkit-scrollbar { display: none; }
-      #interaction-action-bar { -ms-overflow-style: none; scrollbar-width: none; }
-    `;
-    document.head.appendChild(actionBarStyle);
-    this.actionBar.id = "interaction-action-bar";
 
     this.chatHistory = document.createElement("div");
     Object.assign(this.chatHistory.style, {
       flex: "1",
+      minHeight: "0",
       overflowY: "auto",
       padding: "12px 14px",
       display: "flex",
       flexDirection: "column",
       gap: "8px",
-      maxHeight: "280px",
     } as CSSStyleDeclaration);
     this.container.appendChild(this.chatHistory);
-
-    const styleTag = document.createElement("style");
-    styleTag.textContent = `
-      #interaction-chat::-webkit-scrollbar { width: 6px; }
-      #interaction-chat::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 3px; }
-      #interaction-chat::-webkit-scrollbar-thumb { background: #c5a55a; border-radius: 3px; }
-    `;
-    document.head.appendChild(styleTag);
-    this.chatHistory.id = "interaction-chat";
-
-    this.thinkingEl = document.createElement("div");
-    Object.assign(this.thinkingEl.style, {
-      padding: "6px 14px",
-      display: "none",
-      alignItems: "center",
-      gap: "4px",
-      color: "#c5a55a",
-      fontSize: "14px",
-      fontStyle: "italic",
-    } as CSSStyleDeclaration);
-    this.thinkingEl.innerHTML = `<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>`;
-    this.container.appendChild(this.thinkingEl);
-
-    const dotStyle = document.createElement("style");
-    dotStyle.textContent = `
-      .thinking-dots span { animation: dot-blink 1.4s infinite; opacity: 0; }
-      .thinking-dots span:nth-child(1) { animation-delay: 0s; }
-      .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
-      .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
-      @keyframes dot-blink { 0%,20% { opacity:0; } 50% { opacity:1; } 100% { opacity:0; } }
-    `;
-    document.head.appendChild(dotStyle);
 
     const inputWrap = document.createElement("div");
     Object.assign(inputWrap.style, {
       padding: "8px 10px",
       borderTop: "1px solid rgba(197,165,90,0.3)",
+      flexShrink: "0",
     } as CSSStyleDeclaration);
 
     this.input = document.createElement("input");
@@ -313,7 +278,7 @@ export class InteractionPanel extends UIComponent {
 
     for (const action of actions) {
       const btn = document.createElement("button");
-      btn.textContent = `${action.icon} ${action.label}`;
+      btn.textContent = action.label;
       Object.assign(btn.style, {
         padding: "4px 10px",
         border: "1px solid #c5a55a",
@@ -401,11 +366,28 @@ export class InteractionPanel extends UIComponent {
   }
 
   showThinking(): void {
-    this.thinkingEl.style.display = "flex";
+    if (this.chatHistory.querySelector('#wop-thinking-bubble')) return;
+    const bubble = document.createElement("div");
+    bubble.id = "wop-thinking-bubble";
+    Object.assign(bubble.style, {
+      maxWidth: "80%",
+      padding: "8px 12px",
+      borderRadius: "8px",
+      fontSize: "13px",
+      alignSelf: "flex-start",
+      background: "rgba(160, 120, 50, 0.2)",
+      border: "1px solid rgba(197, 165, 90, 0.25)",
+      color: "#c5a55a",
+      fontStyle: "italic",
+    } as CSSStyleDeclaration);
+    bubble.innerHTML = `<span class="thinking-dots">Thinking<span>.</span><span>.</span><span>.</span></span>`;
+    this.chatHistory.appendChild(bubble);
+    this.chatHistory.scrollTop = this.chatHistory.scrollHeight;
   }
 
   hideThinking(): void {
-    this.thinkingEl.style.display = "none";
+    const bubble = this.chatHistory.querySelector('#wop-thinking-bubble');
+    bubble?.remove();
   }
 
   private static readonly MOOD_DISPLAY: Record<string, { emoji: string; color: string }> = {

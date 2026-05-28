@@ -40,6 +40,8 @@ export class UIManager {
   worldBuilderToggle: (() => void) | null = null;
 
   constructor() {
+    this.injectGlobalStyles();
+
     this.container = document.createElement("div");
     this.container.id = "game-ui";
     Object.assign(this.container.style, {
@@ -183,6 +185,38 @@ export class UIManager {
     }
 
     this.container.appendChild(bar);
+  }
+
+  private injectGlobalStyles(): void {
+    const style = document.createElement('style');
+    style.textContent = `
+      :root {
+        --gold: #c5a55a;
+        --gold-light: #e0c872;
+        --gold-dim: rgba(197,165,90,0.35);
+        --panel-bg: rgba(10,8,20,0.95);
+        --panel-border: rgba(197,165,90,0.3);
+        --text-primary: #e8dcc8;
+        --text-muted: #aaaaaa;
+        --health-green: #1a7a1a;
+        --mana-blue: #1a3a7a;
+        --danger-red: #8b0000;
+      }
+
+      /* Shared scrollbar style for all game panels */
+      .ui-panel ::-webkit-scrollbar { width: 6px; height: 6px; }
+      .ui-panel ::-webkit-scrollbar-track { background: rgba(0,0,0,0.3); border-radius: 3px; }
+      .ui-panel ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
+      .ui-panel { scrollbar-width: thin; scrollbar-color: var(--gold) rgba(0,0,0,0.3); }
+
+      /* Thinking-dots animation used in InteractionPanel */
+      .thinking-dots span { animation: wop-dot-blink 1.4s infinite; opacity: 0; }
+      .thinking-dots span:nth-child(1) { animation-delay: 0s; }
+      .thinking-dots span:nth-child(2) { animation-delay: 0.2s; }
+      .thinking-dots span:nth-child(3) { animation-delay: 0.4s; }
+      @keyframes wop-dot-blink { 0%,20% { opacity:0; } 50% { opacity:1; } 100% { opacity:0; } }
+    `;
+    document.head.appendChild(style);
   }
 
   initBubbleSystem(camera: THREE.PerspectiveCamera): void {

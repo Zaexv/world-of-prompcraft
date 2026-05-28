@@ -60,25 +60,25 @@ export class Minimap extends UIComponent {
       width: `${this.SIZE + 4}px`,
       height: `${this.SIZE + 30}px`,
       background: 'rgba(10, 6, 18, 0.85)',
-      border: '2px solid rgba(170, 68, 255, 0.5)',
+      border: '2px solid rgba(197, 165, 90, 0.5)',
       borderRadius: '8px',
       display: 'none',
       pointerEvents: 'auto',
-      zIndex: '10000',
+      zIndex: '200',
       padding: '2px',
-      boxShadow: '0 0 20px rgba(100, 50, 180, 0.3)',
+      boxShadow: '0 0 20px rgba(0, 0, 0, 0.5)',
     } as Partial<CSSStyleDeclaration>);
 
     // Title bar
     const title = document.createElement('div');
     Object.assign(title.style, {
       textAlign: 'center',
-      color: '#ccbbee',
+      color: '#c5a55a',
       fontSize: '11px',
       fontFamily: "'Cinzel', serif",
       padding: '3px 0',
       letterSpacing: '2px',
-      borderBottom: '1px solid rgba(170, 68, 255, 0.3)',
+      borderBottom: '1px solid rgba(197, 165, 90, 0.3)',
     } as Partial<CSSStyleDeclaration>);
     title.textContent = 'WORLD MAP [M]';
     this.container.appendChild(title);

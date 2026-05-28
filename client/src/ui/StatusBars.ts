@@ -10,7 +10,6 @@ export class StatusBars extends UIComponent {
   declare private hpText: HTMLSpanElement;
   declare private manaFill: HTMLDivElement;
   declare private manaText: HTMLSpanElement;
-  declare private levelBadge: HTMLDivElement;
   declare private inventoryCount: HTMLSpanElement;
   declare private weaponSlot: HTMLSpanElement;
   declare private shieldSlot: HTMLSpanElement;
@@ -37,36 +36,7 @@ export class StatusBars extends UIComponent {
       userSelect: "none",
     } as CSSStyleDeclaration);
 
-    // ── Level badge + bars row ────────────────────────────────────────────
-    const topRow = document.createElement("div");
-    Object.assign(topRow.style, {
-      display: "flex",
-      alignItems: "center",
-      gap: "10px",
-    } as CSSStyleDeclaration);
-
-    // Level badge
-    this.levelBadge = document.createElement("div");
-    Object.assign(this.levelBadge.style, {
-      width: "36px",
-      height: "36px",
-      borderRadius: "50%",
-      border: "2px solid #c5a55a",
-      background: "radial-gradient(circle, #2a1d0e 0%, #1a1108 100%)",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      color: "#c5a55a",
-      fontWeight: "700",
-      fontSize: "15px",
-      textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-      boxShadow: "0 0 6px rgba(197,165,90,0.4)",
-      flexShrink: "0",
-    } as CSSStyleDeclaration);
-    this.levelBadge.textContent = "1";
-    topRow.appendChild(this.levelBadge);
-
-    // Bars column
+    // ── HP + Mana bars ────────────────────────────────────────────────────
     const barsCol = document.createElement("div");
     Object.assign(barsCol.style, {
       display: "flex",
@@ -92,8 +62,7 @@ export class StatusBars extends UIComponent {
     this.manaText = manaText;
     barsCol.appendChild(manaBar);
 
-    topRow.appendChild(barsCol);
-    this.container.appendChild(topRow);
+    this.container.appendChild(barsCol);
 
     // ── Inventory count ──────────────────────────────────────────────────
     const invRow = document.createElement("div");
@@ -101,7 +70,6 @@ export class StatusBars extends UIComponent {
       display: "flex",
       alignItems: "center",
       gap: "6px",
-      paddingLeft: "46px",
       color: "#c5a55a",
       fontSize: "12px",
     } as CSSStyleDeclaration);
@@ -123,7 +91,6 @@ export class StatusBars extends UIComponent {
     Object.assign(equipRow.style, {
       display: "flex",
       gap: "4px",
-      paddingLeft: "46px",
       flexWrap: "wrap",
     } as CSSStyleDeclaration);
 
@@ -147,9 +114,6 @@ export class StatusBars extends UIComponent {
     const manaPct = state.maxMana > 0 ? Math.min(100, Math.max(0, (state.mana / state.maxMana) * 100)) : 0;
     this.manaFill.style.width = `${manaPct}%`;
     this.manaText.textContent = `${state.mana} / ${state.maxMana}`;
-
-    // Level
-    this.levelBadge.textContent = String(state.level);
 
     // Inventory
     const count = state.inventory.length;

@@ -7,7 +7,6 @@ import { UIComponent } from "./core/UIComponent";
  */
 export class CombatLog extends UIComponent {
   declare private logEntries: HTMLDivElement;
-  private styleTag: HTMLStyleElement | null = null;
   private readonly MAX_ENTRIES = 50;
 
   constructor() {
@@ -19,14 +18,7 @@ export class CombatLog extends UIComponent {
    * Called during initialization.
    */
   render(): void {
-    // Inject scrollbar styles
-    this.styleTag = document.createElement("style");
-    this.styleTag.textContent = `
-      #combat-log-global-entries::-webkit-scrollbar { width: 4px; }
-      #combat-log-global-entries::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 2px; }
-      #combat-log-global-entries::-webkit-scrollbar-thumb { background: rgba(197,165,90,0.6); border-radius: 2px; }
-    `;
-    document.head.appendChild(this.styleTag);
+    // Scrollbar styles are provided globally by UIManager.
 
     // ── Root container ────────────────────────────────────────────────────
     Object.assign(this.container.style, {
@@ -75,12 +67,6 @@ export class CombatLog extends UIComponent {
     this.container.appendChild(this.logEntries);
   }
 
-  protected override onDispose(): void {
-    if (this.styleTag && this.styleTag.parentNode) {
-      this.styleTag.parentNode.removeChild(this.styleTag);
-    }
-  }
-
   /** Add a new entry to the combat log with optional color. */
   addEntry(text: string, color = "#e8dcc8"): void {
     const entry = document.createElement("div");
@@ -91,7 +77,7 @@ export class CombatLog extends UIComponent {
 
     Object.assign(entry.style, {
       fontSize: "11px",
-      fontFamily: "'Courier New', monospace",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
       lineHeight: "1.3",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
     } as CSSStyleDeclaration);

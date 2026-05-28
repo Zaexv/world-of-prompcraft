@@ -98,7 +98,7 @@ export class ChatPanel extends UIComponent {
   addMessage(sender: string, text: string, color = '#ffffff'): void {
     const line = document.createElement('div');
     line.style.lineHeight = '1.4';
-    line.innerHTML = `<span style="color: ${color}; font-weight: bold;">[${this.escapeHtml(sender)}]</span> <span style="color: #ddd;">${this.escapeHtml(text)}</span>`;
+    line.innerHTML = `<span style="color: ${color}; font-weight: bold;">[${this.escapeHtml(sender)}]</span> <span style="color: #e8dcc8;">${this.escapeHtml(text)}</span>`;
     this.messagesArea.appendChild(line);
     this.autoScroll();
   }
