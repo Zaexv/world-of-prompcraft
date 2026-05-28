@@ -33,7 +33,7 @@ export class CombatLog extends UIComponent {
       padding: "8px 10px",
       boxShadow: "0 0 10px rgba(0,0,0,0.4)",
       pointerEvents: "auto",
-      display: "flex",
+      display: "none",
       flexDirection: "column",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       userSelect: "none",
@@ -67,8 +67,13 @@ export class CombatLog extends UIComponent {
     this.container.appendChild(this.logEntries);
   }
 
+  protected override onShow(): void {
+    this.container.style.display = 'flex';
+  }
+
   /** Add a new entry to the combat log with optional color. */
   addEntry(text: string, color = "#e8dcc8"): void {
+    if (!this.isVisible) this.show();
     const entry = document.createElement("div");
 
     // Timestamp
