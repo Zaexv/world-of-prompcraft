@@ -230,6 +230,117 @@
               "personality_key": "nireg_jenkins",
               "wander_radius": 2
             }
+          },
+          {
+            "id": "wraith_01",
+            "identity": {
+              "name": "Sylvara the Wraith",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                80,
+                0,
+                -100
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.1
+            },
+            "stats": {
+              "max_hp": 70,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "forest_wraith",
+              "wander_radius": 20
+            }
+          },
+          {
+            "id": "wraith_02",
+            "identity": {
+              "name": "Forest Wraith",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -70,
+                0,
+                90
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 60,
+              "level": 4
+            },
+            "ai": {
+              "personality_key": "forest_wraith",
+              "wander_radius": 18
+            }
+          },
+          {
+            "id": "moon_spider_01",
+            "identity": {
+              "name": "Moon Spider",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                50,
+                0,
+                -80
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.9
+            },
+            "stats": {
+              "max_hp": 50,
+              "level": 3
+            },
+            "ai": {
+              "personality_key": "moon_spider",
+              "wander_radius": 15
+            }
+          },
+          {
+            "id": "treant_01",
+            "identity": {
+              "name": "Ancient Treant",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -90,
+                0,
+                -70
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.8
+            },
+            "stats": {
+              "max_hp": 200,
+              "level": 12
+            },
+            "ai": {
+              "personality_key": "ancient_treant",
+              "wander_radius": 10
+            }
           }
         ]
       },
@@ -279,6 +390,66 @@
             "visual": {
               "label": "Nireg's Fire"
             }
+          },
+          {
+            "id": "moonwell_01",
+            "type": "moonwell",
+            "transform": {
+              "position": [
+                -55,
+                0,
+                60
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Elder Moonwell"
+            }
+          },
+          {
+            "id": "runic_circle_01",
+            "type": "runic_stone",
+            "transform": {
+              "position": [
+                65,
+                0,
+                -60
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Runic Circle"
+            }
+          },
+          {
+            "id": "moonwell_02",
+            "type": "moonwell",
+            "transform": {
+              "position": [
+                70,
+                0,
+                85
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Moon-Touched Pool"
+            }
+          },
+          {
+            "id": "altar_01",
+            "type": "altar",
+            "transform": {
+              "position": [
+                -30,
+                0,
+                100
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Forest Altar"
+            }
           }
         ],
         "dungeons": {}
@@ -297,7 +468,118 @@
         ]
       },
       "population": {
-        "npcs": []
+        "npcs": [
+          {
+            "id": "bandit_01",
+            "identity": {
+              "name": "Road Bandit",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -65,
+                0,
+                -70
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 55,
+              "level": 3
+            },
+            "ai": {
+              "personality_key": "road_bandit",
+              "wander_radius": 12
+            }
+          },
+          {
+            "id": "bandit_02",
+            "identity": {
+              "name": "Outlaw Scout",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -100,
+                0,
+                -115
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 50,
+              "level": 3
+            },
+            "ai": {
+              "personality_key": "road_bandit",
+              "wander_radius": 15
+            }
+          },
+          {
+            "id": "wolf_01",
+            "identity": {
+              "name": "Dire Wolf",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -90,
+                0,
+                -80
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.9
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 2
+            },
+            "ai": {
+              "personality_key": "dire_wolf",
+              "wander_radius": 20
+            }
+          },
+          {
+            "id": "wolf_02",
+            "identity": {
+              "name": "Dire Wolf",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -110,
+                0,
+                -125
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.85
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 2
+            },
+            "ai": {
+              "personality_key": "dire_wolf",
+              "wander_radius": 22
+            }
+          }
+        ]
       },
       "architecture": {
         "landmarks": [
@@ -1079,6 +1361,1167 @@
             "roomDepth": 45
           }
         }
+      }
+    },
+    "ember_wastes": {
+      "name": "Ember Wastes",
+      "bounds": {
+        "min": [
+          120,
+          -200
+        ],
+        "max": [
+          400,
+          200
+        ]
+      },
+      "population": {
+        "npcs": [
+          {
+            "id": "lava_hound_01",
+            "identity": {
+              "name": "Lava Hound",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                180,
+                0,
+                -30
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 7
+            },
+            "ai": {
+              "personality_key": "lava_hound",
+              "wander_radius": 25
+            }
+          },
+          {
+            "id": "lava_hound_02",
+            "identity": {
+              "name": "Lava Hound",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                210,
+                0,
+                55
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.05
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 7
+            },
+            "ai": {
+              "personality_key": "lava_hound",
+              "wander_radius": 22
+            }
+          },
+          {
+            "id": "lava_hound_03",
+            "identity": {
+              "name": "Lava Hound",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                250,
+                0,
+                -80
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 85,
+              "level": 8
+            },
+            "ai": {
+              "personality_key": "lava_hound",
+              "wander_radius": 20
+            }
+          },
+          {
+            "id": "obsidian_golem_01",
+            "identity": {
+              "name": "Obsidian Sentinel",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                300,
+                0,
+                20
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.7
+            },
+            "stats": {
+              "max_hp": 180,
+              "level": 15
+            },
+            "ai": {
+              "personality_key": "obsidian_golem",
+              "wander_radius": 8
+            }
+          },
+          {
+            "id": "fire_sprite_01",
+            "identity": {
+              "name": "Fire Sprite",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                160,
+                0,
+                80
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.8
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "fire_sprite",
+              "wander_radius": 30
+            }
+          },
+          {
+            "id": "fire_sprite_02",
+            "identity": {
+              "name": "Fire Sprite",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                230,
+                0,
+                -55
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.75
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "fire_sprite",
+              "wander_radius": 28
+            }
+          },
+          {
+            "id": "ignathar_acolyte_01",
+            "identity": {
+              "name": "Flame Cultist",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                350,
+                0,
+                60
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 90,
+              "level": 10
+            },
+            "ai": {
+              "personality_key": "flame_cultist",
+              "wander_radius": 15
+            }
+          }
+        ]
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "obsidian_tower_01",
+            "type": "tower",
+            "transform": {
+              "position": [
+                200,
+                0,
+                0
+              ],
+              "scale": 1.5
+            },
+            "visual": {
+              "label": "Obsidian Watchtower"
+            }
+          },
+          {
+            "id": "lava_shrine_01",
+            "type": "altar",
+            "transform": {
+              "position": [
+                280,
+                0,
+                80
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Shrine of the Eternal Flame"
+            }
+          },
+          {
+            "id": "ember_ruins_01",
+            "type": "ruins",
+            "transform": {
+              "position": [
+                320,
+                0,
+                -60
+              ],
+              "scale": 1.3
+            },
+            "visual": {
+              "label": "The Scorched Citadel"
+            }
+          },
+          {
+            "id": "dragon_peak_campfire",
+            "type": "campfire",
+            "transform": {
+              "position": [
+                160,
+                0,
+                -20
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Ember Camp"
+            }
+          },
+          {
+            "id": "volcanic_moonwell",
+            "type": "moonwell",
+            "transform": {
+              "position": [
+                240,
+                0,
+                30
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Volcanic Spring"
+            }
+          }
+        ]
+      }
+    },
+    "crystal_tundra": {
+      "name": "Crystal Tundra",
+      "bounds": {
+        "min": [
+          -200,
+          120
+        ],
+        "max": [
+          200,
+          400
+        ]
+      },
+      "population": {
+        "npcs": [
+          {
+            "id": "frost_wraith_01",
+            "identity": {
+              "name": "Frost Wraith",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                30,
+                0,
+                180
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.15
+            },
+            "stats": {
+              "max_hp": 75,
+              "level": 7
+            },
+            "ai": {
+              "personality_key": "frost_wraith",
+              "wander_radius": 22
+            }
+          },
+          {
+            "id": "frost_wraith_02",
+            "identity": {
+              "name": "Frost Wraith",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -60,
+                0,
+                220
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.1
+            },
+            "stats": {
+              "max_hp": 70,
+              "level": 6
+            },
+            "ai": {
+              "personality_key": "frost_wraith",
+              "wander_radius": 25
+            }
+          },
+          {
+            "id": "ice_wolf_01",
+            "identity": {
+              "name": "Ice Wolf",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                80,
+                0,
+                160
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.9
+            },
+            "stats": {
+              "max_hp": 55,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "ice_wolf",
+              "wander_radius": 30
+            }
+          },
+          {
+            "id": "ice_wolf_02",
+            "identity": {
+              "name": "Ice Wolf",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -40,
+                0,
+                200
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.85
+            },
+            "stats": {
+              "max_hp": 55,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "ice_wolf",
+              "wander_radius": 28
+            }
+          },
+          {
+            "id": "glacial_golem_01",
+            "identity": {
+              "name": "Glacial Golem",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                0,
+                0,
+                300
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.8
+            },
+            "stats": {
+              "max_hp": 200,
+              "level": 16
+            },
+            "ai": {
+              "personality_key": "glacial_golem",
+              "wander_radius": 6
+            }
+          },
+          {
+            "id": "yeti_01",
+            "identity": {
+              "name": "Tundra Yeti",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -80,
+                0,
+                260
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.5
+            },
+            "stats": {
+              "max_hp": 130,
+              "level": 11
+            },
+            "ai": {
+              "personality_key": "tundra_yeti",
+              "wander_radius": 15
+            }
+          },
+          {
+            "id": "ice_shaman_01",
+            "identity": {
+              "name": "Ice Shaman",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                60,
+                0,
+                340
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 12
+            },
+            "ai": {
+              "personality_key": "ice_shaman",
+              "wander_radius": 12
+            }
+          }
+        ]
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "frozen_fortress_01",
+            "type": "ruins",
+            "transform": {
+              "position": [
+                0,
+                0,
+                200
+              ],
+              "scale": 1.8
+            },
+            "visual": {
+              "label": "The Frozen Fortress"
+            }
+          },
+          {
+            "id": "ice_shrine_01",
+            "type": "altar",
+            "transform": {
+              "position": [
+                80,
+                0,
+                260
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Shard Altar"
+            }
+          },
+          {
+            "id": "crystal_spire_01",
+            "type": "runic_stone",
+            "transform": {
+              "position": [
+                -60,
+                0,
+                300
+              ],
+              "scale": 1.5
+            },
+            "visual": {
+              "label": "Crystal Spire"
+            }
+          },
+          {
+            "id": "tundra_campfire_01",
+            "type": "campfire",
+            "transform": {
+              "position": [
+                40,
+                0,
+                160
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Survivor's Fire"
+            }
+          },
+          {
+            "id": "ice_moonwell_01",
+            "type": "moonwell",
+            "transform": {
+              "position": [
+                -90,
+                0,
+                340
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Frozen Wellspring"
+            }
+          }
+        ]
+      }
+    },
+    "twilight_marsh": {
+      "name": "Twilight Marsh",
+      "bounds": {
+        "min": [
+          -200,
+          -400
+        ],
+        "max": [
+          200,
+          -120
+        ]
+      },
+      "population": {
+        "npcs": [
+          {
+            "id": "bog_lurker_01",
+            "identity": {
+              "name": "Bog Lurker",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                40,
+                0,
+                -180
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.2
+            },
+            "stats": {
+              "max_hp": 85,
+              "level": 8
+            },
+            "ai": {
+              "personality_key": "bog_lurker",
+              "wander_radius": 20
+            }
+          },
+          {
+            "id": "bog_lurker_02",
+            "identity": {
+              "name": "Bog Lurker",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -60,
+                0,
+                -220
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.1
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 7
+            },
+            "ai": {
+              "personality_key": "bog_lurker",
+              "wander_radius": 22
+            }
+          },
+          {
+            "id": "shadow_serpent_01",
+            "identity": {
+              "name": "Shadow Serpent",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                20,
+                0,
+                -270
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.85
+            },
+            "stats": {
+              "max_hp": 55,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "shadow_serpent",
+              "wander_radius": 28
+            }
+          },
+          {
+            "id": "shadow_serpent_02",
+            "identity": {
+              "name": "Shadow Serpent",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -80,
+                0,
+                -160
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.8
+            },
+            "stats": {
+              "max_hp": 50,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "shadow_serpent",
+              "wander_radius": 30
+            }
+          },
+          {
+            "id": "swamp_troll_01",
+            "identity": {
+              "name": "Swamp Troll",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                0,
+                0,
+                -340
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.5
+            },
+            "stats": {
+              "max_hp": 150,
+              "level": 14
+            },
+            "ai": {
+              "personality_key": "swamp_troll",
+              "wander_radius": 8
+            }
+          },
+          {
+            "id": "marsh_witch_01",
+            "identity": {
+              "name": "The Bog Witch",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -40,
+                0,
+                -300
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 110,
+              "level": 12
+            },
+            "ai": {
+              "personality_key": "marsh_witch",
+              "wander_radius": 10
+            }
+          },
+          {
+            "id": "will_wisp_01",
+            "identity": {
+              "name": "Will-o-Wisp",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                80,
+                0,
+                -200
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.7
+            },
+            "stats": {
+              "max_hp": 30,
+              "level": 3
+            },
+            "ai": {
+              "personality_key": "will_o_wisp",
+              "wander_radius": 35
+            }
+          }
+        ]
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "drowned_temple_01",
+            "type": "ruins",
+            "transform": {
+              "position": [
+                0,
+                0,
+                -250
+              ],
+              "scale": 1.6
+            },
+            "visual": {
+              "label": "The Drowned Temple"
+            }
+          },
+          {
+            "id": "swamp_shrine_01",
+            "type": "altar",
+            "transform": {
+              "position": [
+                -70,
+                0,
+                -310
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Altar of Mist"
+            }
+          },
+          {
+            "id": "marsh_lantern_01",
+            "type": "lantern",
+            "transform": {
+              "position": [
+                50,
+                0,
+                -180
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Marsh Lantern"
+            }
+          },
+          {
+            "id": "marsh_campfire_01",
+            "type": "campfire",
+            "transform": {
+              "position": [
+                -30,
+                0,
+                -155
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Soggy Camp"
+            }
+          },
+          {
+            "id": "bog_tower_01",
+            "type": "tower",
+            "transform": {
+              "position": [
+                100,
+                0,
+                -230
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Sinking Tower"
+            }
+          }
+        ]
+      }
+    },
+    "sunlit_meadows": {
+      "name": "Sunlit Meadows",
+      "bounds": {
+        "min": [
+          -400,
+          -200
+        ],
+        "max": [
+          -120,
+          200
+        ]
+      },
+      "population": {
+        "npcs": [
+          {
+            "id": "stone_boar_01",
+            "identity": {
+              "name": "Stone Boar",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -180,
+                0,
+                30
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.95
+            },
+            "stats": {
+              "max_hp": 65,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "stone_boar",
+              "wander_radius": 25
+            }
+          },
+          {
+            "id": "stone_boar_02",
+            "identity": {
+              "name": "Stone Boar",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -220,
+                0,
+                -50
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 65,
+              "level": 5
+            },
+            "ai": {
+              "personality_key": "stone_boar",
+              "wander_radius": 22
+            }
+          },
+          {
+            "id": "stone_boar_03",
+            "identity": {
+              "name": "Stone Boar",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -155,
+                0,
+                90
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.9
+            },
+            "stats": {
+              "max_hp": 60,
+              "level": 4
+            },
+            "ai": {
+              "personality_key": "stone_boar",
+              "wander_radius": 20
+            }
+          },
+          {
+            "id": "giant_wasp_01",
+            "identity": {
+              "name": "Giant Wasp",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -200,
+                0,
+                80
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.8
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 4
+            },
+            "ai": {
+              "personality_key": "giant_wasp",
+              "wander_radius": 35
+            }
+          },
+          {
+            "id": "giant_wasp_02",
+            "identity": {
+              "name": "Giant Wasp",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -250,
+                0,
+                -20
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 0.75
+            },
+            "stats": {
+              "max_hp": 45,
+              "level": 4
+            },
+            "ai": {
+              "personality_key": "giant_wasp",
+              "wander_radius": 32
+            }
+          },
+          {
+            "id": "sunstone_golem_01",
+            "identity": {
+              "name": "Sunstone Golem",
+              "role": "monster"
+            },
+            "transform": {
+              "position": [
+                -310,
+                0,
+                40
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1.6
+            },
+            "stats": {
+              "max_hp": 160,
+              "level": 14
+            },
+            "ai": {
+              "personality_key": "sunstone_golem",
+              "wander_radius": 6
+            }
+          },
+          {
+            "id": "wandering_knight_01",
+            "identity": {
+              "name": "Wandering Knight",
+              "role": "neutral"
+            },
+            "transform": {
+              "position": [
+                -175,
+                0,
+                -70
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 120,
+              "level": 10
+            },
+            "ai": {
+              "personality_key": "wandering_knight",
+              "wander_radius": 18
+            }
+          }
+        ]
+      },
+      "architecture": {
+        "landmarks": [
+          {
+            "id": "meadow_inn_01",
+            "type": "pavilion",
+            "transform": {
+              "position": [
+                -200,
+                0,
+                0
+              ],
+              "scale": 1.4
+            },
+            "visual": {
+              "label": "The Golden Rest Inn"
+            }
+          },
+          {
+            "id": "meadow_windmill_01",
+            "type": "tower",
+            "transform": {
+              "position": [
+                -260,
+                0,
+                60
+              ],
+              "scale": 1.2
+            },
+            "visual": {
+              "label": "Old Mill"
+            }
+          },
+          {
+            "id": "meadow_well_01",
+            "type": "moonwell",
+            "transform": {
+              "position": [
+                -170,
+                0,
+                80
+              ],
+              "scale": 0.9
+            },
+            "visual": {
+              "label": "Stone Well"
+            }
+          },
+          {
+            "id": "meadow_ruins_01",
+            "type": "ruins",
+            "transform": {
+              "position": [
+                -310,
+                0,
+                -70
+              ],
+              "scale": 1.1
+            },
+            "visual": {
+              "label": "Farmstead Ruins"
+            }
+          },
+          {
+            "id": "meadow_campfire_01",
+            "type": "campfire",
+            "transform": {
+              "position": [
+                -195,
+                0,
+                -40
+              ],
+              "scale": 1.0
+            },
+            "visual": {
+              "label": "Roadside Hearth"
+            }
+          }
+        ]
       }
     }
   }

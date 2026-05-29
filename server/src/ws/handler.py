@@ -239,6 +239,36 @@ _VALID_SKINS = {"skin-1", "skin-2", "skin-3", "skin-4"}
 _ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
+def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) -> None:
+    """Register a procedurally spawned NPC in the world state and agent registry on first contact."""
+    if _world_state is None or _registry is None:
+        return
+
+    from ..agents.personalities.templates import NPC_PERSONALITIES
+    from ..world.world_state import NPCData
+
+    personality = NPC_PERSONALITIES.get(personality_key, {})
+    system_prompt = personality.get(
+        "system_prompt",
+        f"You are {name}, a creature encountered in the wild. You are hostile and territorial.",
+    )
+    hp = 80
+
+    npc = NPCData(
+        npc_id=npc_id,
+        name=name,
+        personality=system_prompt,
+        hp=hp,
+        max_hp=hp,
+        position=[0.0, 0.0, 0.0],
+    )
+    _world_state.npcs[npc_id] = npc
+    _registry.register_dynamic_npc(npc)
+    logger.info(
+        "Auto-registered procedural NPC %s (%s) with key '%s'", npc_id, name, personality_key
+    )
+
+
 def init_handler(
     registry: AgentRegistry,
     world_state: WorldState,
@@ -503,6 +533,8 @@ async def _handle_interaction(
     data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
 ) -> dict[str, Any]:
     npc_id = data.get("npcId", data.get("npc_id", "unknown"))
+    npc_name = data.get("npcName") or "Unknown Creature"
+    personality_key = data.get("personalityKey") or ""
     player_id = data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
     prompt = data.get("prompt", "")
     player_state_raw = data.get("playerState", data.get("player_state", {}))
@@ -521,6 +553,11 @@ async def _handle_interaction(
             "playerStateUpdate": None,
             "npcStateUpdate": None,
         }
+
+    # Auto-register procedural NPCs on first interaction.
+    # These are spawned client-side and the server has no prior record of them.
+    if _world_state.get_npc(npc_id) is None and npc_id.startswith(("proc_", "enc_")):
+        _auto_register_procedural_npc(npc_id, npc_name, personality_key)
 
     # Bug 36: Dead players cannot interact
     player = _world_state.get_player(player_id)

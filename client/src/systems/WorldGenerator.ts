@@ -13,6 +13,7 @@ import type { Minimap, MinimapWaypoint } from '../ui/Minimap';
 import type { CollisionSystem } from './CollisionSystem';
 import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
+import { ProceduralPopulator } from './ProceduralPopulator';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
 
@@ -30,18 +31,27 @@ export class WorldGenerator {
   private worldManifest: WorldManifest | null = null;
   private worldBuilder: WorldBuilder | null = null;
   private minimap: Minimap | null = null;
+  private populator: ProceduralPopulator;
 
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
   private chunkNPCs: Map<string, string[]> = new Map();
 
   constructor(
     scene: THREE.Scene,
-    _terrain: Terrain,
+    terrain: Terrain,
     entityManager: EntityManager,
     _ws: WebSocketClient,
   ) {
     this.scene = scene;
     this.entityManager = entityManager;
+    this.populator = new ProceduralPopulator(terrain);
+    this.populator.setScene(scene);
+    this.populator.setEntityManager(entityManager);
+  }
+
+  /** Call once per frame from the game loop to drain the spawn queue. */
+  update(playerX: number, playerZ: number): void {
+    this.populator.update(playerX, playerZ);
   }
 
   /** Set minimap reference for registering markers. */
@@ -53,6 +63,7 @@ export class WorldGenerator {
   /** Set collision system so spawned trees become collidable. */
   setCollisionSystem(cs: CollisionSystem): void {
     this.collisionSystem = cs;
+    this.populator.setCollisionSystem(cs);
   }
 
   /** Set the world manifest for data-driven landmark spawning. */
@@ -98,6 +109,8 @@ export class WorldGenerator {
     }
 
     this.generatedChunks.delete(key);
+    // Despawn all procedural objects for this chunk (prevents memory/GPU leak)
+    this.populator.releaseChunk(chunkX, chunkZ);
   }
 
   /** Main entry point: called when a new terrain chunk loads. */
@@ -138,18 +151,25 @@ export class WorldGenerator {
       }
     }
 
+    // Procedural population — deferred via queue (zero work here)
+    this.populator.queueChunk(chunkX, chunkZ, worldX, worldZ);
+
     if (chunkObjects.length > 0) {
       this.chunkObjects.set(key, chunkObjects);
     }
 
-    // Force all NPCs to re-snap to the newly loaded terrain in this chunk
-    // Use a small buffer to catch NPCs near the chunk edges
-    const margin = 2;
+    // Force NPCs inside this chunk to re-snap to newly loaded terrain.
+    // Use a half-extent AABB so we can skip NPCs quickly without a full scan.
+    const marginedHalfW = (maxX - minX) / 2 + 2;
+    const marginedHalfH = (maxZ - minZ) / 2 + 2;
+    const cxMid = (minX + maxX) / 2;
+    const czMid = (minZ + maxZ) / 2;
     for (const npc of this.entityManager.npcs.values()) {
-      const nx = npc.position.x;
-      const nz = npc.position.z;
-      if (nx >= minX - margin && nx < maxX + margin && nz >= minZ - margin && nz < maxZ + margin) {
-        npc.isGrounded = false; // Re-trigger snap on next EntityManager update
+      if (
+        Math.abs(npc.position.x - cxMid) <= marginedHalfW &&
+        Math.abs(npc.position.z - czMid) <= marginedHalfH
+      ) {
+        npc.isGrounded = false;
       }
     }
   }

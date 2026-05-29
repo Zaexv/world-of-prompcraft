@@ -238,7 +238,12 @@ export function bootstrap(
     const npc = entityManager.getNPC(runtime.activeNpcId);
     if (npc) npc.showAction('thinking', 10);
     ws.send({
-      type: 'interaction', npcId: runtime.activeNpcId, prompt, playerId: runtime.localPlayerId,
+      type: 'interaction',
+      npcId: runtime.activeNpcId,
+      npcName: npc?.name,
+      personalityKey: npc?.personalityKey || undefined,
+      prompt,
+      playerId: runtime.localPlayerId,
       playerState: {
         position: [playerController.position.x, playerController.position.y, playerController.position.z],
         hp: playerState.hp, inventory: playerState.inventory, equipped: playerState.equipped,
