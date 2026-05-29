@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    llm_provider: Literal["claude", "openai", "ollama"] = "openai"
+    llm_provider: Literal["claude", "openai", "ollama"] = "ollama"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_api_base: str = "https://api.openai.com/v1"
