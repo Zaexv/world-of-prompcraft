@@ -8,7 +8,7 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    llm_provider: Literal["claude", "openai", "ollama"] = "openai"
+    llm_provider: Literal["claude", "openai", "ollama"] = "ollama"
     anthropic_api_key: str = ""
     openai_api_key: str = ""
     openai_api_base: str = "https://api.openai.com/v1"
@@ -18,6 +18,11 @@ class Settings(BaseSettings):
     ollama_model: str = "qwen3.5:9b"
     llm_temperature: float = 0.1
     max_tokens: int = 4096
+    response_max_tokens: int = 180
+    openai_request_timeout_seconds: float = 35.0
+    max_concurrent_llm_calls: int = 24
+    reflect_every_n_human_turns: int = 5
+    agent_invoke_timeout_seconds: float = 45.0
     ws_port: int = 8000
 
     model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8"}

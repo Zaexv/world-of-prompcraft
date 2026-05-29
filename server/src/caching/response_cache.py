@@ -3,10 +3,9 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from typing import Any
-
-import redis  # type: ignore[import-not-found]
 
 
 class ResponseCache:
@@ -27,11 +26,12 @@ class ResponseCache:
         """
         self.enabled = enabled
         self.default_ttl = default_ttl
-        self.redis_client: redis.Redis | None = None
+        self.redis_client: Any | None = None
 
         if enabled:
             try:
-                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+                redis_module = importlib.import_module("redis")
+                self.redis_client = redis_module.from_url(redis_url, decode_responses=True)
                 self.redis_client.ping()
             except Exception:
                 # Redis not available, disable caching
@@ -64,7 +64,9 @@ class ResponseCache:
             key = self._make_key(npc_id, player_id, prompt, temperature)
             cached = self.redis_client.get(key)
             if cached:
-                return json.loads(cached)  # type: ignore[no-any-return]
+                loaded = json.loads(cached)
+                if isinstance(loaded, dict):
+                    return loaded
         except Exception:
             pass
 
@@ -101,7 +103,7 @@ class ResponseCache:
         try:
             keys = self.redis_client.keys(pattern)
             if keys:
-                return self.redis_client.delete(*keys)  # type: ignore[no-any-return]
+                return int(self.redis_client.delete(*keys))
         except Exception:
             pass
 
