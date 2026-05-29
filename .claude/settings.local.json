@@ -97,7 +97,8 @@
       "Bash(curl -s -X POST http://localhost:11434/v1/chat/completions -H \"Content-Type: application/json\" -d '{\"model\":\"qwen3.5:9b\",\"think\":false,\"messages\":[{\"role\":\"system\",\"content\":\"You are Nireg, a gruff merchant. Reply in 1-2 short sentences in character.\"},{\"role\":\"user\",\"content\":\"qué me ofreces\"}],\"max_tokens\":180,\"temperature\":0.1}')",
       "Bash(curl -s -X POST http://localhost:11434/v1/chat/completions -H \"Content-Type: application/json\" -d '{\"model\":\"qwen3.5:9b\",\"reasoning_effort\":\"none\",\"messages\":[{\"role\":\"system\",\"content\":\"You are Nireg, a gruff merchant. Reply in 1-2 short sentences in character.\"},{\"role\":\"user\",\"content\":\"qué me ofreces\"}],\"max_tokens\":180,\"temperature\":0.1}')",
       "Bash(git -C \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\" status --short)",
-      "Bash(git -C \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\" diff --stat)"
+      "Bash(git -C \"C:\\\\Users\\\\rafaelpernil\\\\DEV\\\\world-of-prompcraft\" diff --stat)",
+      "Bash(Select-Object -Last 15)"
     ]
   },
   "hooks": {

@@ -141,7 +141,10 @@ def make_reason_node(
     """Return a reason node function closed over the given LLM and tools."""
     llm_with_tools = llm.bind_tools(tools) if tools else llm
     tool_map = {t.name: t for t in tools}
-    arg_names_by_tool = {t.name: list(t.args.keys()) for t in tools}
+    params_by_tool = {
+        t.name: [(name, info.get("type", "string")) for name, info in t.args.items()]
+        for t in tools
+    }
 
     async def reason_node(state: NPCAgentState) -> dict[str, Any]:
         # Extract latest player message for RAG retrieval
@@ -174,7 +177,7 @@ def make_reason_node(
         structured = getattr(ai_message, "tool_calls", None)
         content = getattr(ai_message, "content", "")
         if not structured and tool_map and isinstance(content, str):
-            cleaned, parsed = extract_inline_tool_calls(content, arg_names_by_tool)
+            cleaned, parsed = extract_inline_tool_calls(content, params_by_tool)
             if parsed:
                 shared_pending_actions.clear()
                 for call in parsed:

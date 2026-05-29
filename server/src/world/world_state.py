@@ -209,16 +209,18 @@ class WorldState:
                     target = params.get("target", "player")
                     pid = params.get("player_id", "")
                     amount = params.get("amount", 0)
-                    if target == "player" or kind == "damage_player":
+                    # Damage a named NPC only when the target is a known NPC id.
+                    # Anything else (the literal "player", or a value the model
+                    # mis-supplied like a damage type) targets the player — an NPC
+                    # dealing damage is, by default, attacking the player.
+                    if kind != "damage_player" and target in self.npcs:
+                        target_npc = self.npcs[target]
+                        target_npc.hp = max(0, target_npc.hp - amount)
+                        if target_npc.hp <= 0:
+                            self.recent_events.append(f"{target_npc.name} was defeated")
+                    else:
                         player = self.get_player(pid or "default")
                         player.hp = max(0, player.hp - amount)
-                    else:
-                        # Damage targeting an NPC
-                        npc = self.npcs.get(target)
-                        if npc:
-                            npc.hp = max(0, npc.hp - amount)
-                            if npc.hp <= 0:
-                                self.recent_events.append(f"{npc.name} was defeated")
 
                 elif kind in ("heal_player", "heal"):
                     target = params.get("target", "player")
