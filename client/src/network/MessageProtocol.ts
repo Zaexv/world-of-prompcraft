@@ -3,6 +3,8 @@
 export interface PlayerInteraction {
   type: "interaction";
   npcId: string;
+  npcName?: string;
+  personalityKey?: string;
   prompt: string;
   playerId: string;
   playerState: {

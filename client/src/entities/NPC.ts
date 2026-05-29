@@ -23,12 +23,14 @@ export interface NPCConfig {
   hp?: number;
   maxHp?: number;
   personality?: string;
+  personalityKey?: string;
   scale?: number;
 }
 
 export class NPC {
   public readonly id: string;
   public readonly name: string;
+  public readonly personalityKey: string;
   public readonly position: THREE.Vector3;
   public readonly mesh: THREE.Group;
   public readonly animator: NPCAnimator;
@@ -53,6 +55,7 @@ export class NPC {
   constructor(config: NPCConfig) {
     this.id = config.id;
     this.name = config.name;
+    this.personalityKey = config.personalityKey ?? '';
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
     this.motionProfile = createNPCMotionProfile(config);

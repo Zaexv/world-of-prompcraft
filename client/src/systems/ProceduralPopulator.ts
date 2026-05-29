@@ -280,6 +280,7 @@ export class ProceduralPopulator {
             this.entityManager.addNPC({
               id: npcId,
               name: npcDef.name,
+              personalityKey: npcDef.hostile ? 'road_bandit' : 'wandering_knight',
               position: new THREE.Vector3(nx, ny, nz), // needs own Vector3 (stored by EntityManager)
               hp: npcDef.maxHp, maxHp: npcDef.maxHp,
               personality: npcDef.hostile
@@ -333,6 +334,7 @@ export class ProceduralPopulator {
         const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
         this.entityManager.addNPC({
           id: npcId, name: def.name,
+          personalityKey: def.id,
           position: new THREE.Vector3(mx, my, mz),
           hp: def.maxHp, maxHp: def.maxHp,
           personality: `Hostile creature — attack on sight.`,
