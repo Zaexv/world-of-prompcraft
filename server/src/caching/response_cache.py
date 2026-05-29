@@ -6,7 +6,7 @@ import hashlib
 import json
 from typing import Any
 
-import redis  # type: ignore[import-not-found]
+import redis
 
 
 class ResponseCache:
@@ -101,7 +101,7 @@ class ResponseCache:
         try:
             keys = self.redis_client.keys(pattern)
             if keys:
-                return self.redis_client.delete(*keys)  # type: ignore[no-any-return]
+                return self.redis_client.delete(*keys)
         except Exception:
             pass
 
