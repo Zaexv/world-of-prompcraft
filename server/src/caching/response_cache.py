@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib
 import json
 from typing import Any
 
@@ -29,9 +30,8 @@ class ResponseCache:
 
         if enabled:
             try:
-                import redis
-
-                self.redis_client = redis.from_url(redis_url, decode_responses=True)
+                redis_module = importlib.import_module("redis")
+                self.redis_client = redis_module.from_url(redis_url, decode_responses=True)
                 self.redis_client.ping()
             except Exception:
                 # Redis not available, disable caching
