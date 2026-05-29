@@ -163,9 +163,9 @@ export class ZoneAtmosphere {
       this.scene.fog.color.copy(c.fogColor);
       this.scene.fog.density = c.fogDensity;
     }
-    // Background (should match fog so distant objects fade correctly)
+    // Background (Match skyColor, not fogColor, for a clearer sky)
     if (this.scene.background instanceof THREE.Color) {
-      this.scene.background.copy(c.fogColor);
+      this.scene.background.copy(c.skyColor);
     }
     // Hemisphere sky/ground
     this.hemisphere.color.copy(c.skyColor);
