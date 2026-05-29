@@ -50,7 +50,7 @@ def create_npc_agent(
         shared_pending_actions: The mutable list tools append actions to.
         world_state: The WorldState instance (for context lookups).
     """
-    reason_node = make_reason_node(llm, tools)
+    reason_node = make_reason_node(llm, tools, shared_pending_actions)
     act_node = make_act_node(tools, shared_pending_actions)
     summarize_node = make_summarize_node(llm)
 

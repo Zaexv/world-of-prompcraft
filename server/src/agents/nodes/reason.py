@@ -9,6 +9,7 @@ from langchain_core.messages import SystemMessage
 
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
+from .inline_tools import extract_inline_tool_calls
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -134,9 +135,15 @@ def _build_compact_system_prompt(state: NPCAgentState) -> str:
     )
 
 
-def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
+def make_reason_node(
+    llm: BaseChatModel, tools: list[BaseTool], shared_pending_actions: list[Any]
+) -> Any:
     """Return a reason node function closed over the given LLM and tools."""
     llm_with_tools = llm.bind_tools(tools) if tools else llm
+    tool_map = {t.name: t for t in tools}
+    params_by_tool = {
+        t.name: [(name, info.get("type", "string")) for name, info in t.args.items()] for t in tools
+    }
 
     async def reason_node(state: NPCAgentState) -> dict[str, Any]:
         # Extract latest player message for RAG retrieval
@@ -161,6 +168,33 @@ def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
         messages = [SystemMessage(content=system_prompt), *msg_tail]
         active_llm = llm if short_social else llm_with_tools
         ai_message = await active_llm.ainvoke(messages)
+
+        # Fallback: some local models emit tool calls as plain text in the
+        # content instead of structured tool_calls (which the act node and
+        # router rely on). Parse them, run the real tools so the actions fire,
+        # and strip the call syntax from the dialogue the player sees.
+        structured = getattr(ai_message, "tool_calls", None)
+        content = getattr(ai_message, "content", "")
+        if not structured and tool_map and isinstance(content, str):
+            cleaned, parsed = extract_inline_tool_calls(content, params_by_tool)
+            if parsed:
+                shared_pending_actions.clear()
+                for call in parsed:
+                    tool = tool_map.get(call["name"])
+                    if tool is None:
+                        continue
+                    try:
+                        await tool.ainvoke(call["args"])
+                    except Exception:
+                        logger.warning("Inline tool call %s failed", call["name"], exc_info=True)
+                harvested = list(shared_pending_actions)
+                shared_pending_actions.clear()
+                ai_message.content = cleaned or "..."
+                return {
+                    "messages": [ai_message],
+                    "pending_actions": [*state.get("pending_actions", []), *harvested],
+                }
+
         return {"messages": [ai_message]}
 
     return reason_node

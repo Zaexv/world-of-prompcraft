@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from langchain_anthropic import ChatAnthropic
@@ -32,13 +32,20 @@ def get_llm(settings: Settings) -> BaseChatModel:
             request_timeout=settings.openai_request_timeout_seconds,
         )
     if settings.llm_provider == "ollama":
+        # `reasoning_effort` is forwarded to ollama's OpenAI-compatible endpoint to
+        # control "thinking" models. Without it, a reasoning model burns the whole
+        # token budget on its hidden reasoning block and returns empty content.
+        model_kwargs: dict[str, Any] = {}
+        if settings.ollama_reasoning_effort:
+            model_kwargs["reasoning_effort"] = settings.ollama_reasoning_effort
         return ChatOpenAI(
             model=settings.ollama_model,
             api_key="ollama",  # type: ignore[arg-type]
             base_url=settings.ollama_base_url,
             temperature=settings.llm_temperature,
             max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
-            request_timeout=8.0,
-            max_retries=0,
+            request_timeout=settings.ollama_request_timeout_seconds,
+            max_retries=settings.ollama_max_retries,
+            model_kwargs=model_kwargs,
         )
     raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")
