@@ -142,8 +142,7 @@ def make_reason_node(
     llm_with_tools = llm.bind_tools(tools) if tools else llm
     tool_map = {t.name: t for t in tools}
     params_by_tool = {
-        t.name: [(name, info.get("type", "string")) for name, info in t.args.items()]
-        for t in tools
+        t.name: [(name, info.get("type", "string")) for name, info in t.args.items()] for t in tools
     }
 
     async def reason_node(state: NPCAgentState) -> dict[str, Any]:
@@ -187,9 +186,7 @@ def make_reason_node(
                     try:
                         await tool.ainvoke(call["args"])
                     except Exception:
-                        logger.warning(
-                            "Inline tool call %s failed", call["name"], exc_info=True
-                        )
+                        logger.warning("Inline tool call %s failed", call["name"], exc_info=True)
                 harvested = list(shared_pending_actions)
                 shared_pending_actions.clear()
                 ai_message.content = cleaned or "..."

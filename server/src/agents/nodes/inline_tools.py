@@ -32,9 +32,7 @@ def _make_tag_pattern(names: set[str]) -> re.Pattern[str]:
     # closing tag must repeat the opening name (backreference). Body may span
     # lines, so DOTALL; case-insensitive for the same reason as the call form.
     alternation = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
-    return re.compile(
-        rf"<({alternation})>([\s\S]*?)</\1>", re.IGNORECASE | re.DOTALL
-    )
+    return re.compile(rf"<({alternation})>([\s\S]*?)</\1>", re.IGNORECASE | re.DOTALL)
 
 
 def _json_type(value: Any) -> str:
@@ -98,9 +96,7 @@ def _coerce(token: str) -> Any:
     return t
 
 
-def _assign_args(
-    params: list[tuple[str, str]], tokens: list[str]
-) -> dict[str, Any]:
+def _assign_args(params: list[tuple[str, str]], tokens: list[str]) -> dict[str, Any]:
     """Resolve ``key=value`` and positional tokens into a kwargs dict.
 
     Positional values are assigned to the first unfilled parameter whose type is
