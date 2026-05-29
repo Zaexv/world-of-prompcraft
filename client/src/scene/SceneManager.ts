@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
+import { SAOPass } from 'three/examples/jsm/postprocessing/SAOPass.js';
 import { TemporalAAPass } from './TemporalAAPass';
 import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
@@ -47,7 +48,7 @@ export class SceneManager {
     // --- Core renderer setup ---
     this.scene = new THREE.Scene();
 
-    this.scene.background = new THREE.Color(0x87ceeb);
+    this.scene.background = new THREE.Color(0x88d0ff); // Even lighter, more vibrant
 
     this.camera = new THREE.PerspectiveCamera(
       60,
@@ -67,51 +68,76 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.2;
+    this.renderer.toneMappingExposure = 1.55; // Further increased exposure for maximum brightness
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
 
-    // --- Post-processing: render → TAA → bloom ---
+    // --- World systems (order matters: lighting first, then geometry) ---
+    this.skybox = new Skybox(this.scene);
+    this.lighting = new Lighting(this.scene);
+
+    // --- Post-processing: render → SSAO → TAA → bloom ---
     try {
       this.composer = new EffectComposer(this.renderer);
-
       this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-      // Exponential-blend TAA: blends each frame with the last ~5 frames.
-      // composer.setSize() propagates to TemporalAAPass.setSize(), which
-      // discards stale history on resize automatically.
+      // 1. SSAO (Scalable Ambient Occlusion)
+      // Optimized for performance: lower resolution, minimal blur.
+      const saoPass = new SAOPass(this.scene, this.camera); 
+      saoPass.params.output = SAOPass.OUTPUT.Default;
+      saoPass.params.saoBias = 0.5;
+      saoPass.params.saoIntensity = 0.005; // Reduced
+      saoPass.params.saoScale = 10;
+      saoPass.params.saoKernelRadius = 15; // Reduced
+      saoPass.params.saoMinResolution = 0.5; // Half-res rendering
+      saoPass.params.saoBlur = true;
+      saoPass.params.saoBlurRadius = 4;    // Reduced
+      saoPass.params.saoBlurStdDev = 2;    // Reduced
+      saoPass.params.saoBlurDepthCutoff = 0.01;
+      this.composer.addPass(saoPass);
+
+      // 2. TAA
       this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
 
-      // Half-resolution bloom for performance
+      // 3. Bloom
       const bloomRes = new THREE.Vector2(
         Math.floor(window.innerWidth / 2),
         Math.floor(window.innerHeight / 2),
       );
       this.composer.addPass(new UnrealBloomPass(
         bloomRes,
-        0.22,  // lower strength keeps scene cooler/darker
-        0.35,  // tighter spread to avoid haze
-        0.9,   // bloom only on truly bright emissive elements
+        0.22,
+        0.35,
+        0.9,
       ));
-    } catch {
-      // Fallback: if post-processing fails, render normally
+    } catch (e) {
+      console.warn('Post-processing failed to initialize:', e);
       this.composer = null;
     }
 
-    // --- World systems (order matters: lighting first, then geometry) ---
-    this.skybox = new Skybox(this.scene);
-    this.lighting = new Lighting(this.scene);
+    // --- Environment Lighting (IBL) ---
+    // Use PMREM to generate a performant indirect lighting map from the skybox.
+    // This provides the 'real life' ground bounce by letting materials reflect
+    // the sky and terrain colors.
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    pmremGenerator.compileCubemapShader();
+    
+    // We'll update the environment map whenever the skybox or biome changes 
+    // significantly. For now, a one-time high-quality generation.
+    setTimeout(() => {
+      const renderTarget = pmremGenerator.fromScene(this.scene);
+      this.scene.environment = renderTarget.texture;
+      pmremGenerator.dispose();
+    }, 1000);
 
     this.terrain = new Terrain(this.scene);
-    this.water = new Water(this.scene);
+    this.water = new Water(this.scene, this.renderer);
 
-    // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);
     this.forest = new StartingForest(this.scene, this.terrain);
     this.desert = new DesertScenery(this.scene, this.terrain);
 
-    // --- Resize handling ---
     window.addEventListener('resize', this.onResize.bind(this));
   }
 
@@ -223,7 +249,7 @@ export class SceneManager {
   tick(): number {
     const delta = this.clock.getDelta();
 
-    this.water.update(delta, this.playerX, this.playerZ);
+    this.water.update(delta, this.camera);
     this.skybox.update(delta, this.playerX, this.playerZ);
 
     this.forest.update(delta);

@@ -123,13 +123,13 @@ export class Lighting {
     scene.add(this.moonMesh);
 
     // ── Daytime sky fill ─────────────────────────────────────────────────────
-    this.hemisphere = new THREE.HemisphereLight(0x87ceeb, 0x4a3800, 0.80);
+    this.hemisphere = new THREE.HemisphereLight(0x87ceeb, 0x4a3800, 1.20); // Boosted from 0.80
     scene.add(this.hemisphere);
 
-    this.ambient = new THREE.AmbientLight(0xfff0cc, 0.50);
+    this.ambient = new THREE.AmbientLight(0xfff0cc, 0.65); // Boosted from 0.50
     scene.add(this.ambient);
 
-    this.rim = new THREE.DirectionalLight(0xffeebb, 0.30);
+    this.rim = new THREE.DirectionalLight(0xffeebb, 0.45); // Boosted from 0.30
     this.rim.position.set(80, 30, 120);
     this.rim.castShadow = false;
     scene.add(this.rim);

@@ -64,9 +64,8 @@ export class NPC {
     this.mesh = new THREE.Group();
     if (config.scale) this.mesh.scale.setScalar(config.scale);
 
-    const color = config.color ?? 0xcc6633;
     const appearance = getPlaceholderAppearance(this.placeholderStyle);
-    this.materials = buildProceduralMesh(this.mesh, appearance, color);
+    this.materials = buildProceduralMesh(this.mesh, appearance, this.placeholderStyle);
 
     addPlaceholderAccessory(this.mesh, this.placeholderStyle);
     applyFlatShading(this.mesh);
@@ -201,16 +200,23 @@ export class NPC {
   }
 
   dispose(): void {
-    this.mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          for (const mat of child.material) mat.dispose();
-        } else {
-          child.material.dispose();
+    // Only dispose unique per-instance assets.
+    // Shared NPC geometries and materials are kept in a global cache (NPCAppearance.ts).
+    
+    if (this.gltfMode) {
+      // GLTF models are currently unique per NPC because they are cloned.
+      this.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          child.geometry.dispose();
+          if (Array.isArray(child.material)) {
+            for (const mat of child.material) mat.dispose();
+          } else {
+            child.material.dispose();
+          }
         }
-      }
-    });
+      });
+    }
+
     this.nameplate.sprite.material.dispose();
     if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
       this.nameplate.sprite.material.map.dispose();

@@ -53,17 +53,17 @@ function preset(
 
 export const ZONE_ATMOSPHERES: Record<string, AtmospherePreset> = {
   //                           fog        density  sky        ground     ambient    aInt  sun        bloom
-  "Blasted Suarezlands":  preset(0x1a0830, 0.0060, 0x4a1880, 0x1a0030, 0x220040, 0.18, 0xcc88ff, 0.80),
-  "Fort Malaka":           preset(0x0f1828, 0.0028, 0x3a4878, 0x161820, 0x111830, 0.12, 0xaac0ff, 0.90),
-  "Elders' Village":       preset(0x0b1222, 0.0038, 0x5f78a8, 0x111827, 0x111522, 0.12, 0x9fb9ff, 0.90),
-  "Dark Forest":           preset(0x030a03, 0.0065, 0x112211, 0x040a04, 0x081208, 0.08, 0x44aa44, 0.75),
-  "Ember Peaks":           preset(0x1a0600, 0.0050, 0x5a2010, 0x1a0800, 0x220a00, 0.16, 0xff8844, 0.82),
-  "Crystal Lake":          preset(0x071520, 0.0030, 0x3a6090, 0x0a1828, 0x102030, 0.14, 0x88ccff, 0.88),
-  "Ember Wastes":          preset(0x1a0800, 0.0080, 0x5a1800, 0x200800, 0x280800, 0.20, 0xff4400, 0.70),
-  "Crystal Tundra":        preset(0x1a2a3a, 0.0040, 0x7090b0, 0x304050, 0x203040, 0.18, 0xc0e0ff, 0.88),
-  "Twilight Marsh":        preset(0x030a03, 0.0080, 0x0a1a0a, 0x040a04, 0x061006, 0.08, 0x66aa44, 0.72),
-  "Sunlit Meadows":        preset(0x16160a, 0.0022, 0x7a8040, 0x303010, 0x1c1c0c, 0.20, 0xffe870, 0.92),
-  "Teldrassil Wilds":      preset(0x0b1222, 0.0040, 0x4a5890, 0x0e1420, 0x111522, 0.12, 0x9fb9ff, 0.88),
+  "Blasted Suarezlands":  preset(0x1a0830, 0.0060, 0x4a1880, 0x3a1a60, 0x2a1050, 0.25, 0xcc88ff, 0.80),
+  "Fort Malaka":           preset(0x0f1828, 0.0028, 0x3a4878, 0x2a3040, 0x1a2038, 0.18, 0xaac0ff, 0.90),
+  "Elders' Village":       preset(0x0b1222, 0.0038, 0x5f78a8, 0x324050, 0x1a2235, 0.18, 0x9fb9ff, 0.90),
+  "Dark Forest":           preset(0x030a03, 0.0065, 0x112211, 0x1a251a, 0x122012, 0.14, 0x44aa44, 0.75),
+  "Ember Peaks":           preset(0x1a0600, 0.0050, 0x5a2010, 0x4a2510, 0x30150a, 0.22, 0xff8844, 0.82),
+  "Crystal Lake":          preset(0x071520, 0.0030, 0x3a6090, 0x2a3a50, 0x1a2840, 0.20, 0x88ccff, 0.88),
+  "Ember Wastes":          preset(0x1a0800, 0.0080, 0x5a1800, 0x4a1a05, 0x351008, 0.28, 0xff4400, 0.70),
+  "Crystal Tundra":        preset(0x1a2a3a, 0.0040, 0x7090b0, 0x506580, 0x2a3a55, 0.25, 0xc0e0ff, 0.88),
+  "Twilight Marsh":        preset(0x030a03, 0.0080, 0x0a1a0a, 0x1a251a, 0x102010, 0.14, 0x66aa44, 0.72),
+  "Sunlit Meadows":        preset(0x16160a, 0.0022, 0x7a8040, 0x5a5a25, 0x252512, 0.28, 0xffe870, 0.92),
+  "Teldrassil Wilds":      preset(0x0b1222, 0.0040, 0x4a5890, 0x2a354a, 0x1a2235, 0.18, 0x9fb9ff, 0.88),
 };
 
 const DEFAULT_PRESET = ZONE_ATMOSPHERES["Elders' Village"]!;
@@ -163,9 +163,9 @@ export class ZoneAtmosphere {
       this.scene.fog.color.copy(c.fogColor);
       this.scene.fog.density = c.fogDensity;
     }
-    // Background (should match fog so distant objects fade correctly)
+    // Background (Match skyColor, not fogColor, for a clearer sky)
     if (this.scene.background instanceof THREE.Color) {
-      this.scene.background.copy(c.fogColor);
+      this.scene.background.copy(c.skyColor);
     }
     // Hemisphere sky/ground
     this.hemisphere.color.copy(c.skyColor);
