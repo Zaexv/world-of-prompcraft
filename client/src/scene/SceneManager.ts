@@ -2,7 +2,6 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { SAOPass } from 'three/examples/jsm/postprocessing/SAOPass.js';
 import { TemporalAAPass } from './TemporalAAPass';
 import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
@@ -77,30 +76,19 @@ export class SceneManager {
     this.skybox = new Skybox(this.scene);
     this.lighting = new Lighting(this.scene);
 
-    // --- Post-processing: render → SSAO → TAA → bloom ---
+    // --- Post-processing: render → TAA → bloom ---
+    // No SSAO/ambient-occlusion pass: it was removed for performance (it cost a
+    // full-scene depth/normal prepass plus per-pixel AO + denoise every frame).
+    // Indirect/ambient shading comes from the cheap PMREM environment map
+    // generated below.
     try {
       this.composer = new EffectComposer(this.renderer);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-      // 1. SSAO (Scalable Ambient Occlusion)
-      // Optimized for performance: lower resolution, minimal blur.
-      const saoPass = new SAOPass(this.scene, this.camera); 
-      saoPass.params.output = SAOPass.OUTPUT.Default;
-      saoPass.params.saoBias = 0.5;
-      saoPass.params.saoIntensity = 0.005; // Reduced
-      saoPass.params.saoScale = 10;
-      saoPass.params.saoKernelRadius = 15; // Reduced
-      saoPass.params.saoMinResolution = 0.5; // Half-res rendering
-      saoPass.params.saoBlur = true;
-      saoPass.params.saoBlurRadius = 4;    // Reduced
-      saoPass.params.saoBlurStdDev = 2;    // Reduced
-      saoPass.params.saoBlurDepthCutoff = 0.01;
-      this.composer.addPass(saoPass);
-
-      // 2. TAA
+      // 1. TAA
       this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
 
-      // 3. Bloom
+      // 2. Bloom
       const bloomRes = new THREE.Vector2(
         Math.floor(window.innerWidth / 2),
         Math.floor(window.innerHeight / 2),
