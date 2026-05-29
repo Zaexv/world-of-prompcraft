@@ -27,6 +27,10 @@ export class NPCAnimator {
   private attackDirection: THREE.Vector3 = new THREE.Vector3(0, 0, 1);
   private still = false;
 
+  // Animation throttling
+  private updateAccumulator = 0;
+  public throttleFactor = 1; // 1 = every frame, 2 = every other frame, etc.
+
   // GLTF mode — set via setMixer()
   private mixer: THREE.AnimationMixer | null = null;
   private clips: Map<string, THREE.AnimationClip> = new Map();
@@ -90,27 +94,37 @@ export class NPCAnimator {
   }
 
   update(delta: number): void {
+    // Throttling: accumulate time and only update when we hit the threshold.
+    // factor=1 (normal), factor=2 (half rate), factor=4 (quarter rate)
+    this.updateAccumulator += delta;
+    const threshold = (1 / 60) * (this.throttleFactor - 0.1);
+    
+    if (this.updateAccumulator < threshold) return;
+    
+    const throttledDelta = this.updateAccumulator;
+    this.updateAccumulator = 0;
+
     if (this.mixer) {
       this.mixer.timeScale = this.profile.animationRate;
-      this.mixer.update(delta);
+      this.mixer.update(throttledDelta);
       return;
     }
 
-    this.phase += delta * this.profile.walkCycleSpeed;
+    this.phase += throttledDelta * this.profile.walkCycleSpeed;
     if (this.phase > 628) this.phase -= 628;
 
     switch (this.currentAnim) {
       case 'idle':
-        this.animateIdle(delta);
+        this.animateIdle(throttledDelta);
         break;
       case 'walk':
-        this.animateWalk(delta);
+        this.animateWalk(throttledDelta);
         break;
       case 'attack':
-        this.animateAttack(delta);
+        this.animateAttack(throttledDelta);
         break;
       case 'emote':
-        this.animateEmote(delta);
+        this.animateEmote(throttledDelta);
         break;
     }
   }

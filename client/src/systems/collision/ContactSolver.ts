@@ -8,6 +8,10 @@ const _tempVec1 = new THREE.Vector3();
 const _line1 = new THREE.Line3();
 const _targetSeg = new THREE.Vector3();
 const _targetTri = new THREE.Vector3();
+const _localCapsule = new Capsule();
+
+/** Cache for inverted world matrices to avoid expensive per-mesh re-inversion. */
+const _invMatrixCache = new WeakMap<THREE.Mesh, THREE.Matrix4>();
 
 export class ContactSolver {
   constructor() {}
@@ -23,30 +27,35 @@ export class ContactSolver {
       if (!mesh.geometry.boundsTree) continue;
 
       const worldMatrix = mesh.matrixWorld;
-      const meshInvMatrix = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
+      
+      // Get or update cached inverted matrix for static meshes
+      let invMatrix = _invMatrixCache.get(mesh);
+      if (!invMatrix) {
+        invMatrix = new THREE.Matrix4().copy(worldMatrix).invert();
+        _invMatrixCache.set(mesh, invMatrix);
+      }
 
-      // Transform capsule to local mesh space
-      const localCapsule = new Capsule();
-      localCapsule.copy(capsule);
-      localCapsule.start.applyMatrix4(meshInvMatrix);
-      localCapsule.end.applyMatrix4(meshInvMatrix);
+      // Transform capsule to local mesh space using the reusable localCapsule
+      _localCapsule.copy(capsule);
+      _localCapsule.start.applyMatrix4(invMatrix);
+      _localCapsule.end.applyMatrix4(invMatrix);
       
       // Scale radius for local space (assuming uniform scale)
       const meshScale = _tempVec1.setFromMatrixScale(worldMatrix).x;
       const invScale = 1.0 / meshScale;
-      localCapsule.radius = capsule.radius * invScale;
+      _localCapsule.radius = capsule.radius * invScale;
       
-      localCapsule.getBoundingBox(_capsuleBox);
+      _localCapsule.getBoundingBox(_capsuleBox);
 
       mesh.geometry.boundsTree.shapecast({
         intersectsBounds: (box) => {
           return box.intersectsBox(_capsuleBox);
         },
         intersectsTriangle: (tri) => {
-          _line1.set(localCapsule.start, localCapsule.end);
+          _line1.set(_localCapsule.start, _localCapsule.end);
           const dist = segmentToTriangleClosestPoints(_line1, tri, _targetSeg, _targetTri);
           
-          if (dist < localCapsule.radius) {
+          if (dist < _localCapsule.radius) {
             const normal = new THREE.Vector3().subVectors(_targetSeg, _targetTri);
             
             // If the distance is 0 (segment pierces triangle), the normal is undefined.
@@ -61,7 +70,7 @@ export class ContactSolver {
             const worldNormal = normal.transformDirection(worldMatrix).normalize();
             
             // Convert local depth back to world depth
-            const localDepth = localCapsule.radius - dist;
+            const localDepth = _localCapsule.radius - dist;
             const worldDepth = localDepth * meshScale;
 
             contacts.push({
@@ -88,14 +97,16 @@ export class ContactSolver {
       for (let i = 0; i < result.length; i++) {
         const other = result[i];
         const normalDot = contact.normal.dot(other.normal);
-        const distSq = contact.point.distanceToSquared(other.point);
 
-        if (normalDot > 0.99 && distSq < 0.05) {
-          isDuplicate = true;
-          if (contact.depth > other.depth) {
-            result[i] = contact;
+        if (normalDot > 0.99) {
+          const distSq = contact.point.distanceToSquared(other.point);
+          if (distSq < 0.05) {
+            isDuplicate = true;
+            if (contact.depth > other.depth) {
+              result[i] = contact;
+            }
+            break;
           }
-          break;
         }
       }
       if (!isDuplicate) {

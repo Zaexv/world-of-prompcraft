@@ -104,7 +104,7 @@ export class SceneManager {
     this.lighting = new Lighting(this.scene);
 
     this.terrain = new Terrain(this.scene);
-    this.water = new Water(this.scene);
+    this.water = new Water(this.scene, this.renderer);
 
     // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);
@@ -223,7 +223,7 @@ export class SceneManager {
   tick(): number {
     const delta = this.clock.getDelta();
 
-    this.water.update(delta, this.playerX, this.playerZ);
+    this.water.update(delta, this.camera, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);
 
     this.forest.update(delta);

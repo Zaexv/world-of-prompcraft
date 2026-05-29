@@ -63,7 +63,9 @@ export class WorldBuilder {
     rotation?: [number, number, number];
     scale?: number;
     label?: string;
+    persist?: boolean;
   }, pushToUndo = true): THREE.Object3D | undefined {
+    const persist = params.persist ?? true;
     let placed = this.objects.get(params.objectId);
     const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
     const snappedPosition: [number, number, number] = [params.position[0], y, params.position[2]];
@@ -73,7 +75,7 @@ export class WorldBuilder {
     let undoRecorded = false;
 
     if (placed && !this.matchesPlacement(placed, params.objectType, snappedPosition, rotation, scale, label)) {
-      if (pushToUndo) {
+      if (pushToUndo && persist) {
         this.pushUndoState();
         undoRecorded = true;
       }
@@ -90,7 +92,7 @@ export class WorldBuilder {
       placed.scale = scale;
       placed.label = label;
     } else {
-      if (pushToUndo && !undoRecorded) {
+      if (pushToUndo && !undoRecorded && persist) {
         this.pushUndoState();
       }
 
@@ -104,16 +106,18 @@ export class WorldBuilder {
         group.rotation.set(rotation[0], rotation[1], rotation[2]);
       }
 
-      placed = {
-        id: params.objectId,
-        type: params.objectType,
-        group,
-        position: snappedPosition,
-        rotation,
-        scale,
-        label,
-      };
-      this.objects.set(params.objectId, placed);
+      if (persist) {
+        placed = {
+          id: params.objectId,
+          type: params.objectType,
+          group,
+          position: snappedPosition,
+          rotation,
+          scale,
+          label,
+        };
+        this.objects.set(params.objectId, placed);
+      }
     }
 
     // Ensure it's in the scene (it might have been removed by chunk unloading)
@@ -128,7 +132,9 @@ export class WorldBuilder {
       this.collisionSystem.addCollidableFiltered(group);
     }
 
-    this.persistence.save(this.objects);
+    if (persist) {
+      this.persistence.save(this.objects);
+    }
 
     return group;
   }

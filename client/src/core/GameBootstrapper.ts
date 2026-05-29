@@ -139,6 +139,9 @@ export function bootstrap(
   terrain.onChunkLoaded   = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
   terrain.onChunkUnloaded = (cx, cz)         => worldGenerator.onChunkUnloaded(cx, cz);
 
+  // Initialize terrain (preloads starting area) AFTER callbacks are wired
+  terrain.init();
+
   // eslint-disable-next-line prefer-const
   let engine: GameEngine;
 

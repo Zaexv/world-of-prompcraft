@@ -149,7 +149,7 @@ npm run dev
 
 Open **http://localhost:5173**, create a character, and start talking to NPCs.
 
-> **💡 Tip:** You can also use Docker Compose: `docker compose up` from the project root.
+> **🚀 Performance Tip (Windows):** If you experience stuttering while moving, ensure you use **http://127.0.0.1:5173**. Windows can have 500ms delays resolving `localhost` via IPv6, which interrupts high-frequency game engine requests. The project now includes an automatic redirect to 127.0.0.1 in development to ensure smoothness.
 
 ---
 

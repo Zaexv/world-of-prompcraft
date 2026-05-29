@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { WorldManifest } from '../state/WorldManifest';
+import type { WorldManifest, PathDefinition } from '../state/WorldManifest';
 
 let worldManifest: WorldManifest | null = null;
 
@@ -9,6 +9,10 @@ let _biomeStart     = 120;
 let _transitionWidth = 100;
 let _biomeAmplitudes: Record<string, number> = {};
 let _envCached = false;
+
+/** Spatial index for paths: Map<"chunkX,chunkZ", PathDefinition[]> */
+const _pathSpatialIndex: Map<string, PathDefinition[]> = new Map();
+const _PATH_CHUNK_SIZE = 64; // Match Terrain.ts
 
 function _cacheEnv(): void {
   if (_envCached) return;
@@ -21,6 +25,30 @@ function _cacheEnv(): void {
       _biomeAmplitudes[k] = v.height_modifier_amplitude ?? 1.0;
     }
   }
+
+  // Rebuild path spatial index
+  _pathSpatialIndex.clear();
+  const paths = worldManifest?.getPaths?.() ?? [];
+  for (const path of paths) {
+    const minX = Math.min(path.start[0], path.end[0]) - path.width;
+    const maxX = Math.max(path.start[0], path.end[0]) + path.width;
+    const minZ = Math.min(path.start[1], path.end[1]) - path.width;
+    const maxZ = Math.max(path.start[1], path.end[1]) + path.width;
+
+    const startCX = Math.floor(minX / _PATH_CHUNK_SIZE);
+    const endCX   = Math.floor(maxX / _PATH_CHUNK_SIZE);
+    const startCZ = Math.floor(minZ / _PATH_CHUNK_SIZE);
+    const endCZ   = Math.floor(maxZ / _PATH_CHUNK_SIZE);
+
+    for (let cx = startCX; cx <= endCX; cx++) {
+      for (let cz = startCZ; cz <= endCZ; cz++) {
+        const key = `${cx},${cz}`;
+        if (!_pathSpatialIndex.has(key)) _pathSpatialIndex.set(key, []);
+        _pathSpatialIndex.get(key)!.push(path);
+      }
+    }
+  }
+
   _envCached = true;
 }
 
@@ -347,8 +375,11 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
     _colorResult.b += _colorTemp.b * w;
   }
 
-  // Paint roads on the terrain
-  const paths = worldManifest?.getPaths?.() ?? [];
+  // Paint roads on the terrain using spatial index
+  const cx = Math.floor(x / _PATH_CHUNK_SIZE);
+  const cz = Math.floor(z / _PATH_CHUNK_SIZE);
+  const paths = _pathSpatialIndex.get(`${cx},${cz}`) ?? [];
+  
   let roadBlend = 0;
   for (const path of paths) {
     const d = distToSegment(x, z, path.start[0], path.start[1], path.end[0], path.end[1]);
@@ -390,6 +421,7 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
 
   return _colorResult;
 }
+
 
 /**
  * Returns a per-biome surface noise value [-1..1] at (x, z).

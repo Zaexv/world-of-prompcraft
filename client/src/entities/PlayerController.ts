@@ -299,7 +299,8 @@ export class PlayerController {
     } else {
       // --- Kinematic Capsule Physics ---
       const moveVec = new THREE.Vector3(dx, 0, dz);
-      const meshes = this.collisionSystem?.getStaticMeshes() ?? [];
+      // Optimization: Only consider meshes within 20m of the player for movement physics.
+      const meshes = this.collisionSystem?.getStaticMeshes(this.position, 20) ?? [];
       
       // Sync capsule position to current player position
       this.capsule.set(
@@ -422,7 +423,8 @@ export class PlayerController {
 
     // (b) Object collision — raycast against collidable meshes
     if (this.collisionSystem) {
-      const collidables = this.collisionSystem.getCollidableObjects();
+      // Optimization: Only raycast against meshes within the camera's zoom distance.
+      const collidables = this.collisionSystem.getStaticMeshes(this.position, armLength);
       if (collidables.length > 0) {
         this._raycaster.set(this._rayOrigin, this._rayDir);
         this._raycaster.far = armLength;

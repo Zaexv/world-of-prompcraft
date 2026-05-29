@@ -1,47 +1,216 @@
 /**
  * NPCAppearance — Roblox-style procedural mesh for NPCs.
- * Box torso, box head, cylinder arms/legs — same proportions grid as Player.
+ * Optimized with Singleton Geometry & Material caching.
  */
 import { applyCharacterPBR } from '../utils/PBRMaps';
-
 import * as THREE from 'three';
 import type { NPCPlaceholderStyle } from './NPCModels';
 
-// ── Shared proportions grid (must match RaceModels.ts / Player.ts) ────────────
 export const NPC_Y_LEG   = 0.44;
 export const NPC_Y_TORSO = 1.29;
 export const NPC_Y_ARM   = 1.40;
 export const NPC_Y_HEAD  = 1.99;
-export const NPC_HEAD_HALF = 0.26; // half of fixed head height 0.52
-// Derived helpers for accessories
-export const NPC_TORSO_TOP = NPC_Y_TORSO + 0.44; // 1.73
-export const NPC_HEAD_TOP  = NPC_Y_HEAD + NPC_HEAD_HALF; // 2.25
+export const NPC_HEAD_HALF = 0.26;
+export const NPC_TORSO_TOP = NPC_Y_TORSO + 0.44; 
+export const NPC_HEAD_TOP  = NPC_Y_HEAD + NPC_HEAD_HALF;
 
 export interface AppearanceData {
-  // Box torso (height always 0.88)
   bodyWidth: number;
   bodyDepth: number;
   bodyColor: number;
-  // Box head (height always 0.52)
   headWidth: number;
   headDepth: number;
   headColor: number;
-  // Eyes — set emissiveIntensity=0 to skip (accessory handles it instead)
   eyeColor: number;
   eyeEmissive: number;
   eyeEmissiveIntensity: number;
-  // Cylinder arms
   armRadius: number;
   armColor: number;
-  // Cylinder legs
   legRadius: number;
   legColor: number;
-  // Belt
   beltColor: number;
-  // Cone hat on top of head (radius=0 → skip)
   hatRadius: number;
   hatHeight: number;
   hatColor: number;
+}
+
+/** Global cache for NPC geometry and materials to minimize memory usage in dense crowds. */
+const _geometryCache: Map<string, THREE.BufferGeometry> = new Map();
+const _materialCache: Map<string, THREE.MeshStandardMaterial> = new Map();
+
+function getSharedGeo(key: string, factory: () => THREE.BufferGeometry): THREE.BufferGeometry {
+  let geo = _geometryCache.get(key);
+  if (!geo) {
+    geo = factory();
+    _geometryCache.set(key, geo);
+  }
+  return geo;
+}
+
+function getSharedMat(key: string, factory: () => THREE.MeshStandardMaterial): THREE.MeshStandardMaterial {
+  let mat = _materialCache.get(key);
+  if (!mat) {
+    mat = factory();
+    _materialCache.set(key, mat);
+  }
+  return mat;
+}
+
+export function buildProceduralMesh(
+  group: THREE.Group,
+  appearance: AppearanceData,
+  style: NPCPlaceholderStyle,
+): THREE.MeshStandardMaterial[] {
+  const a = appearance;
+  const materials: THREE.MeshStandardMaterial[] = [];
+  const ARM_X = a.bodyWidth / 2 + a.armRadius + 0.02;
+  const LEG_X = a.bodyWidth / 4;
+
+  // ── Torso ──
+  const bodyGeo = getSharedGeo(`${style}_body`, () => new THREE.BoxGeometry(a.bodyWidth, 0.88, a.bodyDepth));
+  const bodyMat = getSharedMat(`${style}_body`, () => npcMat(a.bodyColor));
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.name = 'body';
+  body.position.y = NPC_Y_TORSO;
+  body.castShadow = true;
+  group.add(body);
+  materials.push(bodyMat);
+
+  // Belt
+  const beltGeo = getSharedGeo(`${style}_belt`, () => new THREE.TorusGeometry(a.bodyWidth / 2 - 0.01, 0.028, 5, 14));
+  const beltMat = getSharedMat(`${style}_belt`, () => npcMat(a.beltColor, 0.6, 0.15));
+  const belt = new THREE.Mesh(beltGeo, beltMat);
+  belt.name = 'belt';
+  belt.position.y = NPC_Y_TORSO - 0.28;
+  belt.rotation.x = Math.PI / 2;
+  group.add(belt);
+  materials.push(beltMat);
+
+  // ── Head ──
+  const headGeo = getSharedGeo(`${style}_head`, () => new THREE.BoxGeometry(a.headWidth, 0.52, a.headDepth));
+  const headMat = getSharedMat(`${style}_head`, () => npcMat(a.headColor, 0.88));
+  const head = new THREE.Mesh(headGeo, headMat);
+  head.name = 'head';
+  head.position.y = NPC_Y_HEAD;
+  head.castShadow = true;
+  group.add(head);
+  materials.push(headMat);
+
+  // Eyes
+  if (a.eyeEmissiveIntensity > 0) {
+    const eyeGeo = getSharedGeo('eye_sphere', () => new THREE.SphereGeometry(0.046, 8, 6));
+    const eyeMat = getSharedMat(`${style}_eye`, () => npcMat(a.eyeColor, 0.05, 0, a.eyeEmissive, a.eyeEmissiveIntensity));
+    const ex = a.headWidth * 0.22;
+    const ez = a.headDepth / 2 + 0.02;
+    const lEye = new THREE.Mesh(eyeGeo, eyeMat);
+    lEye.name = 'leftEye';
+    lEye.position.set(-ex, NPC_Y_HEAD + 0.03, ez);
+    group.add(lEye);
+    const rEye = lEye.clone();
+    rEye.name = 'rightEye';
+    rEye.position.x = ex;
+    group.add(rEye);
+    materials.push(eyeMat);
+  }
+
+  // Hat
+  if (a.hatRadius > 0) {
+    const hatGeo = getSharedGeo(`${style}_hat`, () => new THREE.ConeGeometry(a.hatRadius, a.hatHeight, 8));
+    const hatMat = getSharedMat(`${style}_hat`, () => npcMat(a.hatColor));
+    const hat = new THREE.Mesh(hatGeo, hatMat);
+    hat.name = 'hat';
+    hat.position.y = NPC_HEAD_TOP + a.hatHeight / 2;
+    group.add(hat);
+    materials.push(hatMat);
+  }
+
+  // ── Arms ──
+  const armGeo = getSharedGeo(`${style}_arm`, () => new THREE.CylinderGeometry(a.armRadius, a.armRadius, 0.66, 10));
+  const handGeo = getSharedGeo(`${style}_hand`, () => new THREE.SphereGeometry(a.armRadius + 0.01, 8, 5));
+  const armMat = getSharedMat(`${style}_arm`, () => npcMat(a.armColor, 0.78));
+
+  const lArm = new THREE.Mesh(armGeo, armMat);
+  lArm.name = 'leftArm';
+  lArm.position.set(-ARM_X, NPC_Y_ARM, 0);
+  lArm.castShadow = true;
+  group.add(lArm);
+  childMesh(lArm, handGeo, armMat, 0, -0.37, 0);
+
+  const rArm = new THREE.Mesh(armGeo, armMat);
+  rArm.name = 'rightArm';
+  rArm.position.set(ARM_X, NPC_Y_ARM, 0);
+  rArm.castShadow = true;
+  group.add(rArm);
+  childMesh(rArm, handGeo, armMat, 0, -0.37, 0);
+  materials.push(armMat);
+
+  // ── Legs ──
+  const legGeo = getSharedGeo(`${style}_leg`, () => new THREE.CylinderGeometry(a.legRadius, a.legRadius, 0.82, 10));
+  const bootGeo = getSharedGeo(`${style}_boot`, () => new THREE.CylinderGeometry(a.legRadius + 0.01, a.legRadius + 0.02, 0.22, 10));
+  const toeGeo = getSharedGeo(`${style}_toe`, () => new THREE.SphereGeometry(a.legRadius + 0.015, 8, 5));
+  const legMat = getSharedMat(`${style}_leg`, () => npcMat(a.legColor, 0.75));
+  const bootMat = getSharedMat(`${style}_boot`, () => npcMat(darken(a.legColor, 0.22), 0.80));
+  
+  const legHalfHeight = 0.41;
+  const hipY = NPC_Y_LEG + legHalfHeight;
+
+  const lLegPivot = new THREE.Group();
+  lLegPivot.name = 'leftLeg';
+  lLegPivot.position.set(-LEG_X, hipY, 0);
+  group.add(lLegPivot);
+  const lLeg = new THREE.Mesh(legGeo, legMat);
+  lLeg.position.set(0, -legHalfHeight, 0);
+  lLeg.castShadow = true;
+  lLegPivot.add(lLeg);
+  const lBoot = childMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+  childMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+  const rLegPivot = new THREE.Group();
+  rLegPivot.name = 'rightLeg';
+  rLegPivot.position.set(LEG_X, hipY, 0);
+  group.add(rLegPivot);
+  const rLeg = new THREE.Mesh(legGeo, legMat);
+  rLeg.position.set(0, -legHalfHeight, 0);
+  rLeg.castShadow = true;
+  rLegPivot.add(rLeg);
+  const rBoot = childMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+  childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+  materials.push(legMat);
+
+  applyCharacterPBR(group);
+  return materials;
+}
+
+function npcMat(
+  color: number,
+  roughness = 0.78,
+  metalness = 0,
+  emissive?: number,
+  emissiveIntensity?: number,
+): THREE.MeshStandardMaterial {
+  const params: THREE.MeshStandardMaterialParameters = {
+    color,
+    roughness,
+    metalness,
+    flatShading: true,
+  };
+  if (emissive !== undefined && emissive !== 0) {
+    params.emissive = new THREE.Color(emissive);
+    if (emissiveIntensity !== undefined) params.emissiveIntensity = emissiveIntensity;
+  }
+  return new THREE.MeshStandardMaterial(params);
+}
+
+function childMesh(
+  parent: THREE.Object3D,
+  geo: THREE.BufferGeometry,
+  mat: THREE.Material,
+  x: number, y: number, z: number,
+): THREE.Mesh {
+  const child = new THREE.Mesh(geo, mat);
+  child.position.set(x, y, z);
+  parent.add(child);
+  return child;
 }
 
 export function darken(hex: number, amount: number): number {
@@ -181,173 +350,4 @@ export function getPlaceholderAppearance(style: NPCPlaceholderStyle): Appearance
     default:
       throw new Error(`Unknown NPC placeholder style: ${style}`);
   }
-}
-
-export function buildProceduralMesh(
-  group: THREE.Group,
-  appearance: AppearanceData,
-  _color: number,
-): THREE.MeshStandardMaterial[] {
-  const a = appearance;
-  const materials: THREE.MeshStandardMaterial[] = [];
-  const ARM_X = a.bodyWidth / 2 + a.armRadius + 0.02;
-  const LEG_X = a.bodyWidth / 4;
-
-  // ── Torso ──
-  const bodyMat = npcMat(a.bodyColor);
-  const body = new THREE.Mesh(new THREE.BoxGeometry(a.bodyWidth, 0.88, a.bodyDepth), bodyMat);
-  body.name = 'body';
-  body.position.y = NPC_Y_TORSO;
-  body.castShadow = true;
-  group.add(body);
-  materials.push(bodyMat);
-
-  // Belt
-  const beltMat = npcMat(a.beltColor, 0.6, 0.15);
-  const belt = new THREE.Mesh(
-    new THREE.TorusGeometry(a.bodyWidth / 2 - 0.01, 0.028, 5, 14),
-    beltMat,
-  );
-  belt.name = 'belt';
-  belt.position.y = NPC_Y_TORSO - 0.28;
-  belt.rotation.x = Math.PI / 2;
-  group.add(belt);
-  materials.push(beltMat);
-
-  // ── Head ──
-  const headMat = npcMat(a.headColor, 0.88);
-  const head = new THREE.Mesh(new THREE.BoxGeometry(a.headWidth, 0.52, a.headDepth), headMat);
-  head.name = 'head';
-  head.position.y = NPC_Y_HEAD;
-  head.castShadow = true;
-  group.add(head);
-  materials.push(headMat);
-
-  // Eyes (skip if intensity=0 — accessory provides custom eyes for that style)
-  if (a.eyeEmissiveIntensity > 0) {
-    const eyeMat = npcMat(a.eyeColor, 0.05, 0, a.eyeEmissive, a.eyeEmissiveIntensity);
-    const eyeGeo = new THREE.SphereGeometry(0.046, 8, 6);
-    const ex = a.headWidth * 0.22;
-    const ez = a.headDepth / 2 + 0.02;
-    const lEye = new THREE.Mesh(eyeGeo, eyeMat);
-    lEye.name = 'leftEye';
-    lEye.position.set(-ex, NPC_Y_HEAD + 0.03, ez);
-    group.add(lEye);
-    const rEye = lEye.clone();
-    rEye.name = 'rightEye';
-    rEye.position.x = ex;
-    group.add(rEye);
-    materials.push(eyeMat);
-  }
-
-  // Hat
-  if (a.hatRadius > 0) {
-    const hatMat = npcMat(a.hatColor);
-    const hat = new THREE.Mesh(new THREE.ConeGeometry(a.hatRadius, a.hatHeight, 8), hatMat);
-    hat.name = 'hat';
-    hat.position.y = NPC_HEAD_TOP + a.hatHeight / 2;
-    group.add(hat);
-    materials.push(hatMat);
-  }
-
-  // ── Arms ──
-  const armMat = npcMat(a.armColor, 0.78);
-  const armGeo = new THREE.CylinderGeometry(a.armRadius, a.armRadius, 0.66, 10);
-  const handGeo = new THREE.SphereGeometry(a.armRadius + 0.01, 8, 5);
-
-  const lArm = new THREE.Mesh(armGeo, armMat);
-  lArm.name = 'leftArm';
-  lArm.position.set(-ARM_X, NPC_Y_ARM, 0);
-  lArm.castShadow = true;
-  group.add(lArm);
-  childMesh(lArm, handGeo, armMat, 0, -0.37, 0);
-
-  const rArm = new THREE.Mesh(armGeo, armMat);
-  rArm.name = 'rightArm';
-  rArm.position.set(ARM_X, NPC_Y_ARM, 0);
-  rArm.castShadow = true;
-  group.add(rArm);
-  childMesh(rArm, handGeo, armMat, 0, -0.37, 0);
-  materials.push(armMat);
-
-  // ── Legs ──
-  const legMat = npcMat(a.legColor, 0.75);
-  const legGeo = new THREE.CylinderGeometry(a.legRadius, a.legRadius, 0.82, 10);
-  const bootMat = npcMat(darken(a.legColor, 0.22), 0.80);
-  const bootGeo = new THREE.CylinderGeometry(a.legRadius + 0.01, a.legRadius + 0.02, 0.22, 10);
-  const toeGeo  = new THREE.SphereGeometry(a.legRadius + 0.015, 8, 5);
-  const legHalfHeight = 0.41;
-  const hipY = NPC_Y_LEG + legHalfHeight;
-
-  const lLegPivot = new THREE.Group();
-  lLegPivot.name = 'leftLeg';
-  lLegPivot.position.set(-LEG_X, hipY, 0);
-  group.add(lLegPivot);
-  const lLeg = new THREE.Mesh(legGeo, legMat);
-  lLeg.position.set(0, -legHalfHeight, 0);
-  lLeg.castShadow = true;
-  lLegPivot.add(lLeg);
-  const lBoot = childMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
-  childMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
-
-  const rLegPivot = new THREE.Group();
-  rLegPivot.name = 'rightLeg';
-  rLegPivot.position.set(LEG_X, hipY, 0);
-  group.add(rLegPivot);
-  const rLeg = new THREE.Mesh(legGeo, legMat);
-  rLeg.position.set(0, -legHalfHeight, 0);
-  rLeg.castShadow = true;
-  rLegPivot.add(rLeg);
-  const rBoot = childMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
-  childMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
-  materials.push(legMat);
-
-  applyCharacterPBR(group);
-  return materials;
-}
-
-function npcMat(
-  color: number,
-  roughness = 0.78,
-  metalness = 0,
-  emissive?: number,
-  emissiveIntensity?: number,
-): THREE.MeshStandardMaterial {
-  const params: THREE.MeshStandardMaterialParameters = {
-    color,
-    roughness,
-    metalness,
-    flatShading: true,
-  };
-  if (emissive !== undefined && emissive !== 0) {
-    params.emissive = new THREE.Color(emissive);
-    if (emissiveIntensity !== undefined) params.emissiveIntensity = emissiveIntensity;
-  }
-  return new THREE.MeshStandardMaterial(params);
-}
-
-function childMesh(
-  parent: THREE.Mesh,
-  geo: THREE.BufferGeometry,
-  mat: THREE.Material,
-  x: number, y: number, z: number,
-): THREE.Mesh {
-  const child = new THREE.Mesh(geo, mat);
-  child.position.set(x, y, z);
-  parent.add(child);
-  return child;
-}
-
-export function applyFlatShading(group: THREE.Group): void {
-  group.traverse((child) => {
-    if (child instanceof THREE.Mesh) {
-      const mats = Array.isArray(child.material) ? child.material : [child.material];
-      for (const mat of mats) {
-        if (mat instanceof THREE.MeshStandardMaterial) {
-          mat.flatShading = true;
-          mat.needsUpdate = true;
-        }
-      }
-    }
-  });
 }
