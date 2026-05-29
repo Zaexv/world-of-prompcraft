@@ -28,8 +28,8 @@ def get_llm(settings: Settings) -> BaseChatModel:
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
             base_url=settings.openai_api_base,
             temperature=settings.llm_temperature,
-            max_tokens=settings.max_tokens,  # type: ignore[call-arg]
-            request_timeout=_HTTP_TIMEOUT,
+            max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
+            request_timeout=settings.openai_request_timeout_seconds,
         )
     if settings.llm_provider == "ollama":
         return ChatOpenAI(
@@ -37,6 +37,8 @@ def get_llm(settings: Settings) -> BaseChatModel:
             api_key="ollama",  # type: ignore[arg-type]
             base_url=settings.ollama_base_url,
             temperature=settings.llm_temperature,
-            max_tokens=settings.max_tokens,  # type: ignore[call-arg]
+            max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
+            request_timeout=8.0,
+            max_retries=0,
         )
     raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")

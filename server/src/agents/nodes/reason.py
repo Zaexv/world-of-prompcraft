@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
@@ -14,12 +15,21 @@ if TYPE_CHECKING:
     from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
+_ACTION_INTENT_PATTERNS = re.compile(
+    r"\b(attack|fight|hit|kill|trade|buy|sell|shop|quest|item|heal|use|equip|give|take)\b",
+    re.IGNORECASE,
+)
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     """Construct the system prompt from NPC personality and world context."""
     world = state.get("world_context", {})
     player = state.get("player_state", {})
+
+    nearby_entities = world.get("nearby_entities", [])
+    compact_nearby = nearby_entities[:8] if isinstance(nearby_entities, list) else []
+    inventory = player.get("inventory", [])
+    compact_inventory = inventory[:10] if isinstance(inventory, list) else []
 
     parts = [
         f"You are {state['npc_name']}, an NPC in the world of Promptcraft.",
@@ -31,7 +41,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         f"- Zone: {world.get('zone', 'Unknown')}",
         f"- Time of day: {world.get('time_of_day', 'day')}",
         f"- Weather: {world.get('weather', 'clear')}",
-        f"- Nearby entities: {json.dumps(world.get('nearby_entities', []))}",
+        f"- Nearby entities: {json.dumps(compact_nearby)}",
     ]
 
     # Recent world events for situational awareness
@@ -46,7 +56,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
             f"- HP: {player.get('hp', '?')}/{player.get('max_hp', '?')}",
             f"- Mana: {player.get('mana', '?')}/{player.get('max_mana', '?')}",
             f"- Level: {player.get('level', '?')}",
-            f"- Inventory: {json.dumps(player.get('inventory', []))}",
+            f"- Inventory: {json.dumps(compact_inventory)}",
         ]
     )
 
@@ -95,7 +105,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     if recent_chat:
         parts.append("")
         parts.append("## Recent World Chat (you can reference or react to these)")
-        for msg in recent_chat:
+        for msg in recent_chat[-2:]:
             parts.append(f"  [{msg.get('player', '?')}]: {msg.get('text', '')}")
 
     # RAG: retrieve relevant lore based on the player's prompt
@@ -114,6 +124,16 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     return "\n".join(parts)
 
 
+def _build_compact_system_prompt(state: NPCAgentState) -> str:
+    world = state.get("world_context", {})
+    return (
+        f"You are {state.get('npc_name', 'an NPC')} in {world.get('zone', 'the area')} in a fantasy RPG world. "
+        f"Personality: {state.get('npc_personality', 'helpful villager')}. "
+        f"Mood: {state.get('mood', 'neutral')}. "
+        "Reply naturally in 1-2 short sentences in character. Do not mention being an AI."
+    )
+
+
 def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
     """Return a reason node function closed over the given LLM and tools."""
     llm_with_tools = llm.bind_tools(tools) if tools else llm
@@ -128,9 +148,19 @@ def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
             elif isinstance(msg, dict) and msg.get("role") == "human":
                 player_prompt = msg.get("content", "")
                 break
-        system_prompt = _build_system_prompt(state, player_prompt)
-        messages = [SystemMessage(content=system_prompt), *state["messages"]]
-        ai_message = await llm_with_tools.ainvoke(messages)
+        prompt_stripped = player_prompt.strip()
+        short_social = len(prompt_stripped) <= 18 and not _ACTION_INTENT_PATTERNS.search(
+            prompt_stripped
+        )
+        system_prompt = (
+            _build_compact_system_prompt(state)
+            if short_social
+            else _build_system_prompt(state, player_prompt)
+        )
+        msg_tail = state["messages"][-1:] if short_social else state["messages"]
+        messages = [SystemMessage(content=system_prompt), *msg_tail]
+        active_llm = llm if short_social else llm_with_tools
+        ai_message = await active_llm.ainvoke(messages)
         return {"messages": [ai_message]}
 
     return reason_node

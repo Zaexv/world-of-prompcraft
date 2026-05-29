@@ -6,6 +6,8 @@ import random
 import re
 from typing import TYPE_CHECKING, Any
 
+from ..config import settings
+
 if TYPE_CHECKING:
     from fastapi import WebSocket
 
@@ -536,7 +538,7 @@ async def _handle_interaction(
     npc_name = data.get("npcName") or "Unknown Creature"
     personality_key = data.get("personalityKey") or ""
     player_id = data.get("playerId", data.get("player_id")) or manager.get_player_id(websocket)
-    prompt = data.get("prompt", "")
+    prompt = str(data.get("prompt", data.get("text", ""))).strip()
     player_state_raw = data.get("playerState", data.get("player_state", {}))
 
     # Bug 10: Reject unregistered players instead of falling back to "default"
@@ -660,10 +662,12 @@ async def _handle_interaction(
                     prompt=prompt,
                     player_state=player_dict,
                 ),
-                timeout=30.0,
+                timeout=settings.agent_invoke_timeout_seconds,
             )
         except TimeoutError:
-            logger.warning("Agent invocation timed out for NPC %s", npc_id)
+            logger.warning(
+                "Agent invocation timed out for npc_id=%s player_id=%s", npc_id, player_id
+            )
             return {
                 "type": "agent_response",
                 "npcId": npc_id,

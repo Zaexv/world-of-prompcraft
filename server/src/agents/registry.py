@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 from typing import TYPE_CHECKING, Any
 
@@ -27,6 +28,7 @@ class AgentRegistry:
         # Each NPC gets its own shared pending_actions list and world_state snapshot dict
         # so that tool closures can write into them during invocation.
         self._shared_state: dict[str, dict[str, Any]] = {}
+        self._response_cache: dict[str, dict[str, Any]] = {}
         self._build_agents()
 
     def _build_agents(self) -> None:
@@ -174,6 +176,12 @@ class AgentRegistry:
 
         npc_config = self._world_state.get_npc_config(npc_id)
         world_context = self._world_state.get_context_for_npc(npc_id, player_id)
+        cache_key = hashlib.sha256(
+            f"{npc_id}|{player_id}|{prompt}|{player_state.get('hp')}|{world_context.get('zone')}".encode()
+        ).hexdigest()
+        cached = self._response_cache.get(cache_key)
+        if cached is not None:
+            return cached
 
         # Populate the tool-closure snapshot before invocation
         self._populate_world_snapshot(npc_id, player_id)
@@ -225,9 +233,14 @@ class AgentRegistry:
                 "relationship_score": result.get("relationship_score", 0),
             }
 
-        return {
+        response_payload = {
             "dialogue": result.get("response_text", "..."),
             "actions": pending,
             "playerStateUpdate": player.to_dict() if player else None,
             "npcStateUpdate": npc_state_update,
         }
+        if not pending:
+            self._response_cache[cache_key] = response_payload
+            if len(self._response_cache) > 512:
+                self._response_cache.pop(next(iter(self._response_cache)), None)
+        return response_payload

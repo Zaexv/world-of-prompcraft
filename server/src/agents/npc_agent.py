@@ -10,7 +10,7 @@ from .nodes.act import make_act_node
 from .nodes.reason import make_reason_node
 from .nodes.reflect import reflect_node
 from .nodes.respond import respond_node
-from .nodes.summarize import _should_summarize, make_summarize_node
+from .nodes.summarize import make_summarize_node
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -69,11 +69,7 @@ def create_npc_agent(
     )
     graph.add_edge("act", "reason")
     graph.add_edge("respond", "reflect")
-    graph.add_conditional_edges(
-        "reflect",
-        _should_summarize,
-        {"summarize": "summarize", "end": END},
-    )
+    graph.add_edge("reflect", END)
     graph.add_edge("summarize", END)
 
     checkpointer = MemorySaver()
