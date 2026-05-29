@@ -51,6 +51,12 @@ function getSharedMaterial(): THREE.MeshStandardMaterial {
     metalness: 0.0,
     flatShading: false,
     emissive: new THREE.Color(0x000000),
+    // The scene.environment PMREM map is captured from the blue sky/background.
+    // On shadowed, desaturated (rocky) ground this blue reflection dominates the
+    // warm direct lights and makes the floor read cold blue-grey. Disable env
+    // reflection on the terrain entirely — the ground is lit purely by the warm
+    // sun + hemisphere + ambient, never by the blue sky.
+    envMapIntensity: 0.0,
   });
 
   applyTerrainPBR(sharedMaterial);
