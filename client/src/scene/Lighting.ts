@@ -92,18 +92,14 @@ export class Lighting {
     }
 
     // ── Moon ─────────────────────────────────────────────────────────────────
+    // The moon is currently OFF (intensity 0) and nothing turns it on, so it
+    // must NOT cast shadows — otherwise three.js renders a full-scene shadow
+    // depth pass every frame for a light that contributes zero illumination.
+    // (Re-enable castShadow + the shadow camera config below if a day/night
+    // cycle ever activates the moon.)
     this.moon = new THREE.DirectionalLight(0x9fb9ff, 0); // 0 -> OFF
     this.moon.position.set(-150, 120, -200);
-    this.moon.castShadow = true;
-    this.moon.shadow.mapSize.set(1024, 1024);
-    this.moon.shadow.camera.near = 1;
-    this.moon.shadow.camera.far = 500;
-    this.moon.shadow.camera.left   = -80;
-    this.moon.shadow.camera.right  =  80;
-    this.moon.shadow.camera.top    =  80;
-    this.moon.shadow.camera.bottom = -80;
-    this.moon.shadow.bias       = -0.0003;
-    this.moon.shadow.normalBias =  0.02;
+    this.moon.castShadow = false;
     this.moon.target.position.set(0, 0, 0);
     scene.add(this.moon);
     scene.add(this.moon.target);
@@ -137,15 +133,12 @@ export class Lighting {
     scene.fog = new THREE.FogExp2(0x9ec8e0, 0.0006);
   }
 
-  /** Move both shadow frustums to stay centred on the player. */
+  /** Keep the sun's shadow frustum centred on the player. */
   trackPlayer(x: number, z: number): void {
     this.sun.position.set(x + 200, 160, z + 100);
     this.sun.target.position.set(x, 0, z);
     this.sun.target.updateMatrixWorld();
-
-    this.moon.position.set(x - 150, 120, z - 200);
-    this.moon.target.position.set(x, 0, z);
-    this.moon.target.updateMatrixWorld();
+    // The moon is off and casts no shadow, so its frustum needs no tracking.
   }
 
   /** Pin celestial discs to their sky directions and update the flare streak. */
