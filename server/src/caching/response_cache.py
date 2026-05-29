@@ -6,8 +6,6 @@ import hashlib
 import json
 from typing import Any
 
-import redis
-
 
 class ResponseCache:
     """Cache LLM responses by prompt hash to reduce API calls."""
@@ -27,10 +25,12 @@ class ResponseCache:
         """
         self.enabled = enabled
         self.default_ttl = default_ttl
-        self.redis_client: redis.Redis | None = None
+        self.redis_client: Any | None = None
 
         if enabled:
             try:
+                import redis
+
                 self.redis_client = redis.from_url(redis_url, decode_responses=True)
                 self.redis_client.ping()
             except Exception:
@@ -64,7 +64,9 @@ class ResponseCache:
             key = self._make_key(npc_id, player_id, prompt, temperature)
             cached = self.redis_client.get(key)
             if cached:
-                return json.loads(cached)  # type: ignore[no-any-return]
+                loaded = json.loads(cached)
+                if isinstance(loaded, dict):
+                    return loaded
         except Exception:
             pass
 
@@ -101,7 +103,7 @@ class ResponseCache:
         try:
             keys = self.redis_client.keys(pattern)
             if keys:
-                return self.redis_client.delete(*keys)
+                return int(self.redis_client.delete(*keys))
         except Exception:
             pass
 
