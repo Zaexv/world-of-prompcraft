@@ -193,6 +193,7 @@ function npcMat(
     roughness,
     metalness,
     flatShading: true,
+    dithering: true, // Prevent banding in dark areas
   };
   if (emissive !== undefined && emissive !== 0) {
     params.emissive = new THREE.Color(emissive);
