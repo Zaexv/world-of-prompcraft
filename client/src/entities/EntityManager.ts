@@ -31,8 +31,17 @@ export class EntityManager {
 
   /**
    * Create and register an NPC, adding it to the scene immediately.
+   *
+   * Idempotent by id: if an NPC with the same id already exists (e.g. the
+   * client re-joined after a WebSocket reconnect and the server re-sent the
+   * full NPC list), the previous instance is disposed and removed from the
+   * scene first. Without this, re-joins leak the old mesh and NPCs visibly
+   * multiply.
    */
   addNPC(config: NPCConfig): NPC {
+    if (this.npcs.has(config.id)) {
+      this.removeNPC(config.id);
+    }
     const npc = NPC.create(config, this.assetLoader);
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
