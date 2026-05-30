@@ -16,6 +16,7 @@ import { WorldManifest } from '../state/WorldManifest';
 import { ZoneTracker } from '../systems/ZoneTracker';
 import { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import { DungeonSystem } from '../systems/DungeonSystem';
+import { AudioSystem } from '../audio/AudioSystem';
 import { AssetLoader } from '../utils/asset/AssetLoader';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
@@ -102,7 +103,12 @@ export function bootstrap(
   playerController.setCollisionSystem(collisionSystem);
 
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
-  const reactionSystem    = new ReactionSystem(scene, playerState, npcStateStore, worldState, entityManager);
+
+  const audioSystem = AudioSystem.getInstance();
+  audioSystem.init();
+  audioSystem.playStartMusic();
+
+  const reactionSystem    = new ReactionSystem(scene, playerState, npcStateStore, worldState, entityManager, audioSystem);
 
   const worldBuilder = new WorldBuilder(scene, terrain);
   worldBuilder.setCollisionSystem(collisionSystem);

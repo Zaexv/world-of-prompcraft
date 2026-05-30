@@ -185,6 +185,15 @@ export interface WorldRemoveParams {
   objectId: string;
 }
 
+export interface PlayMusicParams {
+  mood: string;
+  description?: string;
+  notes?: Array<{ note: string; duration: string; time: number }>;
+  duration?: number;
+  tempo?: number;
+  scale?: string;
+}
+
 export type Action =
   | { kind: "damage"; params: DamageParams }
   | { kind: "heal"; params: HealParams }
@@ -198,7 +207,8 @@ export type Action =
   | { kind: "complete_quest"; params: CompleteQuestParams }
   | { kind: "advance_objective"; params: AdvanceObjectiveParams }
   | { kind: "world_spawn"; params: WorldSpawnParams }
-  | { kind: "world_remove"; params: WorldRemoveParams };
+  | { kind: "world_remove"; params: WorldRemoveParams }
+  | { kind: "play_music"; params: PlayMusicParams };
 
 // ── Shared Data Shapes ────────────────────────────────────────────────────────
 
