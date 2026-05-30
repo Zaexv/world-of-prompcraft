@@ -31,6 +31,7 @@ vi.mock('tone', () => {
     chain: vi.fn(() => chainable),
     connect: vi.fn().mockReturnThis(),
     dispose: vi.fn(),
+    frequency: { rampTo: vi.fn(), setValueAtTime: vi.fn(), exponentialRampToValueAtTime: vi.fn() },
   };
   const mockWithChain = {
     ...mockSynth,
@@ -177,6 +178,14 @@ describe('AudioSystem', () => {
     const a = AudioSystem.getInstance();
     await a.init();
     expect(() => a.playStartMusic()).not.toThrow();
+  });
+
+  it('should play movement SFX without throwing', async () => {
+    const { AudioSystem } = await import('../audio/AudioSystem');
+    const a = AudioSystem.getInstance();
+    await a.init();
+    expect(() => a.playSfx('footstep')).not.toThrow();
+    expect(() => a.playSfx('water_step')).not.toThrow();
   });
 
   it('should dispose without error', async () => {

@@ -202,6 +202,48 @@ export const SFX: Record<string, SfxDefinition> = {
     },
   },
 
+  jump: {
+    play(dest) {
+      const s = new Tone.Synth({
+        oscillator: { type: 'triangle' },
+        envelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.08 },
+        volume: -14,
+      }).connect(dest);
+      const now = Tone.now();
+      s.triggerAttackRelease('C4', '16n', now);
+      // Quick upward pitch sweep gives a springy "boing" lift-off.
+      s.frequency.setValueAtTime('C4', now);
+      s.frequency.exponentialRampToValueAtTime('G4', now + 0.12);
+      Tone.Draw.schedule(() => s.dispose(), now + 0.3);
+    },
+  },
+
+  water_step: {
+    play(dest) {
+      // Swoosh: pink noise that swells in and out through a band-pass filter
+      // sweeping up then back down — water being pushed aside and rushing back,
+      // rather than a sharp percussive splash.
+      const n = new Tone.NoiseSynth({
+        noise: { type: 'pink' },
+        // Long tail: water keeps sloshing for a while after the footfall, so it
+        // sustains gently then fades out slowly rather than cutting off.
+        envelope: { attack: 0.1, decay: 0.5, sustain: 0.18, release: 0.7 },
+        volume: -16,
+      });
+      const filter = new Tone.Filter({ type: 'bandpass', frequency: 300, Q: 1.1 });
+      const now = Tone.now();
+      // Rising-then-slowly-falling sweep is the "moving water" motion: it surges
+      // up quickly, then takes its time settling back as the water comes to rest.
+      filter.frequency.setValueAtTime(250, now);
+      filter.frequency.exponentialRampToValueAtTime(1200, now + 0.18);
+      filter.frequency.exponentialRampToValueAtTime(350, now + 0.95);
+      n.connect(filter);
+      filter.connect(dest);
+      n.triggerAttackRelease(0.6, now);
+      Tone.Draw.schedule(() => { n.dispose(); filter.dispose(); }, now + 1.4);
+    },
+  },
+
   death: {
     play(dest) {
       const s = shortSynth('sawtooth', 150, 0.8, -8);
