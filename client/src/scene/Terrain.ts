@@ -296,7 +296,7 @@ export class Terrain {
       if (fDist < OUTER) {
         const raw = Math.max(0, Math.min(1, (fDist - INNER) / (OUTER - INNER)));
         const flatness = 1 - raw * raw * (3 - 2 * raw); // smoothstep, 1=flat at centre
-        h *= 1 - flatness;
+        h = h * (1 - flatness) + 4.0 * flatness; // Force height 4.0 at centre
       }
     }
 

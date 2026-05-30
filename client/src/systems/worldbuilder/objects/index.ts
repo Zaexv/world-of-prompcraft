@@ -6,7 +6,7 @@ import * as furniture from './furniture';
 
 export type ObjectType = 
   | 'moonwell' | 'tower' | 'ruins' | 'altar' | 'runic_stone' | 'wooden_fence' | 'pavilion' | 'portal_arch'
-  | 'malaka_house' | 'malaka_house_reconstructed' | 'malaka_church' | 'malaka_castle' | 'roman_amphitheatre' | 'road'
+  | 'malaka_house' | 'malaka_house_reconstructed' | 'malaka_ermita' | 'malaka_church' | 'malaka_castle' | 'malaka_wall' | 'malaka_tower' | 'roman_amphitheatre' | 'road'
   | 'mushroom_cluster' | 'ancient_tree' | 'crystal_cluster'
   | 'campfire' | 'bonfire' | 'lantern';
 
@@ -26,8 +26,11 @@ export function buildObject(type: string, pos: THREE.Vector3, scale: number, lab
     // Mediterranean City
     case 'malaka_house': return mediterranean.buildMalakaHouse(pos, scale);
     case 'malaka_house_reconstructed': return mediterranean.buildMalakaHouseReconstructed(pos, scale);
+    case 'malaka_ermita': return mediterranean.buildMalakaErmita(pos, scale);
     case 'malaka_church': return mediterranean.buildMalakaChurch(pos, scale);
     case 'malaka_castle': return mediterranean.buildMalakaCastle(pos, scale);
+    case 'malaka_wall': return mediterranean.buildMalakaWall(pos, scale);
+    case 'malaka_tower': return mediterranean.buildMalakaTower(pos, scale);
     case 'roman_amphitheatre': return mediterranean.buildRomanAmphitheatre(pos, scale);
     
     case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);

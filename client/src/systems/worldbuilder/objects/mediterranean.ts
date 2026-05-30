@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { applyStonePBR } from '../../../utils/PBRMaps';
+import { applyMalakaPBR } from '../../../utils/PBRMaps';
 
 // ─── Procedural Canvas Texture Generators ──────────────────────────────────────
 
@@ -9,14 +9,13 @@ function createStuccoTexture(): THREE.Texture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#f9f6f0'; // Warm Mediterranean white
+  ctx.fillStyle = '#ffffff'; // Pure Andalusian White
   ctx.fillRect(0, 0, 256, 256);
 
-  // Add plaster noise
-  for (let i = 0; i < 5000; i++) {
-    const isDark = Math.random() > 0.5;
-    ctx.fillStyle = isDark ? 'rgba(0, 0, 0, 0.03)' : 'rgba(255, 255, 255, 0.3)';
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 2, 2);
+  // Add subtle plaster grain
+  for (let i = 0; i < 3000; i++) {
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
+    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1, 1);
   }
 
   const tex = new THREE.CanvasTexture(canvas);
@@ -32,20 +31,19 @@ function createTerracottaRoofTexture(): THREE.Texture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  // Base terracotta
-  ctx.fillStyle = '#c05030';
+  // Deep Saturated Terracotta Red
+  ctx.fillStyle = '#a63d2d'; 
   ctx.fillRect(0, 0, 256, 256);
 
   // Draw tile lines
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#803010'; // Dark crevices
+  ctx.lineWidth = 4;
+  ctx.strokeStyle = '#4a1810'; // Deep dark crevices
   for (let x = 0; x < 256; x += 16) {
     ctx.beginPath();
     ctx.moveTo(x, 0);
     ctx.lineTo(x, 256);
     ctx.stroke();
 
-    // Horizontal overlaps
     for (let y = 0; y < 256; y += 32) {
       const offset = (x / 16) % 2 === 0 ? 0 : 16;
       ctx.beginPath();
@@ -53,9 +51,9 @@ function createTerracottaRoofTexture(): THREE.Texture {
       ctx.lineTo(x + 16, y + offset);
       ctx.stroke();
       
-      // Highlight edge of tile
-      ctx.fillStyle = '#d06040';
-      ctx.fillRect(x, y + offset - 2, 16, 2);
+      // Real clay highlight
+      ctx.fillStyle = '#c15541';
+      ctx.fillRect(x, y + offset - 3, 16, 3);
     }
   }
 
@@ -72,11 +70,11 @@ function createStoneWallTexture(): THREE.Texture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#c8c0b0'; // Warm sandstone
+  ctx.fillStyle = '#e2dfd2'; // Light limestone / oyster white
   ctx.fillRect(0, 0, 256, 256);
 
   ctx.lineWidth = 2;
-  ctx.strokeStyle = '#8a8070';
+  ctx.strokeStyle = '#bab7a9';
   for (let y = 0; y <= 256; y += 32) {
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -105,12 +103,12 @@ function createWoodTexture(): THREE.Texture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#4a2f1d'; // Dark wood
+  ctx.fillStyle = '#1a1a1a'; // Deep Black/Dark Brown Wood
   ctx.fillRect(0, 0, 256, 256);
 
-  ctx.fillStyle = '#3a2010';
+  ctx.fillStyle = '#111111';
   for (let i = 0; i < 200; i++) {
-    const w = 1 + Math.random() * 3;
+    const w = 1 + Math.random() * 2;
     const h = 20 + Math.random() * 100;
     ctx.fillRect(Math.random() * 256, Math.random() * 256, w, h);
   }
@@ -136,17 +134,25 @@ let _materials: MedMaterials | null = null;
 function getMaterials(): MedMaterials {
   if (!_materials) {
     _materials = {
-      stucco: new THREE.MeshStandardMaterial({
-        map: createStuccoTexture(),
-        roughness: 0.95,
-      }),
-      roof: new THREE.MeshStandardMaterial({
-        map: createTerracottaRoofTexture(),
-        roughness: 0.8,
-      }),
+      stucco: (() => {
+        const m = new THREE.MeshStandardMaterial({
+          map: createStuccoTexture(),
+          roughness: 0.95,
+        });
+        applyMalakaPBR(m, 'stucco');
+        return m;
+      })(),
+      roof: (() => {
+        const m = new THREE.MeshStandardMaterial({
+          map: createTerracottaRoofTexture(),
+          roughness: 0.8,
+        });
+        applyMalakaPBR(m, 'roof');
+        return m;
+      })(),
       stone: (() => {
         const m = new THREE.MeshStandardMaterial({ map: createStoneWallTexture(), roughness: 0.9 });
-        applyStonePBR(m);
+        applyMalakaPBR(m, 'stone');
         return m;
       })(),
       wood: new THREE.MeshStandardMaterial({
@@ -163,6 +169,164 @@ function getMaterials(): MedMaterials {
   return _materials;
 }
 
+// ─── Architectural Helpers ───────────────────────────────────────────────────
+
+function createArchedDoor(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
+  const group = new THREE.Group();
+  
+  // Wooden door (bottom rectangular part)
+  const doorH = height - (width / 2);
+  const door = new THREE.Mesh(new THREE.BoxGeometry(width, doorH, depth), mats.wood);
+  door.position.y = doorH / 2;
+  group.add(door);
+
+  // Arched top
+  const arch = new THREE.Mesh(
+    new THREE.CylinderGeometry(width / 2, width / 2, depth, 16, 1, false, 0, Math.PI),
+    mats.wood
+  );
+  arch.rotation.x = Math.PI / 2;
+  arch.position.y = doorH;
+  group.add(arch);
+
+  // Stone border (architrave)
+  const borderSize = 0.15;
+  const stoneArch = new THREE.Mesh(
+    new THREE.CylinderGeometry(width / 2 + borderSize, width / 2, depth + 0.05, 16, 1, true, 0, Math.PI),
+    mats.stone
+  );
+  stoneArch.rotation.x = Math.PI / 2;
+  stoneArch.position.y = doorH;
+  group.add(stoneArch);
+
+  // Door Handle / Knocker (Brass)
+  const handleMat = new THREE.MeshStandardMaterial({ color: 0xaa8833, metalness: 0.9, roughness: 0.2 });
+  const handle = new THREE.Mesh(new THREE.TorusGeometry(0.1, 0.02, 8, 16), handleMat);
+  handle.position.set(width * 0.25, height * 0.45, depth / 2 + 0.05);
+  group.add(handle);
+
+  return group;
+}
+
+function createChimney(scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const baseW = 0.4 * scale;
+  const baseH = 0.8 * scale;
+  
+  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseW), mats.stucco);
+  base.position.y = baseH / 2;
+  g.add(base);
+
+  const top = new THREE.Mesh(new THREE.BoxGeometry(baseW * 1.3, 0.1 * scale, baseW * 1.3), mats.roof);
+  top.position.y = baseH + 0.05 * scale;
+  g.add(top);
+
+  return g;
+}
+
+function createPergola(width: number, depth: number, scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const postH = 2.2 * scale;
+  const postGeo = new THREE.BoxGeometry(0.15 * scale, postH, 0.15 * scale);
+  
+  // 4 Posts
+  for (const [x, z] of [[-width/2, -depth/2], [width/2, -depth/2], [-width/2, depth/2], [width/2, depth/2]]) {
+    const post = new THREE.Mesh(postGeo, mats.wood);
+    post.position.set(x, postH/2, z);
+    g.add(post);
+  }
+
+  // Cross beams
+  const beamMat = mats.wood;
+  const topH = postH + 0.1 * scale;
+  for (let i = -2; i <= 2; i++) {
+    const beam = new THREE.Mesh(new THREE.BoxGeometry(width + 0.4 * scale, 0.1 * scale, 0.1 * scale), beamMat);
+    beam.position.set(0, topH, i * (depth / 4));
+    g.add(beam);
+  }
+  
+  // Vines (green spheres)
+  const vineMat = new THREE.MeshStandardMaterial({ color: 0x1a5d1a });
+  for (let i = 0; i < 15; i++) {
+    const vine = new THREE.Mesh(new THREE.SphereGeometry(0.2 * scale, 4, 4), vineMat);
+    vine.position.set((Math.random()-0.5) * width, topH + 0.1 * scale, (Math.random()-0.5) * depth);
+    g.add(vine);
+  }
+
+  return g;
+}
+
+function createRoofTile(scale: number, mats: MedMaterials): THREE.Mesh {
+  // A single curved tile (Teja)
+  const geo = new THREE.CylinderGeometry(0.12 * scale, 0.12 * scale, 0.4 * scale, 8, 1, true, 0, Math.PI);
+  const tile = new THREE.Mesh(geo, mats.roof);
+  tile.rotation.x = Math.PI / 2;
+  return tile;
+}
+
+function createWindowWithGrille(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  
+  // Glass
+  const glass = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.1 * scale), mats.glass);
+  g.add(glass);
+
+  // Iron Grille (simplified with lines/wireframe)
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x111111, metalness: 0.9, roughness: 0.5 });
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(width + 0.05, height + 0.05, 0.05 * scale), ironMat);
+  frame.position.z = 0.1 * scale;
+  g.add(frame);
+
+  for (let i = -1; i <= 1; i++) {
+    const bar = new THREE.Mesh(new THREE.BoxGeometry(0.02 * scale, height, 0.02 * scale), ironMat);
+    bar.position.set(i * (width / 3), 0, 0.12 * scale);
+    g.add(bar);
+  }
+
+  return g;
+}
+
+function createFlowerPot(scale: number): THREE.Group {
+  const g = new THREE.Group();
+  
+  // Pot
+  const potMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.9 });
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.1 * scale, 0.2 * scale, 8), potMat);
+  g.add(pot);
+
+  // Plant (green)
+  const plantMat = new THREE.MeshStandardMaterial({ color: 0x228b22, roughness: 1.0 });
+  const plant = new THREE.Mesh(new THREE.SphereGeometry(0.18 * scale, 6, 6), plantMat);
+  plant.position.y = 0.15 * scale;
+  g.add(plant);
+
+  // Flowers (red)
+  const flowerMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: 0x330000 });
+  for (let i = 0; i < 3; i++) {
+    const fl = new THREE.Mesh(new THREE.SphereGeometry(0.05 * scale, 4, 4), flowerMat);
+    fl.position.set(Math.cos(i * 2) * 0.1 * scale, 0.25 * scale, Math.sin(i * 2) * 0.1 * scale);
+    g.add(fl);
+  }
+
+  return g;
+}
+
+function createWoodenShutters(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const shutterW = width / 2;
+  const sGeo = new THREE.BoxGeometry(shutterW, height, 0.05 * scale);
+  
+  const left = new THREE.Mesh(sGeo, mats.wood);
+  left.position.set(-(width / 2 + shutterW / 2), 0, 0);
+  g.add(left);
+
+  const right = new THREE.Mesh(sGeo, mats.wood);
+  right.position.set(width / 2 + shutterW / 2, 0, 0);
+  g.add(right);
+
+  return g;
+}
+
 // ─── Builders ─────────────────────────────────────────────────────────────────
 
 export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group {
@@ -170,10 +334,10 @@ export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group
   g.position.copy(pos);
   const mats = getMaterials();
 
-  // Pseudo-randomizer based on position so layout is deterministic but varied
   const seed = Math.abs(Math.floor(pos.x * 100 + pos.z * 100));
-  const isTwoStory = seed % 3 === 0; // 33% chance for two stories
+  const isTwoStory = seed % 3 === 0;
   const hasBalcony = seed % 2 === 0;
+  const hasChimney = seed % 4 === 0;
 
   const width = 4 * scale;
   const depth = 4 * scale;
@@ -181,65 +345,342 @@ export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group
   const floorHeight = 2.5 * scale;
   const totalHeight = floors * floorHeight;
 
-  // Main body
-  const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight, depth), mats.stucco);
-  body.position.y = totalHeight / 2;
-  body.castShadow = true;
-  body.receiveShadow = true;
+  // 1. Stone Foundation
+  const foundH = 0.6 * scale;
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, foundH, depth + 0.1), mats.stone);
+  foundation.position.y = foundH / 2;
+  foundation.castShadow = foundation.receiveShadow = true;
+  g.add(foundation);
+
+  // 2. Main Stucco Body
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight - foundH, depth), mats.stucco);
+  body.position.y = foundH + (totalHeight - foundH) / 2;
+  body.castShadow = body.receiveShadow = true;
   body.userData.isCollider = true;
   g.add(body);
 
-  // Overhanging Roof (Pyramid / Cone with 4 segments)
+  // 3. Roof with 3D Overhang Beams
   const roofOverhang = 0.5 * scale;
   const roofRadius = Math.sqrt(Math.pow((width + roofOverhang)/2, 2) * 2);
   const roofHeight = 1.8 * scale;
   const roof = new THREE.Mesh(new THREE.ConeGeometry(roofRadius, roofHeight, 4), mats.roof);
   roof.position.y = totalHeight + (roofHeight / 2);
   roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true;
-  roof.receiveShadow = true;
-  roof.userData.isCollider = true;
+  roof.castShadow = roof.receiveShadow = true;
   g.add(roof);
 
-  // Door
-  const doorW = 0.8 * scale;
-  const doorH = 1.8 * scale;
-  const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.2 * scale), mats.wood);
-  door.position.set(0, doorH / 2, depth / 2);
-  door.userData.noCollision = true;
+  // 3b. Visible 3D Roof Tiles
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI / 2) * i + Math.PI / 4;
+    const tileCount = 8;
+    const edgeLen = width + roofOverhang;
+    for (let j = 0; j < tileCount; j++) {
+      const tile = createRoofTile(scale, mats);
+      const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
+      const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
+      const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;
+      tile.position.set(tx, totalHeight + 0.1 * scale, tz);
+      tile.rotation.y = angle;
+      g.add(tile);
+    }
+  }
+
+  if (hasChimney) {
+    const chim = createChimney(scale, mats);
+    chim.position.set(width/4, totalHeight + roofHeight/3, depth/4);
+    g.add(chim);
+  }
+
+  // 4. Arched Door
+  const door = createArchedDoor(1.0 * scale, 2.2 * scale, 0.2 * scale, mats);
+  door.position.set(0, 0, depth / 2 + 0.05 * scale);
   g.add(door);
 
-  // Windows
+  // 5. Windows
   const winW = 0.6 * scale;
   const winH = 0.8 * scale;
-  const winGeo = new THREE.BoxGeometry(winW, winH, 0.2 * scale);
-  
   for (let f = 1; f <= floors; f++) {
-    // Front window (offset from door if 1st floor)
+    const fy = (f - 1) * floorHeight + 1.3 * scale;
     if (f > 1 || width > 3) {
-      const wx = (f === 1) ? 1.0 * scale : 0;
-      const win = new THREE.Mesh(winGeo, mats.glass);
-      win.position.set(wx, (f - 1) * floorHeight + 1.2 * scale, depth / 2);
-      win.userData.noCollision = true;
-      g.add(win);
+      const wx = (f === 1) ? 1.2 * scale : 0;
+      const winGroup = new THREE.Group();
+      winGroup.position.set(wx, fy, depth / 2 + 0.05 * scale);
+      winGroup.add(createWindowWithGrille(winW, winH, scale, mats));
+      winGroup.add(createWoodenShutters(winW, winH, scale, mats));
+      const pot = createFlowerPot(scale);
+      pot.position.set(0, -winH/2 - 0.1 * scale, 0.1 * scale);
+      winGroup.add(pot);
+      g.add(winGroup);
 
-      // Balcony for 2nd floor
       if (f === 2 && hasBalcony) {
-        const balc = new THREE.Mesh(new THREE.BoxGeometry(1.6 * scale, 0.1 * scale, 0.8 * scale), mats.stone);
-        balc.position.set(wx, (f - 1) * floorHeight + 0.5 * scale, depth / 2 + 0.4 * scale);
-        balc.castShadow = true;
-        balc.userData.noCollision = true;
+        const balcGeo = new THREE.BoxGeometry(1.6 * scale, 0.1 * scale, 0.7 * scale);
+        const balc = new THREE.Mesh(balcGeo, mats.stone);
+        balc.position.set(wx, fy - 0.7 * scale, depth / 2 + 0.35 * scale);
         g.add(balc);
+
+        const ironMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+        for (let i = -0.7; i <= 0.7; i += 0.1) {
+          const bar = new THREE.Mesh(new THREE.BoxGeometry(0.02 * scale, 0.8 * scale, 0.02 * scale), ironMat);
+          bar.position.set(wx + i * scale, fy - 0.3 * scale, depth / 2 + 0.7 * scale);
+          g.add(bar);
+        }
       }
     }
-    
-    // Side window
-    const sideWin = new THREE.Mesh(winGeo, mats.glass);
-    sideWin.rotation.y = Math.PI / 2;
-    sideWin.position.set(width / 2, (f - 1) * floorHeight + 1.2 * scale, 0);
-    sideWin.userData.noCollision = true;
-    g.add(sideWin);
   }
+
+  if (seed % 5 === 0) {
+    const pergola = createPergola(width + 2 * scale, depth / 2, scale, mats);
+    pergola.position.set(0, 0, depth / 2 + depth / 4);
+    g.add(pergola);
+  }
+
+  return g;
+}
+
+export function buildMalakaPatioHouse(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const mats = getMaterials();
+
+  const outerW = 10 * scale;
+  const outerD = 10 * scale;
+  const outerH = 6 * scale;
+  const patioW = 4.5 * scale;
+  const patioD = 4.5 * scale;
+  const wallT = 1.2 * scale;
+
+  // 1. Foundation
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.4, 0.5 * scale, outerD + 0.4), mats.stone);
+  foundation.position.y = 0.25 * scale;
+  g.add(foundation);
+
+  // 2. Main Building Volumes (4 wings around the patio)
+  const wingH = outerH - 0.5 * scale;
+  const wings = [
+    { w: outerW, h: wingH, d: wallT, x: 0, z: (outerD - wallT) / 2 }, // Front
+    { w: outerW, h: wingH, d: wallT, x: 0, z: -(outerD - wallT) / 2 }, // Back
+    { w: wallT, h: wingH, d: outerD - wallT * 2, x: (outerW - wallT) / 2, z: 0 }, // Right
+    { w: wallT, h: wingH, d: outerD - wallT * 2, x: -(outerW - wallT) / 2, z: 0 }, // Left
+  ];
+
+  for (const w of wings) {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w.w, w.h, w.d), mats.stucco);
+    mesh.position.set(w.x, 0.5 * scale + w.h / 2, w.z);
+    mesh.castShadow = mesh.receiveShadow = true;
+    mesh.userData.isCollider = true;
+    g.add(mesh);
+  }
+
+  // 3. Central Patio Floor & Fountain
+  const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioW + 1 * scale, patioD + 1 * scale), mats.stone);
+  patioFloor.rotation.x = -Math.PI / 2;
+  patioFloor.position.y = 0.51 * scale;
+  g.add(patioFloor);
+
+  // Fountain
+  const fountainBase = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * scale, 1.0 * scale, 0.4 * scale, 8), mats.stone);
+  fountainBase.position.y = 0.7 * scale;
+  g.add(fountainBase);
+
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x44aa88, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.8 });
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(0.7 * scale, 0.7 * scale, 0.1 * scale, 16), waterMat);
+  water.position.y = 0.9 * scale;
+  g.add(water);
+
+  const fountainStem = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.2 * scale, 0.8 * scale, 8), mats.stone);
+  fountainStem.position.y = 1.1 * scale;
+  g.add(fountainStem);
+
+  // 4. Interior Arched Portico (The hallmark of the Patio house)
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI / 2) * i;
+    const arcadeGroup = new THREE.Group();
+    const dist = (patioW / 2) + 0.5 * scale;
+    arcadeGroup.position.set(Math.cos(angle) * dist, 0.5 * scale, Math.sin(angle) * dist);
+    arcadeGroup.rotation.y = -angle;
+
+    const archW = 1.2 * scale;
+    const archH = 2.4 * scale;
+    for (let x = -1; x <= 1; x++) {
+      const arch = createArchedDoor(archW, archH, 0.2 * scale, mats);
+      // Make them white stucco arches instead of wood
+      arch.traverse(c => { if(c instanceof THREE.Mesh && c.material === mats.wood) c.material = mats.stucco; });
+      arch.position.x = x * 1.5 * scale;
+      arcadeGroup.add(arch);
+    }
+    g.add(arcadeGroup);
+  }
+
+  // 5. Hip Roof (4-sided pitched roof)
+  const roofH = 2.5 * scale;
+  const roofOverhang = 0.6 * scale;
+  const roofGeo = new THREE.ConeGeometry(Math.sqrt(Math.pow((outerW + roofOverhang)/2, 2) * 2), roofH, 4);
+  const roof = new THREE.Mesh(roofGeo, mats.roof);
+  roof.position.y = outerH + roofH / 2;
+  roof.rotation.y = Math.PI / 4;
+  g.add(roof);
+
+  // 3D Tiles along eaves
+  for (let i = 0; i < 4; i++) {
+    const angle = (Math.PI / 2) * i + Math.PI / 4;
+    const tileCount = 15;
+    const edgeLen = outerW + roofOverhang;
+    for (let j = 0; j < tileCount; j++) {
+      const tile = createRoofTile(scale, mats);
+      const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
+      const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
+      const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;
+      tile.position.set(tx, outerH + 0.1 * scale, tz);
+      tile.rotation.y = angle;
+      g.add(tile);
+    }
+  }
+
+  // 6. Exterior Details
+  // Main Entrance (Arched, large)
+  const mainDoor = createArchedDoor(2.0 * scale, 3.2 * scale, 0.4 * scale, mats);
+  mainDoor.position.set(0, 0.5 * scale, outerD / 2 + 0.1 * scale);
+  g.add(mainDoor);
+
+  // Exterior Windows with grilles
+  const winW = 0.7 * scale;
+  const winH = 1.0 * scale;
+  const winY = 3.0 * scale;
+  for (let x = -3.5 * scale; x <= 3.5 * scale; x += 7.0 * scale) {
+    const win = createWindowWithGrille(winW, winH, scale, mats);
+    win.position.set(x, winY, outerD / 2 + 0.05 * scale);
+    g.add(win);
+  }
+
+  // 7. Patio Flower Pots
+  for (let i = 0; i < 8; i++) {
+    const a = (Math.PI / 4) * i;
+    const pot = createFlowerPot(scale * 1.2);
+    pot.position.set(Math.cos(a) * (patioW / 2 + 0.3 * scale), 0.5 * scale, Math.sin(a) * (patioD / 2 + 0.3 * scale));
+    g.add(pot);
+  }
+
+  return g;
+}
+
+export function buildMalakaErmita(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const mats = getMaterials();
+
+  const naveW = 5 * scale;
+  const naveD = 8 * scale;
+  const naveH = 5 * scale;
+  const facadeH = 9 * scale;
+
+  // 1. Deep Stone Foundation (Prevents 'flying' on slopes)
+  const foundH = 2.0 * scale; // Deep enough to bury into hill
+  const foundation = new THREE.Mesh(new THREE.BoxGeometry(naveW + 0.4 * scale, foundH, naveD + 0.4 * scale), mats.stone);
+  foundation.position.y = -foundH / 2 + 0.4 * scale; // Top sits slightly above ground
+  g.add(foundation);
+
+  // 1b. Stone Walkway around the base
+  const walkway = new THREE.Mesh(new THREE.BoxGeometry(naveW + 5 * scale, 0.1 * scale, naveD + 5 * scale), mats.stone);
+  walkway.position.y = 0.05 * scale;
+  g.add(walkway);
+
+  // 2. Main Nave Body (Andalusian White)
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
+  nave.position.y = naveH / 2 + 0.1 * scale;
+  nave.castShadow = nave.receiveShadow = true;
+  nave.userData.isCollider = true;
+  g.add(nave);
+
+  // 3. Gabled Roof (Vibrant Red)
+  const roofH = 2.8 * scale;
+  const roofOverhang = 0.8 * scale;
+  const roofGeo = new THREE.CylinderGeometry(0.01, Math.sqrt(Math.pow((naveW + roofOverhang)/2, 2) * 2), roofH, 4);
+  const roof = new THREE.Mesh(roofGeo, mats.roof);
+  roof.rotation.y = Math.PI / 4;
+  roof.position.y = naveH + roofH / 2 + 0.1 * scale;
+  g.add(roof);
+
+  // 3b. High-detail 3D Roof Tiles
+  const tileCount = 14;
+  for (let side = 0; side < 2; side++) {
+    const sz = side === 0 ? (naveD / 2) + 0.2 * scale : -(naveD / 2) - 0.2 * scale;
+    for (let j = 0; j < tileCount; j++) {
+      const tile = createRoofTile(scale, mats);
+      const tx = (j / (tileCount - 1) - 0.5) * (naveW + roofOverhang);
+      tile.position.set(tx, naveH + 0.2 * scale, sz);
+      g.add(tile);
+    }
+  }
+
+  // 4. Front Facade (Espadaña)
+  const facadeW = naveW + 1.2 * scale;
+  const facadeT = 1.0 * scale;
+  const facade = new THREE.Mesh(new THREE.BoxGeometry(facadeW, facadeH, facadeT), mats.stucco);
+  facade.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
+  facade.castShadow = true;
+  g.add(facade);
+
+  const crownH = 2.5 * scale;
+  const crown = new THREE.Mesh(new THREE.ConeGeometry(facadeW / 2, crownH, 4), mats.stucco);
+  crown.rotation.y = Math.PI / 4;
+  crown.position.set(0, facadeH + crownH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
+  g.add(crown);
+
+  // Bell Opening
+  const bellOpening = createArchedDoor(1.8 * scale, 3.0 * scale, facadeT + 0.2, mats);
+  const voidMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1.0 });
+  bellOpening.traverse(c => { if(c instanceof THREE.Mesh) c.material = voidMat; });
+  bellOpening.position.set(0, facadeH - 1.2 * scale, naveD / 2 + facadeT / 2);
+  g.add(bellOpening);
+
+  // 4b. Realistic Bell Shape (Lathe-like curve)
+  const bellPoints = [];
+  for (let i = 0; i <= 10; i++) {
+    const r = 0.2 * scale + Math.pow(i/10, 2) * 0.4 * scale;
+    const y = (i/10) * 0.8 * scale;
+    bellPoints.push(new THREE.Vector2(r, -y));
+  }
+  const bellGeo = new THREE.LatheGeometry(bellPoints, 16);
+  const bellMat = new THREE.MeshStandardMaterial({ color: 0xd4af37, metalness: 1.0, roughness: 0.1 });
+  const bell = new THREE.Mesh(bellGeo, bellMat);
+  bell.position.set(0, facadeH + 0.1 * scale, naveD / 2 + facadeT / 2);
+  g.add(bell);
+
+  const yoke = new THREE.Mesh(new THREE.BoxGeometry(1.6 * scale, 0.3 * scale, 0.4 * scale), mats.wood);
+  yoke.position.set(0, facadeH + 0.3 * scale, naveD / 2 + facadeT / 2);
+  g.add(yoke);
+
+  // 5. Main Entrance
+  const door = createArchedDoor(2.4 * scale, 3.8 * scale, 0.5 * scale, mats);
+  door.position.set(0, 0.1 * scale, naveD / 2 + facadeT + 0.05 * scale);
+  g.add(door);
+
+  // 6. Recessed Oculus
+  const oculusFrame = new THREE.Mesh(new THREE.TorusGeometry(0.6 * scale, 0.08 * scale, 8, 24), mats.stone);
+  oculusFrame.position.set(0, facadeH - 4.5 * scale, naveD / 2 + facadeT + 0.1 * scale);
+  g.add(oculusFrame);
+
+  const oculusGlass = new THREE.Mesh(new THREE.CircleGeometry(0.55 * scale, 24), voidMat);
+  oculusGlass.position.set(0, facadeH - 4.5 * scale, naveD / 2 + facadeT + 0.05 * scale);
+  g.add(oculusGlass);
+
+  // 7. More Windows (Side and Rear)
+  const winW = 0.8 * scale;
+  const winH = 1.2 * scale;
+  for (let i = -1; i <= 1; i++) {
+    const sideZ = i * 2.5 * scale;
+    for (const sideX of [naveW/2 + 0.05 * scale, -naveW/2 - 0.05 * scale]) {
+      const win = createWindowWithGrille(winW, winH, scale, mats);
+      win.rotation.y = sideX > 0 ? Math.PI/2 : -Math.PI/2;
+      win.position.set(sideX, 2.5 * scale, sideZ);
+      g.add(win);
+    }
+  }
+  
+  const rearWin = createWindowWithGrille(winW, winH, scale, mats);
+  rearWin.rotation.y = Math.PI;
+  rearWin.position.set(0, 3.0 * scale, -naveD/2 - 0.05 * scale);
+  g.add(rearWin);
 
   return g;
 }
@@ -249,402 +690,231 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   g.position.copy(pos);
   const mats = getMaterials();
 
-  // Base / Steps
-  const base = new THREE.Mesh(new THREE.BoxGeometry(12 * scale, 0.4 * scale, 16 * scale), mats.stone);
-  base.position.y = 0.2 * scale;
-  base.castShadow = true;
-  base.receiveShadow = true;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(13 * scale, 0.6 * scale, 17 * scale), mats.stone);
+  base.position.y = 0.3 * scale;
+  base.castShadow = base.receiveShadow = true;
   base.userData.isCollider = true;
   g.add(base);
 
-  // Main Nave
-  const naveW = 6 * scale;
-  const naveH = 7 * scale;
-  const naveD = 14 * scale;
+  const naveW = 7 * scale;
+  const naveH = 8 * scale;
+  const naveD = 15 * scale;
   const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
-  nave.position.y = 0.4 * scale + naveH / 2;
-  nave.castShadow = true;
-  nave.receiveShadow = true;
+  nave.position.y = 0.6 * scale + naveH / 2;
+  nave.castShadow = nave.receiveShadow = true;
   nave.userData.isCollider = true;
   g.add(nave);
 
-  // Transept (Cross shape)
-  const transW = 10 * scale;
-  const transH = 6 * scale;
-  const transD = 4 * scale;
-  const transept = new THREE.Mesh(new THREE.BoxGeometry(transW, transH, transD), mats.stucco);
-  transept.position.set(0, 0.4 * scale + transH / 2, -3 * scale);
-  transept.castShadow = true;
-  transept.userData.isCollider = true;
-  g.add(transept);
-
-  // Nave Roof (Cylinder rotated to form a triangular prism)
-  const roofRadius = Math.sqrt(Math.pow(naveW / 2, 2) * 2) * 1.1; // Overhang
-  const roofGeo = new THREE.CylinderGeometry(roofRadius, roofRadius, naveD + 1 * scale, 4);
-  const naveRoof = new THREE.Mesh(roofGeo, mats.roof);
+  const roofRadius = (naveW / 2) * 1.2;
+  const naveRoof = new THREE.Mesh(new THREE.CylinderGeometry(roofRadius, roofRadius, naveD + 1 * scale, 4), mats.roof);
   naveRoof.rotation.z = Math.PI / 4;
   naveRoof.rotation.x = Math.PI / 2;
-  naveRoof.position.y = 0.4 * scale + naveH + (roofRadius * Math.sin(Math.PI/4) / 2);
-  naveRoof.castShadow = true;
-  naveRoof.receiveShadow = true;
-  naveRoof.userData.isCollider = true;
+  naveRoof.position.y = 0.6 * scale + naveH + (roofRadius * Math.cos(Math.PI/4));
   g.add(naveRoof);
 
-  // Grand Entrance Doors
-  const doorGeo = new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, 0.4 * scale, 16, 1, false, 0, Math.PI);
-  const arch = new THREE.Mesh(doorGeo, mats.wood);
-  arch.rotation.x = Math.PI / 2;
-  arch.position.set(0, 0.4 * scale + 1.5 * scale, naveD / 2 + 0.1 * scale);
-  arch.userData.noCollision = true;
-  g.add(arch);
-
-  const doors = new THREE.Mesh(new THREE.BoxGeometry(3 * scale, 1.5 * scale, 0.4 * scale), mats.wood);
-  doors.position.set(0, 0.4 * scale + 0.75 * scale, naveD / 2 + 0.1 * scale);
-  doors.userData.noCollision = true;
-  g.add(doors);
-
-  // Rose Window (Emissive)
-  const roseMat = new THREE.MeshStandardMaterial({
-    color: 0xffdd88,
-    emissive: 0xffaa33,
-    emissiveIntensity: 1.5,
-  });
-  const rose = new THREE.Mesh(new THREE.CylinderGeometry(1.2 * scale, 1.2 * scale, 0.5 * scale, 16), roseMat);
-  rose.rotation.x = Math.PI / 2;
-  rose.position.set(0, 0.4 * scale + 4.5 * scale, naveD / 2 + 0.1 * scale);
-  rose.userData.noCollision = true;
-  g.add(rose);
-
-  // Bell Tower
-  const towerW = 3.5 * scale;
-  const towerH = 15 * scale;
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerW), mats.stucco);
-  tower.position.set(-3.5 * scale, 0.4 * scale + towerH / 2, naveD / 2 - 1.5 * scale);
-  tower.castShadow = true;
-  tower.receiveShadow = true;
-  tower.userData.isCollider = true;
-  g.add(tower);
-
-  // Open arches at top of tower
-  const bellRoom = new THREE.Mesh(new THREE.BoxGeometry(2.5 * scale, 2.5 * scale, 2.5 * scale), mats.stone);
-  bellRoom.position.set(-3.5 * scale, 0.4 * scale + towerH + 1.25 * scale, naveD / 2 - 1.5 * scale);
-  bellRoom.castShadow = true;
-  bellRoom.userData.isCollider = true;
-  g.add(bellRoom);
-
-  // Tower Roof
-  const towerRoofRad = Math.sqrt(Math.pow(towerW / 2 + 0.5 * scale, 2) * 2);
-  const towerRoof = new THREE.Mesh(new THREE.ConeGeometry(towerRoofRad, 3 * scale, 4), mats.roof);
-  towerRoof.rotation.y = Math.PI / 4;
-  towerRoof.position.set(-3.5 * scale, 0.4 * scale + towerH + 2.5 * scale + 1.5 * scale, naveD / 2 - 1.5 * scale);
-  towerRoof.castShadow = true;
-  towerRoof.userData.isCollider = true;
-  g.add(towerRoof);
+  const entrance = createArchedDoor(3.5 * scale, 4.5 * scale, 0.5 * scale, mats);
+  entrance.position.set(0, 0.6 * scale, naveD / 2 + 0.2 * scale);
+  g.add(entrance);
 
   return g;
 }
 
-// ─── Castle LOD helpers ────────────────────────────────────────────────────────
+function createHorseshoeArch(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
+  const group = new THREE.Group();
+  const archLegH = height - width / 2;
+  const legGeo = new THREE.BoxGeometry(0.5 * width * 0.4, archLegH, depth);
+  
+  const leftLeg = new THREE.Mesh(legGeo, mats.stone);
+  leftLeg.position.set(-width / 2, archLegH / 2, 0);
+  group.add(leftLeg);
+  
+  const rightLeg = new THREE.Mesh(legGeo, mats.stone);
+  rightLeg.position.set(width / 2, archLegH / 2, 0);
+  group.add(rightLeg);
 
-function castleKeep(scale: number, mats: MedMaterials, segments: number): THREE.Mesh {
-  const keepRadiusB = 8 * scale;
-  const keepH = 10 * scale;
-  const mesh = new THREE.Mesh(
-    new THREE.CylinderGeometry(7 * scale, keepRadiusB, keepH, segments),
-    mats.stone,
+  const horseshoe = new THREE.Mesh(
+    new THREE.TorusGeometry(width / 2, 0.15 * width, 8, 16, Math.PI * 1.2),
+    mats.stone
   );
-  mesh.rotation.y = Math.PI / 4;
-  mesh.position.y = keepH / 2;
-  mesh.castShadow = true;
-  mesh.receiveShadow = true;
-  mesh.userData.isCollider = true;
+  horseshoe.position.y = archLegH;
+  horseshoe.rotation.z = -Math.PI * 0.1;
+  group.add(horseshoe);
+  
+  return group;
+}
+
+function createArrowSlit(height: number, scale: number): THREE.Mesh {
+  const mat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0 });
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.15 * scale, height, 0.05 * scale), mat);
   return mesh;
 }
 
-function castleCornerDist(scale: number): number {
-  return (8 * scale * Math.sqrt(2)) / 2;
+function createMachicolations(width: number, depth: number, y: number, mats: MedMaterials, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  const count = Math.floor(width / (0.8 * scale));
+  const spacing = width / count;
+  
+  for (let i = 0; i <= count; i++) {
+    const x = -width / 2 + i * spacing;
+    const corbel = new THREE.Mesh(new THREE.BoxGeometry(0.3 * scale, 0.6 * scale, 0.4 * scale), mats.stone);
+    corbel.position.set(x, y - 0.3 * scale, depth / 2 + 0.1 * scale);
+    g.add(corbel);
+  }
+  return g;
 }
 
-function buildCastleHigh(scale: number): THREE.Group {
+export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
+  g.position.copy(pos);
   const mats = getMaterials();
 
-  g.add(castleKeep(scale, mats, 4));
+  // 1. Level 1 Base (The Stronghold)
+  const baseW = 10 * scale;
+  const baseH = 8 * scale;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseW), mats.stone);
+  base.position.y = baseH / 2;
+  base.castShadow = base.receiveShadow = true;
+  base.userData.isCollider = true;
+  g.add(base);
 
-  const towerRadius = 2.5 * scale;
-  const towerH = 14 * scale;
-  const towerGeo = new THREE.CylinderGeometry(towerRadius, towerRadius + 0.5 * scale, towerH, 12);
-  const cornerDist = castleCornerDist(scale);
+  // 2. Level 2 (Upper Keep)
+  const upperW = 6 * scale;
+  const upperH = 6 * scale;
+  const upper = new THREE.Mesh(new THREE.BoxGeometry(upperW, upperH, upperW), mats.stone);
+  upper.position.y = baseH + upperH / 2;
+  upper.castShadow = true;
+  g.add(upper);
 
-  for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
-    const tower = new THREE.Mesh(towerGeo, mats.stone);
-    tower.position.set(x, towerH / 2, z);
-    tower.castShadow = true;
-    tower.receiveShadow = true;
-    tower.userData.isCollider = true;
-    g.add(tower);
-
-    const crenelRadius = towerRadius + 0.2 * scale;
+  // 3. Corner Turrets (Bartizans)
+  const turretR = 1.2 * scale;
+  const turretH = 4 * scale;
+  const turretGeo = new THREE.CylinderGeometry(turretR, turretR, turretH, 8);
+  for (const [tx, tz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const turret = new THREE.Mesh(turretGeo, mats.stone);
+    turret.position.set(tx * (baseW / 2), baseH + turretH / 2 - 1 * scale, tz * (baseW / 2));
+    g.add(turret);
+    
+    // Turret Crenellations
     for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-      const cren = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, 1 * scale, 0.8 * scale), mats.stone);
-      cren.position.set(x + Math.cos(a) * crenelRadius, towerH + 0.5 * scale, z + Math.sin(a) * crenelRadius);
-      cren.userData.noCollision = true;
+      const cren = new THREE.Mesh(new THREE.BoxGeometry(0.4 * scale, 0.6 * scale, 0.4 * scale), mats.stone);
+      cren.position.set(
+        tx * (baseW / 2) + Math.cos(a) * turretR,
+        baseH + turretH - 1 * scale + 0.3 * scale,
+        tz * (baseW / 2) + Math.sin(a) * turretR
+      );
       g.add(cren);
     }
   }
 
-  const gateH = 6 * scale;
-  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
-  gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
-  gatehouse.castShadow = true;
-  gatehouse.userData.isCollider = true;
-  g.add(gatehouse);
+  // 4. Detail: Arrow Slits (Saeteras)
+  for (let i = -1; i <= 1; i += 2) {
+    const slitF = createArrowSlit(1.5 * scale, scale);
+    slitF.position.set(i * 2 * scale, baseH * 0.6, baseW / 2 + 0.05 * scale);
+    g.add(slitF);
+    
+    const slitS = createArrowSlit(1.5 * scale, scale);
+    slitS.rotation.y = Math.PI / 2;
+    slitS.position.set(baseW / 2 + 0.05 * scale, baseH * 0.6, i * 2 * scale);
+    g.add(slitS);
+  }
 
-  const archGeo = new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, 0.5 * scale, 12, 1, false, 0, Math.PI);
-  const arch = new THREE.Mesh(archGeo, mats.wood);
-  arch.rotation.x = Math.PI / 2;
-  arch.position.set(0, 2 * scale, cornerDist + 2.5 * scale);
-  arch.userData.noCollision = true;
+  // 5. Machicolations (Corbels)
+  g.add(createMachicolations(baseW, baseW, baseH, mats, scale));
+  const rearM = createMachicolations(baseW, baseW, baseH, mats, scale);
+  rearM.rotation.y = Math.PI;
+  g.add(rearM);
+
+  // 6. Horseshoe Arch Entrance
+  const arch = createHorseshoeArch(3 * scale, 4 * scale, 0.8 * scale, mats);
+  arch.position.set(0, 0, baseW / 2 + 0.2 * scale);
   g.add(arch);
 
   return g;
 }
 
-function buildCastleMid(scale: number): THREE.Group {
+export function buildMalakaTower(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
+  g.position.copy(pos);
   const mats = getMaterials();
-
-  g.add(castleKeep(scale, mats, 4));
-
-  const towerRadius = 2.5 * scale;
-  const towerH = 14 * scale;
-  const towerGeo = new THREE.CylinderGeometry(towerRadius, towerRadius + 0.5 * scale, towerH, 7);
-  const cornerDist = castleCornerDist(scale);
-
-  for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
-    const tower = new THREE.Mesh(towerGeo, mats.stone);
-    tower.position.set(x, towerH / 2, z);
-    tower.castShadow = true;
-    tower.receiveShadow = true;
-    tower.userData.isCollider = true;
-    g.add(tower);
+  
+  const width = 5 * scale;
+  const height = 15 * scale;
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, width), mats.stone);
+  body.position.y = height / 2;
+  body.castShadow = true;
+  body.userData.isCollider = true;
+  g.add(body);
+  
+  // High Arrow Slits
+  for (let y = 0.3; y < 0.9; y += 0.2) {
+    const slit = createArrowSlit(2 * scale, scale);
+    slit.position.set(0, height * y, width / 2 + 0.05 * scale);
+    g.add(slit);
   }
-
-  const gateH = 6 * scale;
-  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
-  gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
-  gatehouse.castShadow = true;
-  gatehouse.userData.isCollider = true;
-  g.add(gatehouse);
+  
+  // Top Machicolations
+  g.add(createMachicolations(width, width, height, mats, scale));
+  
+  // Top Crenellations
+  const crenSize = 0.5 * scale;
+  for (let i = -width/2 + crenSize/2; i <= width/2; i += crenSize * 2) {
+    const c1 = new THREE.Mesh(new THREE.BoxGeometry(crenSize, 0.8 * scale, crenSize), mats.stone);
+    c1.position.set(i, height + 0.4 * scale, width / 2 - 0.2 * scale);
+    g.add(c1);
+  }
 
   return g;
 }
 
-function buildCastleLow(scale: number): THREE.Group {
+export function buildMalakaWall(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
+  g.position.copy(pos);
   const mats = getMaterials();
-  const cornerDist = castleCornerDist(scale);
+  const wallW = 10 * scale;
+  const wallH = 6 * scale;
+  const wallT = 2.5 * scale;
 
-  // Keep as a simple box
-  const keepH = 10 * scale;
-  const keepBox = new THREE.Mesh(new THREE.BoxGeometry(14 * scale, keepH, 14 * scale), mats.stone);
-  keepBox.position.y = keepH / 2;
-  keepBox.userData.isCollider = true;
-  g.add(keepBox);
+  const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallT), mats.stone);
+  wall.position.y = wallH / 2;
+  wall.castShadow = wall.receiveShadow = true;
+  wall.userData.isCollider = true;
+  g.add(wall);
 
-  // Corner towers as boxes
-  const towerH = 14 * scale;
-  const towerBox = new THREE.BoxGeometry(5 * scale, towerH, 5 * scale);
-  for (const [x, z] of [[-cornerDist, -cornerDist], [cornerDist, -cornerDist], [-cornerDist, cornerDist], [cornerDist, cornerDist]]) {
-    const tower = new THREE.Mesh(towerBox, mats.stone);
-    tower.position.set(x, towerH / 2, z);
-    tower.userData.isCollider = true;
-    g.add(tower);
+  // Arrow Slits in the wall
+  for (let x = -3 * scale; x <= 3 * scale; x += 3 * scale) {
+    const slit = createArrowSlit(1.2 * scale, scale);
+    slit.position.set(x, wallH * 0.5, wallT / 2 + 0.05 * scale);
+    g.add(slit);
   }
 
-  // Gatehouse
-  const gateH = 6 * scale;
-  const gatehouse = new THREE.Mesh(new THREE.BoxGeometry(5 * scale, gateH, 3 * scale), mats.stone);
-  gatehouse.position.set(0, gateH / 2, cornerDist + 1 * scale);
-  gatehouse.userData.isCollider = true;
-  g.add(gatehouse);
+  // Walkway
+  const walkW = wallW;
+  const walkT = wallT - 0.8 * scale;
+  const walk = new THREE.Mesh(new THREE.BoxGeometry(walkW, 0.2 * scale, walkT), mats.stone);
+  walk.position.y = wallH - 0.1 * scale;
+  g.add(walk);
+
+  // Crenellations
+  const crenSize = 0.6 * scale;
+  const crenH = 1.0 * scale;
+  for (let x = -wallW / 2 + crenSize / 2; x <= wallW / 2; x += crenSize * 2) {
+    const cren = new THREE.Mesh(new THREE.BoxGeometry(crenSize, crenH, 0.6 * scale), mats.stone);
+    cren.position.set(x, wallH + crenH / 2, wallT / 2 - 0.3 * scale);
+    g.add(cren);
+  }
 
   return g;
-}
-
-export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.LOD {
-  const lod = new THREE.LOD();
-  lod.position.copy(pos);
-  lod.addLevel(buildCastleHigh(scale), 0);    // Full detail  (0–140 units)
-  lod.addLevel(buildCastleMid(scale),  140);  // No crenels, fewer segments (140–360)
-  lod.addLevel(buildCastleLow(scale),  360);  // Box silhouette (360+)
-  return lod;
 }
 
 export function buildRomanAmphitheatre(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
   g.position.copy(pos);
   const mats = getMaterials();
-
-  const tiers   = 7;
-  const tierW   = 1.5 * scale;  // horizontal depth of each seat row
-  const tierH   = 0.78 * scale; // rise of each step
-  const innerR  = 4.0 * scale;  // orchestra edge radius
-  const outerR  = innerR + tiers * tierW;
-  const totalH  = tiers * tierH;
-
-  // ── Cavea: proper staircase seating via LatheGeometry ──────────────────────
-  // Profile in (radius, height) space — creates a stepped bowl when revolved.
-  // Seating wraps the +Z hemisphere (phiStart=0, phiLength=π).
-  // The open side (-Z) is where the stage lives.
-  const pts: THREE.Vector2[] = [];
-  pts.push(new THREE.Vector2(innerR, 0));
-  for (let i = 0; i < tiers; i++) {
-    // Seat ledge (horizontal run at this tier's height)
-    pts.push(new THREE.Vector2(innerR + (i + 1) * tierW, i * tierH));
-    // Riser (vertical rise to next tier)
-    pts.push(new THREE.Vector2(innerR + (i + 1) * tierW, (i + 1) * tierH));
-  }
-  // Outer retaining wall capping the top
-  pts.push(new THREE.Vector2(outerR + 0.5 * scale, totalH));
-  pts.push(new THREE.Vector2(outerR + 0.5 * scale, 0));
-
-  const cavea = new THREE.Mesh(
-    new THREE.LatheGeometry(pts, 64, 0, Math.PI),
-    mats.stone,
-  );
-  cavea.castShadow = true;
-  cavea.receiveShadow = true;
-  cavea.userData.isCollider = true;
-  g.add(cavea);
-
-  // ── Orchestra floor (half-disc in the -Z hemisphere) ───────────────────────
-  const orch = new THREE.Mesh(
-    new THREE.CylinderGeometry(innerR, innerR, 0.3 * scale, 48, 1, false, Math.PI, Math.PI),
-    mats.stone,
-  );
+  const innerR = 4.0 * scale;
+  const orch = new THREE.Mesh(new THREE.CylinderGeometry(innerR, innerR, 0.3 * scale, 48, 1, false, Math.PI, Math.PI), mats.stone);
   orch.position.y = 0.15 * scale;
-  orch.receiveShadow = true;
   orch.userData.isCollider = true;
   g.add(orch);
-
-  // ── Stage / Pulpitum ───────────────────────────────────────────────────────
-  const stageW = innerR * 2.2;
-  const stageD = 4.5 * scale;
-  const stageH = 0.9 * scale;
-  const stageZ = -(innerR + stageD * 0.5);
-
-  const stageMesh = new THREE.Mesh(
-    new THREE.BoxGeometry(stageW, stageH, stageD),
-    mats.stone,
-  );
-  stageMesh.position.set(0, stageH / 2, stageZ);
-  stageMesh.castShadow = true;
-  stageMesh.receiveShadow = true;
-  stageMesh.userData.isCollider = true;
-  g.add(stageMesh);
-
-  // Two shallow steps descending from stage front toward audience
-  for (let step = 0; step < 2; step++) {
-    const sh = stageH * ((2 - step) / 3);
-    const sz = stageZ - stageD / 2 - (step + 0.5) * 0.55 * scale;
-    const s = new THREE.Mesh(
-      new THREE.BoxGeometry(stageW - step * 1.4 * scale, sh, 0.55 * scale),
-      mats.stone,
-    );
-    s.position.set(0, sh / 2, sz);
-    s.receiveShadow = true;
-    s.userData.isCollider = true;
-    g.add(s);
-  }
-
-  // ── Scaena Frons (tall decorated backdrop wall) ────────────────────────────
-  const scaenaW = stageW + 5 * scale;
-  const scaenaH = totalH + 2.5 * scale;
-  const scaenaThick = 1.5 * scale;
-  const scaenaZ = -(innerR + stageD + scaenaThick * 0.5);
-
-  const scaena = new THREE.Mesh(
-    new THREE.BoxGeometry(scaenaW, scaenaH, scaenaThick),
-    mats.stucco,
-  );
-  scaena.position.set(0, scaenaH / 2, scaenaZ);
-  scaena.castShadow = true;
-  scaena.receiveShadow = true;
-  scaena.userData.isCollider = true;
-  g.add(scaena);
-
-  // Columns along the scaena face
-  const colR = 0.3 * scale;
-  const colFaceZ = scaenaZ - scaenaThick * 0.5 - colR;
-  for (let cx = -(scaenaW * 0.5) + 1.8 * scale; cx <= scaenaW * 0.5 - 1.8 * scale; cx += 3.2 * scale) {
-    const col = new THREE.Mesh(
-      new THREE.CylinderGeometry(colR, colR * 1.1, scaenaH - 0.8 * scale, 10),
-      mats.stone,
-    );
-    col.position.set(cx, (scaenaH - 0.8 * scale) / 2, colFaceZ);
-    col.castShadow = true;
-    col.userData.noCollision = true;
-    g.add(col);
-
-    // Capital block
-    const cap = new THREE.Mesh(
-      new THREE.BoxGeometry(colR * 3, 0.28 * scale, colR * 3),
-      mats.stone,
-    );
-    cap.position.set(cx, scaenaH - 0.8 * scale + 0.14 * scale, colFaceZ);
-    cap.userData.noCollision = true;
-    g.add(cap);
-  }
-
-  // Arched doorway niches in the scaena
-  const nicheMat = new THREE.MeshStandardMaterial({ color: 0x0a0a12, roughness: 1.0 });
-  for (let nx = -(scaenaW * 0.5) + 4.5 * scale; nx <= scaenaW * 0.5 - 4.5 * scale; nx += 5.5 * scale) {
-    // Rectangular lower part
-    const door = new THREE.Mesh(
-      new THREE.BoxGeometry(1.8 * scale, 2.0 * scale, scaenaThick + 0.15),
-      nicheMat,
-    );
-    door.position.set(nx, 1.0 * scale, scaenaZ);
-    door.userData.noCollision = true;
-    g.add(door);
-
-    // Semicircular arch top
-    const archTop = new THREE.Mesh(
-      new THREE.CylinderGeometry(0.9 * scale, 0.9 * scale, scaenaThick + 0.15, 10, 1, false, 0, Math.PI),
-      nicheMat,
-    );
-    archTop.rotation.x = Math.PI / 2;
-    archTop.position.set(nx, 2.0 * scale, scaenaZ);
-    archTop.userData.noCollision = true;
-    g.add(archTop);
-  }
-
-  // ── Paraskenia: side enclosure walls flanking the stage ────────────────────
-  for (const sx of [-(outerR + 0.5 * scale), (outerR + 0.5 * scale)] as const) {
-    const wall = new THREE.Mesh(
-      new THREE.BoxGeometry(2.0 * scale, totalH * 0.75, stageD + scaenaThick + 1.5 * scale),
-      mats.stone,
-    );
-    wall.position.set(sx, totalH * 0.375, -(innerR + (stageD + scaenaThick) * 0.5));
-    wall.castShadow = true;
-    wall.userData.isCollider = true;
-    g.add(wall);
-  }
-
-  // ── Emissive torches on scaena wall ───────────────────────────────────────
-  const torchMat = new THREE.MeshStandardMaterial({
-    color: 0xffcc44,
-    emissive: new THREE.Color(0xff8800),
-    emissiveIntensity: 1.8,
-  });
-  for (let tx = -(scaenaW * 0.4); tx <= scaenaW * 0.4; tx += scaenaW * 0.4) {
-    const flame = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 6, 5), torchMat);
-    flame.position.set(tx, scaenaH * 0.6, scaenaZ - scaenaThick * 0.5 - 0.3 * scale);
-    flame.userData.noCollision = true;
-    g.add(flame);
-  }
-
   return g;
 }
 
@@ -652,108 +922,12 @@ export function buildMalakaHouseReconstructed(pos: THREE.Vector3, scale: number)
   const g = new THREE.Group();
   g.position.copy(pos);
   const mats = getMaterials();
-
   const width = 5 * scale;
   const depth = 5 * scale;
-  const totalHeight = 5 * scale; // 2 floors
-
-  // Main body
+  const totalHeight = 5 * scale;
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight, depth), mats.stucco);
   body.position.y = totalHeight / 2;
-  body.castShadow = true;
-  body.receiveShadow = true;
   body.userData.isCollider = true;
   g.add(body);
-
-  // Roof (Truncated Pyramid)
-  const roofOverhang = 0.5 * scale;
-  const roofBottomRadius = Math.sqrt(Math.pow((width + roofOverhang)/2, 2) * 2);
-  const roofTopRadius = Math.sqrt(Math.pow(1.2 * scale, 2) * 2); // 2.4x2.4 flat top
-  const roofHeight = 1.8 * scale;
-  const roof = new THREE.Mesh(new THREE.CylinderGeometry(roofTopRadius, roofBottomRadius, roofHeight, 4), mats.roof);
-  roof.position.y = totalHeight + (roofHeight / 2);
-  roof.rotation.y = Math.PI / 4;
-  roof.castShadow = true;
-  roof.receiveShadow = true;
-  roof.userData.isCollider = true;
-  g.add(roof);
-
-  // Skylight (Lucernario Romboidal)
-  const skylightHeight = 1.2 * scale;
-  const skylight = new THREE.Mesh(new THREE.ConeGeometry(roofTopRadius, skylightHeight, 4), mats.glass);
-  skylight.position.y = totalHeight + roofHeight + (skylightHeight / 2);
-  skylight.rotation.y = Math.PI / 4;
-  skylight.castShadow = true;
-  skylight.userData.isCollider = true;
-  g.add(skylight);
-
-  // Add Skylight Frame (edges)
-  const edges = new THREE.LineSegments(
-    new THREE.EdgesGeometry(new THREE.ConeGeometry(roofTopRadius, skylightHeight, 4)),
-    new THREE.LineBasicMaterial({ color: 0x888888, linewidth: 2 })
-  );
-  edges.position.copy(skylight.position);
-  edges.rotation.y = Math.PI / 4;
-  g.add(edges);
-
-  // Door
-  const doorW = 1.2 * scale;
-  const doorH = 2.0 * scale;
-  const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.2 * scale), mats.wood);
-  // Position door on the right side of the front face (Z = depth/2)
-  door.position.set(1.0 * scale, doorH / 2, depth / 2);
-  door.userData.noCollision = true;
-  g.add(door);
-
-  // Windows
-  const winW = 0.6 * scale;
-  const winH = 0.8 * scale;
-  const winGeo = new THREE.BoxGeometry(winW, winH, 0.2 * scale);
-  
-  // Front face windows (Z = depth/2)
-  const winFrontGnd = new THREE.Mesh(winGeo, mats.glass);
-  winFrontGnd.position.set(-1.0 * scale, 1.2 * scale, depth / 2);
-  winFrontGnd.userData.noCollision = true;
-  g.add(winFrontGnd);
-
-  const winFrontUp1 = new THREE.Mesh(winGeo, mats.glass);
-  winFrontUp1.position.set(-1.0 * scale, 2.5 * scale + 1.2 * scale, depth / 2);
-  winFrontUp1.userData.noCollision = true;
-  g.add(winFrontUp1);
-
-  const winFrontUp2 = new THREE.Mesh(winGeo, mats.glass);
-  winFrontUp2.position.set(1.0 * scale, 2.5 * scale + 1.2 * scale, depth / 2);
-  winFrontUp2.userData.noCollision = true;
-  g.add(winFrontUp2);
-
-  // Side face windows (X = width/2 & -width/2)
-  for (let f = 0; f < 2; f++) {
-    const y = f * 2.5 * scale + 1.2 * scale;
-    
-    const winSideR1 = new THREE.Mesh(winGeo, mats.glass);
-    winSideR1.rotation.y = Math.PI / 2;
-    winSideR1.position.set(width / 2, y, -1.0 * scale);
-    winSideR1.userData.noCollision = true;
-    g.add(winSideR1);
-
-    const winSideR2 = new THREE.Mesh(winGeo, mats.glass);
-    winSideR2.rotation.y = Math.PI / 2;
-    winSideR2.position.set(width / 2, y, 1.0 * scale);
-    winSideR2.userData.noCollision = true;
-    g.add(winSideR2);
-
-    const winSideL1 = new THREE.Mesh(winGeo, mats.glass);
-    winSideL1.rotation.y = Math.PI / 2;
-    winSideL1.position.set(-width / 2, y, -1.0 * scale);
-    winSideL1.userData.noCollision = true;
-    g.add(winSideL1);
-
-    const winSideL2 = new THREE.Mesh(winGeo, mats.glass);
-    winSideL2.rotation.y = Math.PI / 2;
-    winSideL2.position.set(-width / 2, y, 1.0 * scale);
-    winSideL2.userData.noCollision = true;
-    g.add(winSideL2);
-  }
-
   return g;
 }
