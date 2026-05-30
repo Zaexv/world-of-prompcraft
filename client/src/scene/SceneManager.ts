@@ -101,6 +101,27 @@ export class SceneManager {
     this.skybox = new Skybox(this.scene);
     this.lighting = new Lighting(this.scene);
 
+    // --- Environment Lighting (IBL) ---
+    // Use PMREM to generate a performant indirect lighting map from the skybox.
+    // This provides the 'real life' ground bounce by letting materials reflect
+    // the sky and terrain colors.
+    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+    pmremGenerator.compileCubemapShader();
+    
+    // We'll update the environment map whenever the skybox or biome changes
+    // significantly. For now, a one-time high-quality generation.
+    setTimeout(() => {
+      const renderTarget = pmremGenerator.fromScene(this.scene);
+      this.scene.environment = renderTarget.texture;
+      // The captured environment is dominated by the saturated blue sky
+      // (0x88d0ff). At full strength it casts a cold blue reflection over every
+      // material (trees, characters, buildings — everything except the terrain,
+      // which opts out with envMapIntensity:0) and overpowers the warm sun.
+      // Keep it as a subtle indirect-light fill, not the dominant term.
+      this.scene.environmentIntensity = 0.15;
+      pmremGenerator.dispose();
+    }, 1000);
+
     this.terrain = new Terrain(this.scene);
     this.water = new Water(this.scene);
 
@@ -125,115 +146,82 @@ export class SceneManager {
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
     if (this.composer) {
       this.composer.setSize(window.innerWidth, window.innerHeight);
-      // composer.setSize propagates to TemporalAAPass.setSize, which resets history.
     }
   }
 
-  private updateAdaptiveQuality(delta: number): void {
-    const frameMs = delta * 1000;
-    this.frameTimeMs = THREE.MathUtils.lerp(this.frameTimeMs, frameMs, 0.1);
-    this.perfTimer += delta;
-    if (this.perfTimer < this.PERF_UPDATE_INTERVAL) return;
-    this.perfTimer = 0;
-
-    let nextRatio = this.dynamicPixelRatio;
-    if (this.frameTimeMs > 20) {
-      nextRatio = Math.max(this.minPixelRatio, this.dynamicPixelRatio - 0.1);
-    } else if (this.frameTimeMs < 14) {
-      nextRatio = Math.min(this.maxPixelRatio, this.dynamicPixelRatio + 0.05);
-    }
-
-    if (Math.abs(nextRatio - this.dynamicPixelRatio) < 0.01) return;
-    this.dynamicPixelRatio = nextRatio;
-    this.renderer.setPixelRatio(this.dynamicPixelRatio);
-    // Only resize the renderer drawing buffer — skipping composer.setSize avoids
-    // resetting the TAA history (which causes a dark flash) and GPU pipeline stalls.
-    // The composer targets stay at the previous logical size; the minor mismatch
-    // is imperceptible compared to the artifacts it prevents.
-    this.renderer.setSize(window.innerWidth, window.innerHeight, false);
-  }
-
-  private updateDistanceShadowCasters(delta: number): void {
-    this.shadowTimer += delta;
-    if (this.shadowTimer < this.SHADOW_UPDATE_INTERVAL) return;
-    this.shadowTimer = 0;
-
-    // Rebuild shadow-caster cache every ~2 s (objects are static after world gen).
-    if (++this._shadowCacheFrame >= this.CACHE_REBUILD_FRAMES) {
-      this._shadowCacheFrame = 0;
-      this._shadowCasters = [];
-      this.scene.traverse((child) => {
-        if (child.userData.distanceShadowCaster &&
-            (child instanceof THREE.Mesh || child instanceof THREE.InstancedMesh)) {
-          this._shadowCasters.push(child as THREE.Mesh | THREE.InstancedMesh);
-        }
-      });
-    }
-
-    let changed = false;
-    for (const child of this._shadowCasters) {
-      child.getWorldPosition(this._tmpShadowPos);
-      const dx = this._tmpShadowPos.x - this.playerX;
-      const dz = this._tmpShadowPos.z - this.playerZ;
-      const shadowDistance = typeof child.userData.shadowDistance === 'number'
-        ? child.userData.shadowDistance
-        : this.DEFAULT_SHADOW_DISTANCE;
-      const shouldCast = (dx * dx + dz * dz) <= shadowDistance * shadowDistance;
-      if (child.castShadow !== shouldCast) {
-        child.castShadow = shouldCast;
-        changed = true;
-      }
-    }
-
-    if (changed) {
-      this.renderer.shadowMap.needsUpdate = true;
-    }
-  }
-
-  private updateLOD(): void {
-    // Rebuild LOD list every ~2 s — LOD objects are static after world gen.
-    if (++this._lodCacheFrame >= this.CACHE_REBUILD_FRAMES) {
-      this._lodCacheFrame = 0;
-      this._lodObjects = [];
-      this.scene.traverse((obj) => {
-        if (obj.type === 'LOD') this._lodObjects.push(obj as THREE.LOD);
-      });
-    }
-    for (const lod of this._lodObjects) {
-      lod.update(this.camera);
-    }
-  }
-
-  /** Update player position for effects, water, and shadow frustum tracking. */
-  setPlayerPosition(x: number, z: number): void {
-    this.effects.setPlayerPosition(x, z);
-    this.playerX = x;
-    this.playerZ = z;
-    this.lighting.trackPlayer(x, z);
-  }
-
-  private playerX = 0;
-  private playerZ = 0;
-
-  tick(): number {
+  public update(): void {
     const delta = this.clock.getDelta();
+    this.frameTimeMs = delta * 1000;
 
-    this.water.update(delta, this.playerX, this.playerZ);
-    this.skybox.update(delta, this.playerX, this.playerZ);
-
-    this.forest.update(delta, this.playerX, this.playerZ);
+    // Tick world systems
+    this.terrain.update(delta);
+    this.water.update(delta);
     this.effects.update(delta);
-    this.lighting.updateCelestialDiscs(this.camera.position, this.camera);
-    this.updateAdaptiveQuality(delta);
-    this.updateDistanceShadowCasters(delta);
-    this.updateLOD();
+    this.lighting.update(delta);
+    this.skybox.update(delta);
 
-    // Use post-processing composer if available, otherwise fall back to direct render
+    // Update culling/LOD
+    this._updateDynamicCulling(delta);
+    this._updateShadowQuality(delta);
+
+    // Render
     if (this.composer) {
       this.composer.render();
     } else {
       this.renderer.render(this.scene, this.camera);
     }
-    return delta;
+  }
+
+  /**
+   * Performance-aware culling: Adjust resolution scaling and LOD based on frametime.
+   */
+  private _updateDynamicCulling(delta: number): void {
+    this.perfTimer += delta;
+    if (this.perfTimer < this.PERF_UPDATE_INTERVAL) return;
+    this.perfTimer = 0;
+
+    const targetFrameTime = 16.67; // 60 FPS
+    if (this.frameTimeMs > targetFrameTime + 4) {
+      // Lagging: drop resolution slightly
+      this.dynamicPixelRatio = Math.max(this.minPixelRatio, this.dynamicPixelRatio - 0.05);
+      this.renderer.setPixelRatio(this.dynamicPixelRatio);
+    } else if (this.frameTimeMs < targetFrameTime - 2) {
+      // Running smoothly: increase resolution
+      this.dynamicPixelRatio = Math.min(this.maxPixelRatio, this.dynamicPixelRatio + 0.05);
+      this.renderer.setPixelRatio(this.dynamicPixelRatio);
+    }
+  }
+
+  /**
+   * Shadow quality management: Tighten shadow camera around the player and update infrequently.
+   */
+  private _updateShadowQuality(delta: number): void {
+    this.shadowTimer += delta;
+    if (this.shadowTimer < this.SHADOW_UPDATE_INTERVAL) return;
+    this.shadowTimer = 0;
+
+    // Follow player with shadow camera
+    this._tmpShadowPos.set(this.camera.position.x, 0, this.camera.position.z);
+    this.lighting.updateShadowCamera(this._tmpShadowPos, this.DEFAULT_SHADOW_DISTANCE);
+  }
+
+  /** Helper to rebuild mesh caches for external systems (e.g. raycasting). */
+  public getObjectMeshes(): THREE.Object3D[] {
+    // Rebuild cache if stale (every 2 seconds)
+    if (Math.abs(this._lodCacheFrame - Date.now()) > 2000) {
+      this._rebuildCaches();
+    }
+    return this._meshesCache;
+  }
+
+  private _meshesCache: THREE.Object3D[] = [];
+  private _rebuildCaches(): void {
+    this._meshesCache = [];
+    this.scene.traverse((obj) => {
+      if (obj.type === 'Mesh' || obj.type === 'InstancedMesh') {
+        this._meshesCache.push(obj);
+      }
+    });
+    this._lodCacheFrame = Date.now();
   }
 }

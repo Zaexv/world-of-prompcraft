@@ -15,6 +15,7 @@
  * ```
  */
 
+import { AudioSystem } from '../../audio/AudioSystem';
 import { UIComponent } from '../core/UIComponent';
 import { createButton } from '../core/UIFactory';
 
@@ -177,24 +178,32 @@ export class SettingsPanel extends UIComponent {
 
   private handleVolumeChange(event: Event): void {
     const target = event.target as HTMLInputElement;
+    const audio = AudioSystem.getInstance();
     if (target.id === 'master-vol') {
       this.settings.masterVolume = parseInt(target.value) / 100;
       const display = this.container.querySelector('#master-vol-display');
       if (display) display.textContent = target.value;
+      audio.setMasterVolume(this.settings.masterVolume);
     } else if (target.id === 'music-vol') {
       this.settings.musicVolume = parseInt(target.value) / 100;
       const display = this.container.querySelector('#music-vol-display');
       if (display) display.textContent = target.value;
+      audio.setMusicVolume(this.settings.musicVolume);
     } else if (target.id === 'sfx-vol') {
       this.settings.sfxVolume = parseInt(target.value) / 100;
       const display = this.container.querySelector('#sfx-vol-display');
       if (display) display.textContent = target.value;
+      audio.setSfxVolume(this.settings.sfxVolume);
     } else if (target.id === 'graphics-quality') {
       this.settings.graphicsQuality = target.value as 'low' | 'medium' | 'high';
     }
   }
 
   private handleSave(): void {
+    const audio = AudioSystem.getInstance();
+    audio.setMasterVolume(this.settings.masterVolume);
+    audio.setMusicVolume(this.settings.musicVolume);
+    audio.setSfxVolume(this.settings.sfxVolume);
     this.onSaveCallback?.(this.settings);
     this.hide();
   }

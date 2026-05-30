@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 from .combat import create_combat_tools
 from .dialogue import create_dialogue_tools
 from .environment import create_environment_tools
+from .music import create_music_tools
 from .quest import create_quest_tools
 from .trade import create_trade_tools
 from .world_query import create_world_query_tools
@@ -31,6 +32,7 @@ _CATEGORY_FACTORIES: dict[str, Callable[..., list[Any]]] = {
     "combat": create_combat_tools,
     "dialogue": create_dialogue_tools,
     "environment": create_environment_tools,
+    "music": create_music_tools,
     "quest": create_quest_tools,
     "trade": create_trade_tools,
     "world_query": create_world_query_tools,
@@ -43,8 +45,8 @@ def get_tools_by_category(
     """Instantiate and return tools for a specific category.
 
     Args:
-        category: One of "combat", "dialogue", "environment", "quest",
-                  "trade", "world_query".
+        category: One of "combat", "dialogue", "environment", "music",
+                  "quest", "trade", "world_query".
         pending_actions: Action appender used by tools.
         world_state: Shared mutable dict of current world state.
 
@@ -89,4 +91,5 @@ def get_all_tools(
     tools.extend(create_environment_tools(pending_actions, world_state))
     tools.extend(create_world_query_tools(pending_actions, world_state))
     tools.extend(create_quest_tools(pending_actions, world_state))
+    tools.extend(create_music_tools(pending_actions, world_state))
     return tools

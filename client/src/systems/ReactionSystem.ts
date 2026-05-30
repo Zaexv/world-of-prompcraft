@@ -5,6 +5,7 @@ import type { NPCStateStore } from "../state/NPCState";
 import type { WorldState } from "../state/WorldState";
 import type { WorldBuilder } from "./WorldBuilder";
 import type { Terrain } from "../scene/Terrain";
+import type { AudioSystem } from "../audio/AudioSystem";
 
 // ── Effect-type presets ────────────────────────────────────────────────────
 // Maps server effect types to visual parameters so each effect looks distinct.
@@ -83,18 +84,22 @@ export class ReactionSystem {
     update: (dt: number) => boolean; // return false to remove
   }> = [];
 
+  private audio: AudioSystem | null = null;
+
   constructor(
     scene: THREE.Scene,
     playerState: PlayerState,
     npcStateStore: NPCStateStore,
     worldState: WorldState,
     entityManager: EntityManagerLike,
+    audioSystem?: AudioSystem,
   ) {
     this.scene = scene;
     this.playerState = playerState;
     this.npcStateStore = npcStateStore;
     this.worldState = worldState;
     this.entityManager = entityManager;
+    this.audio = audioSystem ?? null;
   }
 
   setWorldBuilder(wb: WorldBuilder): void {
@@ -210,6 +215,7 @@ export class ReactionSystem {
     switch (action.kind) {
       case "damage": {
         const { amount = 10, target = "player", damageType } = action.params;
+        this.audio?.playSfx("hit");
         if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
         if (amount < 0) {
           const healAmt = Math.abs(amount);
@@ -237,6 +243,7 @@ export class ReactionSystem {
 
       case "heal": {
         const { amount = 10 } = action.params;
+        this.audio?.playSfx("heal");
         if (actingNpc?.showAction) actingNpc.showAction("heal", 3.0);
         if (amount > 0) {
           this.playerState.heal(amount);
@@ -248,6 +255,7 @@ export class ReactionSystem {
 
       case "give_item": {
         const { item = "Unknown Item" } = action.params;
+        this.audio?.playSfx("item_pickup");
         if (actingNpc?.showAction) actingNpc.showAction("give_item", 3.0);
         this.playerState.addItem(item);
         this.createFloatingText(`+${item}`, "#c5a55a", this.playerWorldPos());
@@ -262,6 +270,7 @@ export class ReactionSystem {
 
       case "emote": {
         const { animation } = action.params;
+        this.audio?.playSfx("emote");
         if (actingNpc?.showAction) actingNpc.showAction(animation, 3.0);
         const npc = this.entityManager.getNPC(npcId);
         if (npc?.playEmote) npc.playEmote(animation ?? "wave");
@@ -313,6 +322,7 @@ export class ReactionSystem {
       case "spawn_effect": {
         const { effectType, effect_type, color, count, position } = action.params;
         const resolvedType: string = effectType ?? effect_type ?? "sparkle";
+        this.audio?.playSfx(resolvedType);
         if (actingNpc?.showAction) actingNpc.showAction(resolvedType, 3.0);
         const pos =
           Array.isArray(position) && position.length >= 3
@@ -329,6 +339,7 @@ export class ReactionSystem {
 
       case "change_weather": {
         const { weather = "clear" } = action.params;
+        this.audio?.playSfx("sparkle");
         if (actingNpc?.showAction) actingNpc.showAction("change_weather", 3.0);
         this.worldState.weather = weather;
         if (weather === "fog" || weather === "rain") {
@@ -345,6 +356,7 @@ export class ReactionSystem {
 
       case "start_quest": {
         const { questId, quest, questName, description } = action.params;
+        this.audio?.playSfx("quest_start");
         if (actingNpc?.showAction) actingNpc.showAction("start_quest", 3.0);
         const id = questId ?? "";
         const name = quest ?? questName ?? description ?? "Unknown Quest";
@@ -363,6 +375,7 @@ export class ReactionSystem {
 
       case "complete_quest": {
         const { questId, questName, reward } = action.params;
+        this.audio?.playSfx("quest_complete");
         if (actingNpc?.showAction) actingNpc.showAction("complete_quest", 3.0);
         const id = questId ?? questName ?? "";
         const name = questName ?? questId ?? "Quest";
@@ -379,6 +392,16 @@ export class ReactionSystem {
 
       case "world_remove": {
         this.worldBuilder?.removeObject(action.params.objectId);
+        break;
+      }
+
+      case "play_music": {
+        const { mood, notes, duration } = action.params;
+        if (notes && notes.length > 0) {
+          this.audio?.playMusicSequence(notes);
+        } else {
+          this.audio?.playMoodMusic(mood, duration);
+        }
         break;
       }
     }

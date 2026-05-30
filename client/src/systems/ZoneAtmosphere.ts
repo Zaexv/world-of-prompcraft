@@ -51,19 +51,24 @@ function preset(
   };
 }
 
+// Warm, bright daytime presets. Each zone keeps a gentle identity (ember = warm
+// haze, tundra = bright cool snow, marsh = hazy green) but all read as sunny day:
+// lifted ambient (~0.5–0.68), warm sun, light non-navy skies, thin fog.
+// NOTE: `skyColor` doubles as the sky background AND the hemisphere fill source;
+// `_applyLive` warms the fill so a blue sky never casts a cold tint on the ground.
 export const ZONE_ATMOSPHERES: Record<string, AtmospherePreset> = {
   //                           fog        density  sky        ground     ambient    aInt  sun        bloom
-  "Blasted Suarezlands":  preset(0x1a0830, 0.0060, 0x4a1880, 0x1a0030, 0x220040, 0.18, 0xcc88ff, 0.80),
-  "Fort Malaka":           preset(0x0f1828, 0.0028, 0x3a4878, 0x161820, 0x111830, 0.12, 0xaac0ff, 0.90),
-  "Elders' Village":       preset(0x0b1222, 0.0038, 0x5f78a8, 0x111827, 0x111522, 0.12, 0x9fb9ff, 0.90),
-  "Dark Forest":           preset(0x030a03, 0.0065, 0x112211, 0x040a04, 0x081208, 0.08, 0x44aa44, 0.75),
-  "Ember Peaks":           preset(0x1a0600, 0.0050, 0x5a2010, 0x1a0800, 0x220a00, 0.16, 0xff8844, 0.82),
-  "Crystal Lake":          preset(0x071520, 0.0030, 0x3a6090, 0x0a1828, 0x102030, 0.14, 0x88ccff, 0.88),
-  "Ember Wastes":          preset(0x1a0800, 0.0080, 0x5a1800, 0x200800, 0x280800, 0.20, 0xff4400, 0.70),
-  "Crystal Tundra":        preset(0x1a2a3a, 0.0040, 0x7090b0, 0x304050, 0x203040, 0.18, 0xc0e0ff, 0.88),
-  "Twilight Marsh":        preset(0x030a03, 0.0080, 0x0a1a0a, 0x040a04, 0x061006, 0.08, 0x66aa44, 0.72),
-  "Sunlit Meadows":        preset(0x16160a, 0.0022, 0x7a8040, 0x303010, 0x1c1c0c, 0.20, 0xffe870, 0.92),
-  "Teldrassil Wilds":      preset(0x0b1222, 0.0040, 0x4a5890, 0x0e1420, 0x111522, 0.12, 0x9fb9ff, 0.88),
+  "Blasted Suarezlands":  preset(0xc8c4e0, 0.0028, 0xb9c0e8, 0x6a5a50, 0xfff0e0, 0.55, 0xffe8c8, 0.88),
+  "Fort Malaka":           preset(0xc6dcec, 0.0020, 0xa8cdec, 0x6a5e48, 0xfff0d8, 0.60, 0xffe6b8, 0.90),
+  "Elders' Village":       preset(0xc8def0, 0.0018, 0xa6cdee, 0x6e5e44, 0xfff2dc, 0.62, 0xffe7bc, 0.90),
+  "Dark Forest":           preset(0xa8c0b0, 0.0035, 0x8fb4cf, 0x4a5238, 0xeaf0d8, 0.50, 0xfff0c8, 0.85),
+  "Ember Peaks":           preset(0xe8c4a0, 0.0030, 0xe0b890, 0x6a4a30, 0xfff0dc, 0.55, 0xffd9a0, 0.85),
+  "Crystal Lake":          preset(0xc8e2f2, 0.0018, 0xa8d4f0, 0x6a6450, 0xfff2e0, 0.60, 0xffe8c4, 0.90),
+  "Ember Wastes":          preset(0xeac49a, 0.0035, 0xe8b888, 0x7a5230, 0xfff0d8, 0.60, 0xffce92, 0.82),
+  "Crystal Tundra":        preset(0xd6e6f2, 0.0022, 0xc0dcf0, 0x8a8a88, 0xfff0e6, 0.62, 0xfff0d8, 0.92),
+  "Twilight Marsh":        preset(0xb0c8b8, 0.0040, 0x9cc0c0, 0x4a5840, 0xeaf0d8, 0.50, 0xfff0c0, 0.80),
+  "Sunlit Meadows":        preset(0xd0e6e0, 0.0015, 0xb8dcf0, 0x7a7045, 0xfff6e0, 0.68, 0xffeec0, 0.95),
+  "Teldrassil Wilds":      preset(0xc4def0, 0.0022, 0xa6cee8, 0x5e5e40, 0xfff0dc, 0.60, 0xffe8bc, 0.90),
 };
 
 const DEFAULT_PRESET = ZONE_ATMOSPHERES["Elders' Village"]!;
@@ -105,6 +110,11 @@ export class ZoneAtmosphere {
   private current: LiveState;
   private target: AtmospherePreset;
   private transitionSpeed = 1 / 3; // 1/seconds → full transition in ~3 s
+
+  // Warm fill applied to the hemisphere SKY tint so a blue sky background does
+  // not translate into a cold blue light on the (upward-facing) ground.
+  private static readonly WARM_FILL = new THREE.Color(0xfff1da);
+  private readonly _hemiSky = new THREE.Color();
 
   constructor(
     scene: THREE.Scene,
@@ -163,12 +173,15 @@ export class ZoneAtmosphere {
       this.scene.fog.color.copy(c.fogColor);
       this.scene.fog.density = c.fogDensity;
     }
-    // Background (should match fog so distant objects fade correctly)
+    // Background (Match skyColor, not fogColor, for a clearer sky)
     if (this.scene.background instanceof THREE.Color) {
-      this.scene.background.copy(c.fogColor);
+      this.scene.background.copy(c.skyColor);
     }
-    // Hemisphere sky/ground
-    this.hemisphere.color.copy(c.skyColor);
+    // Hemisphere sky/ground. The sky background stays the true (often blue)
+    // skyColor, but the hemisphere FILL leans warm so the ground reads sunlit,
+    // not cold. Half sky + half warm cream keeps daylight without a blue cast.
+    this._hemiSky.copy(c.skyColor).lerp(ZoneAtmosphere.WARM_FILL, 0.5);
+    this.hemisphere.color.copy(this._hemiSky);
     this.hemisphere.groundColor.copy(c.groundColor);
     // Ambient
     this.ambient.color.copy(c.ambientColor);

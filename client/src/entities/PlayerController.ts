@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { clamp, lerp } from '../utils/math/MathHelpers';
+import { AudioSystem } from '../audio/AudioSystem';
 import { Water } from '../scene/Water';
 import { CollisionSystem } from '../systems/CollisionSystem';
 import { CapsuleController } from '../systems/collision/CapsuleController';
@@ -57,6 +58,10 @@ export class PlayerController {
   private readonly zoomMin = 2;
   private readonly zoomMax = 20;
   private readonly lookAtHeight = 1.7;
+
+  // --- Audio ---
+  private footstepTimer = 0;
+  private readonly footstepInterval = 0.45;
 
   // --- Input state ---
   private keys: Record<string, boolean> = {};
@@ -337,6 +342,17 @@ export class PlayerController {
         this.position.y = currentTerrainY;
         this.capsuleController.isGrounded = true;
       }
+    }
+
+    // --- Footstep audio ---
+    if (this.isMoving && this.isGrounded && !this.isSwimming) {
+      this.footstepTimer += delta;
+      if (this.footstepTimer >= this.footstepInterval) {
+        this.footstepTimer = 0;
+        AudioSystem.getInstance().playSfx("footstep");
+      }
+    } else {
+      this.footstepTimer = 0;
     }
 
     // --- Third-person camera (WoW-style) ---

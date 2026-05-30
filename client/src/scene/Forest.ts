@@ -83,6 +83,12 @@ function makeGroundPatch(texturePath: string, radius: number, tint: THREE.ColorR
     metalness: 0.0,
     transparent: true,
     opacity: 0.88,
+    // Flat ground decal: it lies just above the opaque terrain, which already
+    // writes depth. If this transparent patch ALSO wrote depth it would punch a
+    // hole into the depth buffer that the (depthWrite:false) water plane then
+    // fails its depth test against — making large discs of water vanish as the
+    // transparent draw-order sort flips with camera rotation. Never write depth.
+    depthWrite: false,
     side: THREE.DoubleSide,
   });
   const mesh = new THREE.Mesh(new THREE.CircleGeometry(radius, 36), material);

@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { Water as ThreeWater } from 'three/examples/jsm/objects/Water.js';
 import { SUN_DIR } from './Lighting';
 
 // ── Shore foam overlay shader ───────────────────────────────────────────────
@@ -19,149 +18,195 @@ varying vec2 vUv;
 float hash(vec2 p) {
   return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453);
 }
-float vnoise(vec2 p) {
+
+float noise(vec2 p) {
   vec2 i = floor(p);
   vec2 f = fract(p);
-  f = f * f * (3.0 - 2.0 * f);
-  return mix(
-    mix(hash(i),               hash(i + vec2(1.0, 0.0)), f.x),
-    mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), f.x),
-    f.y
-  );
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash(i), hash(i + vec2(1.0, 0.0)), u.x),
+             mix(hash(i + vec2(0.0, 1.0)), hash(i + vec2(1.0, 1.0)), u.x), u.y);
 }
 
 void main() {
-  // Scroll in the wave-approach direction at two frequencies for organic streaks
-  vec2 uv1 = vUv * 12.0 + vec2(time * 0.14,  time * 0.06);
-  vec2 uv2 = vUv *  6.0 + vec2(time * 0.09, -time * 0.04);
-  float foam = smoothstep(0.50, 0.72, vnoise(uv1) * vnoise(uv2) * 1.6);
-
-  // Pulse opacity with the wave cycle so foam is brightest when water peaks
-  float pulse = clamp(sin(time * 0.38) * 0.65 + 0.55, 0.0, 1.0);
-
-  gl_FragColor = vec4(0.92, 0.97, 1.0, foam * pulse * 0.20);
+  vec2 uv1 = vUv * 8.0 + vec2(time * 0.05, time * 0.03);
+  vec2 uv2 = vUv * 16.0 + vec2(-time * 0.08, time * 0.04);
+  
+  float n = noise(uv1) * 0.6 + noise(uv2) * 0.4;
+  float foam = smoothstep(0.6, 0.85, n);
+  
+  gl_FragColor = vec4(1.0, 1.0, 1.0, foam * 0.5);
 }
 `;
 
 // ── Water class ─────────────────────────────────────────────────────────────
 
-/**
- * Reflective water plane using Three.js Water (planar reflections) with an
- * animated shore wave.
- *
- * The visual mesh (this.water) oscillates around Water.LEVEL so the beach
- * appears to breathe.  Water.LEVEL itself stays constant so physics / NPC
- * wander code is unaffected.
- */
 export class Water {
   public mesh: THREE.Mesh;
-  private water: ThreeWater;
-  private foam: THREE.Mesh;
-  private foamMat: THREE.ShaderMaterial;
+  private readonly waterMesh: THREE.Mesh;
+  private readonly waterMat: THREE.MeshStandardMaterial;
+  private readonly foam: THREE.Mesh;
+  private readonly foamMat: THREE.ShaderMaterial;
+  private readonly normalTexture: THREE.Texture;
   private waveTime = 0;
 
-  /** Water surface Y level — physics / collision reference, never changes. */
+  private readonly cubeCamera: THREE.CubeCamera;
+  private readonly cubeRenderTarget: THREE.WebGLCubeRenderTarget;
+  private hasCaptured = false; 
+
+  private reflectionIntensity = 1.5;
+  private targetIntensity = 1.5;
+
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly scene: THREE.Scene;
+
   public static readonly LEVEL = -1.0;
 
-  /** Convenience accessor for collision code. */
   static getWaterLevel(): number {
     return Water.LEVEL;
   }
 
-  // Wave parameters: two-component oscillation for organic feel.
-  // Combined amplitude ≈ ±0.35 — enough to lap over gently sloped beaches.
-  private static readonly AMP_A  = 0.26;   // main tide
-  private static readonly AMP_B  = 0.09;   // secondary ripple
-  private static readonly FREQ_A = 0.38;   // rad/s  (~16 s period)
-  private static readonly FREQ_B = 1.25;   // rad/s  (~5 s period)
-  private static readonly PHASE_B = 1.05;  // phase offset between the two
+  constructor(scene: THREE.Scene, renderer: THREE.WebGLRenderer) {
+    this.scene    = scene;
+    this.renderer = renderer;
 
-  constructor(scene: THREE.Scene) {
-    // Large water plane — repositioned each frame to follow the player
     const geometry = new THREE.PlaneGeometry(2048, 2048, 1, 1);
-    const reflectionResolution = window.devicePixelRatio > 1 ? 384 : 512;
 
-    // Generate a simple normal map procedurally
-    const normalCanvas = this.generateNormalMap(512);
-    const normalTexture = new THREE.CanvasTexture(normalCanvas);
-    normalTexture.wrapS = normalTexture.wrapT = THREE.RepeatWrapping;
+    this.normalTexture = this.generateNormalMap(512);
+    this.normalTexture.wrapS = this.normalTexture.wrapT = THREE.RepeatWrapping;
+    this.normalTexture.repeat.set(4, 4);
 
-    this.water = new ThreeWater(geometry, {
-      textureWidth: reflectionResolution,
-      textureHeight: reflectionResolution,
-      waterNormals: normalTexture,
-      sunDirection: SUN_DIR,
-      sunColor: 0xffffcc,
-      waterColor: 0x0d4a5a,
-      distortionScale: 2.5,
-      fog: true,
-      clipBias: 0.003,
+    this.cubeRenderTarget = new THREE.WebGLCubeRenderTarget(128, {
+      generateMipmaps: true,
+      minFilter: THREE.LinearMipmapLinearFilter,
     });
+    this.cubeCamera = new THREE.CubeCamera(200, 2000, this.cubeRenderTarget);
+    this.cubeCamera.position.y = Water.LEVEL + 50; 
+    this.cubeCamera.visible = false;
+    scene.add(this.cubeCamera);
 
-    this.water.rotation.x = -Math.PI / 2;
-    this.water.position.y = Water.LEVEL;
+    this.waterMat = new THREE.MeshStandardMaterial({
+      color: 0x2080a0,
+      roughness: 0.1,
+      metalness: 0.6,
+      envMap: this.cubeRenderTarget.texture,
+      envMapIntensity: this.reflectionIntensity,
+      normalMap: this.normalTexture,
+      normalScale: new THREE.Vector2(0.8, 0.8),
+      transparent: true,
+      opacity: 0.5, // Increased transparency
+      depthWrite: false,
+      depthTest: true,
+      depthFunc: THREE.LessEqualDepth, // Improved depth handling
+      // The sea plane sits at y=-1 and the terrain noise crosses that same level
+      // at every shoreline, leaving the two surfaces nearly coplanar there. Since
+      // water tests (but doesn't write) depth, that coplanarity makes the depth
+      // comparison flip with camera angle/distance — the waterline shimmers and
+      // whole patches blink out as the camera moves. Biasing the water's tested
+      // depth slightly toward the camera makes it win the comparison cleanly at
+      // the boundary instead of fighting the terrain for it.
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+      side: THREE.DoubleSide,
+    });
+    
+    // Inject analytical Blinn-Phong sun specular.
+    this.waterMat.onBeforeCompile = (shader) => {
+      shader.uniforms['sunDirection'] = { value: SUN_DIR };
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <common>',
+        `#include <common>
+        varying vec3 vWaterWorldPos;`,
+      );
+      shader.vertexShader = shader.vertexShader.replace(
+        '#include <clipping_planes_vertex>',
+        `#include <clipping_planes_vertex>
+        vWaterWorldPos = (modelMatrix * vec4(transformed, 1.0)).xyz;`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <common>',
+        `#include <common>
+        uniform vec3 sunDirection;
+        varying vec3 vWaterWorldPos;`,
+      );
+      shader.fragmentShader = shader.fragmentShader.replace(
+        '#include <tonemapping_fragment>',
+        `{
+          vec3 sunDir  = normalize(sunDirection);
+          vec3 viewDir = normalize(cameraPosition - vWaterWorldPos);
+          vec3 H       = normalize(sunDir + viewDir);
+          float NdotH  = max(dot(vec3(0.0, 1.0, 0.0), H), 0.0);
+          float spec = pow(NdotH, 50.0) * 4.0;
+          gl_FragColor.rgb += vec3(1.0, 0.95, 0.8) * spec;
+        }
+        #include <tonemapping_fragment>`,
+      );
+    };
 
-    // Prevent z-fighting with shoreline terrain
-    const mat = this.water.material as THREE.ShaderMaterial;
-    mat.polygonOffset = true;
-    mat.polygonOffsetFactor = 1;
-    mat.polygonOffsetUnits = 1;
+    this.waterMesh = new THREE.Mesh(geometry, this.waterMat);
+    this.waterMesh.rotation.x = -Math.PI / 2;
+    this.waterMesh.position.y = Water.LEVEL;
+    this.waterMesh.frustumCulled = false;
+    this.waterMesh.renderOrder = 0; // Ensure water renders first
+    scene.add(this.waterMesh);
+    this.mesh = this.waterMesh; // for external access
 
-    this.mesh = this.water;
-    scene.add(this.water);
-
-    // Shore foam overlay — lives just above the water surface and pulses with
-    // the wave cycle to show organic whitecap / wash streaks.
+    // --- Shore foam overlay ---
+    const foamGeom = new THREE.PlaneGeometry(2048, 2048, 1, 1);
     this.foamMat = new THREE.ShaderMaterial({
-      uniforms: { time: { value: 0 } },
+      uniforms: {
+        time: { value: 0 },
+      },
       vertexShader: FOAM_VERT,
       fragmentShader: FOAM_FRAG,
       transparent: true,
       depthWrite: false,
-      blending: THREE.NormalBlending,
+      depthTest: true,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+      side: THREE.DoubleSide,
     });
-    this.foam = new THREE.Mesh(
-      new THREE.PlaneGeometry(2048, 2048, 1, 1),
-      this.foamMat,
-    );
+    this.foam = new THREE.Mesh(foamGeom, this.foamMat);
     this.foam.rotation.x = -Math.PI / 2;
     this.foam.position.y = Water.LEVEL + 0.02;
+    this.foam.frustumCulled = false;
+    this.foam.renderOrder = 1; // Render after water
     scene.add(this.foam);
   }
 
-  /** Call every frame. Pass player position to keep water centred. */
-  update(delta: number, playerX?: number, playerZ?: number): void {
+  update(delta: number, camera: THREE.Camera, playerX: number, playerZ: number): void {
     this.waveTime += delta;
+    this.foamMat.uniforms.time.value = this.waveTime;
 
-    const mat = this.water.material as THREE.ShaderMaterial;
-    if (mat.uniforms['time']) {
-      mat.uniforms['time'].value += delta * 0.5;
+    // Follow player
+    this.waterMesh.position.x = playerX;
+    this.waterMesh.position.z = playerZ;
+    this.foam.position.x      = playerX;
+    this.foam.position.z      = playerZ;
+
+    // Reflection quality culling
+    if (!this.hasCaptured || Math.abs(this.cubeCamera.position.x - playerX) > 100 || Math.abs(this.cubeCamera.position.z - playerZ) > 100) {
+      this.cubeCamera.position.x = playerX;
+      this.cubeCamera.position.z = playerZ;
     }
 
-    this.foamMat.uniforms['time'].value = this.waveTime;
+    const dist = (camera as THREE.PerspectiveCamera).position.distanceTo(this.waterMesh.position);
+    this.targetIntensity = dist < 40 ? 1.5 : 0.8;
+    this.reflectionIntensity += (this.targetIntensity - this.reflectionIntensity) * delta * 2;
+    this.waterMat.envMapIntensity = this.reflectionIntensity;
 
-    // Two-component shore wave: slow tide + faster ripple
-    const waveY =
-      Water.AMP_A * Math.sin(this.waveTime * Water.FREQ_A) +
-      Water.AMP_B * Math.sin(this.waveTime * Water.FREQ_B + Water.PHASE_B);
-
-    this.water.position.y = Water.LEVEL + waveY;
-    this.foam.position.y  = Water.LEVEL + waveY + 0.02;
-
-    // Follow player so water extends to the horizon in every direction
-    if (playerX !== undefined && playerZ !== undefined) {
-      this.water.position.x = playerX;
-      this.water.position.z = playerZ;
-      this.foam.position.x  = playerX;
-      this.foam.position.z  = playerZ;
+    if (!this.hasCaptured) {
+      this.waterMesh.visible = false;
+      this.foam.visible      = false;
+      this.cubeCamera.update(this.renderer, this.scene);
+      this.waterMesh.visible = true;
+      this.foam.visible      = true;
+      this.hasCaptured = true;
     }
   }
 
-  /**
-   * Generate a simple procedural normal map on canvas.
-   * This replaces the need for an external waternormals.jpg texture.
-   */
-  private generateNormalMap(size: number): HTMLCanvasElement {
+  private generateNormalMap(size: number): THREE.Texture {
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
@@ -172,27 +217,23 @@ export class Water {
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
         const idx = (y * size + x) * 4;
-        // Generate ripple-like normal map using overlapping sine waves
-        const scale1 = 0.05;
-        const scale2 = 0.12;
-        const scale3 = 0.03;
+        const u = x / size * Math.PI * 8;
+        const v = y / size * Math.PI * 8;
 
-        const nx = Math.sin(x * scale1) * Math.cos(y * scale2) * 0.3
-                 + Math.sin(x * scale2 + y * scale1) * 0.2
-                 + Math.cos(x * scale3 - y * scale3) * 0.1;
-        const ny = Math.cos(x * scale2) * Math.sin(y * scale1) * 0.3
-                 + Math.cos(x * scale1 - y * scale2) * 0.2
-                 + Math.sin(x * scale3 + y * scale3) * 0.1;
+        let nx = Math.sin(u) * 0.5 + Math.sin(u * 2.1 + v) * 0.3 + Math.cos(v * 1.5) * 0.2;
+        let ny = Math.cos(v) * 0.5 + Math.sin(v * 2.1 + u) * 0.3 + Math.cos(u * 1.5) * 0.2;
+        let nz = 1.0;
+        
+        const len = Math.sqrt(nx * nx + ny * ny + nz * nz);
+        nx /= len; ny /= len; nz /= len;
 
-        // Normal map encoding: (nx*0.5+0.5)*255, (ny*0.5+0.5)*255, z≈1
         data[idx]     = Math.round((nx * 0.5 + 0.5) * 255);
         data[idx + 1] = Math.round((ny * 0.5 + 0.5) * 255);
-        data[idx + 2] = 220; // Strong Z component (mostly pointing up)
+        data[idx + 2] = Math.round((nz * 0.5 + 0.5) * 255);
         data[idx + 3] = 255;
       }
     }
-
     ctx.putImageData(imageData, 0, 0);
-    return canvas;
+    return new THREE.CanvasTexture(canvas);
   }
 }

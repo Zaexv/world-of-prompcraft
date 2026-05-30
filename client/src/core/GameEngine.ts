@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { AudioSystem } from '../audio/AudioSystem';
 import type { SceneManager } from '../scene/SceneManager';
 import type { PlayerController } from '../entities/PlayerController';
 import type { Player } from '../entities/Player';
@@ -223,11 +224,13 @@ export class GameEngine {
 
     // Death
     d.playerState.onDeath = () => {
+      AudioSystem.getInstance().playSfx("death");
       d.uiManager.showDeathScreen(this.lastInteractedNpcName || undefined);
       d.uiManager.hideInteractionPanel();
       d.uiManager.hideCombatHUD();
     };
     d.uiManager.deathScreen.onRespawn = () => {
+      AudioSystem.getInstance().playSfx("respawn");
       d.playerState.respawn();
       const { terrain } = d.sceneManager;
       d.playerController.position.set(0, terrain.getHeightAt(0, 0), 0);

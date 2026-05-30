@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
+import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
@@ -92,212 +93,221 @@ export class ProceduralPopulator {
 
   private _chunkCenters = new Map<string, [number, number]>();
 
-  constructor(terrain: Terrain) {
-    this.terrain = terrain;
+  // Small margin above the sea surface: anything whose ground sits at or below
+  // this never spawns, so props/buildings/monsters don't end up submerged (or
+  // half-sunk at the shoreline) in basins and lakebeds.
+  private static readonly WATER_SPAWN_MARGIN = 0.3;
+
+  constructor(terrain: Terrain) { this.terrain = terrain; }
+
+  /** True when the ground at (x, z) is at/below the water surface — no spawning there. */
+  private isUnderwater(x: number, z: number): boolean {
+    return this.terrain.getHeightAt(x, z) <= Water.LEVEL + ProceduralPopulator.WATER_SPAWN_MARGIN;
   }
 
   setScene(scene: THREE.Scene): void { this.scene = scene; }
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
   setEntityManager(em: EntityManager): void { this.entityManager = em; }
 
-  queueChunk(chunkX: number, chunkZ: number, worldX: number, worldZ: number): void {
-    const key = `${chunkX},${chunkZ}`;
-    if (this.populated.has(key) || this._inQueue.has(key)) return;
+  /** Update world population based on camera position. */
+  update(cameraPos: THREE.Vector3): void {
+    const chunkX = Math.floor(cameraPos.x / this.terrain.CHUNK_SIZE);
+    const chunkZ = Math.floor(cameraPos.z / this.terrain.CHUNK_SIZE);
 
-    this.queue.push({
-      worldX, worldZ, chunkX, chunkZ,
-      cx: worldX + 32,
-      cz: worldZ + 32,
-    });
-    this._inQueue.add(key);
-    this._queueDirty = true;
-  }
+    // 1. Identify chunks to populate (5x5 grid around player)
+    const RANGE = 2;
+    for (let dx = -RANGE; dx <= RANGE; dx++) {
+      for (let dz = -RANGE; dz <= RANGE; dz++) {
+        const cx = chunkX + dx;
+        const cz = chunkZ + dz;
+        const key = `${cx},${cz}`;
 
-  releaseChunk(chunkX: number, chunkZ: number): void {
-    const key = `${chunkX},${chunkZ}`;
-    this.populated.delete(key);
-    this._inQueue.delete(key);
-    this._chunkCenters.delete(key);
-
-    const objs = this.spawnedObjects.get(key);
-    if (objs && this.scene) {
-      for (const obj of objs) this.scene.remove(obj);
-      this.spawnedObjects.delete(key);
+        if (!this.populated.has(key) && !this._inQueue.has(key)) {
+          this.queue.push({
+            worldX: cx * this.terrain.CHUNK_SIZE,
+            worldZ: cz * this.terrain.CHUNK_SIZE,
+            chunkX,
+            chunkZ,
+            cx,
+            cz,
+          });
+          this._inQueue.add(key);
+          this._queueDirty = true;
+        }
+      }
     }
 
-    const colliders = this.spawnedColliders.get(key);
-    if (colliders && this.collisionSystem) {
-      for (const obj of colliders) this.collisionSystem.removeCollidable(obj);
-      this.spawnedColliders.delete(key);
-    }
-
-    const npcIds = this.spawnedNpcs.get(key);
-    if (npcIds && this.entityManager) {
-      for (const id of npcIds) this.entityManager.removeNPC(id);
-      this.spawnedNpcs.delete(key);
-    }
-  }
-
-  /** Call with player world coordinates. Drains 1 chunk per frame. */
-  update(playerX: number, playerZ: number): void {
-    const pPos = ProceduralPopulator._v.set(playerX, 0, playerZ);
-    
+    // 2. Sort queue by proximity so near chunks spawn first
     if (this._queueDirty) {
       this.queue.sort((a, b) => {
-        const da = pPos.distanceToSquared(ProceduralPopulator._v.set(a.cx, 0, a.cz));
-        const db = pPos.distanceToSquared(ProceduralPopulator._v.set(b.cx, 0, b.cz));
+        const da = Math.hypot(a.cx - chunkX, a.cz - chunkZ);
+        const db = Math.hypot(b.cx - chunkX, b.cz - chunkZ);
         return da - db;
       });
       this._queueDirty = false;
     }
 
-    let done = 0;
-    while (done < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
-      const next = this.queue.shift()!;
-      const key = `${next.chunkX},${next.chunkZ}`;
+    // 3. Process limited number of chunks per frame to avoid lag spikes
+    for (let i = 0; i < this.CHUNKS_PER_FRAME && this.queue.length > 0; i++) {
+      const chunk = this.queue.shift()!;
+      const key = `${chunk.cx},${chunk.cz}`;
       this._inQueue.delete(key);
+      this._populateChunk(chunk);
+      this.populated.add(key);
+    }
 
-      const dSq = pPos.distanceToSquared(ProceduralPopulator._v.set(next.cx, 0, next.cz));
-      if (dSq > this.SPAWN_RADIUS * this.SPAWN_RADIUS) {
-        continue;
+    // 4. Release chunks that are too far away
+    this._releaseDistantChunks(cameraPos);
+  }
+
+  private _populateChunk(chunk: PendingChunk): void {
+    if (!this.scene || !this.collisionSystem || !this.entityManager) return;
+
+    const rng = new SeededRng(chunk.cx, chunk.cz);
+    const biome = getDominantBiome(chunk.worldX + this.terrain.CHUNK_SIZE / 2, chunk.worldZ + this.terrain.CHUNK_SIZE / 2);
+    const key = `${chunk.cx},${chunk.cz}`;
+
+    const objects: THREE.Object3D[] = [];
+    const colliders: THREE.Object3D[] = [];
+    const npcIds: string[] = [];
+
+    // --- Biome Props (Trees, Rocks) ---
+    const biomeData = getBiomeEntry(biome);
+    const propDensity = biomeData.propDensity || 4;
+
+    for (let i = 0; i < propDensity; i++) {
+      const x = chunk.worldX + rng.next() * this.terrain.CHUNK_SIZE;
+      const z = chunk.worldZ + rng.next() * this.terrain.CHUNK_SIZE;
+      
+      if (this.isUnderwater(x, z)) continue;
+
+      const prop = buildBiomeProp(biome, rng);
+      if (prop) {
+        prop.position.set(x, this.terrain.getHeightAt(x, z), z);
+        prop.rotation.y = rng.next() * Math.PI * 2;
+        this.scene.add(prop);
+        objects.push(prop);
+        
+        // Add to collision system if it has a collider
+        prop.traverse((node) => {
+          if (node.userData.isCollider) {
+            this.collisionSystem?.addCollider(node as THREE.Mesh);
+            colliders.push(node);
+          }
+        });
       }
+    }
 
-      if (!this.populated.has(key)) {
-        this.populated.add(key);
-        this._populate(next, key);
-        done++;
+    // --- Biome Buildings (Rare) ---
+    if (rng.chance(0.08)) {
+      const x = chunk.worldX + rng.next() * this.terrain.CHUNK_SIZE;
+      const z = chunk.worldZ + rng.next() * this.terrain.CHUNK_SIZE;
+      
+      if (!this.isUnderwater(x, z)) {
+        const building = buildBiomeBuilding(biome, rng);
+        if (building) {
+          building.position.set(x, this.terrain.getHeightAt(x, z), z);
+          building.rotation.y = rng.next() * Math.PI * 2;
+          this.scene.add(building);
+          objects.push(building);
+
+          building.traverse((node) => {
+            if (node.userData.isCollider) {
+              this.collisionSystem?.addCollider(node as THREE.Mesh);
+              colliders.push(node);
+            }
+          });
+        }
+      }
+    }
+
+    // --- Encounters ---
+    const encounters = getEncountersFor(biome);
+    if (encounters.length > 0 && rng.chance(0.15)) {
+      const def = rng.pick(encounters);
+      const x = chunk.worldX + rng.next() * this.terrain.CHUNK_SIZE;
+      const z = chunk.worldZ + rng.next() * this.terrain.CHUNK_SIZE;
+
+      if (!this.isUnderwater(x, z)) {
+        const encounter = def.build(rng);
+        encounter.position.set(x, this.terrain.getHeightAt(x, z), z);
+        encounter.rotation.y = rng.next() * Math.PI * 2;
+        this.scene.add(encounter);
+        objects.push(encounter);
+
+        encounter.traverse((node) => {
+          if (node.userData.isCollider) {
+            this.collisionSystem?.addCollider(node as THREE.Mesh);
+            colliders.push(node);
+          }
+        });
+      }
+    }
+
+    // --- Biome Monsters (Procedural NPCs) ---
+    const monsterDefs = BIOME_MONSTERS[biome];
+    if (monsterDefs && rng.chance(0.4) && this.entityManager.npcs.size < ProceduralPopulator.MAX_NPCS) {
+      const def = rng.pick(monsterDefs);
+      const x = chunk.worldX + rng.next() * this.terrain.CHUNK_SIZE;
+      const z = chunk.worldZ + rng.next() * this.terrain.CHUNK_SIZE;
+
+      if (!this.isUnderwater(x, z)) {
+        // Deterministic ID derived from chunk and index
+        const id = `proc_${key}_${npcIds.length}`;
+        this.entityManager.addNPC({
+          id,
+          name: def.name,
+          personality: `A feral ${def.name} from the ${biome} biome.`,
+          position: [x, this.terrain.getHeightAt(x, z), z],
+          scale: def.scale,
+          hp: def.maxHp,
+          maxHp: def.maxHp,
+        });
+        npcIds.push(id);
+      }
+    }
+
+    this.spawnedObjects.set(key, objects);
+    this.spawnedColliders.set(key, colliders);
+    this.spawnedNpcs.set(key, npcIds);
+    this._chunkCenters.set(key, [chunk.worldX + this.terrain.CHUNK_SIZE / 2, chunk.worldZ + this.terrain.CHUNK_SIZE / 2]);
+  }
+
+  private _releaseDistantChunks(cameraPos: THREE.Vector3): void {
+    const RELEASE_RADIUS_SQ = (this.SPAWN_RADIUS + 100) ** 2;
+
+    for (const [key, center] of this._chunkCenters.entries()) {
+      const dx = center[0] - cameraPos.x;
+      const dz = center[1] - cameraPos.z;
+      if (dx * dx + dz * dz > RELEASE_RADIUS_SQ) {
+        this._releaseChunk(key);
       }
     }
   }
 
-  private _populate(chunk: PendingChunk, key: string): void {
-    const { worldX, worldZ, chunkX, chunkZ, cx, cz } = chunk;
-    const SIZE = 64;
-    const dist = Math.sqrt(cx * cx + cz * cz);
-    const biome = getDominantBiome(cx, cz);
-    const rng = new SeededRng(chunkX, chunkZ, 0xdeadbeef);
-    const registryEntry = getBiomeEntry(biome);
-
-    const objs: THREE.Object3D[] = [];
-    const colliders: THREE.Object3D[] = [];
-    const npcIds: string[] = [];
-
-    this._chunkCenters.set(key, [cx, cz]);
-
-    const eligibleEncounters = getEncountersFor(biome, dist);
-    if (eligibleEncounters.length > 0) {
-      for (const enc of eligibleEncounters) {
-        if (!rng.chance(enc.chance)) continue;
-
-        const ex = worldX + rng.nextRange(8, SIZE - 8);
-        const ez = worldZ + rng.nextRange(8, SIZE - 8);
-        const ey = this.terrain.getHeightAt(ex, ez);
-        const anchor = ProceduralPopulator._v.set(ex, ey, ez);
-
-        const group = enc.buildFn(anchor, rng);
-        if (this.scene) {
-          group.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(group);
-          objs.push(group);
-          colliders.push(group);
-        }
-
-        const underNpcCap = this.entityManager
-          ? this.entityManager.npcs.size < ProceduralPopulator.MAX_NPCS
-          : false;
-        if (enc.npcs && this.entityManager && underNpcCap) {
-          let npcIdx = 0;
-          for (const npcDef of enc.npcs) {
-            const localX = npcDef.offsetX, localZ = npcDef.offsetZ;
-            const gy = group.rotation.y;
-            const nx = ex + Math.cos(gy) * localX - Math.sin(gy) * localZ;
-            const nz = ez + Math.sin(gy) * localX + Math.cos(gy) * localZ;
-            const ny = this.terrain.getHeightAt(nx, nz);
-            const npcId = `enc_${enc.id}_${npcDef.idPrefix}_${chunkX}_${chunkZ}_${npcIdx++}`;
-            this.entityManager.addNPC({
-              id: npcId,
-              name: npcDef.name,
-              personalityKey: npcDef.hostile ? 'road_bandit' : 'wandering_knight',
-              position: new THREE.Vector3(nx, ny, nz),
-              hp: npcDef.maxHp, maxHp: npcDef.maxHp,
-              personality: npcDef.hostile
-                ? `Hostile — attack on sight.`
-                : `Friendly wanderer — peaceful, will converse.`,
-              scale: npcDef.scale,
-            });
-            npcIds.push(npcId);
-          }
-        }
-        break;
-      }
+  private _releaseChunk(key: string): void {
+    // Release objects
+    const objects = this.spawnedObjects.get(key);
+    if (objects) {
+      objects.forEach((obj) => this.scene?.remove(obj));
+      this.spawnedObjects.delete(key);
     }
 
-    if (rng.chance(0.20)) {
-      const bx = worldX + rng.nextRange(8, SIZE - 8);
-      const bz = worldZ + rng.nextRange(8, SIZE - 8);
-      const by = this.terrain.getHeightAt(bx, bz);
-      const pos = ProceduralPopulator._v.set(bx, by, bz);
-
-      const building = registryEntry
-        ? registryEntry.buildingFn(pos, rng, dist)
-        : buildBiomeBuilding(biome, pos, rng, dist);
-
-      if (building && this.scene) {
-        building.rotation.y = rng.nextRange(0, Math.PI * 2);
-        this.scene.add(building);
-        objs.push(building);
-        colliders.push(building);
-      }
+    // Release colliders
+    const colliders = this.spawnedColliders.get(key);
+    if (colliders) {
+      colliders.forEach((node) => this.collisionSystem?.removeCollider(node as THREE.Mesh));
+      this.spawnedColliders.delete(key);
     }
 
-    const monsterChance = Math.min(0.22, 0.04 + dist * 0.0004);
-    if (rng.chance(monsterChance) && this.entityManager &&
-        this.entityManager.npcs.size < ProceduralPopulator.MAX_NPCS) {
-      const defs: MonsterDef[] = (registryEntry?.monsters
-        ?? BIOME_MONSTERS[biome]
-        ?? BIOME_MONSTERS[BiomeType.Teldrassil]!) as MonsterDef[];
-      const count = 1;
-      for (let i = 0; i < count; i++) {
-        const mx = worldX + rng.nextRange(6, SIZE - 6);
-        const mz = worldZ + rng.nextRange(6, SIZE - 6);
-        const my = this.terrain.getHeightAt(mx, mz);
-        const def = rng.pick(defs);
-        const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}`;
-        this.entityManager.addNPC({
-          id: npcId, name: def.name,
-          personalityKey: def.id,
-          position: new THREE.Vector3(mx, my, mz),
-          hp: def.maxHp, maxHp: def.maxHp,
-          personality: `Hostile creature — attack on sight.`,
-          scale: def.scale,
-        });
-        npcIds.push(npcId);
-      }
+    // Release NPCs
+    const npcIds = this.spawnedNpcs.get(key);
+    if (npcIds) {
+      npcIds.forEach((id) => this.entityManager?.removeNPC(id));
+      this.spawnedNpcs.delete(key);
     }
 
-    if (rng.chance(0.60)) {
-      const propCount = rng.nextInt(4) + 3;
-      for (let i = 0; i < propCount; i++) {
-        const px = worldX + rng.nextRange(3, SIZE - 3);
-        const pz = worldZ + rng.nextRange(3, SIZE - 3);
-        const py = this.terrain.getHeightAt(px, pz);
-        const pos = ProceduralPopulator._v.set(px, py, pz);
-        const scale = rng.nextRange(0.7, 1.35);
-
-        const prop = registryEntry
-          ? registryEntry.propFn(pos, scale, rng)
-          : buildBiomeProp(biome, pos, scale, rng);
-
-        if (prop && this.scene) {
-          prop.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(prop);
-          objs.push(prop);
-        }
-      }
-    }
-
-    if (objs.length > 0) this.spawnedObjects.set(key, objs);
-    if (colliders.length > 0) this.spawnedColliders.set(key, colliders);
-    if (npcIds.length > 0) this.spawnedNpcs.set(key, npcIds);
+    this.populated.delete(key);
+    this._chunkCenters.delete(key);
   }
 }

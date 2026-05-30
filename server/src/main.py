@@ -96,6 +96,25 @@ async def health() -> dict[str, str]:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)
+    # Each message is handled in its own task so a slow message (e.g. an
+    # interaction waiting tens of seconds on the LLM) does not block the receive
+    # loop. If the loop blocked, frequent client frames (player_move) would fill
+    # the websockets receive buffer, trigger TCP backpressure, and starve the
+    # keepalive pong handling — closing the connection with a "keepalive ping
+    # timeout". Per-player locks + the agent semaphore inside handle_message keep
+    # concurrent handling correct.
+    pending: set[asyncio.Task[None]] = set()
+
+    async def _process(data: dict[str, Any]) -> None:
+        try:
+            response = await handle_message(data, websocket, manager)
+            if response is not None:
+                await websocket.send_json(response)
+        except WebSocketDisconnect:
+            pass
+        except Exception:
+            logger.exception("Failed handling message type=%s", data.get("type"))
+
     try:
         while True:
             try:
@@ -103,10 +122,12 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             except ValueError:
                 await websocket.send_json({"type": "error", "message": "Invalid JSON"})
                 continue
-            response = await handle_message(data, websocket, manager)
-            if response is not None:
-                await websocket.send_json(response)
+            task = asyncio.create_task(_process(data))
+            pending.add(task)
+            task.add_done_callback(pending.discard)
     except WebSocketDisconnect:
+        for task in pending:
+            task.cancel()
         player_id = manager.disconnect(websocket)
         if player_id is not None:
             # Remove player from the shared world state

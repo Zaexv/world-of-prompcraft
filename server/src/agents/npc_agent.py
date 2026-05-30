@@ -91,7 +91,7 @@ def create_npc_agent(
         world_state: The WorldState instance (for context lookups).
     """
     pre_check_node = make_pre_check_node(llm)
-    reason_node = make_reason_node(llm, tools)
+    reason_node = make_reason_node(llm, tools, pending_action_sink)
     act_node = make_act_node(tools, pending_action_sink)
     reflect_node = make_reflect_node(llm)
     summarize_node = make_summarize_node(llm)
