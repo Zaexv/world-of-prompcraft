@@ -27,7 +27,7 @@ export class AudioSystem {
 
   private config: AudioConfig = {
     masterVolume: 0.8,
-    musicVolume: 0.10,
+    musicVolume: 0.7,
     sfxVolume: 0.8,
   };
 
@@ -58,137 +58,98 @@ export class AudioSystem {
   playStartMusic(): void {
     if (!this.initialized) return;
     this.stopCurrentMusic();
-    const roots = ['C2', 'D2', 'E2', 'F2', 'G2', 'A2'];
-    const scalesList: { name: string; notes: string[] }[] = [
-      { name: 'major', notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'] },
-      { name: 'minor', notes: ['C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb'] },
-      { name: 'pentatonic', notes: ['C', 'D', 'E', 'G', 'A'] },
-    ];
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const entry = scalesList[Math.floor(Math.random() * scalesList.length)];
-    const bpm = 120 + Math.floor(Math.random() * 40);
-    const scale = entry.notes;
-    const octave = parseInt(root.slice(-1), 10) || 2;
-
+    const bpm = 76 + Math.floor(Math.random() * 22);
     Tone.Transport.bpm.value = bpm;
 
-    const scalePitches = scale.map(s => s + String(octave + 1));
-    const bassPitches = scale.map(s => s + String(octave));
+    const semisUp = (note: string, semis: number): string =>
+      Tone.Frequency(note).transpose(semis).toNote();
 
-    // ── Kick on beat 1 & 3, snare/click on 2 & 4 ──
+    // Fixed progression: a chromatic descent — Ab minor → G major → Gb major →
+    // F minor — each as a root-position triad [root, third, fifth].
+    const progression: string[][] = [
+      ['Ab3', 'B3', 'Eb4'],  // Ab minor (Cb written as B)
+      ['G3', 'B3', 'D4'],    // G major
+      ['Gb3', 'Bb3', 'Db4'], // Gb major
+      ['F3', 'A3', 'C4'],    // F major
+    ];
+
+    // Persistent voices — created once and retriggered each tick so the audio
+    // graph stays a fixed size (no per-note allocation, no Draw-based disposal).
+    const kick = new Tone.MembraneSynth({
+      pitchDecay: 0.02,
+      octaves: 3,
+      envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.05 },
+      volume: -24,
+    }).connect(this.musicGain);
+    const snare = new Tone.NoiseSynth({
+      noise: { type: 'white' },
+      envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.02 },
+      volume: -30,
+    }).connect(this.musicGain);
+    const bassSynth = new Tone.Synth({
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.04, decay: 0.3, sustain: 0, release: 0.4 },
+      volume: -26,
+    }).connect(this.musicGain);
+    const chordSynth = new Tone.PolySynth(Tone.Synth, {
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.4, decay: 0.5, sustain: 0.15, release: 1.2 },
+      volume: -19,
+    }).connect(this.musicGain);
+    const arpSynth = new Tone.Synth({
+      oscillator: { type: 'triangle' },
+      envelope: { attack: 0.005, decay: 0.18, sustain: 0, release: 0.2 },
+      volume: -22,
+    }).connect(this.musicGain);
+    this.currentMusicNodes.push(kick, snare, bassSynth, chordSynth, arpSynth);
+
+    // Arpeggio set per chord: the triad an octave above the pad, plus the root
+    // two octaves up — i.e. scale-degrees [1, 3, 5, 8].
+    const arpTones = progression.map((chord) => {
+      const up = chord.map(n => semisUp(n, 12));
+      return [up[0], up[1], up[2], semisUp(up[0], 12)];
+    });
+
+    // Bass per chord: root and fifth an octave below the pad.
+    const bassTones = progression.map(chord => [semisUp(chord[0], -12), semisUp(chord[2], -12)]);
+
+    // ── Light pulse: soft kick on beat 1, gentle brush on beat 3 ──
     let beat4 = 0;
-    const beatInterval = Tone.Transport.scheduleRepeat(() => {
+    const beatInterval = Tone.Transport.scheduleRepeat((time) => {
       const barBeat = beat4 % 4;
-      if (barBeat === 0 || barBeat === 2) {
-        const k = new Tone.MembraneSynth({
-          pitchDecay: 0.02,
-          octaves: 3,
-          envelope: { attack: 0.001, decay: 0.2, sustain: 0, release: 0.05 },
-          volume: -16,
-        }).connect(this.musicGain);
-        this.currentMusicNodes.push(k);
-        k.triggerAttackRelease('C1', '32n');
-        Tone.Draw.schedule(() => {
-          const idx = this.currentMusicNodes.indexOf(k);
-          if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-          k.dispose();
-        }, Tone.now() + 0.2);
-      }
-      if (barBeat === 1 || barBeat === 3) {
-        const s = new Tone.NoiseSynth({
-          noise: { type: 'white' },
-          envelope: { attack: 0.001, decay: 0.08, sustain: 0, release: 0.02 },
-          volume: -20,
-        }).connect(this.musicGain);
-        this.currentMusicNodes.push(s);
-        s.triggerAttackRelease('32n');
-        Tone.Draw.schedule(() => {
-          const idx = this.currentMusicNodes.indexOf(s);
-          if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-          s.dispose();
-        }, Tone.now() + 0.1);
-      }
+      if (barBeat === 0) kick.triggerAttackRelease('C1', '32n', time);
+      if (barBeat === 2) snare.triggerAttackRelease('32n', time);
       beat4++;
     }, '4n');
+    this.registerTransportEvent(beatInterval);
 
-    if (beatInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(beatInterval) } as unknown as Tone.ToneAudioNode);
-    }
-
-    // ── Bass: two-beat pattern, root → fifth ──
-    let bass2 = 0;
-    const bassInterval = Tone.Transport.scheduleRepeat(() => {
-      const noteIdx = bass2 % 2 === 0 ? 0 : Math.min(4, scale.length - 1);
-      const synth = new Tone.Synth({
-        oscillator: { type: 'pwm' },
-        envelope: { attack: 0.02, decay: 0.2, sustain: 0, release: 0.3 },
-        volume: -22,
-      }).connect(this.musicGain);
-      this.currentMusicNodes.push(synth);
-      synth.triggerAttackRelease(bassPitches[noteIdx], '2n');
-      Tone.Draw.schedule(() => {
-        const idx = this.currentMusicNodes.indexOf(synth);
-        if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-        synth.dispose();
-      }, Tone.now() + 1.5);
-      bass2++;
+    // ── Bass: chord root on beat 1, fifth on beat 3 ──
+    let bassHalf = 0;
+    const bassInterval = Tone.Transport.scheduleRepeat((time) => {
+      const [bassRoot, bassFifth] = bassTones[Math.floor(bassHalf / 2) % bassTones.length];
+      bassSynth.triggerAttackRelease(bassHalf % 2 === 0 ? bassRoot : bassFifth, '2n', time);
+      bassHalf++;
     }, '2n');
+    this.registerTransportEvent(bassInterval);
 
-    if (bassInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(bassInterval) } as unknown as Tone.ToneAudioNode);
-    }
+    // ── Chords: hold one triad per bar (airy pad) ──
+    let chordBar = 0;
+    const chordInterval = Tone.Transport.scheduleRepeat((time) => {
+      chordSynth.triggerAttackRelease(progression[chordBar % progression.length], '1n', time);
+      chordBar++;
+    }, '1n');
+    this.registerTransportEvent(chordInterval);
 
-    // ── Chords: triad every 2 beats ──
-    let chord2 = 0;
-    const chordInterval = Tone.Transport.scheduleRepeat(() => {
-      const rootIdx = (chord2 * 2) % scale.length;
-      const chordNotes = [
-        scalePitches[rootIdx % scalePitches.length],
-        scalePitches[(rootIdx + 2) % scalePitches.length],
-        scalePitches[(rootIdx + 4) % scalePitches.length],
-      ];
-      const synth = new Tone.PolySynth(Tone.Synth, {
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.05, decay: 0.3, sustain: 0, release: 0.4 },
-        volume: -16,
-      }).connect(this.musicGain);
-      synth.triggerAttackRelease(chordNotes, '2n');
-      this.currentMusicNodes.push(synth);
-      Tone.Draw.schedule(() => {
-        const idx = this.currentMusicNodes.indexOf(synth);
-        if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-        synth.dispose();
-      }, Tone.now() + 2);
-      chord2++;
-    }, '2n');
-
-    if (chordInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(chordInterval) } as unknown as Tone.ToneAudioNode);
-    }
-
-    // ── Melody: rising/falling through the scale ──
-    let mel8 = 0;
-    const melInterval = Tone.Transport.scheduleRepeat(() => {
-      const step = mel8 % (scalePitches.length * 2 - 2 || 1);
-      const idx = step < scalePitches.length ? step : (scalePitches.length * 2 - 2) - step;
-      const synth = new Tone.Synth({
-        oscillator: { type: 'triangle' },
-        envelope: { attack: 0.005, decay: 0.12, sustain: 0, release: 0.15 },
-        volume: -14,
-      }).connect(this.musicGain);
-      this.currentMusicNodes.push(synth);
-      synth.triggerAttackRelease(scalePitches[idx], '8n');
-      Tone.Draw.schedule(() => {
-        const di = this.currentMusicNodes.indexOf(synth);
-        if (di >= 0) this.currentMusicNodes.splice(di, 1);
-        synth.dispose();
-      }, Tone.now() + 0.4);
-      mel8++;
+    // ── Arpeggio: pattern 8-5-3-1-3-5-8-5 over the bar's chord ──
+    // Degrees map to arp-set indices: 1→0 (root), 3→1, 5→2, 8→3 (octave).
+    const arpPattern = [3, 2, 1, 0, 1, 2, 3, 2];
+    let arpEighth = 0;
+    const arpInterval = Tone.Transport.scheduleRepeat((time) => {
+      const tones = arpTones[Math.floor(arpEighth / 8) % arpTones.length];
+      arpSynth.triggerAttackRelease(tones[arpPattern[arpEighth % arpPattern.length]], '8n', time);
+      arpEighth++;
     }, '8n');
-
-    if (melInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(melInterval) } as unknown as Tone.ToneAudioNode);
-    }
+    this.registerTransportEvent(arpInterval);
   }
 
   setMasterVolume(v: number): void {
@@ -317,28 +278,20 @@ export class AudioSystem {
     }
 
     const arpSpeed = def.arpSpeed === 'fast' ? 0.15 : def.arpSpeed === 'medium' ? 0.3 : 0.5;
+    const arpSynth = new Tone.Synth({
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 },
+      volume: -16,
+    }).connect(this.musicGain);
+    this.currentMusicNodes.push(arpSynth);
     let arpIndex = 0;
-    const arpInterval = Tone.Transport.scheduleRepeat(() => {
+    const arpInterval = Tone.Transport.scheduleRepeat((time) => {
       if (scaleFreqs.length === 0) return;
       const freq = scaleFreqs[arpIndex % scaleFreqs.length];
-      const arpSynth = new Tone.Synth({
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 },
-        volume: -16,
-      }).connect(this.musicGain);
-      this.currentMusicNodes.push(arpSynth);
-      arpSynth.triggerAttackRelease(freq, '16n');
-      Tone.Draw.schedule(() => {
-        const idx = this.currentMusicNodes.indexOf(arpSynth);
-        if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-        arpSynth.dispose();
-      }, Tone.now() + 0.5);
+      arpSynth.triggerAttackRelease(freq, '16n', time);
       arpIndex++;
     }, arpSpeed);
-
-    if (arpInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(arpInterval) } as unknown as Tone.ToneAudioNode);
-    }
+    this.registerTransportEvent(arpInterval);
   }
 
   private startMoodMusic(def: { root: string; scale: string[]; bpm: number }): void {
@@ -375,28 +328,26 @@ export class AudioSystem {
     }
 
     const arpSpeed = def.bpm > 100 ? 0.15 : 0.4;
+    const arpSynth = new Tone.Synth({
+      oscillator: { type: 'sine' },
+      envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 },
+      volume: -16,
+    }).connect(this.musicGain);
+    this.currentMusicNodes.push(arpSynth);
     let arpIndex = 0;
-    const arpInterval = Tone.Transport.scheduleRepeat(() => {
+    const arpInterval = Tone.Transport.scheduleRepeat((time) => {
       if (scaleFreqs.length === 0) return;
       const freq = scaleFreqs[arpIndex % scaleFreqs.length];
-      const arpSynth = new Tone.Synth({
-        oscillator: { type: 'sine' },
-        envelope: { attack: 0.01, decay: 0.2, sustain: 0, release: 0.3 },
-        volume: -16,
-      }).connect(this.musicGain);
-      this.currentMusicNodes.push(arpSynth);
-      arpSynth.triggerAttackRelease(freq, '16n');
-      Tone.Draw.schedule(() => {
-        const idx = this.currentMusicNodes.indexOf(arpSynth);
-        if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
-        arpSynth.dispose();
-      }, Tone.now() + 0.5);
+      arpSynth.triggerAttackRelease(freq, '16n', time);
       arpIndex++;
     }, arpSpeed);
+    this.registerTransportEvent(arpInterval);
+  }
 
-    if (arpInterval) {
-      this.currentMusicNodes.push({ dispose: () => Tone.Transport.clear(arpInterval) } as unknown as Tone.ToneAudioNode);
-    }
+  private registerTransportEvent(id: number): void {
+    this.currentMusicNodes.push({
+      dispose: () => Tone.Transport.clear(id),
+    } as unknown as Tone.ToneAudioNode);
   }
 }
 

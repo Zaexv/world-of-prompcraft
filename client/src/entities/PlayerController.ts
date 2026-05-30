@@ -62,6 +62,10 @@ export class PlayerController {
   // --- Audio ---
   private footstepTimer = 0;
   private readonly footstepInterval = 0.45;
+  // Wading is slower and heavier than a footstep, so splashes are spaced out.
+  private readonly waterStepInterval = 0.6;
+  // Fraction of the normal interval used while sprinting (faster cadence).
+  private readonly sprintStepFactor = 0.65;
 
   // --- Input state ---
   private keys: Record<string, boolean> = {};
@@ -314,8 +318,9 @@ export class PlayerController {
         0.35
       );
 
-      if (this.keys['Space']) {
+      if (this.keys['Space'] && this.capsuleController.isGrounded) {
         this.capsuleController.jump(this.jumpVelocity);
+        AudioSystem.getInstance().playSfx("jump");
       }
 
       this.capsuleController.update(this.capsule, moveVec, delta, meshes);
@@ -335,12 +340,18 @@ export class PlayerController {
       }
     }
 
-    // --- Footstep audio ---
-    if (this.isMoving && this.isGrounded && !this.isSwimming) {
+    // --- Footstep / water-step audio ---
+    // Wading through water plays a slower splash; walking on land plays a step.
+    const wading = this.isMoving && this.isSwimming;
+    const walking = this.isMoving && this.isGrounded && !this.isSwimming;
+    if (wading || walking) {
+      // Sprinting tightens the cadence so steps/splashes keep up with the pace.
+      const baseInterval = wading ? this.waterStepInterval : this.footstepInterval;
+      const interval = running ? baseInterval * this.sprintStepFactor : baseInterval;
       this.footstepTimer += delta;
-      if (this.footstepTimer >= this.footstepInterval) {
+      if (this.footstepTimer >= interval) {
         this.footstepTimer = 0;
-        AudioSystem.getInstance().playSfx("footstep");
+        AudioSystem.getInstance().playSfx(wading ? "water_step" : "footstep");
       }
     } else {
       this.footstepTimer = 0;

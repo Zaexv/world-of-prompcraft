@@ -103,7 +103,12 @@
       "Bash(git checkout *)",
       "Bash(git --no-pager diff --stat)",
       "Bash(git --no-pager diff --cached client/src/scene/SceneManager.ts)",
-      "Bash(git --no-pager diff --cached --stat)"
+      "Bash(git --no-pager diff --cached --stat)",
+      "Bash(ls -la public/assets/textures/terrain/)",
+      "Bash(ls public *)",
+      "Bash(find . -path ./node_modules -prune -o \\\\\\( -name \"sand*.jpg\" -o -name \"grass*.jpg\" -o -name \"rock*.jpg\" \\\\\\) -print)",
+      "Bash(git log *)",
+      "Bash(git diff *)"
     ]
   },
   "hooks": {
