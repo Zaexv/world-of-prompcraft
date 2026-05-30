@@ -11,6 +11,14 @@ if TYPE_CHECKING:
     from tests.llm_fixtures import MockChatModel
 
 
+def _first_generation_text(result) -> str | None:
+    """Support both ChatResult generation shapes across langchain versions."""
+    first = result.generations[0]
+    if isinstance(first, list):
+        return first[0].text if first else None
+    return first.text
+
+
 @pytest.mark.asyncio
 async def test_mock_llm_generation(mock_llm_openai: MockChatModel) -> None:
     """Test mock LLM generates responses without API calls."""
@@ -42,8 +50,9 @@ async def test_mock_llm_template_formatting(mock_llm_claude: MockChatModel) -> N
     result = await mock_llm_claude._agenerate(messages)
 
     assert result is not None
-    assert result.generations[0][0].text is not None
-    assert "Claude" in result.generations[0][0].text
+    text = _first_generation_text(result)
+    assert text is not None
+    assert "Claude" in text
 
 
 @pytest.mark.asyncio
@@ -76,7 +85,7 @@ async def test_mock_llm_empty_prompt(mock_llm_openai: MockChatModel) -> None:
     result = await mock_llm_openai._agenerate(messages)
 
     assert result is not None
-    assert result.generations[0][0].text is not None
+    assert _first_generation_text(result) is not None
 
 
 @pytest.mark.asyncio
@@ -87,7 +96,7 @@ async def test_mock_llm_long_prompt(mock_llm_openai: MockChatModel) -> None:
     result = await mock_llm_openai._agenerate(messages)
 
     assert result is not None
-    assert result.generations[0][0].text is not None
+    assert _first_generation_text(result) is not None
 
 
 def test_mock_settings_fixture(mock_settings) -> None:

@@ -49,6 +49,8 @@ export class GameEngine {
 
   // Minimap NPC dot throttle — rebuild at most once every 10 frames
   private _npcDotTick = 0;
+  // Scratch array reused every rebuild — avoids allocating a new array + objects each time.
+  private readonly _npcDotsScratch: Array<{ x: number; z: number; name: string; hostile: boolean }> = [];
 
   // Intro cinematic
   private introCinematicActive = false;
@@ -195,7 +197,7 @@ export class GameEngine {
 
       const npc = d.entityManager.getNPC(npcId);
       if (npc) {
-        npc.walkToPlayer(d.playerController.position.clone());
+        npc.walkToPlayer(d.playerController.position); // NPCWander.walkTo clones internally
       }
 
       d.uiManager.showInteractionPanel(npcId, npcName);
@@ -316,20 +318,24 @@ export class GameEngine {
 
     d.sceneManager.camera.getWorldDirection(this._camDir);
     d.uiManager.updateMinimap(px, pz, Math.atan2(this._camDir.x, this._camDir.z));
-    if (d.uiManager.minimap.getIsVisible()) {
-      // Throttle NPC dot rebuild to once per 10 frames — getAllNPCs() allocates
-      // a new array every call; at 60fps this is 60 allocations/s with 100+ NPCs.
-      this._npcDotTick++;
-      if (this._npcDotTick % 10 === 0) {
-        d.uiManager.minimap.setNPCDots(
-          d.entityManager.getAllNPCs().map(npc => ({
-            x: npc.position.x,
-            z: npc.position.z,
-            name: npc.name,
-            hostile: HOSTILE_NPCS.has(npc.id),
-          }))
-        );
+    this._npcDotTick++;
+    if (this._npcDotTick % 10 === 0) {
+      const npcs = d.entityManager.getAllNPCs();
+      this._npcDotsScratch.length = npcs.length;
+      for (let i = 0; i < npcs.length; i++) {
+        const npc = npcs[i]!;
+        const slot = this._npcDotsScratch[i];
+        if (slot) {
+          slot.x = npc.position.x;
+          slot.z = npc.position.z;
+          slot.name = npc.name;
+          slot.hostile = HOSTILE_NPCS.has(npc.id);
+        } else {
+          this._npcDotsScratch[i] = { x: npc.position.x, z: npc.position.z, name: npc.name, hostile: HOSTILE_NPCS.has(npc.id) };
+        }
       }
+      d.uiManager.minimap.setNPCDots(this._npcDotsScratch);
+      d.uiManager.minimapWidget.setNPCDots(this._npcDotsScratch);
     }
     d.uiManager.bubbleSystem?.update();
 

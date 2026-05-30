@@ -16,10 +16,16 @@ export class SlopeSolver {
   private minFloorY: number = Math.cos(this.maxFloorAngle);
   private ceilingYThreshold: number = -0.1;
 
+  private _classifiedResults: ClassifiedContact[] = [];
+
   constructor() {}
 
   public classifyContacts(contacts: ContactPoint[]): ClassifiedContact[] {
-    return contacts.map(contact => {
+    // Reuse array to avoid allocation
+    this._classifiedResults.length = 0;
+    
+    for (let i = 0; i < contacts.length; i++) {
+      const contact = contacts[i];
       let type = ContactType.WALL;
       if (contact.normal.y > this.minFloorY) {
         type = ContactType.FLOOR;
@@ -27,11 +33,17 @@ export class SlopeSolver {
         type = ContactType.CEILING;
       }
       
-      return {
-        ...contact,
-        type
-      };
-    });
+      // We still need to return a ClassifiedContact which adds the 'type' field.
+      // To avoid object creation, we could cast, but adding a field is safer if we reuse objects.
+      // For now, let's just use the existing objects and add the type field to them (mutation)
+      // or create new ones if we must. Since they are only used within the resolution loop,
+      // mutation is acceptable if we document it.
+      const classified = contact as ClassifiedContact;
+      classified.type = type;
+      this._classifiedResults.push(classified);
+    }
+    
+    return this._classifiedResults;
   }
 
   /**

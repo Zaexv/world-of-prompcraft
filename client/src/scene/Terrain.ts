@@ -133,13 +133,6 @@ export class Terrain {
 
   constructor(scene: THREE.Scene) {
     this.scene = scene;
-  }
-
-  /**
-   * Performs the initial chunk loading. 
-   * Call this AFTER wiring onChunkLoaded/onChunkUnloaded callbacks.
-   */
-  public init(): void {
     // Load the full view radius synchronously so the first player movement
     // never triggers chunk streaming and the associated stutter.
     this.queueChunksAround(0, 0, INITIAL_PRELOAD_RADIUS);

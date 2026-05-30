@@ -1,11 +1,9 @@
 import * as THREE from 'three';
-import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
-import { addOutlineShell } from './ModelStyling';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
-import { getNPCModelPath, getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
+import { getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
 import { buildProceduralMesh, getPlaceholderAppearance } from './NPCAppearance';
 import { addPlaceholderAccessory, addNPCVisualOutline, applyFlatShading } from './NPCAccessories';
 import { NPCWander } from './NPCWander';
@@ -50,7 +48,6 @@ export class NPC {
 
   private materials: THREE.MeshStandardMaterial[] = [];
   private originalEmissives: number[] = [];
-  private gltfMode = false;
 
   constructor(config: NPCConfig) {
     this.id = config.id;
@@ -65,7 +62,7 @@ export class NPC {
     if (config.scale) this.mesh.scale.setScalar(config.scale);
 
     const appearance = getPlaceholderAppearance(this.placeholderStyle);
-    this.materials = buildProceduralMesh(this.mesh, appearance, this.placeholderStyle);
+    this.materials = buildProceduralMesh(this.mesh, appearance, this.id);
 
     addPlaceholderAccessory(this.mesh, this.placeholderStyle);
     applyFlatShading(this.mesh);
@@ -96,60 +93,9 @@ export class NPC {
     this.animator.setBaseY(y);
   }
 
-  static create(config: NPCConfig, assetLoader?: AssetLoader): NPC {
-    const npc = new NPC(config);
-    if (assetLoader) {
-      const modelPath = getNPCModelPath(config.id, config.name, config.behavior);
-      if (modelPath) {
-        assetLoader.loadGLTF(modelPath)
-          .then((gltf) => npc.replaceWithGLTF(gltf))
-          .catch(() => { /* keep procedural mesh silently */ });
-      }
-    }
-    return npc;
-  }
-
-  private replaceWithGLTF(gltf: GLTF): void {
-    const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
-    for (const child of toRemove) this.mesh.remove(child);
-
-    const gltfScene = gltf.scene.clone();
-    const box = new THREE.Box3().setFromObject(gltfScene);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const scale = 2.5 / Math.max(size.y, 0.001);
-    gltfScene.scale.setScalar(scale);
-    gltfScene.position.y = -box.min.y * scale;
-
-    gltfScene.traverse((child) => {
-      child.userData.npcId = this.id;
-      child.userData.npcName = this.name;
-      if (child instanceof THREE.Mesh) child.castShadow = true;
-    });
-
-    this.mesh.add(gltfScene);
-    this.materials = [];
-    this.originalEmissives = [];
-    this.gltfMode = true;
-    addOutlineShell(gltfScene, { scale: 1.03, opacity: 0.85 });
-
-    if (gltf.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(gltfScene);
-      this.animator.setMixer(mixer, gltf.animations);
-    }
-  }
-
-  private collectStdMaterials(): THREE.MeshStandardMaterial[] {
-    const result: THREE.MeshStandardMaterial[] = [];
-    this.mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        for (const mat of mats) {
-          if (mat instanceof THREE.MeshStandardMaterial) result.push(mat);
-        }
-      }
-    });
-    return result;
+  static create(config: NPCConfig, _assetLoader?: AssetLoader): NPC {
+    // GLTF support removed: always return a procedural NPC
+    return new NPC(config);
   }
 
   update(delta: number): void {
@@ -191,8 +137,49 @@ export class NPC {
   }
 
   playEmote(emote: string): void {
-    this.animator.play(emote === 'attack' ? 'attack' : 'emote');
+    this.animator.play(emote);
     this.actionIcon.displayAction(emote, 2.5);
+  }
+
+  public setSkin(styleName: string): void {
+    // 0. Resolve the appearance first — getPlaceholderAppearance throws on an
+    //    unknown style. Doing this before mutating prevents an invalid skin
+    //    (e.g. a hallucinated value from the LLM) from wiping the mesh.
+    const style = styleName as NPCPlaceholderStyle;
+    let appearance;
+    try {
+      appearance = getPlaceholderAppearance(style);
+    } catch {
+      console.warn(`[NPC] Ignoring set_skin with unknown style: ${styleName}`);
+      return;
+    }
+
+    // 1. Remove all procedural meshes (keep only sprites)
+    const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
+    for (const child of toRemove) this.mesh.remove(child);
+
+    // 2. Rebuild with new style
+    this.materials = buildProceduralMesh(this.mesh, appearance, this.id);
+
+    addPlaceholderAccessory(this.mesh, style);
+    applyFlatShading(this.mesh);
+    addNPCVisualOutline(this.mesh, style);
+
+    // 3. Re-bind the animator to the freshly built limbs, otherwise it keeps
+    //    driving the old (removed) meshes and the NPC stops animating.
+    this.animator.rebind();
+
+    // 4. Re-traverse to ensure metadata is set
+    this.mesh.traverse((child) => {
+      child.userData.npcId = this.id;
+      child.userData.npcName = this.name;
+    });
+
+    // 5. Update highlights if active
+    if (this.originalEmissives.length > 0) {
+      this.originalEmissives = [];
+      this.setHighlight(true);
+    }
   }
 
   showAction(actionKind: string, duration = 3.0): void {
@@ -200,23 +187,16 @@ export class NPC {
   }
 
   dispose(): void {
-    // Only dispose unique per-instance assets.
-    // Shared NPC geometries and materials are kept in a global cache (NPCAppearance.ts).
-    
-    if (this.gltfMode) {
-      // GLTF models are currently unique per NPC because they are cloned.
-      this.mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            for (const mat of child.material) mat.dispose();
-          } else {
-            child.material.dispose();
-          }
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          for (const mat of child.material) mat.dispose();
+        } else {
+          child.material.dispose();
         }
-      });
-    }
-
+      }
+    });
     this.nameplate.sprite.material.dispose();
     if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
       this.nameplate.sprite.material.map.dispose();
@@ -228,7 +208,7 @@ export class NPC {
   }
 
   setHighlight(on: boolean): void {
-    const mats = this.gltfMode ? this.collectStdMaterials() : this.materials;
+    const mats = this.materials;
     if (on) {
       if (this.originalEmissives.length === 0) {
         this.originalEmissives = mats.map((mat) => mat.emissive.getHex());

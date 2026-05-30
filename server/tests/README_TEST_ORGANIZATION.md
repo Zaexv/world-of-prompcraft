@@ -13,11 +13,14 @@ tests/
 │
 └── domains/
     ├── agents/                  # NPC agent tests
-    │   ├── test_agent_integration.py  # Agent reasoning & mock LLM tests
-    │   └── test_personalities.py      # NPC personality templates
+    │   ├── test_agent_integration.py           # Mock LLM behavior tests
+    │   ├── test_ai_integration_formal_flow.py # ws -> service -> registry flow tests
+    │   ├── test_interaction_service.py         # Caching, fingerprinting, provider errors
+    │   └── test_personalities.py               # NPC personality templates
     │
     ├── world/                   # World state & game world tests
     │   ├── test_player_state.py       # Player data, inventory, quests
+    │   ├── test_world_state_persistence.py # SQLite persistence roundtrips
     │   ├── test_world_state.py        # World state, damage, items, NPCs
     │   └── test_zones.py              # Zone definitions, terrain, spawn logic
     │
@@ -38,7 +41,9 @@ tests/
 Tests for LangGraph agents, LLM integration, and NPC behaviors.
 
 **Key Files:**
-- `test_agent_integration.py` — Mock LLM functionality (no API calls, < 1ms latency)
+- `test_agent_integration.py` — Mock LLM functionality (no API calls)
+- `test_ai_integration_formal_flow.py` — Formal interaction pipeline tests (`handle_message -> InteractionService -> AgentRegistry`)
+- `test_interaction_service.py` — Cache correctness, fingerprints, timeout/provider wrapping
 - `test_personalities.py` — NPC archetype system prompts
 
 **Sample Test:**
@@ -54,8 +59,8 @@ async def test_mock_llm_generation(mock_llm_openai: MockChatModel) -> None:
 **Coverage:**
 - ✅ Mock LLM invocation
 - ✅ Tool binding
-- ✅ Edge cases (empty prompts, long text, malformed input)
-- ⏳ Full agent graph execution (requires LLM binding)
+- ✅ Formal websocket interaction flow (direct commands, social, normal reasoning, fallback)
+- ✅ Local runtime guardrail for core use-cases (<3s in-test assertion)
 
 ---
 
@@ -64,6 +69,7 @@ Tests for world state, player data, NPCs, zones, and game logic.
 
 **Key Files:**
 - `test_player_state.py` — Player attributes, inventory isolation
+- `test_world_state_persistence.py` — SQLite-backed persistence for players/NPC personalities/world snapshot
 - `test_world_state.py` — Damage, healing, items, NPC management
 - `test_zones.py` — Zone definitions, descriptions, terrain
 
@@ -77,6 +83,7 @@ def test_apply_damage_player(world_state: WorldState, player_data: PlayerData) -
 
 **Coverage:**
 - ✅ State mutations (damage, heal, items, weather)
+- ✅ SQLite persistence roundtrips (players, NPC personalities, world snapshot)
 - ✅ Zone system (village, peaks, lake, wilderness)
 - ✅ NPC/player data integrity
 - ✅ Singleton world state
@@ -134,6 +141,9 @@ def test_player_interaction_alias() -> None:
 ```bash
 # Run only agent tests
 pytest tests/domains/agents/ -v
+
+# Run formal AI integration flow tests
+pytest tests/domains/agents/test_ai_integration_formal_flow.py -v
 
 # Run only world tests
 pytest tests/domains/world/ -v
@@ -233,4 +243,3 @@ def test_player_interactions():  # Too broad
 - **Shared State**: Use `conftest.py` for common setup (world, player, NPC)
 - **Domain Isolation**: Keep domain tests independent; avoid circular imports
 - **Naming**: Use `test_<behavior>.py` (e.g., `test_combat_tools.py`)
-

@@ -13,14 +13,17 @@ export class EntityManager {
   public readonly npcs: Map<string, NPC> = new Map();
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
+  // Server-authoritative NPC ids currently synced, so we can prune ones that
+  // drop out of the streamed nearby set instead of accumulating them forever.
+  private serverNpcIds: Set<string> = new Set();
+
+  // Cached arrays rebuilt only when NPCs are added/removed — avoids per-call allocations.
+  private _meshesCache: THREE.Object3D[] = [];
+  private _npcArrayCache: NPC[] = [];
+  private _cachesDirty = true;
+
   private scene: THREE.Scene;
   private assetLoader?: AssetLoader;
-
-  // Interleaving & Performance
-  private frameCount = 0;
-  private readonly INTERLEAVE_FACTOR = 4; // Spread expensive work over 4 frames
-  private npcList: NPC[] = [];
-  private npcIndex = 0;
 
   constructor(scene: THREE.Scene, assetLoader?: AssetLoader) {
     this.scene = scene;
@@ -31,13 +34,56 @@ export class EntityManager {
 
   /**
    * Create and register an NPC, adding it to the scene immediately.
+   * Background-loads a GLTF model if an AssetLoader was provided.
    */
   addNPC(config: NPCConfig): NPC {
+    const existing = this.npcs.get(config.id);
+    if (existing) return existing;
+
     const npc = NPC.create(config, this.assetLoader);
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
-    this.npcList = Array.from(this.npcs.values());
+    this._cachesDirty = true;
     return npc;
+  }
+
+  /**
+   * Apply the server's authoritative nearby-NPC snapshot.
+   *
+   * - Existing entities are updated in place (no churn).
+   * - `proc_*` / `enc_*` NPCs are owned by the client ProceduralPopulator
+   *   (spawned/released per terrain chunk), so server echoes of them are
+   *   ignored here — otherwise they get re-added after the chunk released them
+   *   and leak, since the populator no longer tracks them.
+   * - Previously-synced server NPCs that are absent from this snapshot are
+   *   removed, so roaming doesn't accumulate every NPC ever streamed.
+   */
+  syncServerNPCs(configs: NPCConfig[]): void {
+    const incoming = new Set<string>();
+
+    for (const config of configs) {
+      if (config.id.startsWith('proc_') || config.id.startsWith('enc_')) continue;
+      incoming.add(config.id);
+
+      const existing = this.npcs.get(config.id);
+      if (!existing) {
+        this.addNPC(config);
+        continue;
+      }
+
+      if (config.scale !== undefined) {
+        existing.mesh.scale.setScalar(config.scale);
+      }
+      if (config.hp !== undefined && config.maxHp !== undefined) {
+        existing.nameplate.updateHP(config.hp, config.maxHp);
+      }
+    }
+
+    // Prune server NPCs that are no longer in the nearby snapshot.
+    for (const id of this.serverNpcIds) {
+      if (!incoming.has(id)) this.removeNPC(id);
+    }
+    this.serverNpcIds = incoming;
   }
 
   /** Retrieve an NPC by id. */
@@ -45,9 +91,10 @@ export class EntityManager {
     return this.npcs.get(id);
   }
 
-  /** Return all registered NPCs. */
+  /** Return all registered NPCs. Cached — no allocation unless the roster changed. */
   getAllNPCs(): NPC[] {
-    return this.npcList;
+    if (this._cachesDirty) this._rebuildCaches();
+    return this._npcArrayCache;
   }
 
   /** Remove an NPC from the registry and the scene. */
@@ -57,7 +104,7 @@ export class EntityManager {
       this.scene.remove(npc.mesh);
       npc.dispose?.();
       this.npcs.delete(id);
-      this.npcList = Array.from(this.npcs.values());
+      this._cachesDirty = true;
     }
   }
 
@@ -65,6 +112,7 @@ export class EntityManager {
 
   /** Add a remote player to the scene. */
   addRemotePlayer(data: RemotePlayerData): RemotePlayer {
+    // Remove existing if present (reconnect case)
     if (this.remotePlayers.has(data.playerId)) {
       this.removeRemotePlayer(data.playerId);
     }
@@ -99,15 +147,13 @@ export class EntityManager {
     }
   }
 
-  // ── Distance culling & Interleaving ─────────────────────────────────────────
+  // ── Distance culling ────────────────────────────────────────────────────────
 
+  // Player position for distance-based culling
   private playerX = 0;
   private playerZ = 0;
-  
-  // Tuned radii for performance
-  private readonly UPDATE_RADIUS_SQ = 120 * 120;   // full AI/anim within 120m
-  private readonly VISIBLE_RADIUS_SQ = 250 * 250;  // hide beyond 250m
-  private readonly NAMEPLATE_RADIUS_SQ = 60 * 60;  // hide details beyond 60m
+  private readonly UPDATE_RADIUS_SQ = 400 * 400;   // full update within 400 units (covers Fort Malaka ~273u from spawn)
+  private readonly VISIBLE_RADIUS_SQ = 450 * 450;  // hide beyond 450 units
 
   /** Set the player position so NPCs can be distance-culled. */
   setPlayerPosition(x: number, z: number): void {
@@ -115,93 +161,55 @@ export class EntityManager {
     this.playerZ = z;
   }
 
-  /** Tick NPC animations and wandering AI with aggressive interleaving. */
-  update(delta: number, getHeightAt?: (x: number, z: number) => number, collisionSystem?: CollisionSystem): void {
-    this.frameCount++;
-    const start = performance.now();
-    const BUDGET_MS = 2.0;
-
-    // 1. DISTANCE CULLING & LOD (Interleaved: only check a portion of NPCs per frame)
-    const count = this.npcList.length;
-    if (count > 0) {
-      const batchSize = Math.ceil(count / this.INTERLEAVE_FACTOR);
-      for (let i = 0; i < batchSize; i++) {
-        const idx = (this.npcIndex + i) % count;
-        const npc = this.npcList[idx];
-
-        const dx = npc.position.x - this.playerX;
-        const dz = npc.position.z - this.playerZ;
-        const distSq = dx * dx + dz * dz;
-
-        // --- Visibility (Level 2 LOD) ---
-        const isVisible = distSq < this.VISIBLE_RADIUS_SQ;
-        if (npc.mesh.visible !== isVisible) {
-          npc.mesh.visible = isVisible;
-        }
-
-        if (isVisible) {
-          // --- Nameplate/UI (Level 1 LOD) ---
-          const showDetails = distSq < this.NAMEPLATE_RADIUS_SQ;
-          if (npc.nameplate.sprite.visible !== showDetails) {
-            npc.nameplate.sprite.visible = showDetails;
-            npc.actionIcon.sprite.visible = showDetails;
-          }
-
-          // --- Animation Throttling ---
-          if (distSq < 40 * 40) {
-            npc.animator.throttleFactor = 1; // full rate
-          } else if (distSq < 80 * 80) {
-            npc.animator.throttleFactor = 2; // half rate
-          } else {
-            npc.animator.throttleFactor = 4; // quarter rate
-          }
-
-          // --- Snap to ground only if needed ---
-          if (getHeightAt && !npc.isGrounded) {
-            npc.snapToGround(getHeightAt);
-            npc.isGrounded = true;
-          }
-        }
-      }
-      this.npcIndex = (this.npcIndex + batchSize) % count;
-    }
-
-    // 2. ACTIVE UPDATES (Within update radius and frame budget)
-    for (const npc of this.npcList) {
-      if (!npc.mesh.visible) continue;
-
+  /** Tick NPC animations and wandering AI, culling distant NPCs. Also update remote players. */
+  update(delta: number, getHeightAt?: (x: number, z: number) => number, _collisionSystem?: CollisionSystem): void {
+    for (const npc of this.npcs.values()) {
+      // Distance check FIRST — skip all work for distant NPCs immediately.
       const dx = npc.position.x - this.playerX;
       const dz = npc.position.z - this.playerZ;
       const distSq = dx * dx + dz * dz;
 
-      if (distSq < this.UPDATE_RADIUS_SQ) {
-        // Stop if we hit the CPU budget for this frame
-        if (performance.now() - start > BUDGET_MS) break;
+      if (distSq > this.VISIBLE_RADIUS_SQ) {
+        if (npc.mesh.visible) npc.mesh.visible = false;
+        // Do NOT snap distant NPCs — snapToGround calls getHeightAt (terrain query) and is expensive.
+        continue;
+      }
+      if (!npc.mesh.visible) npc.mesh.visible = true;
 
+      // Snap to ground only for visible NPCs that need it
+      if (getHeightAt && !npc.isGrounded) {
+        npc.snapToGround(getHeightAt);
+        npc.isGrounded = true;
+      }
+
+      // Full AI + animation only within the closer update radius
+      if (distSq < this.UPDATE_RADIUS_SQ) {
         npc.update(delta);
         if (getHeightAt) {
-          // AI updates are even more expensive, so we interleave them too
-          if ((this.frameCount + npc.id.length) % 2 === 0) {
-            npc.updateWander(delta * 2, getHeightAt, collisionSystem);
-          }
+          npc.updateWander(delta, getHeightAt);
         }
       }
     }
 
-    // 3. REMOTE PLAYERS (Always update, usually few)
+    // Update remote players
     for (const remote of this.remotePlayers.values()) {
       remote.update(delta);
     }
   }
 
-  /** Return all NPC mesh groups for raycaster intersection tests. */
+  /** Return all NPC mesh groups for raycaster intersection tests. Cached — no allocation unless the roster changed. */
   getMeshes(): THREE.Object3D[] {
-    const meshes: THREE.Object3D[] = [];
-    for (const npc of this.npcList) {
-      if (npc.mesh.visible) {
-        meshes.push(npc.mesh);
-      }
+    if (this._cachesDirty) this._rebuildCaches();
+    return this._meshesCache;
+  }
+
+  private _rebuildCaches(): void {
+    this._meshesCache.length = 0;
+    this._npcArrayCache.length = 0;
+    for (const npc of this.npcs.values()) {
+      this._meshesCache.push(npc.mesh);
+      this._npcArrayCache.push(npc);
     }
-    return meshes;
+    this._cachesDirty = false;
   }
 }

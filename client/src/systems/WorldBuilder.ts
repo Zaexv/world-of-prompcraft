@@ -63,9 +63,7 @@ export class WorldBuilder {
     rotation?: [number, number, number];
     scale?: number;
     label?: string;
-    persist?: boolean;
   }, pushToUndo = true): THREE.Object3D | undefined {
-    const persist = params.persist ?? true;
     let placed = this.objects.get(params.objectId);
     const y = this.terrain.getHeightAt(params.position[0], params.position[2]);
     const snappedPosition: [number, number, number] = [params.position[0], y, params.position[2]];
@@ -75,7 +73,7 @@ export class WorldBuilder {
     let undoRecorded = false;
 
     if (placed && !this.matchesPlacement(placed, params.objectType, snappedPosition, rotation, scale, label)) {
-      if (pushToUndo && persist) {
+      if (pushToUndo) {
         this.pushUndoState();
         undoRecorded = true;
       }
@@ -92,7 +90,7 @@ export class WorldBuilder {
       placed.scale = scale;
       placed.label = label;
     } else {
-      if (pushToUndo && !undoRecorded && persist) {
+      if (pushToUndo && !undoRecorded) {
         this.pushUndoState();
       }
 
@@ -106,19 +104,20 @@ export class WorldBuilder {
         group.rotation.set(rotation[0], rotation[1], rotation[2]);
       }
 
-      if (persist) {
-        placed = {
-          id: params.objectId,
-          type: params.objectType,
-          group,
-          position: snappedPosition,
-          rotation,
-          scale,
-          label,
-        };
-        this.objects.set(params.objectId, placed);
-      }
+      placed = {
+        id: params.objectId,
+        type: params.objectType,
+        group,
+        position: snappedPosition,
+        rotation,
+        scale,
+        label,
+      };
+      this.objects.set(params.objectId, placed);
     }
+
+    // Ensure objectId is tracked for despawning
+    group.userData.objectId = params.objectId;
 
     // Ensure it's in the scene (it might have been removed by chunk unloading)
     if (group.parent !== this.scene) {
@@ -132,9 +131,7 @@ export class WorldBuilder {
       this.collisionSystem.addCollidableFiltered(group);
     }
 
-    if (persist) {
-      this.persistence.save(this.objects);
-    }
+    this.persistence.save(this.objects);
 
     return group;
   }
@@ -161,6 +158,34 @@ export class WorldBuilder {
     });
     this.objects.delete(objectId);
     this.persistence.save(this.objects);
+  }
+
+  /**
+   * Completely removes an object from the builder's tracking, scene, and collision.
+   * Unlike removeObject, this does not push to undo stack.
+   */
+  public releaseObject(objectId: string): void {
+    const placed = this.objects.get(objectId);
+    if (!placed) return;
+
+    this.scene.remove(placed.group);
+    this.collisionSystem?.removeCollidable(placed.group);
+    
+    placed.group.traverse((child) => {
+      if (child instanceof THREE.Mesh) {
+        child.geometry.dispose();
+        if (Array.isArray(child.material)) {
+          child.material.forEach((m) => m.dispose());
+        } else {
+          child.material.dispose();
+        }
+      }
+    });
+
+    this.objects.delete(objectId);
+    // Note: We don't save to persistence here, because these are manifest landmarks
+    // that will be re-spawned when the chunk loads again.
+    // If it was a USER-placed object, it would be in persistence anyway.
   }
 
   getPlacedObjectIds(): string[] {

@@ -9,7 +9,6 @@ import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Effects } from './Effects';
 import { StartingForest } from './Forest';
-import { DesertScenery } from './Desert';
 import type { CollisionSystem } from '../systems/CollisionSystem';
 
 export class SceneManager {
@@ -25,7 +24,6 @@ export class SceneManager {
   private skybox: Skybox;
   private composer: EffectComposer | null = null;
   private forest: StartingForest;
-  private desert: DesertScenery;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
   private readonly minPixelRatio = 0.9;
@@ -47,7 +45,7 @@ export class SceneManager {
     // --- Core renderer setup ---
     this.scene = new THREE.Scene();
 
-    this.scene.background = new THREE.Color(0x88d0ff); // Even lighter, more vibrant
+    this.scene.background = new THREE.Color(0x87ceeb);
 
     this.camera = new THREE.PerspectiveCamera(
       60,
@@ -67,71 +65,55 @@ export class SceneManager {
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.55; // Further increased exposure for maximum brightness
+    this.renderer.toneMappingExposure = 1.2;
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
 
-    // --- World systems (order matters: lighting first, then geometry) ---
-    this.skybox = new Skybox(this.scene);
-    this.lighting = new Lighting(this.scene);
-
     // --- Post-processing: render → TAA → bloom ---
-    // No SSAO/ambient-occlusion pass: it was removed for performance (it cost a
-    // full-scene depth/normal prepass plus per-pixel AO + denoise every frame).
-    // Indirect/ambient shading comes from the cheap PMREM environment map
-    // generated below.
     try {
       this.composer = new EffectComposer(this.renderer);
+
       this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-      // 1. TAA
+      // Exponential-blend TAA: blends each frame with the last ~5 frames.
+      // composer.setSize() propagates to TemporalAAPass.setSize(), which
+      // discards stale history on resize automatically.
       this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
 
-      // 2. Bloom
+      // Half-resolution bloom for performance
       const bloomRes = new THREE.Vector2(
         Math.floor(window.innerWidth / 2),
         Math.floor(window.innerHeight / 2),
       );
       this.composer.addPass(new UnrealBloomPass(
         bloomRes,
-        0.22,
-        0.35,
-        0.9,
+        0.22,  // lower strength keeps scene cooler/darker
+        0.35,  // tighter spread to avoid haze
+        0.9,   // bloom only on truly bright emissive elements
       ));
-    } catch (e) {
-      console.warn('Post-processing failed to initialize:', e);
+    } catch {
+      // Fallback: if post-processing fails, render normally
       this.composer = null;
     }
 
-    // --- Environment Lighting (IBL) ---
-    // Use PMREM to generate a performant indirect lighting map from the skybox.
-    // This provides the 'real life' ground bounce by letting materials reflect
-    // the sky and terrain colors.
-    const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
-    pmremGenerator.compileCubemapShader();
-    
-    // We'll update the environment map whenever the skybox or biome changes 
-    // significantly. For now, a one-time high-quality generation.
-    setTimeout(() => {
-      const renderTarget = pmremGenerator.fromScene(this.scene);
-      this.scene.environment = renderTarget.texture;
-      pmremGenerator.dispose();
-    }, 1000);
+    // --- World systems (order matters: lighting first, then geometry) ---
+    this.skybox = new Skybox(this.scene);
+    this.lighting = new Lighting(this.scene);
 
     this.terrain = new Terrain(this.scene);
-    this.water = new Water(this.scene, this.renderer);
+    this.water = new Water(this.scene);
 
+    // --- Magical environmental effects (wisps, particles, glow, leaves) ---
     this.effects = new Effects(this.scene);
     this.forest = new StartingForest(this.scene, this.terrain);
-    this.desert = new DesertScenery(this.scene, this.terrain);
 
+    // --- Resize handling ---
     window.addEventListener('resize', this.onResize.bind(this));
   }
 
   setCollisionSystem(collisionSystem: CollisionSystem): void {
     this.forest.setCollisionSystem(collisionSystem);
-    this.desert.setCollisionSystem(collisionSystem);
   }
 
   private onResize(): void {
@@ -225,7 +207,6 @@ export class SceneManager {
   /** Update player position for effects, water, and shadow frustum tracking. */
   setPlayerPosition(x: number, z: number): void {
     this.effects.setPlayerPosition(x, z);
-    this.desert.setPlayerPosition(x, z);
     this.playerX = x;
     this.playerZ = z;
     this.lighting.trackPlayer(x, z);
@@ -237,11 +218,10 @@ export class SceneManager {
   tick(): number {
     const delta = this.clock.getDelta();
 
-    this.water.update(delta, this.camera);
+    this.water.update(delta, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);
 
-    this.forest.update(delta);
-    this.desert.update(delta);
+    this.forest.update(delta, this.playerX, this.playerZ);
     this.effects.update(delta);
     this.lighting.updateCelestialDiscs(this.camera.position, this.camera);
     this.updateAdaptiveQuality(delta);

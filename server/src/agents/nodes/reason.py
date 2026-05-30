@@ -2,135 +2,81 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import SystemMessage
 
+from ...llm.concurrency import ainvoke_with_semaphore
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
+from ..domain import get_relationship_tier
+from ..prompts import REASON_SYSTEM_PROMPT
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
-_ACTION_INTENT_PATTERNS = re.compile(
-    r"\b(attack|fight|hit|kill|trade|buy|sell|shop|quest|item|heal|use|equip|give|take)\b",
-    re.IGNORECASE,
-)
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
-    """Construct the system prompt from NPC personality and world context."""
+    """Construct the system prompt from NPC personality and world context using a clean template."""
     world = state.get("world_context", {})
     player = state.get("player_state", {})
 
-    nearby_entities = world.get("nearby_entities", [])
-    compact_nearby = nearby_entities[:8] if isinstance(nearby_entities, list) else []
-    inventory = player.get("inventory", [])
-    compact_inventory = inventory[:10] if isinstance(inventory, list) else []
-
-    parts = [
-        f"You are {state['npc_name']}, an NPC in the world of Promptcraft.",
-        "",
-        "## Your Personality",
-        state.get("npc_personality", "You are a helpful villager."),
-        "",
-        "## Current World Context",
-        f"- Zone: {world.get('zone', 'Unknown')}",
-        f"- Time of day: {world.get('time_of_day', 'day')}",
-        f"- Weather: {world.get('weather', 'clear')}",
-        f"- Nearby entities: {json.dumps(compact_nearby)}",
-    ]
-
-    # Recent world events for situational awareness
-    recent_events = world.get("recent_events", [])
-    if recent_events:
-        parts.append(f"- Recent events: {'; '.join(recent_events[-5:])}")
-
-    parts.extend(
-        [
-            "",
-            "## Player State",
-            f"- HP: {player.get('hp', '?')}/{player.get('max_hp', '?')}",
-            f"- Mana: {player.get('mana', '?')}/{player.get('max_mana', '?')}",
-            f"- Level: {player.get('level', '?')}",
-            f"- Inventory: {json.dumps(compact_inventory)}",
-        ]
-    )
-
-    # ── Memory & Relationship (enrichment from reflect/summarize) ────────
-    summary = state.get("conversation_summary", "")
-    if summary:
-        parts.append("")
-        parts.append("## Your Memory of This Player")
-        parts.append(f"From past conversations you recall: {summary}")
-
-    mood = state.get("mood", "neutral") or "neutral"
-    parts.append("")
-    parts.append(f"## Your Current Mood: {mood}")
-    parts.append("Let this mood subtly influence your tone and word choice.")
-
-    score = state.get("relationship_score", 0) or 0
-    if score <= -50:
-        rel_tier = "ENEMY — This player is your sworn foe. Be hostile and guarded."
-    elif score <= -10:
-        rel_tier = "DISTRUSTFUL — You distrust this player. Be wary and curt."
-    elif score <= 10:
-        rel_tier = "STRANGER — You have no strong feelings. Be polite but reserved."
-    elif score <= 50:
-        rel_tier = "FRIEND — You like this player. Be warm and helpful."
-    else:
-        rel_tier = "TRUSTED ALLY — This player is your trusted companion. Share secrets, offer rare items and quests."
-    parts.append(f"## Your Relationship with This Player ({score}): {rel_tier}")
-
-    notes = state.get("personality_notes", "")
-    if notes:
-        parts.append("")
-        parts.append(f"## Personal Notes: {notes}")
-
-    parts.extend(
-        [
-            "",
-            "## Instructions",
-            "Respond to the player's prompt. Use tools to take actions in the world.",
-            "Be creative and stay in character. Keep your responses concise but flavourful.",
-            "Your mood, relationship, and memories should naturally colour your dialogue.",
-        ]
-    )
-
-    # Include recent chat from other players so NPCs are aware of world conversations
-    recent_chat = world.get("recent_chat", [])
-    if recent_chat:
-        parts.append("")
-        parts.append("## Recent World Chat (you can reference or react to these)")
-        for msg in recent_chat[-2:]:
-            parts.append(f"  [{msg.get('player', '?')}]: {msg.get('text', '')}")
-
-    # RAG: retrieve relevant lore based on the player's prompt
+    # Gather world lore via RAG
+    lore_text = "No relevant lore found."
     if player_prompt:
         try:
             lore_entries = get_retriever().retrieve(player_prompt, top_k=3)
+            if lore_entries:
+                lore_text = "\n".join(
+                    f"[{entry['topic']}]: {entry['content']}" for entry in lore_entries
+                )
         except Exception:
             logger.warning("RAG retrieval failed", exc_info=True)
-            lore_entries = []
-        if lore_entries:
-            parts.append("")
-            parts.append("## World Lore (use to enrich your responses)")
-            for entry in lore_entries:
-                parts.append(f"[{entry['topic']}]: {entry['content']}")
 
-    return "\n".join(parts)
+    # Gather recent chat
+    recent_chat = world.get("recent_chat", [])
+    recent_chat_text = "No recent chat overheard."
+    if recent_chat:
+        recent_chat_text = "\n".join(
+            f"[{msg.get('player', '?')}]: {msg.get('text', '')}" for msg in recent_chat
+        )
 
+    recent_events = world.get("recent_events", [])
+    recent_events_text = "; ".join(recent_events[-5:]) if recent_events else "None."
 
-def _build_compact_system_prompt(state: NPCAgentState) -> str:
-    world = state.get("world_context", {})
-    return (
-        f"You are {state.get('npc_name', 'an NPC')} in {world.get('zone', 'the area')} in a fantasy RPG world. "
-        f"Personality: {state.get('npc_personality', 'helpful villager')}. "
-        f"Mood: {state.get('mood', 'neutral')}. "
-        "Reply naturally in 1-2 short sentences in character. Do not mention being an AI."
+    score = state.get("relationship_score", 0) or 0
+    relationship_tier = get_relationship_tier(score)
+
+    episodic_memories = state.get("episodic_memories", [])
+    episodic_memories_text = (
+        "\n".join(f"- {mem}" for mem in episodic_memories) if episodic_memories else "None."
+    )
+
+    return REASON_SYSTEM_PROMPT.format(
+        npc_name=state.get("npc_name", "Unknown NPC"),
+        npc_personality=state.get("npc_personality", "You are a helpful villager."),
+        current_goal=state.get("current_goal", "Survive and go about your day."),
+        zone=world.get("zone", "Unknown"),
+        time_of_day=world.get("time_of_day", "day"),
+        weather=world.get("weather", "clear"),
+        nearby_entities=json.dumps(world.get("nearby_entities", [])),
+        recent_events=recent_events_text,
+        hp=player.get("hp", "?"),
+        max_hp=player.get("max_hp", "?"),
+        mana=player.get("mana", "?"),
+        max_mana=player.get("max_mana", "?"),
+        level=player.get("level", "?"),
+        inventory=json.dumps(player.get("inventory", [])),
+        conversation_summary=state.get("conversation_summary", "") or "None.",
+        episodic_memories=episodic_memories_text,
+        mood=state.get("mood", "neutral") or "neutral",
+        relationship_score=score,
+        relationship_tier=relationship_tier,
+        recent_chat=recent_chat_text,
+        lore_entries=lore_text,
     )
 
 
@@ -148,19 +94,29 @@ def make_reason_node(llm: BaseChatModel, tools: list[BaseTool]) -> Any:
             elif isinstance(msg, dict) and msg.get("role") == "human":
                 player_prompt = msg.get("content", "")
                 break
-        prompt_stripped = player_prompt.strip()
-        short_social = len(prompt_stripped) <= 18 and not _ACTION_INTENT_PATTERNS.search(
-            prompt_stripped
-        )
-        system_prompt = (
-            _build_compact_system_prompt(state)
-            if short_social
-            else _build_system_prompt(state, player_prompt)
-        )
-        msg_tail = state["messages"][-1:] if short_social else state["messages"]
-        messages = [SystemMessage(content=system_prompt), *msg_tail]
-        active_llm = llm if short_social else llm_with_tools
-        ai_message = await active_llm.ainvoke(messages)
+        system_prompt = _build_system_prompt(state, player_prompt)
+
+        # Token optimization: Only pass recent messages to the LLM.
+        # We cannot blindly slice [-6:] because we might orphan a ToolMessage
+        # (which requires a preceding AIMessage with tool_calls) or an AIMessage
+        # with tool_calls (which requires a succeeding ToolMessage).
+        # We must find a safe boundary, ideally starting with a HumanMessage.
+        safe_messages: list[Any] = []
+        target_count = 6
+        messages_list = state.get("messages", [])
+
+        # We walk backwards. We want to collect up to ~6 messages.
+        for msg in reversed(messages_list):
+            safe_messages.insert(0, msg)
+            # If we have enough messages AND the current message is a HumanMessage,
+            # this is a safe boundary to stop going backwards.
+            msg_type = getattr(msg, "type", msg.get("role") if isinstance(msg, dict) else "")
+            if len(safe_messages) >= target_count and msg_type == "human":
+                break
+
+        messages = [SystemMessage(content=system_prompt), *safe_messages]
+
+        ai_message = await ainvoke_with_semaphore(llm_with_tools, messages)
         return {"messages": [ai_message]}
 
     return reason_node

@@ -5,7 +5,6 @@ export { DUNGEONS } from './DungeonConfig';
 export type { DungeonObjects } from './DungeonInterior';
 export { createDungeonInterior, disposeDungeonInterior } from './DungeonInterior';
 export { Effects } from './Effects';
-export { DesertScenery } from './Desert';
 export { StartingForest } from './Forest';
 export { Lighting } from './Lighting';
 export { SceneManager } from './SceneManager';

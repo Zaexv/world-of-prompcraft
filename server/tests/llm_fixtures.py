@@ -11,9 +11,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage
-from langchain_core.outputs import LLMResult
-from langchain_core.outputs.generation import Generation
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 class MockChatModel(BaseChatModel):
@@ -21,6 +20,8 @@ class MockChatModel(BaseChatModel):
 
     model_name: str = "mock-gpt-4"
     response_template: str = "Mock response to: {input}"
+    responses: dict[str, str | AIMessage] = Field(default_factory=dict)
+    default_response: str | AIMessage = ""
     tool_calls_data: list[dict[str, Any]] = Field(default_factory=list)
     call_count: int = 0
     last_messages: list[BaseMessage] = Field(default_factory=list)
@@ -32,9 +33,49 @@ class MockChatModel(BaseChatModel):
         stop: list[str] | None = None,
         run_manager: Any = None,
         **kwargs: Any,
-    ) -> Any:
-        """Synchronous generate (not used in async context)."""
-        raise NotImplementedError("Use async_generate instead")
+    ) -> ChatResult:
+        """Synchronous generate—returns deterministic response."""
+        self.call_count += 1
+        self.last_messages = messages
+
+        # Extract last user message for template/lookup
+        user_input = ""
+        for msg in reversed(messages):
+            if isinstance(msg, HumanMessage):
+                user_input = msg.content or ""
+                break
+
+        # 1. Check direct responses dict
+        response = self.responses.get(user_input)
+
+        # 2. Check default response
+        if response is None and self.default_response:
+            response = self.default_response
+
+        # 3. Fallback to template
+        if response is None:
+            response = self.response_template.format(input=user_input)
+
+        if isinstance(response, str):
+            ai_message = AIMessage(content=response)
+            response_text = response
+        else:
+            ai_message = response
+            response_text = response.content
+
+        # Return ChatResult with ChatGeneration
+        gen = ChatGeneration(message=ai_message, text=response_text)
+
+        # Support legacy test access: result.generations[0][0].text
+        # We need result.generations[0] to return a list-like object [gen]
+        class LegacyGenerationsList(list):
+            def __getitem__(self, item: Any) -> Any:
+                val = super().__getitem__(item)
+                if item == 0:
+                    return [val]
+                return val
+
+        return ChatResult(generations=LegacyGenerationsList([gen]))
 
     async def _agenerate(
         self,
@@ -42,22 +83,9 @@ class MockChatModel(BaseChatModel):
         stop: list[str] | None = None,
         run_manager: Any = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> ChatResult:
         """Async generate—returns deterministic response."""
-        self.call_count += 1
-        self.last_messages = messages
-
-        # Extract last user message for template
-        user_input = ""
-        for msg in reversed(messages):
-            if isinstance(msg, HumanMessage):
-                user_input = msg.content or ""
-                break
-
-        response_text = self.response_template.format(input=user_input)
-
-        # Return with text field for Generation
-        return LLMResult(generations=[[Generation(text=response_text)]])
+        return self._generate(messages, stop, run_manager, **kwargs)
 
     def bind_tools(
         self,

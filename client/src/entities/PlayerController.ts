@@ -73,6 +73,8 @@ export class PlayerController {
   private getHeightAt: (x: number, z: number) => number;
 
   private cameraPos = new THREE.Vector3();
+  private _moveVec = new THREE.Vector3();
+  private _playerQueryBox = new THREE.Box3();
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -298,9 +300,7 @@ export class PlayerController {
       this.capsuleController.resetVerticalVelocity();
     } else {
       // --- Kinematic Capsule Physics ---
-      const moveVec = new THREE.Vector3(dx, 0, dz);
-      // Optimization: Only consider meshes within 20m of the player for movement physics.
-      const meshes = this.collisionSystem?.getStaticMeshes(this.position, 20) ?? [];
+      const moveVec = this._moveVec.set(dx, 0, dz);
       
       // Sync capsule position to current player position
       this.capsule.set(
@@ -308,6 +308,15 @@ export class PlayerController {
         new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z),
         0.35
       );
+
+      // Get nearby meshes for collision
+      let meshes: THREE.Mesh[] = [];
+      if (this.collisionSystem) {
+        const queryBox = this._playerQueryBox;
+        this.capsule.getBoundingBox(queryBox);
+        queryBox.expandByScalar(2.0 + speed * delta); // Expanded for movement and safety
+        meshes = this.collisionSystem.getCandidates(queryBox);
+      }
 
       if (this.keys['Space']) {
         this.capsuleController.jump(this.jumpVelocity);
@@ -423,8 +432,7 @@ export class PlayerController {
 
     // (b) Object collision — raycast against collidable meshes
     if (this.collisionSystem) {
-      // Optimization: Only raycast against meshes within the camera's zoom distance.
-      const collidables = this.collisionSystem.getStaticMeshes(this.position, armLength);
+      const collidables = this.collisionSystem.getCollidableObjects();
       if (collidables.length > 0) {
         this._raycaster.set(this._rayOrigin, this._rayDir);
         this._raycaster.far = armLength;

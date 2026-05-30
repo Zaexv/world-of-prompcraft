@@ -1,0 +1,1224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>World of Promptcraft - Art Showcase</title>
+  <style>
+    :root {
+      --bg: #0e0a07;
+      --bg2: #15100b;
+      --panel: rgba(28, 19, 12, 0.96);
+      --line: rgba(207, 165, 92, 0.25);
+      --gold: #f2d48e;
+      --mist: #cdd4df;
+      --shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: #f4efe4;
+      background:
+        radial-gradient(circle at 14% 10%, rgba(207, 165, 92, 0.10), transparent 30%),
+        radial-gradient(circle at 80% 8%, rgba(54, 171, 125, 0.08), transparent 24%),
+        linear-gradient(180deg, var(--bg), var(--bg2));
+    }
+
+    .page {
+      width: 1960px;
+      min-height: 1460px;
+      margin: 0 auto;
+      padding: 40px;
+    }
+
+    .frame {
+      position: relative;
+      border-radius: 28px;
+      border: 1px solid rgba(207, 165, 92, 0.28);
+      padding: 24px;
+      background: rgba(255, 255, 255, 0.02);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .frame::before {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border-radius: 20px;
+      border: 1px solid rgba(207, 165, 92, 0.10);
+      pointer-events: none;
+    }
+
+    .topline {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      color: var(--mist);
+      font-size: 14px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.04);
+    }
+
+    .pill::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: linear-gradient(180deg, #f2d48e, #cda25c);
+      box-shadow: 0 0 16px rgba(242, 212, 142, 0.44);
+    }
+
+    h1, h2 {
+      margin: 0;
+      font-family: Cinzel, Georgia, serif;
+      color: var(--gold);
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      font-size: 56px;
+      line-height: 0.95;
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      font-size: 22px;
+      margin-bottom: 10px;
+    }
+
+    .lede {
+      max-width: 1100px;
+      font-size: 20px;
+      line-height: 1.45;
+      color: #efe7d7;
+      margin-bottom: 24px;
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .swatches,
+    .meshes {
+      display: grid;
+      gap: 16px;
+    }
+
+    .swatches {
+      grid-template-columns: repeat(6, 1fr);
+      margin-bottom: 20px;
+    }
+
+    .meshes {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .card {
+      position: relative;
+      border-radius: 22px;
+      border: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(34, 24, 15, 0.96), rgba(20, 15, 11, 0.96));
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: "";
+      position: absolute;
+      left: 16px;
+      right: 16px;
+      top: 0;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, rgba(242, 212, 142, 0.38), transparent);
+      pointer-events: none;
+    }
+
+    .swatch-card {
+      padding: 14px;
+    }
+
+    .swatch-card canvas {
+      display: block;
+      width: 100%;
+      height: 140px;
+      border-radius: 16px;
+      border: 1px solid rgba(207, 165, 92, 0.20);
+      background: #1a1310;
+    }
+
+    .mesh-card {
+      padding: 14px;
+    }
+
+    .mesh-card canvas {
+      display: block;
+      width: 100%;
+      height: 248px;
+      border-radius: 16px;
+      border: 1px solid rgba(207, 165, 92, 0.18);
+      background:
+        radial-gradient(circle at 50% 18%, rgba(95, 143, 255, 0.12), transparent 34%),
+        radial-gradient(circle at 50% 100%, rgba(255, 196, 108, 0.08), transparent 32%),
+        linear-gradient(180deg, rgba(7, 10, 18, 0.9), rgba(9, 10, 16, 0.98));
+    }
+
+    .label {
+      margin-top: 12px;
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--gold);
+      letter-spacing: -0.01em;
+    }
+
+    .sub {
+      margin-top: 6px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--mist);
+    }
+
+    .footer {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 20px;
+      color: var(--mist);
+      font-size: 12px;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="frame">
+      <div class="topline">
+        <div class="pill">Derived from in-repo procedural builders</div>
+        <div>World of Promptcraft / art plate</div>
+      </div>
+
+      <h1>Procedural Materials &amp; 3D Meshes</h1>
+      <p class="lede">
+        This plate renders representative art directly from the game's procedural approach:
+        code-generated materials, low-poly fantasy race meshes, and world objects such as
+        moonwells, towers, houses, crystals, and ancient trees.
+      </p>
+
+      <div class="section">
+        <h2>Material board</h2>
+        <div class="swatches">
+          <div class="card swatch-card">
+            <canvas id="swatch-stucco" width="280" height="140"></canvas>
+            <div class="label">Stucco</div>
+            <div class="sub">Mediterranean facade texture generated in code.</div>
+          </div>
+          <div class="card swatch-card">
+            <canvas id="swatch-roof" width="280" height="140"></canvas>
+            <div class="label">Terracotta Roof</div>
+            <div class="sub">Tile rhythm and highlights painted procedurally.</div>
+          </div>
+          <div class="card swatch-card">
+            <canvas id="swatch-stone" width="280" height="140"></canvas>
+            <div class="label">Stone Wall</div>
+            <div class="sub">Warm sandstone blockwork for towns and ruins.</div>
+          </div>
+          <div class="card swatch-card">
+            <canvas id="swatch-wood" width="280" height="140"></canvas>
+            <div class="label">Wood Grain</div>
+            <div class="sub">Dark timber for doors, posts, fences, and props.</div>
+          </div>
+          <div class="card swatch-card">
+            <canvas id="swatch-canopy" width="280" height="140"></canvas>
+            <div class="label">Canopy Normal</div>
+            <div class="sub">Leaf-like bump detail generated with canvas noise.</div>
+          </div>
+          <div class="card swatch-card">
+            <canvas id="swatch-skin" width="280" height="140"></canvas>
+            <div class="label">Skin Normal</div>
+            <div class="sub">Subtle pore detail for stylized character heads.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Mesh gallery</h2>
+        <div class="meshes">
+          <div class="card mesh-card">
+            <canvas id="mesh-night-elf" width="430" height="248"></canvas>
+            <div class="label">Night Elf</div>
+            <div class="sub">Glowing eyes, gem chest, pauldrons, cloak, and silhouette shell.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-human" width="430" height="248"></canvas>
+            <div class="label">Human</div>
+            <div class="sub">Chunky heroic proportions with chest plate, belt, cape, and boots.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-orc" width="430" height="248"></canvas>
+            <div class="label">Orc</div>
+            <div class="sub">Tusks, iron pauldrons, top-knot, bracers, and bulkier proportions.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-moonwell" width="430" height="248"></canvas>
+            <div class="label">Moonwell</div>
+            <div class="sub">Basin, water core, four pillars, and hovering magical orb.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-tower" width="430" height="248"></canvas>
+            <div class="label">Tower</div>
+            <div class="sub">Stone body, glowing window, and witching-hour roof silhouette.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-house" width="430" height="248"></canvas>
+            <div class="label">Malaka House</div>
+            <div class="sub">Stucco walls, tiled roof, timber door, and town-building logic.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-tree" width="430" height="248"></canvas>
+            <div class="label">Ancient Tree</div>
+            <div class="sub">Layered canopy cones, bark material, and distance-aware structure.</div>
+          </div>
+          <div class="card mesh-card">
+            <canvas id="mesh-crystal" width="430" height="248"></canvas>
+            <div class="label">Crystal Cluster</div>
+            <div class="sub">Emissive shards for magical landmarks and environmental storytelling.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="footer">
+        <div>Generated locally for the LLMday deck</div>
+        <div>World of Promptcraft</div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module">
+    import * as THREE from "./client/node_modules/three/build/three.module.js";
+
+    function seeded(seed) {
+      let s = seed >>> 0;
+      return () => {
+        s = Math.imul(s ^ (s >>> 15), 1 | s);
+        s ^= s + Math.imul(s ^ (s >>> 7), 61 | s);
+        return ((s ^ (s >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    function createStuccoCanvas(width = 280, height = 140) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const rnd = seeded(101);
+      ctx.fillStyle = "#f9f6f0";
+      ctx.fillRect(0, 0, width, height);
+      for (let i = 0; i < 4000; i++) {
+        const isDark = rnd() > 0.5;
+        ctx.fillStyle = isDark ? "rgba(0,0,0,0.03)" : "rgba(255,255,255,0.28)";
+        ctx.fillRect(rnd() * width, rnd() * height, 2, 2);
+      }
+      return canvas;
+    }
+
+    function createRoofCanvas(width = 280, height = 140) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#c05030";
+      ctx.fillRect(0, 0, width, height);
+      ctx.lineWidth = 3;
+      ctx.strokeStyle = "#803010";
+      const tileW = 20;
+      const tileH = 28;
+      for (let x = 0; x < width; x += tileW) {
+        ctx.beginPath();
+        ctx.moveTo(x, 0);
+        ctx.lineTo(x, height);
+        ctx.stroke();
+        for (let y = 0; y < height; y += tileH) {
+          const offset = ((x / tileW) % 2 === 0) ? 0 : tileH / 2;
+          ctx.beginPath();
+          ctx.moveTo(x, y + offset);
+          ctx.lineTo(x + tileW, y + offset);
+          ctx.stroke();
+          ctx.fillStyle = "#d06040";
+          ctx.fillRect(x, y + offset - 2, tileW, 2);
+        }
+      }
+      return canvas;
+    }
+
+    function createStoneCanvas(width = 280, height = 140) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#c8c0b0";
+      ctx.fillRect(0, 0, width, height);
+      ctx.strokeStyle = "#8a8070";
+      ctx.lineWidth = 2;
+      const brickH = 28;
+      const brickW = 54;
+      for (let y = 0; y <= height; y += brickH) {
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(width, y);
+        ctx.stroke();
+        const offsetX = ((y / brickH) % 2 === 0) ? 0 : brickW / 2;
+        for (let x = offsetX; x <= width; x += brickW) {
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x, y + brickH);
+          ctx.stroke();
+        }
+      }
+      return canvas;
+    }
+
+    function createWoodCanvas(width = 280, height = 140) {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      const rnd = seeded(203);
+      ctx.fillStyle = "#4a2f1d";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "#3a2010";
+      for (let i = 0; i < 180; i++) {
+        const w = 1 + rnd() * 3;
+        const h = 16 + rnd() * 70;
+        ctx.fillRect(rnd() * width, rnd() * height, w, h);
+      }
+      return canvas;
+    }
+
+    function createCanopyNormalCanvas(size = 280) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = Math.round(size * 0.5);
+      const ctx = canvas.getContext("2d");
+      const rnd = seeded(303);
+      ctx.fillStyle = "rgb(128,128,255)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < 280; i++) {
+        const x = rnd() * canvas.width;
+        const y = rnd() * canvas.height;
+        const rx = 4 + rnd() * 10;
+        const ry = 2 + rnd() * 5;
+        const angle = rnd() * Math.PI;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, rx);
+        grad.addColorStop(0, "rgba(100,140,255,0.70)");
+        grad.addColorStop(0.4, "rgba(118,134,255,0.35)");
+        grad.addColorStop(1, "rgba(128,128,255,0)");
+        ctx.save();
+        ctx.translate(x, y);
+        ctx.rotate(angle);
+        ctx.scale(1, ry / rx);
+        ctx.translate(-x, -y);
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.ellipse(x, y, rx, rx, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      return canvas;
+    }
+
+    function createSkinNormalCanvas(size = 280) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = Math.round(size * 0.5);
+      const ctx = canvas.getContext("2d");
+      const rnd = seeded(404);
+      ctx.fillStyle = "rgb(128,128,255)";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const count = Math.floor(canvas.width * canvas.height * 0.012);
+      for (let i = 0; i < count; i++) {
+        const x = rnd() * canvas.width;
+        const y = rnd() * canvas.height;
+        const r = 0.7 + rnd() * 1.6;
+        const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
+        grad.addColorStop(0, "rgba(85,85,210,0.55)");
+        grad.addColorStop(0.5, "rgba(110,110,235,0.20)");
+        grad.addColorStop(1, "rgba(128,128,255,0)");
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return canvas;
+    }
+
+    function canvasToTexture(canvas, repeatX = 1, repeatY = 1) {
+      const tex = new THREE.CanvasTexture(canvas);
+      tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+      tex.repeat.set(repeatX, repeatY);
+      tex.colorSpace = THREE.SRGBColorSpace;
+      return tex;
+    }
+
+    function createCanopyColorCanvas(size = 256) {
+      const canvas = document.createElement("canvas");
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext("2d");
+      const rnd = seeded(505);
+      const grad = ctx.createLinearGradient(0, 0, size, size);
+      grad.addColorStop(0, "#2b6a30");
+      grad.addColorStop(1, "#78ad37");
+      ctx.fillStyle = grad;
+      ctx.fillRect(0, 0, size, size);
+      for (let i = 0; i < 1300; i++) {
+        ctx.fillStyle = rnd() > 0.5 ? "rgba(255,255,255,0.03)" : "rgba(0,0,0,0.05)";
+        ctx.beginPath();
+        ctx.arc(rnd() * size, rnd() * size, 1 + rnd() * 4, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      return canvas;
+    }
+
+    function paintCanvas(targetId, sourceCanvas) {
+      const target = document.getElementById(targetId);
+      const ctx = target.getContext("2d");
+      ctx.drawImage(sourceCanvas, 0, 0, target.width, target.height);
+    }
+
+    function addOutlineShell(root, options = {}) {
+      const color = options.color ?? 0x06080d;
+      const scale = options.scale ?? 1.045;
+      const includeNames = options.includeNames ?? null;
+      const meshes = [];
+      root.traverse((child) => {
+        if (!(child instanceof THREE.Mesh)) return;
+        if (includeNames && !includeNames.includes(child.name)) return;
+        meshes.push(child);
+      });
+      for (const mesh of meshes) {
+        const outlineMaterial = new THREE.MeshBasicMaterial({
+          color,
+          side: THREE.BackSide,
+          depthWrite: false,
+        });
+        const outline = new THREE.Mesh(mesh.geometry.clone(), outlineMaterial);
+        outline.scale.setScalar(scale);
+        outline.renderOrder = -1;
+        mesh.add(outline);
+      }
+    }
+
+    function mat(color, opts = {}) {
+      const params = {
+        color,
+        roughness: opts.r ?? 0.75,
+        metalness: opts.m ?? 0,
+      };
+      if (opts.em !== undefined) {
+        params.emissive = new THREE.Color(opts.em);
+        params.emissiveIntensity = opts.ei ?? 1;
+      }
+      if (opts.side !== undefined) params.side = opts.side;
+      if (opts.t !== undefined) params.transparent = opts.t;
+      if (opts.o !== undefined) params.opacity = opts.o;
+      return new THREE.MeshStandardMaterial(params);
+    }
+
+    function mesh(geo, material) {
+      return new THREE.Mesh(geo, material);
+    }
+
+    function box(w, h, d) {
+      return new THREE.BoxGeometry(w, h, d);
+    }
+
+    function sph(r, segs) {
+      return new THREE.SphereGeometry(r, segs, Math.ceil(segs * 0.75));
+    }
+
+    function addChildMesh(parent, geo, material, x, y, z) {
+      const child = new THREE.Mesh(geo, material);
+      child.position.set(x, y, z);
+      parent.add(child);
+      return child;
+    }
+
+    const Y_LEG = 0.44;
+    const Y_TORSO = 1.29;
+    const Y_ARM = 1.40;
+    const Y_HEAD = 1.99;
+
+    function buildNightElfModel() {
+      const group = new THREE.Group();
+      const TORSO_W = 0.62;
+      const ARM_R = 0.115;
+      const LEG_R = 0.135;
+      const ARM_X = TORSO_W / 2 + ARM_R + 0.02;
+
+      const torso = mesh(box(TORSO_W, 0.88, 0.36), mat(0x3a1d60));
+      torso.name = "body";
+      torso.position.y = Y_TORSO;
+      group.add(torso);
+
+      const gem = mesh(sph(0.048, 8), mat(0xcc88ff, { em: 0x9944ff, ei: 1.6, r: 0.2, m: 0.5 }));
+      gem.name = "gem";
+      gem.position.set(0, Y_TORSO + 0.1, 0.2);
+      group.add(gem);
+
+      const belt = mesh(new THREE.TorusGeometry(0.22, 0.028, 5, 14), mat(0xc0c8e8, { r: 0.3, m: 0.7 }));
+      belt.name = "belt";
+      belt.position.set(0, Y_TORSO - 0.28, 0);
+      belt.rotation.x = Math.PI / 2;
+      group.add(belt);
+
+      const headMesh = mesh(box(0.52, 0.52, 0.48), mat(0xddc5a8));
+      headMesh.name = "head";
+      headMesh.position.y = Y_HEAD;
+      group.add(headMesh);
+
+      const earMat = mat(0xddc5a8);
+      const earGeo = new THREE.ConeGeometry(0.05, 0.32, 5);
+      const lEar = mesh(earGeo, earMat);
+      lEar.position.set(-0.3, 0.08, -0.04);
+      lEar.rotation.z = 1.05;
+      lEar.rotation.x = -0.12;
+      headMesh.add(lEar);
+      const rEar = lEar.clone();
+      rEar.position.x = 0.3;
+      rEar.rotation.z = -1.05;
+      headMesh.add(rEar);
+
+      const eyeMat = mat(0xaabbff, { em: 0x7799ff, ei: 2.2, r: 0.05 });
+      const eyeGeo = new THREE.SphereGeometry(0.052, 8, 6);
+      const lEye = mesh(eyeGeo, eyeMat);
+      lEye.position.set(-0.12, 0.05, 0.26);
+      headMesh.add(lEye);
+      const rEye = lEye.clone();
+      rEye.position.x = 0.12;
+      headMesh.add(rEye);
+
+      const hairMat = mat(0xeeeaff, { r: 0.88 });
+      const crown = mesh(new THREE.ConeGeometry(0.2, 0.38, 8), hairMat);
+      crown.name = "hair";
+      crown.position.y = 2.44;
+      group.add(crown);
+
+      const pauldronGeo = new THREE.SphereGeometry(0.11, 8, 5);
+      const pauldronMat = mat(0x7755cc, { r: 0.35, m: 0.4 });
+      const lPaul = mesh(pauldronGeo, pauldronMat);
+      lPaul.name = "leftPauldron";
+      lPaul.position.set(-ARM_X + 0.02, Y_TORSO + 0.38, 0);
+      lPaul.scale.set(1, 0.55, 0.85);
+      group.add(lPaul);
+      const rPaul = lPaul.clone();
+      rPaul.name = "rightPauldron";
+      rPaul.position.x = ARM_X - 0.02;
+      group.add(rPaul);
+
+      const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+      const armMat = mat(0xddc5a8, { r: 0.82 });
+      const handGeo = new THREE.SphereGeometry(0.065, 8, 6);
+      const lArm = mesh(armGeo, armMat);
+      lArm.name = "leftArm";
+      lArm.position.set(-ARM_X, Y_ARM, 0);
+      group.add(lArm);
+      addChildMesh(lArm, handGeo, armMat, 0, -0.38, 0);
+      const rArm = mesh(armGeo, armMat);
+      rArm.name = "rightArm";
+      rArm.position.set(ARM_X, Y_ARM, 0);
+      group.add(rArm);
+      addChildMesh(rArm, handGeo, armMat, 0, -0.38, 0);
+
+      const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+      const legMat = mat(0x25124a, { r: 0.65 });
+      const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.22, 12);
+      const bootMat = mat(0x120820, { r: 0.75 });
+      const toeGeo = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+      const legHalfHeight = 0.41;
+      const hipY = Y_LEG + legHalfHeight;
+
+      const lLegPivot = new THREE.Group();
+      lLegPivot.name = "leftLeg";
+      lLegPivot.position.set(-0.16, hipY, 0);
+      group.add(lLegPivot);
+      const lLeg = mesh(legGeo, legMat);
+      lLeg.position.set(0, -legHalfHeight, 0);
+      lLegPivot.add(lLeg);
+      const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+      addChildMesh(lBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+      const rLegPivot = new THREE.Group();
+      rLegPivot.name = "rightLeg";
+      rLegPivot.position.set(0.16, hipY, 0);
+      group.add(rLegPivot);
+      const rLeg = mesh(legGeo, legMat);
+      rLeg.position.set(0, -legHalfHeight, 0);
+      rLegPivot.add(rLeg);
+      const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+      addChildMesh(rBoot, toeGeo, bootMat, 0, -0.09, 0.04);
+
+      const cloak = mesh(
+        new THREE.PlaneGeometry(0.58, 0.95, 2, 6),
+        mat(0x1e0f3a, { side: THREE.DoubleSide, t: true, o: 0.9 }),
+      );
+      cloak.name = "cloak";
+      cloak.position.set(0, Y_TORSO, -0.20);
+      group.add(cloak);
+
+      addOutlineShell(group, {
+        includeNames: ["body", "head", "hair", "cloak", "leftLeg", "rightLeg", "leftArm", "rightArm", "leftPauldron", "rightPauldron"],
+        scale: 1.05,
+      });
+      return group;
+    }
+
+    function buildHumanModel() {
+      const group = new THREE.Group();
+      const TORSO_W = 0.66;
+      const ARM_R = 0.12;
+      const LEG_R = 0.14;
+      const ARM_X = TORSO_W / 2 + ARM_R + 0.02;
+
+      const torso = mesh(box(TORSO_W, 0.88, 0.38), mat(0x7a6042, { r: 0.7, m: 0.1 }));
+      torso.name = "body";
+      torso.position.y = Y_TORSO;
+      group.add(torso);
+
+      const plate = mesh(box(0.28, 0.3, 0.06), mat(0x9a8262, { r: 0.4, m: 0.3 }));
+      plate.name = "chestPlate";
+      plate.position.set(0, Y_TORSO + 0.08, 0.22);
+      group.add(plate);
+
+      const belt = mesh(new THREE.TorusGeometry(0.23, 0.03, 5, 14), mat(0x3f2a20, { r: 0.85 }));
+      belt.position.set(0, Y_TORSO - 0.28, 0);
+      belt.rotation.x = Math.PI / 2;
+      group.add(belt);
+
+      const buckle = mesh(box(0.08, 0.08, 0.04), mat(0xb8bcd0, { r: 0.3, m: 0.7 }));
+      buckle.position.set(0, Y_TORSO - 0.28, 0.24);
+      group.add(buckle);
+
+      const headMesh = mesh(box(0.54, 0.52, 0.5), mat(0xd4a87a));
+      headMesh.name = "head";
+      headMesh.position.y = Y_HEAD;
+      group.add(headMesh);
+
+      const hairMat = mat(0x4a2c10, { r: 0.9 });
+      const hairTop = mesh(box(0.54, 0.18, 0.5), hairMat);
+      hairTop.name = "hair";
+      hairTop.position.set(0, 0.35, 0);
+      headMesh.add(hairTop);
+      const hairBack = mesh(box(0.5, 0.22, 0.08), hairMat);
+      hairBack.position.set(0, 0.22, -0.29);
+      headMesh.add(hairBack);
+
+      const eyeMat = mat(0x4a3010, { r: 0.4 });
+      const eyeGeo = new THREE.SphereGeometry(0.044, 8, 6);
+      const lEye = mesh(eyeGeo, eyeMat);
+      lEye.position.set(-0.13, 0.06, 0.27);
+      headMesh.add(lEye);
+      const rEye = lEye.clone();
+      rEye.position.x = 0.13;
+      headMesh.add(rEye);
+
+      const pauldronMat = mat(0x7b5f98, { r: 0.4, m: 0.35 });
+      const pauldronGeo = new THREE.SphereGeometry(0.12, 8, 5);
+      const lPaul = mesh(pauldronGeo, pauldronMat);
+      lPaul.name = "leftPauldron";
+      lPaul.position.set(-ARM_X + 0.02, Y_TORSO + 0.38, 0);
+      lPaul.scale.set(1, 0.58, 0.85);
+      group.add(lPaul);
+      const rPaul = lPaul.clone();
+      rPaul.name = "rightPauldron";
+      rPaul.position.x = ARM_X - 0.02;
+      group.add(rPaul);
+
+      const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+      const armMat = mat(0x7a6042, { r: 0.7 });
+      const gloveGeo = new THREE.SphereGeometry(0.07, 8, 6);
+      const gloveMat = mat(0x3f2a20, { r: 0.88 });
+      const lArm = mesh(armGeo, armMat);
+      lArm.name = "leftArm";
+      lArm.position.set(-ARM_X, Y_ARM, 0);
+      group.add(lArm);
+      addChildMesh(lArm, gloveGeo, gloveMat, 0, -0.38, 0);
+      const rArm = mesh(armGeo, armMat);
+      rArm.name = "rightArm";
+      rArm.position.set(ARM_X, Y_ARM, 0);
+      group.add(rArm);
+      addChildMesh(rArm, gloveGeo, gloveMat, 0, -0.38, 0);
+
+      const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+      const legMat = mat(0x5a3f22, { r: 0.72 });
+      const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.02, 0.24, 12);
+      const bootMat = mat(0x3a2010, { r: 0.82 });
+      const toeGeo = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+      const legHalfHeight = 0.41;
+      const hipY = Y_LEG + legHalfHeight;
+
+      const lLegPivot = new THREE.Group();
+      lLegPivot.name = "leftLeg";
+      lLegPivot.position.set(-0.16, hipY, 0);
+      group.add(lLegPivot);
+      const lLeg = mesh(legGeo, legMat);
+      lLeg.position.set(0, -legHalfHeight, 0);
+      lLegPivot.add(lLeg);
+      const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.38, 0);
+      addChildMesh(lBoot, toeGeo, bootMat, 0, -0.1, 0.045);
+
+      const rLegPivot = new THREE.Group();
+      rLegPivot.name = "rightLeg";
+      rLegPivot.position.set(0.16, hipY, 0);
+      group.add(rLegPivot);
+      const rLeg = mesh(legGeo, legMat);
+      rLeg.position.set(0, -legHalfHeight, 0);
+      rLegPivot.add(rLeg);
+      const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.38, 0);
+      addChildMesh(rBoot, toeGeo, bootMat, 0, -0.1, 0.045);
+
+      const cloak = mesh(
+        new THREE.PlaneGeometry(0.58, 0.95, 2, 6),
+        mat(0x2255cc, { side: THREE.DoubleSide, t: true, o: 0.88 }),
+      );
+      cloak.name = "cloak";
+      cloak.position.set(0, Y_TORSO, -0.21);
+      group.add(cloak);
+
+      addOutlineShell(group, {
+        includeNames: ["body", "head", "cloak", "leftLeg", "rightLeg", "leftArm", "rightArm", "leftPauldron", "rightPauldron", "chestPlate"],
+        scale: 1.05,
+      });
+      return group;
+    }
+
+    function buildOrcModel() {
+      const group = new THREE.Group();
+      const TORSO_W = 0.80;
+      const ARM_R = 0.155;
+      const LEG_R = 0.17;
+      const ARM_X = TORSO_W / 2 + ARM_R + 0.02;
+
+      const torso = mesh(box(TORSO_W, 0.88, 0.46), mat(0x3a6e22, { r: 0.68 }));
+      torso.name = "body";
+      torso.position.y = Y_TORSO;
+      group.add(torso);
+
+      const loin = mesh(
+        new THREE.PlaneGeometry(0.44, 0.5, 1, 3),
+        mat(0xcc2222, { side: THREE.DoubleSide, t: true, o: 0.92 }),
+      );
+      loin.name = "cloak";
+      loin.position.set(0, Y_TORSO - 0.32, 0.25);
+      group.add(loin);
+
+      const headMesh = mesh(box(0.62, 0.52, 0.54), mat(0x3a6e22));
+      headMesh.name = "head";
+      headMesh.position.y = Y_HEAD;
+      group.add(headMesh);
+
+      const jaw = mesh(box(0.48, 0.14, 0.22), mat(0x2d5a1e));
+      jaw.position.set(0, -0.24, 0.18);
+      headMesh.add(jaw);
+
+      const tuskMat = mat(0xe8d2b0, { r: 0.5 });
+      const tuskGeo = new THREE.ConeGeometry(0.03, 0.17, 5);
+      const lTusk = mesh(tuskGeo, tuskMat);
+      lTusk.position.set(-0.12, -0.3, 0.22);
+      lTusk.rotation.z = 0.85;
+      lTusk.rotation.x = -0.2;
+      headMesh.add(lTusk);
+      const rTusk = lTusk.clone();
+      rTusk.position.x = 0.12;
+      rTusk.rotation.z = -0.85;
+      headMesh.add(rTusk);
+
+      const eyeMat = mat(0xffcc22, { em: 0xdd9900, ei: 1.8, r: 0.1 });
+      const eyeGeo = new THREE.SphereGeometry(0.05, 8, 6);
+      const lEye = mesh(eyeGeo, eyeMat);
+      lEye.position.set(-0.14, 0.09, 0.29);
+      headMesh.add(lEye);
+      const rEye = lEye.clone();
+      rEye.position.x = 0.14;
+      headMesh.add(rEye);
+
+      const topknot = mesh(new THREE.ConeGeometry(0.09, 0.36, 6), mat(0x111111, { r: 0.95 }));
+      topknot.name = "hair";
+      topknot.position.set(0, 0.44, 0);
+      headMesh.add(topknot);
+
+      const pauldronMat = mat(0x383838, { r: 0.4, m: 0.55 });
+      const pauldronGeo = new THREE.SphereGeometry(0.16, 8, 5);
+      const lPaul = mesh(pauldronGeo, pauldronMat);
+      lPaul.name = "leftPauldron";
+      lPaul.position.set(-ARM_X + 0.04, Y_TORSO + 0.38, 0);
+      lPaul.scale.set(1, 0.58, 0.85);
+      group.add(lPaul);
+      const lSpike = mesh(new THREE.ConeGeometry(0.04, 0.24, 6), pauldronMat);
+      lSpike.position.set(-ARM_X + 0.04, Y_TORSO + 0.65, 0);
+      group.add(lSpike);
+      const rPaul = lPaul.clone();
+      rPaul.name = "rightPauldron";
+      rPaul.position.x = ARM_X - 0.04;
+      group.add(rPaul);
+      const rSpike = lSpike.clone();
+      rSpike.position.x = ARM_X - 0.04;
+      group.add(rSpike);
+
+      const armGeo = new THREE.CylinderGeometry(ARM_R, ARM_R, 0.66, 12);
+      const armMat = mat(0x3a6e22, { r: 0.72 });
+      const ironBracerGeo = new THREE.CylinderGeometry(ARM_R + 0.01, ARM_R + 0.015, 0.18, 12);
+      const ironMat = mat(0x383838, { r: 0.4, m: 0.55 });
+      const fistGeo = new THREE.SphereGeometry(ARM_R + 0.01, 8, 6);
+
+      const lArm = mesh(armGeo, armMat);
+      lArm.name = "leftArm";
+      lArm.position.set(-ARM_X, Y_ARM, 0);
+      group.add(lArm);
+      addChildMesh(lArm, ironBracerGeo, ironMat, 0, -0.22, 0);
+      addChildMesh(lArm, fistGeo, armMat, 0, -0.39, 0);
+      const rArm = mesh(armGeo, armMat);
+      rArm.name = "rightArm";
+      rArm.position.set(ARM_X, Y_ARM, 0);
+      group.add(rArm);
+      addChildMesh(rArm, ironBracerGeo, ironMat, 0, -0.22, 0);
+      addChildMesh(rArm, fistGeo, armMat, 0, -0.39, 0);
+
+      const legGeo = new THREE.CylinderGeometry(LEG_R, LEG_R, 0.82, 12);
+      const legMat = mat(0x2a5018, { r: 0.72 });
+      const bootGeo = new THREE.CylinderGeometry(LEG_R + 0.01, LEG_R + 0.025, 0.26, 12);
+      const bootMat = mat(0x1e1008, { r: 0.82 });
+      const toeGeo = new THREE.SphereGeometry(LEG_R + 0.015, 8, 5);
+      const legHalfHeight = 0.41;
+      const hipY = Y_LEG + legHalfHeight;
+
+      const lLegPivot = new THREE.Group();
+      lLegPivot.name = "leftLeg";
+      lLegPivot.position.set(-0.20, hipY, 0);
+      group.add(lLegPivot);
+      const lLeg = mesh(legGeo, legMat);
+      lLeg.position.set(0, -legHalfHeight, 0);
+      lLegPivot.add(lLeg);
+      const lBoot = addChildMesh(lLeg, bootGeo, bootMat, 0, -0.37, 0);
+      addChildMesh(lBoot, toeGeo, bootMat, 0, -0.11, 0.05);
+
+      const rLegPivot = new THREE.Group();
+      rLegPivot.name = "rightLeg";
+      rLegPivot.position.set(0.20, hipY, 0);
+      group.add(rLegPivot);
+      const rLeg = mesh(legGeo, legMat);
+      rLeg.position.set(0, -legHalfHeight, 0);
+      rLegPivot.add(rLeg);
+      const rBoot = addChildMesh(rLeg, bootGeo, bootMat, 0, -0.37, 0);
+      addChildMesh(rBoot, toeGeo, bootMat, 0, -0.11, 0.05);
+
+      addOutlineShell(group, {
+        includeNames: ["body", "head", "cloak", "leftLeg", "rightLeg", "leftArm", "rightArm", "leftPauldron", "rightPauldron"],
+        scale: 1.06,
+      });
+      return group;
+    }
+
+    function createStoneMaterial() {
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: canvasToTexture(createStoneCanvas(256, 256), 2, 2),
+        roughness: 0.9,
+      });
+    }
+
+    function createWoodMaterial() {
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: canvasToTexture(createWoodCanvas(256, 256), 1, 1),
+        roughness: 0.82,
+      });
+    }
+
+    function createStuccoMaterial() {
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: canvasToTexture(createStuccoCanvas(256, 256), 2, 2),
+        roughness: 0.95,
+      });
+    }
+
+    function createRoofMaterial() {
+      return new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: canvasToTexture(createRoofCanvas(256, 256), 4, 4),
+        roughness: 0.8,
+      });
+    }
+
+    function buildMoonwell() {
+      const g = new THREE.Group();
+      const stoneMat = createStoneMaterial();
+      const basin = new THREE.Mesh(new THREE.CylinderGeometry(2, 2.2, 0.5, 12), stoneMat);
+      basin.position.y = 0.25;
+      g.add(basin);
+
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x2244aa,
+        emissive: new THREE.Color(0x0033cc),
+        emissiveIntensity: 0.5,
+        transparent: true,
+        opacity: 0.75,
+        roughness: 0.2,
+      });
+      const water = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 0.1, 12), waterMat);
+      water.position.y = 0.5;
+      g.add(water);
+
+      const pillarGeo = new THREE.CylinderGeometry(0.15, 0.15, 3, 6);
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2;
+        const pillar = new THREE.Mesh(pillarGeo, stoneMat);
+        pillar.position.set(Math.cos(angle) * 2.5, 1.5, Math.sin(angle) * 2.5);
+        g.add(pillar);
+      }
+
+      const orbMat = new THREE.MeshStandardMaterial({
+        color: 0x88bbff,
+        emissive: new THREE.Color(0x3366ff),
+        emissiveIntensity: 1.2,
+      });
+      const orb = new THREE.Mesh(new THREE.SphereGeometry(0.3, 8, 8), orbMat);
+      orb.position.y = 3.5;
+      g.add(orb);
+      return g;
+    }
+
+    function buildTower() {
+      const g = new THREE.Group();
+      const stoneMat = createStoneMaterial();
+      const body = new THREE.Mesh(new THREE.CylinderGeometry(1.2, 1.5, 8, 8), stoneMat);
+      body.position.y = 4;
+      g.add(body);
+      const cap = new THREE.Mesh(new THREE.ConeGeometry(1.5, 2.5, 8), new THREE.MeshStandardMaterial({ color: 0x2a0845, roughness: 0.7 }));
+      cap.position.y = 9.25;
+      g.add(cap);
+      const winMat = new THREE.MeshStandardMaterial({
+        color: 0xffee88,
+        emissive: new THREE.Color(0xffcc44),
+        emissiveIntensity: 0.8,
+      });
+      const win = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.6, 0.1), winMat);
+      win.position.set(0, 5, 1.21);
+      g.add(win);
+      return g;
+    }
+
+    function buildMalakaHouse() {
+      const g = new THREE.Group();
+      const stucco = createStuccoMaterial();
+      const roof = createRoofMaterial();
+      const wood = createWoodMaterial();
+      const stone = createStoneMaterial();
+      const glass = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.1, metalness: 0.8 });
+
+      const width = 4;
+      const depth = 4;
+      const floorHeight = 2.5;
+      const floors = 2;
+      const totalHeight = floors * floorHeight;
+
+      const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight, depth), stucco);
+      body.position.y = totalHeight / 2;
+      g.add(body);
+
+      const roofOverhang = 0.5;
+      const roofRadius = Math.sqrt(Math.pow((width + roofOverhang) / 2, 2) * 2);
+      const roofHeight = 1.8;
+      const roofMesh = new THREE.Mesh(new THREE.ConeGeometry(roofRadius, roofHeight, 4), roof);
+      roofMesh.position.y = totalHeight + roofHeight / 2;
+      roofMesh.rotation.y = Math.PI / 4;
+      g.add(roofMesh);
+
+      const door = new THREE.Mesh(new THREE.BoxGeometry(0.8, 1.8, 0.2), wood);
+      door.position.set(0, 0.9, depth / 2);
+      g.add(door);
+
+      const winGeo = new THREE.BoxGeometry(0.6, 0.8, 0.2);
+      const frontWin = new THREE.Mesh(winGeo, glass);
+      frontWin.position.set(1.0, 1.2, depth / 2);
+      g.add(frontWin);
+      const upperWin = new THREE.Mesh(winGeo, glass);
+      upperWin.position.set(0, floorHeight + 1.2, depth / 2);
+      g.add(upperWin);
+      const balcony = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.1, 0.8), stone);
+      balcony.position.set(0, floorHeight + 0.5, depth / 2 + 0.4);
+      g.add(balcony);
+      const sideWin = new THREE.Mesh(winGeo, glass);
+      sideWin.rotation.y = Math.PI / 2;
+      sideWin.position.set(width / 2, floorHeight + 1.2, 0);
+      g.add(sideWin);
+      return g;
+    }
+
+    function buildAncientTree() {
+      const g = new THREE.Group();
+      const barkMat = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        map: canvasToTexture(createWoodCanvas(256, 256), 2, 3),
+        roughness: 0.92,
+      });
+      const canopyMat = new THREE.MeshStandardMaterial({
+        color: 0x7ab840,
+        map: canvasToTexture(createCanopyColorCanvas(256), 3, 3),
+        roughness: 0.9,
+      });
+
+      const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.8, 6, 8), barkMat);
+      trunk.position.y = 3;
+      g.add(trunk);
+
+      const layers = [
+        { y: 7, r: 3.5, h: 3 },
+        { y: 9, r: 2.5, h: 2.5 },
+        { y: 11, r: 1.5, h: 2 },
+      ];
+      for (const layer of layers) {
+        const canopy = new THREE.Mesh(new THREE.ConeGeometry(layer.r, layer.h, 8), canopyMat);
+        canopy.position.y = layer.y;
+        g.add(canopy);
+      }
+      return g;
+    }
+
+    function buildCrystalCluster() {
+      const g = new THREE.Group();
+      const crystalMat = new THREE.MeshStandardMaterial({
+        color: 0x44ffcc,
+        emissive: new THREE.Color(0x00ffaa),
+        emissiveIntensity: 0.8,
+        roughness: 0.1,
+        metalness: 0.3,
+      });
+      const crystals = [
+        { h: 3.1, r: 0.28, ox: -0.7, oz: -0.2, rz: -0.16, rx: 0.08 },
+        { h: 2.6, r: 0.22, ox: 0.0, oz: 0.3, rz: 0.07, rx: -0.04 },
+        { h: 2.2, r: 0.2, ox: 0.72, oz: -0.18, rz: 0.18, rx: 0.09 },
+        { h: 1.7, r: 0.16, ox: -0.08, oz: -0.82, rz: -0.12, rx: -0.1 },
+      ];
+      for (const c of crystals) {
+        const crystal = new THREE.Mesh(new THREE.ConeGeometry(c.r, c.h, 5), crystalMat);
+        crystal.position.set(c.ox, c.h / 2, c.oz);
+        crystal.rotation.z = c.rz;
+        crystal.rotation.x = c.rx;
+        g.add(crystal);
+      }
+      return g;
+    }
+
+    function setupScene(canvas) {
+      const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setPixelRatio(2);
+      renderer.setSize(canvas.width, canvas.height, false);
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+      const scene = new THREE.Scene();
+      const camera = new THREE.PerspectiveCamera(38, canvas.width / canvas.height, 0.1, 100);
+      const ambient = new THREE.AmbientLight(0xf4e6ca, 1.7);
+      scene.add(ambient);
+
+      const key = new THREE.DirectionalLight(0xfff3d8, 2.2);
+      key.position.set(5, 8, 6);
+      scene.add(key);
+
+      const rim = new THREE.DirectionalLight(0x6db4ff, 1.2);
+      rim.position.set(-5, 6, -6);
+      scene.add(rim);
+
+      const fill = new THREE.DirectionalLight(0x53d89c, 0.8);
+      fill.position.set(0, 3, 7);
+      scene.add(fill);
+
+      const floor = new THREE.Mesh(
+        new THREE.CylinderGeometry(2.9, 3.3, 0.14, 48),
+        new THREE.MeshStandardMaterial({
+          color: 0x2a2117,
+          roughness: 0.92,
+          metalness: 0.05,
+        }),
+      );
+      floor.position.y = -0.08;
+      scene.add(floor);
+
+      const ring = new THREE.Mesh(
+        new THREE.TorusGeometry(3.15, 0.04, 6, 48),
+        new THREE.MeshStandardMaterial({
+          color: 0xcda25c,
+          emissive: new THREE.Color(0x5b3a12),
+          emissiveIntensity: 0.55,
+          roughness: 0.3,
+          metalness: 0.8,
+        }),
+      );
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = 0.005;
+      scene.add(ring);
+
+      return { renderer, scene, camera };
+    }
+
+    function frameObject(camera, object, extraZ = 0, targetY = 1.8) {
+      const box = new THREE.Box3().setFromObject(object);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fov = THREE.MathUtils.degToRad(camera.fov);
+      let distance = (maxDim / 2) / Math.tan(fov / 2);
+      distance *= 1.45;
+      camera.position.set(center.x + distance * 0.68, center.y + size.y * 0.42, center.z + distance + extraZ);
+      camera.lookAt(center.x, center.y + targetY * 0.08, center.z);
+      camera.updateProjectionMatrix();
+    }
+
+    function renderMesh(canvasId, builder, options = {}) {
+      const canvas = document.getElementById(canvasId);
+      const { renderer, scene, camera } = setupScene(canvas);
+      const object = builder();
+      const wrapper = new THREE.Group();
+      wrapper.add(object);
+      wrapper.rotation.y = options.rotationY ?? 0.6;
+      wrapper.position.y = options.offsetY ?? 0;
+      wrapper.scale.setScalar(options.scale ?? 1);
+      scene.add(wrapper);
+      frameObject(camera, wrapper, options.extraZ ?? 0, options.targetY ?? 2);
+      renderer.render(scene, camera);
+      renderer.dispose();
+    }
+
+    paintCanvas("swatch-stucco", createStuccoCanvas(280, 140));
+    paintCanvas("swatch-roof", createRoofCanvas(280, 140));
+    paintCanvas("swatch-stone", createStoneCanvas(280, 140));
+    paintCanvas("swatch-wood", createWoodCanvas(280, 140));
+    paintCanvas("swatch-canopy", createCanopyNormalCanvas(280));
+    paintCanvas("swatch-skin", createSkinNormalCanvas(280));
+
+    renderMesh("mesh-night-elf", buildNightElfModel, { rotationY: 0.52, scale: 1.22, targetY: 2.2 });
+    renderMesh("mesh-human", buildHumanModel, { rotationY: 0.4, scale: 1.2, targetY: 2.2 });
+    renderMesh("mesh-orc", buildOrcModel, { rotationY: 0.52, scale: 1.18, targetY: 2.2 });
+    renderMesh("mesh-moonwell", buildMoonwell, { rotationY: 0.62, scale: 0.88, targetY: 1.2 });
+    renderMesh("mesh-tower", buildTower, { rotationY: 0.55, scale: 0.54, extraZ: 2.2, targetY: 3 });
+    renderMesh("mesh-house", buildMalakaHouse, { rotationY: 0.7, scale: 0.65, extraZ: 1.4, targetY: 2 });
+    renderMesh("mesh-tree", buildAncientTree, { rotationY: 0.62, scale: 0.42, extraZ: 3.6, targetY: 4 });
+    renderMesh("mesh-crystal", buildCrystalCluster, { rotationY: 0.52, scale: 1.35, extraZ: 0.5, targetY: 1.2 });
+  </script>
+</body>
+</html>

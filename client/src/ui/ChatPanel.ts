@@ -83,18 +83,32 @@ export class ChatPanel extends UIComponent {
     Object.assign(this.input.style, {
       width: '100%',
       boxSizing: 'border-box',
-      padding: '6px 12px',
-      background: 'rgba(255,255,255,0.04)',
-      border: '1px solid rgba(197,165,90,0.25)',
-      borderRadius: '14px',
+      padding: '8px 16px',
+      background: 'rgba(255,255,255,0.05)',
+      backdropFilter: 'blur(8px)',
+      border: '1px solid rgba(197,165,90,0.3)',
+      borderRadius: '20px',
       color: '#e8dcc8',
       fontFamily: "'Cinzel', 'Times New Roman', serif",
-      fontSize: '12px',
+      fontSize: '13px',
       outline: 'none',
-      transition: 'border-color 0.2s',
+      boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)',
+      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
     } as CSSStyleDeclaration);
-    this.input.addEventListener('focus',  () => { this.input.style.borderColor = 'rgba(197,165,90,0.6)'; });
-    this.input.addEventListener('blur',   () => { this.input.style.borderColor = 'rgba(197,165,90,0.25)'; });
+
+    this.input.addEventListener('focus', () => {
+      this.input.style.borderColor = 'rgba(197,165,90,0.8)';
+      this.input.style.background = 'rgba(255,255,255,0.08)';
+      this.input.style.boxShadow = '0 0 15px rgba(197,165,90,0.3), inset 0 1px 3px rgba(0,0,0,0.2)';
+      this.input.style.transform = 'translateY(-1px)';
+    });
+
+    this.input.addEventListener('blur', () => {
+      this.input.style.borderColor = 'rgba(197,165,90,0.3)';
+      this.input.style.background = 'rgba(255,255,255,0.05)';
+      this.input.style.boxShadow = 'inset 0 1px 3px rgba(0,0,0,0.4)';
+      this.input.style.transform = 'none';
+    });
 
     this.input.addEventListener('keydown', (e: KeyboardEvent) => {
       if (e.key === 'Enter') {
@@ -120,6 +134,14 @@ export class ChatPanel extends UIComponent {
     } as CSSStyleDeclaration);
     inputWrap.appendChild(this.input);
     this.container.appendChild(inputWrap);
+
+    // Add formatting styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .chat-action { color: #88ffcc; font-style: italic; }
+      .chat-highlight { color: #ffcc66; font-weight: 700; text-shadow: 0 0 5px rgba(255,204,102,0.3); }
+    `;
+    this.container.appendChild(style);
   }
 
   /** Add a player or NPC message to the chat log. */
@@ -172,7 +194,7 @@ export class ChatPanel extends UIComponent {
       lineHeight: '1.4',
       wordBreak: 'break-word',
     } as CSSStyleDeclaration);
-    body.textContent = this.escapeHtml(text);
+    body.innerHTML = text; // Now using innerHTML for formatted text
     row.appendChild(body);
 
     this.messagesArea.appendChild(row);

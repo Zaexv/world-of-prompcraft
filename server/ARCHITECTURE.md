@@ -1,6 +1,6 @@
 # Server Architecture — World of Promptcraft
 
-FastAPI + LangGraph + Python 3.11+ backend. **Server-authoritative**: `WorldState` is the single source of truth; every HP change, weather event, and inventory mutation happens here before being reflected to clients. The world itself uses a **Version 2.1.0 Zonal Hybrid Manifest system** sourced from `shared/data/world_manifest.json`.
+FastAPI + LangGraph + Python 3.11+ backend. **Server-authoritative**: `WorldState` is the single source of truth; every HP change, weather event, and inventory mutation happens here before being reflected to clients. Runtime game state is durably persisted in SQLite (`server/data/game_state.db`) for NPC personalities, NPC state, world snapshot, and per-player progress. The world itself uses a **Version 2.1.0 Zonal Hybrid Manifest system** sourced from `shared/data/world_manifest.json`.
 
 ---
 
@@ -32,6 +32,10 @@ flowchart TD
         WM["Manifest Integration\nshared/data/world_manifest.json\nLoads NPC Definitions"]
     end
 
+    subgraph Persistence["💾 Persistence Layer"]
+        SQL["SQLiteGameStateStore\nserver/data/game_state.db"]
+    end
+
     subgraph Knowledge["📚 Knowledge Layer"]
         RAG["LoreRetriever\nkeyword scoring over 47 entries\ntop-3 inject into system prompt"]
         KB["knowledge_base.py\n47 WoW lore entries\n(races, locations, characters)"]
@@ -51,6 +55,7 @@ flowchart TD
     H --> World
     AG --> World
     WM --> World
+    World --> SQL
 ```
 
 ---
@@ -89,12 +94,12 @@ flowchart TD
     end
 
     subgraph Handler["handler.py — message routing"]
-        JOIN["join\n→ assign player_id\n→ register in WorldState\n→ send join_ok with all NPC data"]
+        JOIN["join\n→ assign player_id\n→ load persisted PlayerData if present\n→ register/update in WorldState\n→ send join_ok with nearby NPC data"]
         INTER["player_interaction\n→ _score_attack_quality(prompt)\n→ apply pre-emptive damage to NPC\n→ registry.invoke() → AgentResponse\n→ apply_actions(pending_actions)\n→ broadcast dialogue (r=100)\n→ broadcast actions (r=200)"]
         MOV["player_movement\n→ update WorldState player position\n→ broadcast player_moved to nearby"]
         CHAT["chat_message\n→ broadcast chat_broadcast to nearby"]
         ATK["player_attack\n→ deal direct damage to NPC\n→ broadcast npc_actions"]
-        DISC["disconnect\n→ remove from ConnectionManager\n→ broadcast player_left\n→ cleanup_player_equipment()"]
+        DISC["disconnect\n→ persist player state to SQLite\n→ remove from ConnectionManager\n→ broadcast player_left\n→ cleanup_player_equipment()"]
     end
 
     ConnectionManager --> Handler
@@ -108,19 +113,25 @@ Each NPC runs an independent compiled `StateGraph`. The graph is invoked once pe
 
 ```mermaid
 flowchart TD
-    START([START]) --> reason
+    START([START]) --> pre_check
 
-    reason["🧠 reason\n────────────\nLLM call\nBuild system prompt:\n• NPC personality\n• world context + player state\n• conversation summary + mood\n• top-3 RAG lore entries\nInvoke llm_with_tools"]
+    pre_check["🛡️ pre_check\n────────────\nFast LLM call (Structured Output)\nAnalyzes user prompt to determine:\n• is_ooc (breaks roleplay)\n• fast_intent (attack/trade)"]
+
+    reason["🧠 reason\n────────────\nLLM call\nBuild system prompt:\n• NPC personality\n• world context + player state\n• conversation summary + mood\n• top-3 RAG lore entries\nToken Optimization: Only pass the most recent 6 messages\nInvoke llm_with_tools"]
 
     act["⚙️ act\n────────────\nNo LLM\nExecute each tool_call\nAppend to pending_actions\nReturn ToolMessages"]
 
     respond["💬 respond\n────────────\nNo LLM\nExtract AIMessage.content\n→ response_text"]
 
-    reflect["🪞 reflect\n────────────\nNo LLM — heuristic\nKeyword token sets:\n• mood update\n• relationship delta [-20,+15]\n• personality_notes (≤300 chars)"]
+    reflect["🪞 reflect\n────────────\nLLM call — Structured Output\nAnalyzes recent transcript to output:\n• mood update\n• relationship delta [-20,+20]\n• personality_notes (≤300 chars)"]
 
     summarize["📝 summarize\n────────────\nLLM call — conditional\n2–3 sentence rolling summary\nof last 12 messages\n≤ 500 chars output"]
 
     END([END])
+
+    pre_check -->|"is_ooc"| respond
+    pre_check -->|"fast_intent = attack/trade\nInject tool call"| act
+    pre_check -->|"normal chat"| reason
 
     reason -->|"tool_calls present"| act
     act -->|"ToolMessages → loop back"| reason
@@ -239,7 +250,8 @@ flowchart TD
 
 | Decision | Rationale |
 |----------|-----------|
-| `reflect` is heuristic (no LLM) | Zero cost per turn — mood/relationship from keyword matching |
+| `reason` token optimization | Prunes the context window to the most recent 6 messages; older context is summarized. Reduces token consumption significantly during long conversations. |
+| `reflect` uses Structured Output | Provides high emotional intelligence (accurate mood, relationship tracking, notes) while keeping the output deterministic and tiny. |
 | `summarize` conditional (≥10 turns, every 3rd) | Minimises LLM calls while keeping memory bounded |
 | RAG is keyword-based (no embeddings) | Sub-millisecond — no vector DB dependency |
 | Tools synchronous within one turn | Predictable cost; no parallel LLM calls |

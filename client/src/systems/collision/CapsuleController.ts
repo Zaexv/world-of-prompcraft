@@ -10,10 +10,15 @@ export class CapsuleController {
   private slopeSolver: SlopeSolver;
   private stepDetector: StepDetector;
   private groundSnap: GroundSnap;
-  
+
   public isGrounded: boolean = false;
   private gravity: number = -20; // m/s^2
   private verticalVelocity: number = 0;
+
+  // Pre-allocated scratch vectors — avoids per-substep/per-contact GC pressure.
+  private readonly _moveVelocity  = new THREE.Vector3();
+  private readonly _translateVec  = new THREE.Vector3();
+  private readonly _pushVec       = new THREE.Vector3();
 
   constructor() {
     this.contactSolver = new ContactSolver();
@@ -39,7 +44,7 @@ export class CapsuleController {
     }
 
     // Combine horizontal velocity and vertical velocity
-    const moveVelocity = velocity.clone();
+    const moveVelocity = this._moveVelocity.copy(velocity);
     moveVelocity.y += this.verticalVelocity;
 
     // Sub-stepping for stability
@@ -62,11 +67,11 @@ export class CapsuleController {
     // Step Detection (pre-move)
     const stepUp = this.stepDetector.detectStep(capsule, moveVelocity, delta, meshes);
     if (stepUp > 0) {
-      capsule.translate(new THREE.Vector3(0, stepUp, 0));
+      capsule.translate(this._translateVec.set(0, stepUp, 0));
     }
 
     // Move capsule
-    capsule.translate(moveVelocity.clone().multiplyScalar(delta));
+    capsule.translate(this._translateVec.copy(moveVelocity).multiplyScalar(delta));
 
     // Iterative Depenetration
     this.isGrounded = false;
@@ -83,8 +88,7 @@ export class CapsuleController {
       const contact = classified[0];
       
       // Push out
-      const push = contact.normal.clone().multiplyScalar(contact.depth);
-      capsule.translate(push);
+      capsule.translate(this._pushVec.copy(contact.normal).multiplyScalar(contact.depth));
 
       // Adjust velocity
       if (contact.type === ContactType.FLOOR) {

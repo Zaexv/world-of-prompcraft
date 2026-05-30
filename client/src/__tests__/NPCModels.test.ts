@@ -1,26 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { getNPCModelPath } from '../entities/NPCModels';
+import { getNPCPlaceholderStyle } from '../entities/NPCModels';
 
-describe('getNPCModelPath', () => {
+describe('getNPCPlaceholderStyle', () => {
   it('prefers explicit ID overrides', () => {
-    expect(getNPCModelPath('merchant_01', 'Village Merchant')).toBe('/models/npcs/merchant.glb');
+    expect(getNPCPlaceholderStyle('merchant_01', 'Some Name')).toBe('merchant');
+    expect(getNPCPlaceholderStyle('dragon_01', 'Some Name')).toBe('dragon');
+    expect(getNPCPlaceholderStyle('mage_02', 'Some Name')).toBe('pyromancer');
+    expect(getNPCPlaceholderStyle('mage_03', 'Some Name')).toBe('cryomancer');
+    expect(getNPCPlaceholderStyle('nireg_jenkins', 'Some Name')).toBe('oracle');
+    expect(getNPCPlaceholderStyle('eltito_01', 'Some Name')).toBe('orc');
   });
 
-  it('maps type names to matching skins', () => {
-    expect(getNPCModelPath('citizen_12', 'Village Elder')).toBe('/models/npcs/casual.glb');
-    expect(getNPCModelPath('citizen_14', 'Sentinel Scout')).toBe('/models/npcs/warrior.glb');
-    expect(getNPCModelPath('citizen_15', 'Priestess of Elune')).toBe('/models/npcs/healer.glb');
-    expect(getNPCModelPath('citizen_16', 'Frostweaver Nyx')).toBe('/models/npcs/cryomancer.glb');
+  it('maps name keywords to distinct skins', () => {
+    expect(getNPCPlaceholderStyle('npc_1', 'Village Elder')).toBe('merchant');
+    expect(getNPCPlaceholderStyle('npc_2', 'Sentinel Scout')).toBe('guard');
+    expect(getNPCPlaceholderStyle('npc_3', 'Priestess of Elune')).toBe('healer');
+    expect(getNPCPlaceholderStyle('npc_4', 'Frostweaver Nyx')).toBe('cryomancer');
+    expect(getNPCPlaceholderStyle('npc_5', 'Ember the Pyromancer')).toBe('pyromancer');
+    expect(getNPCPlaceholderStyle('npc_6', 'Ancient Wyrm')).toBe('dragon');
+    expect(getNPCPlaceholderStyle('npc_7', 'Wandering Wraith')).toBe('undead');
   });
 
-  it('returns a deterministic fallback for unknown types', () => {
-    const first = getNPCModelPath('unknown_01', 'Odd Wanderer');
-    const second = getNPCModelPath('unknown_01', 'Odd Wanderer');
+  it('falls back to monster for unmatched hostile enemies', () => {
+    expect(getNPCPlaceholderStyle('enemy_01', 'Odd Creature', 'hostile')).toBe('monster');
+  });
+
+  it('falls back to civilian for unmatched neutral NPCs', () => {
+    expect(getNPCPlaceholderStyle('npc_8', 'Odd Wanderer')).toBe('civilian');
+  });
+
+  it('is deterministic for the same input', () => {
+    const first = getNPCPlaceholderStyle('npc_9', 'Mysterious Figure');
+    const second = getNPCPlaceholderStyle('npc_9', 'Mysterious Figure');
     expect(first).toBe(second);
-    expect(first).toMatch(/^\/models\/npcs\/(casual|merchant|warrior|mage)\.glb$/);
-  });
-
-  it('prefers the monster skin for hostile enemies without a type match', () => {
-    expect(getNPCModelPath('enemy_01', 'Forest Spider', 'hostile')).toBe('/models/npcs/monster.glb');
   });
 });

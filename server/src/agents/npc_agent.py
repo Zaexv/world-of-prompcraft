@@ -7,10 +7,11 @@ from langgraph.graph import END, START, StateGraph
 
 from .agent_state import NPCAgentState
 from .nodes.act import make_act_node
+from .nodes.pre_check import make_pre_check_node
 from .nodes.reason import make_reason_node
-from .nodes.reflect import reflect_node
+from .nodes.reflect import make_reflect_node
 from .nodes.respond import respond_node
-from .nodes.summarize import make_summarize_node
+from .nodes.summarize import _should_summarize, make_summarize_node
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -18,6 +19,31 @@ if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph as CompiledGraph
 
     from ..world.world_state import WorldState
+    from .action_sink import PendingActionSink
+
+
+_DETERMINISTIC_TOOL_CALLS = {"deal_damage", "offer_item"}
+
+
+def _route_from_pre_check(state: NPCAgentState) -> str:
+    """Route from pre_check: bypass reason if OOC or fast intent triggered."""
+    fast_intent = (state.get("fast_intent") or "").lower()
+
+    # Pre-check authored a direct reply.
+    if fast_intent in {"ooc", "social"}:
+        return "respond"
+
+    # Pre-check authored a direct tool plan.
+    if fast_intent in {"attack", "trade"}:
+        return "act"
+
+    last_message = state["messages"][-1]
+    tool_calls = getattr(last_message, "tool_calls", [])
+    if tool_calls:
+        return "act"
+
+    # Otherwise proceed to heavy reasoning
+    return "reason"
 
 
 def _should_act_or_respond(state: NPCAgentState) -> str:
@@ -29,47 +55,77 @@ def _should_act_or_respond(state: NPCAgentState) -> str:
     return "respond"
 
 
+def _route_from_act(state: NPCAgentState) -> str:
+    """Route from act: deterministic tool calls skip the second reason turn."""
+    last_message = state["messages"][-1]
+    tool_call_id = getattr(last_message, "tool_call_id", "")
+    if tool_call_id.startswith("fast_"):
+        return "respond"
+
+    tool_names = state.get("last_tool_names", [])
+    if tool_names and set(tool_names).issubset(_DETERMINISTIC_TOOL_CALLS):
+        return "respond"
+
+    return "reason"
+
+
 def create_npc_agent(
     npc_id: str,
     npc_config: dict[str, Any],
     llm: BaseChatModel,
     tools: list[BaseTool],
-    shared_pending_actions: list[Any],
+    pending_action_sink: PendingActionSink,
     world_state: WorldState,
 ) -> CompiledGraph:  # type: ignore[type-arg]
     """Build and compile a LangGraph agent for a single NPC.
 
     Graph flow:
-        START → reason → [act loop] → respond → reflect → [summarize?] → END
+        START → pre_check → [reason?] → [act loop] → respond → reflect → [summarize?] → END
 
     Args:
         npc_id: Unique NPC identifier.
         npc_config: Dict with 'name' and 'personality' keys.
         llm: The chat model to use for reasoning.
         tools: Pre-built tools (closed over shared mutable state).
-        shared_pending_actions: The mutable list tools append actions to.
+        pending_action_sink: Context-aware action sink shared by tool closures.
         world_state: The WorldState instance (for context lookups).
     """
+    pre_check_node = make_pre_check_node(llm)
     reason_node = make_reason_node(llm, tools)
-    act_node = make_act_node(tools, shared_pending_actions)
+    act_node = make_act_node(tools, pending_action_sink)
+    reflect_node = make_reflect_node(llm)
     summarize_node = make_summarize_node(llm)
 
     graph = StateGraph(NPCAgentState)
+    graph.add_node("pre_check", pre_check_node)
     graph.add_node("reason", reason_node)
     graph.add_node("act", act_node)
     graph.add_node("respond", respond_node)
     graph.add_node("reflect", reflect_node)
     graph.add_node("summarize", summarize_node)
 
-    graph.add_edge(START, "reason")
+    graph.add_edge(START, "pre_check")
+    graph.add_conditional_edges(
+        "pre_check",
+        _route_from_pre_check,
+        {"respond": "respond", "act": "act", "reason": "reason"},
+    )
     graph.add_conditional_edges(
         "reason",
         _should_act_or_respond,
         {"act": "act", "respond": "respond"},
     )
-    graph.add_edge("act", "reason")
+    graph.add_conditional_edges(
+        "act",
+        _route_from_act,
+        {"reason": "reason", "respond": "respond"},
+    )
     graph.add_edge("respond", "reflect")
-    graph.add_edge("reflect", END)
+    graph.add_conditional_edges(
+        "reflect",
+        _should_summarize,
+        {"summarize": "summarize", "end": END},
+    )
     graph.add_edge("summarize", END)
 
     checkpointer = MemorySaver()

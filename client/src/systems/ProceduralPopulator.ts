@@ -1,26 +1,5 @@
 /**
  * ProceduralPopulator — deferred, proximity-gated world population.
- *
- * PERFORMANCE:
- *   onChunkLoaded() → queueChunk()  (zero work)
- *   update() drains 1 chunk/frame, only within SPAWN_RADIUS of player.
- *   Startup lag eliminated: 121 preloaded chunks stay queued, spawn
- *   as the player walks close.
- *
- * DESPAWNING:
- *   Every spawned Three.js object is tracked per chunk key.
- *   releaseChunk() removes them from the scene and collision system,
- *   preventing unbounded memory/GPU growth during long sessions.
- *
- * ENCOUNTERS:
- *   Encounters are grouped content (campsite, bandit camp, etc.) registered
- *   in EncounterRegistry via encounters.ts.  They produce geometry + NPCs
- *   at a single anchor point.  See EncounterRegistry.ts for the API.
- *
- * EXTENSION:
- *   • New biome building/prop → BiomeRegistry.registerBiome()
- *   • New encounter type    → EncounterRegistry.registerEncounter()
- *   • New monster type      → add row to BIOME_MONSTERS below
  */
 
 import * as THREE from 'three';
@@ -48,178 +27,141 @@ class SeededRng {
   }
   next(): number { this._step(); return (this.s >>> 0) / 0xffffffff; }
   nextInt(n: number): number { return Math.floor(this.next() * n); }
-  nextRange(lo: number, hi: number): number { return lo + this.next() * (hi - lo); }
+  nextRange(min: number, max: number): number { return min + this.next() * (max - min); }
   chance(p: number): boolean { return this.next() < p; }
-  pick<T>(arr: readonly T[]): T { return arr[this.nextInt(arr.length)]!; }
+  pick<T>(arr: T[]): T { return arr[this.nextInt(arr.length)]; }
 }
 
-// ── Built-in monster catalogue ────────────────────────────────────────────────
-// Prefer adding monsters via BiomeRegistry to avoid editing this file.
+// ── Biome Monsters ────────────────────────────────────────────────────────────
 
-interface MonsterDef { id: string; name: string; maxHp: number; scale: number; }
-function mon(id: string, name: string, hp: number, scale: number): MonsterDef {
-  return { id, name, maxHp: hp, scale };
+interface MonsterDef {
+  id: string;
+  name: string;
+  maxHp: number;
+  scale: number;
 }
 
 const BIOME_MONSTERS: Partial<Record<BiomeType, MonsterDef[]>> = {
   [BiomeType.Teldrassil]: [
-    mon('wraith',   'Forest Wraith',     60,  1.1),
-    mon('spider',   'Moon Spider',       45,  0.85),
-    mon('sentinel', 'Corrupted Sentinel',80,  1.0),
-    mon('treant',   'Young Treant',      95,  1.25),
+    { id: 'wraith', name: 'Teldrassil Wraith', maxHp: 60, scale: 1.2 },
+    { id: 'spider', name: 'Forest Spider', maxHp: 40, scale: 0.8 },
   ],
   [BiomeType.EmberWastes]: [
-    mon('lava_hound',  'Lava Hound',     70,  1.0),
-    mon('obs_golem',   'Obsidian Golem', 140, 1.6),
-    mon('fire_sprite', 'Fire Sprite',    40,  0.75),
-    mon('ash_crawler', 'Ash Crawler',    55,  0.9),
+    { id: 'elemental', name: 'Fire Elemental', maxHp: 120, scale: 1.5 },
+    { id: 'drake', name: 'Ember Drake', maxHp: 200, scale: 2.2 },
   ],
   [BiomeType.CrystalTundra]: [
-    mon('frost_wraith', 'Frost Wraith',  65,  1.15),
-    mon('glacial_golem','Glacial Golem', 160, 1.7),
-    mon('ice_wolf',     'Ice Wolf',      55,  0.9),
-    mon('snow_stalker', 'Snow Stalker',  70,  1.05),
-  ],
-  [BiomeType.TwilightMarsh]: [
-    mon('bog_lurker',  'Bog Lurker',     75,  1.2),
-    mon('shadow_snake','Shadow Serpent', 50,  0.8),
-    mon('swamp_troll', 'Swamp Troll',   120, 1.4),
-    mon('marsh_wisp',  'Marsh Wisp',    35,  0.7),
-  ],
-  [BiomeType.SunlitMeadows]: [
-    mon('stone_boar',     'Stone Boar',     60,  0.95),
-    mon('sunstone_golem', 'Sunstone Golem', 130, 1.5),
-    mon('giant_wasp',     'Giant Wasp',     45,  0.8),
-    mon('field_stalker',  'Field Stalker',  65,  1.0),
-  ],
-  [BiomeType.Desert]: [
-    mon('sand_wraith',  'Sand Wraith',  55,  1.05),
-    mon('dune_crawler', 'Dune Crawler', 80,  1.1),
-    mon('desert_golem', 'Desert Golem',110, 1.4),
-    mon('scorpion',     'Giant Scorpion',60, 0.85),
+    { id: 'naga', name: 'Lake Naga', maxHp: 80, scale: 1.1 },
+    { id: 'murloc', name: 'Crystal Murloc', maxHp: 30, scale: 0.7 },
   ],
 };
 
-// ── Pending queue entry ───────────────────────────────────────────────────────
+// ── ProceduralPopulator ───────────────────────────────────────────────────────
 
 interface PendingChunk {
-  chunkX: number; chunkZ: number;
-  worldX: number; worldZ: number;
-  cx: number; cz: number;  // world-space chunk centre
+  worldX: number;
+  worldZ: number;
+  chunkX: number;
+  chunkZ: number;
+  cx: number;
+  cz: number;
 }
 
-// ── Main class ────────────────────────────────────────────────────────────────
-
 export class ProceduralPopulator {
+  private static readonly _v = new THREE.Vector3();
+
+  private readonly CHUNKS_PER_FRAME = 1;
+  private readonly SPAWN_RADIUS = 320; // Only spawn if within ~5 chunks
+  // Hard cap on concurrent NPCs (procedural + server roster). Keeps the world
+  // populated without overwhelming the scene.
+  private static readonly MAX_NPCS = 22;
+
   private terrain: Terrain;
   private scene: THREE.Scene | null = null;
   private collisionSystem: CollisionSystem | null = null;
   private entityManager: EntityManager | null = null;
 
-  private npcCounter = 0;
-
   private queue: PendingChunk[] = [];
-  private _queueDirty = false; // sort only when new chunks are queued
+  private _queueDirty = false;
   private populated = new Set<string>();
+  private _inQueue = new Set<string>();
 
-  /**
-   * Every spawned object, keyed by chunkKey.
-   * Used to clean up when chunks unload.
-   */
   private spawnedObjects = new Map<string, THREE.Object3D[]>();
-  /**
-   * NPC ids spawned per chunk — so we can remove them on unload.
-   */
+  private spawnedColliders = new Map<string, THREE.Object3D[]>();
   private spawnedNpcs = new Map<string, string[]>();
 
-  /** Only populate chunks within this radius (world-units) of the player. */
-  private readonly SPAWN_RADIUS = 220;
-  /** Chunks processed per frame. Keep at 1 for smooth frame budget. */
-  private readonly CHUNKS_PER_FRAME = 1;
+  private _chunkCenters = new Map<string, [number, number]>();
 
-  private _sortPX = 0;
-  private _sortPZ = 0;
-
-  // Reusable scratch Vector3 — avoids per-chunk allocation (GC pressure)
-  private static _v = new THREE.Vector3();
-
-  constructor(terrain: Terrain) { this.terrain = terrain; }
+  constructor(terrain: Terrain) {
+    this.terrain = terrain;
+  }
 
   setScene(scene: THREE.Scene): void { this.scene = scene; }
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
   setEntityManager(em: EntityManager): void { this.entityManager = em; }
 
-  // ── Lifecycle ─────────────────────────────────────────────────────────────
-
-  /** Called by WorldGenerator.onChunkLoaded — no geometry created here. */
   queueChunk(chunkX: number, chunkZ: number, worldX: number, worldZ: number): void {
     const key = `${chunkX},${chunkZ}`;
-    if (this.populated.has(key)) return;
+    if (this.populated.has(key) || this._inQueue.has(key)) return;
 
-    const cx = worldX + 32;
-    const cz = worldZ + 32;
-    // Preserve the hand-authored starting area
-    if (cx * cx + cz * cz < 60 * 60) return;
-
-    this.queue.push({ chunkX, chunkZ, worldX, worldZ, cx, cz });
+    this.queue.push({
+      worldX, worldZ, chunkX, chunkZ,
+      cx: worldX + 32,
+      cz: worldZ + 32,
+    });
+    this._inQueue.add(key);
     this._queueDirty = true;
   }
 
-  /**
-   * Called by WorldGenerator.onChunkUnloaded.
-   * Removes all procedurally spawned objects for this chunk.
-   */
   releaseChunk(chunkX: number, chunkZ: number): void {
     const key = `${chunkX},${chunkZ}`;
     this.populated.delete(key);
+    this._inQueue.delete(key);
+    this._chunkCenters.delete(key);
 
-    // Remove Three.js objects
     const objs = this.spawnedObjects.get(key);
-    if (objs) {
-      for (const obj of objs) {
-        this.scene?.remove(obj);
-        this.collisionSystem?.removeCollidable(obj);
-        obj.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-          }
-        });
-      }
+    if (objs && this.scene) {
+      for (const obj of objs) this.scene.remove(obj);
       this.spawnedObjects.delete(key);
     }
 
-    // Remove procedural NPCs
+    const colliders = this.spawnedColliders.get(key);
+    if (colliders && this.collisionSystem) {
+      for (const obj of colliders) this.collisionSystem.removeCollidable(obj);
+      this.spawnedColliders.delete(key);
+    }
+
     const npcIds = this.spawnedNpcs.get(key);
     if (npcIds && this.entityManager) {
       for (const id of npcIds) this.entityManager.removeNPC(id);
       this.spawnedNpcs.delete(key);
     }
-
-    // Remove from queue if still pending (no need to mark dirty — removing doesn't change sort order)
-    const qi = this.queue.findIndex((c) => c.chunkX === chunkX && c.chunkZ === chunkZ);
-    if (qi !== -1) this.queue.splice(qi, 1);
   }
 
-  /** Call once per frame from the game loop. */
+  /** Call with player world coordinates. Drains 1 chunk per frame. */
   update(playerX: number, playerZ: number): void {
-    if (this.queue.length === 0 || !this.scene) return;
-
-    const r2 = this.SPAWN_RADIUS * this.SPAWN_RADIUS;
-
-    // Re-sort only when new chunks have been queued — avoid per-frame sort cost.
+    const pPos = ProceduralPopulator._v.set(playerX, 0, playerZ);
+    
     if (this._queueDirty) {
-      this._sortPX = playerX; this._sortPZ = playerZ;
-      this.queue.sort(this._distSort);
+      this.queue.sort((a, b) => {
+        const da = pPos.distanceToSquared(ProceduralPopulator._v.set(a.cx, 0, a.cz));
+        const db = pPos.distanceToSquared(ProceduralPopulator._v.set(b.cx, 0, b.cz));
+        return da - db;
+      });
       this._queueDirty = false;
     }
 
     let done = 0;
     while (done < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
-      const next = this.queue[0]!;
-      const dx = next.cx - playerX, dz = next.cz - playerZ;
-      if (dx * dx + dz * dz > r2) break;
-      this.queue.shift();
+      const next = this.queue.shift()!;
       const key = `${next.chunkX},${next.chunkZ}`;
+      this._inQueue.delete(key);
+
+      const dSq = pPos.distanceToSquared(ProceduralPopulator._v.set(next.cx, 0, next.cz));
+      if (dSq > this.SPAWN_RADIUS * this.SPAWN_RADIUS) {
+        continue;
+      }
+
       if (!this.populated.has(key)) {
         this.populated.add(key);
         this._populate(next, key);
@@ -227,13 +169,6 @@ export class ProceduralPopulator {
       }
     }
   }
-
-  // ── Internal ──────────────────────────────────────────────────────────────
-
-  private readonly _distSort = (a: PendingChunk, b: PendingChunk): number => {
-    const px = this._sortPX, pz = this._sortPZ;
-    return ((a.cx - px) ** 2 + (a.cz - pz) ** 2) - ((b.cx - px) ** 2 + (b.cz - pz) ** 2);
-  };
 
   private _populate(chunk: PendingChunk, key: string): void {
     const { worldX, worldZ, chunkX, chunkZ, cx, cz } = chunk;
@@ -244,9 +179,11 @@ export class ProceduralPopulator {
     const registryEntry = getBiomeEntry(biome);
 
     const objs: THREE.Object3D[] = [];
+    const colliders: THREE.Object3D[] = [];
     const npcIds: string[] = [];
 
-    // ── Encounter (first pick — highest-priority content) ──────────────
+    this._chunkCenters.set(key, [cx, cz]);
+
     const eligibleEncounters = getEncountersFor(biome, dist);
     if (eligibleEncounters.length > 0) {
       for (const enc of eligibleEncounters) {
@@ -261,27 +198,27 @@ export class ProceduralPopulator {
         if (this.scene) {
           group.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(group);
-          // addCollidableFiltered is now instant — BVH trees are built lazily
-          // by CollisionSystem.update() at max 2/frame (no burst spikes).
-          void this.collisionSystem?.addCollidableFiltered(group);
           objs.push(group);
+          colliders.push(group);
         }
 
-        // Spawn encounter NPCs (respect same hard cap as monster spawning)
-        const underNpcCap = this.entityManager ? this.entityManager.npcs.size < 80 : false;
+        const underNpcCap = this.entityManager
+          ? this.entityManager.npcs.size < ProceduralPopulator.MAX_NPCS
+          : false;
         if (enc.npcs && this.entityManager && underNpcCap) {
+          let npcIdx = 0;
           for (const npcDef of enc.npcs) {
             const localX = npcDef.offsetX, localZ = npcDef.offsetZ;
             const gy = group.rotation.y;
             const nx = ex + Math.cos(gy) * localX - Math.sin(gy) * localZ;
             const nz = ez + Math.sin(gy) * localX + Math.cos(gy) * localZ;
             const ny = this.terrain.getHeightAt(nx, nz);
-            const npcId = `enc_${enc.id}_${npcDef.idPrefix}_${chunkX}_${chunkZ}_${this.npcCounter++}`;
+            const npcId = `enc_${enc.id}_${npcDef.idPrefix}_${chunkX}_${chunkZ}_${npcIdx++}`;
             this.entityManager.addNPC({
               id: npcId,
               name: npcDef.name,
               personalityKey: npcDef.hostile ? 'road_bandit' : 'wandering_knight',
-              position: new THREE.Vector3(nx, ny, nz), // needs own Vector3 (stored by EntityManager)
+              position: new THREE.Vector3(nx, ny, nz),
               hp: npcDef.maxHp, maxHp: npcDef.maxHp,
               personality: npcDef.hostile
                 ? `Hostile — attack on sight.`
@@ -291,12 +228,10 @@ export class ProceduralPopulator {
             npcIds.push(npcId);
           }
         }
-
-        break; // one encounter per chunk
+        break;
       }
     }
 
-    // ── Building (1-in-5 chunks that didn't get an encounter) ─────────
     if (rng.chance(0.20)) {
       const bx = worldX + rng.nextRange(8, SIZE - 8);
       const bz = worldZ + rng.nextRange(8, SIZE - 8);
@@ -310,28 +245,24 @@ export class ProceduralPopulator {
       if (building && this.scene) {
         building.rotation.y = rng.nextRange(0, Math.PI * 2);
         this.scene.add(building);
-        void this.collisionSystem?.addCollidableFiltered(building);
         objs.push(building);
+        colliders.push(building);
       }
     }
 
-    // ── Monsters (density scales with distance from origin) ────────────
-    // Hard cap on total NPCs: prevents the EntityManager loop growing unbounded.
-    // 36 server NPCs + up to ~44 procedural = comfortable 80 total.
-    const MAX_NPCS = 80;
-    const monsterChance = Math.min(0.38, 0.06 + dist * 0.0005);
+    const monsterChance = Math.min(0.22, 0.04 + dist * 0.0004);
     if (rng.chance(monsterChance) && this.entityManager &&
-        this.entityManager.npcs.size < MAX_NPCS) {
-      const defs = registryEntry?.monsters
+        this.entityManager.npcs.size < ProceduralPopulator.MAX_NPCS) {
+      const defs: MonsterDef[] = (registryEntry?.monsters
         ?? BIOME_MONSTERS[biome]
-        ?? BIOME_MONSTERS[BiomeType.Teldrassil]!;
-      const count = rng.nextInt(2) + 1;
+        ?? BIOME_MONSTERS[BiomeType.Teldrassil]!) as MonsterDef[];
+      const count = 1;
       for (let i = 0; i < count; i++) {
         const mx = worldX + rng.nextRange(6, SIZE - 6);
         const mz = worldZ + rng.nextRange(6, SIZE - 6);
         const my = this.terrain.getHeightAt(mx, mz);
         const def = rng.pick(defs);
-        const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
+        const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}`;
         this.entityManager.addNPC({
           id: npcId, name: def.name,
           personalityKey: def.id,
@@ -344,9 +275,8 @@ export class ProceduralPopulator {
       }
     }
 
-    // ── Ambient props (3–6, richer density) ───────────────────────────
     if (rng.chance(0.60)) {
-      const propCount = rng.nextInt(4) + 3; // 3–6
+      const propCount = rng.nextInt(4) + 3;
       for (let i = 0; i < propCount; i++) {
         const px = worldX + rng.nextRange(3, SIZE - 3);
         const pz = worldZ + rng.nextRange(3, SIZE - 3);
@@ -366,8 +296,8 @@ export class ProceduralPopulator {
       }
     }
 
-    // Track for cleanup
     if (objs.length > 0) this.spawnedObjects.set(key, objs);
+    if (colliders.length > 0) this.spawnedColliders.set(key, colliders);
     if (npcIds.length > 0) this.spawnedNpcs.set(key, npcIds);
   }
 }

@@ -18,6 +18,8 @@ export class InteractionSystem {
   private domElement: HTMLElement;
   private entityManager: EntityManager;
   private hoveredNpcId: string | null = null;
+  // Cached bounding rect — invalidated on resize to avoid per-mousemove layout reads.
+  private _cachedRect: DOMRect | null = null;
 
   constructor(
     camera: THREE.PerspectiveCamera,
@@ -43,6 +45,9 @@ export class InteractionSystem {
       }
       this.handleHover(e);
     });
+
+    // Invalidate cached rect when the canvas moves or resizes.
+    window.addEventListener('resize', () => { this._cachedRect = null; });
   }
 
   // ----------------------------------------------------------------
@@ -56,7 +61,8 @@ export class InteractionSystem {
   // ----------------------------------------------------------------
 
   private setMouseFromEvent(e: MouseEvent): void {
-    const rect = this.domElement.getBoundingClientRect();
+    if (!this._cachedRect) this._cachedRect = this.domElement.getBoundingClientRect();
+    const rect = this._cachedRect;
     this.mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     this.mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
   }

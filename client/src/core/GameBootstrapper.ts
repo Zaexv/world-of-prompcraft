@@ -23,6 +23,7 @@ import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../sce
 import { setWorldManifest as setBiomeManifest } from '../scene/Biomes';
 import { warmUpTextures } from '../utils/PBRMaps';
 import { setWorldManifest as setDungeonManifest } from '../scene/DungeonConfig';
+import { RichTextFormatter } from '../ui/utils/RichTextFormatter';
 import { GameEngine } from './GameEngine';
 import { WebSocketHandler } from './WebSocketHandler';
 import { createRuntimeState } from './RuntimeState';
@@ -139,9 +140,6 @@ export function bootstrap(
   terrain.onChunkLoaded   = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
   terrain.onChunkUnloaded = (cx, cz)         => worldGenerator.onChunkUnloaded(cx, cz);
 
-  // Initialize terrain (preloads starting area) AFTER callbacks are wired
-  terrain.init();
-
   // eslint-disable-next-line prefer-const
   let engine: GameEngine;
 
@@ -231,8 +229,9 @@ export function bootstrap(
   uiManager.chatPanel.onSendMessage = (text: string) => {
     if (!runtime.joinedServer) return;
     ws.send({ type: 'chat_message', text });
-    uiManager.chatPanel.addMessage(config.username, text);
-    spawnChatBubble(text, player.group, 'player', config.username);
+    const formatted = RichTextFormatter.format(text);
+    uiManager.chatPanel.addMessage(config.username, formatted.html);
+    spawnChatBubble(formatted.html, player.group, 'player', config.username);
   };
 
   // Interaction panel prompt wiring
@@ -245,6 +244,9 @@ export function bootstrap(
       npcId: runtime.activeNpcId,
       npcName: npc?.name,
       personalityKey: npc?.personalityKey || undefined,
+      // The NPC's own position, so the server registers procedural NPCs where
+      // they actually stand instead of clustering them onto the player.
+      npcPosition: npc ? [npc.position.x, npc.position.y, npc.position.z] : undefined,
       prompt,
       playerId: runtime.localPlayerId,
       playerState: {
@@ -283,21 +285,26 @@ export function bootstrap(
 
   // Keyboard shortcuts
   window.addEventListener('keydown', (e: KeyboardEvent) => {
-    const key = e.key.toLowerCase();
-    if (e.code === 'KeyM' || key === 'm') {
-      uiManager.toggleMinimap();
-      return;
-    }
+    // Block all hotkeys when any text input or contenteditable has focus.
+    // Using document.activeElement (not e.target) as the authoritative focus
+    // source; without capture mode, the chat input's stopPropagation() also
+    // serves as a natural second layer of protection.
+    const active = document.activeElement as HTMLElement | null;
+    if (
+      active?.tagName === 'INPUT' ||
+      active?.tagName === 'TEXTAREA' ||
+      active?.isContentEditable
+    ) return;
 
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+    const key = e.key.toLowerCase();
+    if (e.code === 'KeyM' || key === 'm') uiManager.toggleMinimap();
     if (e.code === 'KeyI' || key === 'i') uiManager.toggleInventory();
     if (e.code === 'KeyL' || key === 'l') uiManager.toggleQuestLog(playerState);
     if (e.code === 'KeyE' || key === 'e') dungeonSystem.tryEnter();
     if (e.code === 'KeyB' || key === 'b') worldBuilderPanel.toggle();
     if (e.code === 'Enter' && !uiManager.chatPanel.isFocused) { e.preventDefault(); uiManager.chatPanel.focusInput(); }
     if (e.code === 'Escape' && uiManager.chatPanel.isFocused) e.preventDefault();
-  }, { capture: true });
+  });
 
   engine = new GameEngine({
     sceneManager, playerController, player, entityManager, collisionSystem,

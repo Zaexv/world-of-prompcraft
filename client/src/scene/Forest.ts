@@ -67,8 +67,10 @@ function makeOrbMaterial(colorA: THREE.ColorRepresentation, colorB: THREE.ColorR
   });
 }
 
+const _textureLoader = new THREE.TextureLoader();
+
 function makeGroundPatch(texturePath: string, radius: number, tint: THREE.ColorRepresentation): THREE.Mesh {
-  const texture = new THREE.TextureLoader().load(texturePath);
+  const texture = _textureLoader.load(texturePath);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
   texture.repeat.set(Math.max(2, radius / 8), Math.max(2, radius / 8));
@@ -113,6 +115,8 @@ export class StartingForest {
   private elapsed = 0;
   private grassTimeUniform: THREE.IUniform<number> | null = null;
 
+  private readonly NEAR_THRESHOLD_SQ = 500 * 500;
+
   constructor(private readonly scene: THREE.Scene, private readonly terrain: Terrain) {
     this.root.name = 'starting-forest';
     this.scene.add(this.root);
@@ -121,13 +125,45 @@ export class StartingForest {
 
   setCollisionSystem(collisionSystem: CollisionSystem): void {
     this.collisionSystem = collisionSystem;
-    if (this.collisionRegistered) return;
-    void this.collisionSystem.addCollidableFiltered(this.root);
-    this.collisionRegistered = true;
+    // Register immediately if currently active (visible)
+    if (this.root.visible) {
+      this.updateCollisions(true);
+    }
   }
 
-  update(delta: number): void {
+  private updateCollisions(active: boolean): void {
+    if (!this.collisionSystem) return;
+
+    if (active && !this.collisionRegistered) {
+      void this.collisionSystem.addCollidableFiltered(this.root);
+      this.collisionRegistered = true;
+    } else if (!active && this.collisionRegistered) {
+      this.collisionSystem.removeCollidable(this.root);
+      this.collisionRegistered = false;
+    }
+  }
+
+  update(delta: number, playerX: number, playerZ: number): void {
     this.elapsed += delta;
+    
+    // Distance-based despawning
+    const dx = playerX - 0;
+    const dz = playerZ - 0;
+    const distSq = dx * dx + dz * dz;
+    const active = distSq < this.NEAR_THRESHOLD_SQ;
+
+    if (active !== this.root.visible) {
+      this.root.visible = active;
+      this.updateCollisions(active);
+      if (active) {
+        console.debug('[StartingForest] Activating starting forest');
+      } else {
+        console.debug('[StartingForest] Deactivating starting forest (distance)');
+      }
+    }
+
+    if (!active) return;
+
     if (this.grassTimeUniform) {
       this.grassTimeUniform.value = this.elapsed;
     }
@@ -249,11 +285,12 @@ export class StartingForest {
     grass.receiveShadow = true;
     grass.userData.noCollision = true;
 
+    const _tmpEuler = new THREE.Euler();
     for (let i = 0; i < count; i++) {
       const blade = blades[i]!;
       const y = this.terrain.getHeightAt(blade.x, blade.z) + 0.02;
       this.tempPosition.set(blade.x, y, blade.z);
-      this.tempQuat.setFromEuler(new THREE.Euler(blade.lean, blade.yaw, blade.lean * 0.4));
+      this.tempQuat.setFromEuler(_tmpEuler.set(blade.lean, blade.yaw, blade.lean * 0.4));
       this.tempScale.set(blade.scale * 0.8, blade.scale, blade.scale * 0.8);
       this.tempMatrix.compose(this.tempPosition, this.tempQuat, this.tempScale);
       grass.setMatrixAt(i, this.tempMatrix);
@@ -681,7 +718,7 @@ export class StartingForest {
       const z = Math.sin(angle) * ringRadius + (hash2(i, 0, 31) - 0.5) * 6;
       const y = this.terrain.getHeightAt(x, z) + lerp(10, 18, hash2(i, 0, 32));
 
-      const orb = new THREE.Mesh(orbGeo, i % 2 === 0 ? outerMat.clone() : innerMat.clone());
+      const orb = new THREE.Mesh(orbGeo, i % 2 === 0 ? outerMat : innerMat);
       orb.position.set(x, y, z);
       orb.scale.setScalar(lerp(0.8, 1.35, hash2(i, 0, 33)));
       orb.castShadow = false;

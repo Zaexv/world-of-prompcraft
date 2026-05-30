@@ -1,6 +1,8 @@
 import * as THREE from "three";
 import { UIComponent } from './core/UIComponent';
 
+const _projVec = new THREE.Vector3();
+
 /**
  * Screen-space floating damage / healing numbers.
  * Uses CSS animations for smooth movement — auto-removed from DOM on completion.
@@ -85,13 +87,13 @@ export class DamagePopup extends UIComponent {
     width: number,
     height: number,
   ): { x: number; y: number } | null {
-    const projected = position.clone().project(camera);
+    _projVec.copy(position).project(camera);
 
     // Behind camera or beyond far plane check
-    if (projected.z < -1 || projected.z > 1) return null;
+    if (_projVec.z < -1 || _projVec.z > 1) return null;
 
-    const x = (projected.x * 0.5 + 0.5) * width;
-    const y = (-projected.y * 0.5 + 0.5) * height;
+    const x = (_projVec.x * 0.5 + 0.5) * width;
+    const y = (-_projVec.y * 0.5 + 0.5) * height;
 
     // Reject positions far outside viewport
     if (x < -50 || x > width + 50 || y < -50 || y > height + 50) return null;

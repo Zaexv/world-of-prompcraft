@@ -153,15 +153,17 @@ describe('Minimap - field initialization', () => {
     map.update(0, 0, 0);
 
     const canvas = map.element.querySelector('canvas') as HTMLCanvasElement;
+    // Canvas is now 560×560 (WM_SIZE). Waypoint at x=20,z=0 with player at
+    // origin lands at canvas x = 20/3.5 + 280 ≈ 286, y = 280.
     vi.spyOn(canvas, 'getBoundingClientRect').mockReturnValue({
       x: 0,
       y: 0,
       left: 0,
       top: 0,
-      right: 280,
-      bottom: 280,
-      width: 280,
-      height: 280,
+      right: 560,
+      bottom: 560,
+      width: 560,
+      height: 560,
       toJSON: () => ({}),
     });
 
@@ -170,8 +172,8 @@ describe('Minimap - field initialization', () => {
 
     canvas.dispatchEvent(new MouseEvent('pointerdown', {
       bubbles: true,
-      clientX: 150,
-      clientY: 140,
+      clientX: 286,
+      clientY: 280,
     }));
 
     expect(handler).toHaveBeenCalledWith({

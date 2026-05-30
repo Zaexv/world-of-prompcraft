@@ -12,24 +12,29 @@ if TYPE_CHECKING:
     from ..config import Settings
 
 _HTTP_TIMEOUT = 20.0
+_OLLAMA_TIMEOUT = 6.0
 
 
 def get_llm(settings: Settings) -> BaseChatModel:
     """Factory that returns a chat model based on the configured provider."""
     if settings.llm_provider == "claude":
+        if not settings.anthropic_api_key:
+            raise ValueError("ANTHROPIC_API_KEY must be set when llm_provider='claude'")
         return ChatAnthropic(
             model=settings.anthropic_model,  # type: ignore[call-arg]
             api_key=settings.anthropic_api_key,  # type: ignore[arg-type]
             http_client=httpx.AsyncClient(timeout=_HTTP_TIMEOUT),
         )
     if settings.llm_provider == "openai":
+        if not settings.openai_api_key:
+            raise ValueError("OPENAI_API_KEY must be set when llm_provider='openai'")
         return ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
             base_url=settings.openai_api_base,
             temperature=settings.llm_temperature,
-            max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
-            request_timeout=settings.openai_request_timeout_seconds,
+            max_tokens=settings.max_tokens,  # type: ignore[call-arg]
+            request_timeout=_HTTP_TIMEOUT,
         )
     if settings.llm_provider == "ollama":
         return ChatOpenAI(
@@ -37,8 +42,8 @@ def get_llm(settings: Settings) -> BaseChatModel:
             api_key="ollama",  # type: ignore[arg-type]
             base_url=settings.ollama_base_url,
             temperature=settings.llm_temperature,
-            max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
-            request_timeout=8.0,
+            max_tokens=settings.max_tokens,  # type: ignore[call-arg]
+            request_timeout=_OLLAMA_TIMEOUT,
             max_retries=0,
         )
     raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")

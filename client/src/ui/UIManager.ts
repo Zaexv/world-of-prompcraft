@@ -7,6 +7,7 @@ import { DamagePopup } from "./DamagePopup";
 import { ItemUseEffect } from "./ItemUseEffect";
 import { DeathScreen } from "./DeathScreen";
 import { Minimap } from "./Minimap";
+import { MinimapWidget } from "./MinimapWidget";
 import { QuestLog } from "./QuestLog";
 import { QuestTracker } from "./QuestTracker";
 import { ZoneDisplay } from "./ZoneDisplay";
@@ -30,6 +31,7 @@ export class UIManager {
   readonly itemUseEffect: ItemUseEffect;
   readonly deathScreen: DeathScreen;
   readonly minimap: Minimap;
+  readonly minimapWidget: MinimapWidget;
   readonly questLog: QuestLog;
   readonly questTracker: QuestTracker;
   readonly zoneDisplay: ZoneDisplay;
@@ -80,6 +82,9 @@ export class UIManager {
 
     this.minimap = new Minimap();
     this.container.appendChild(this.minimap.element);
+
+    this.minimapWidget = new MinimapWidget();
+    this.container.appendChild(this.minimapWidget.element);
 
     this.questLog = new QuestLog();
     this.container.appendChild(this.questLog.element);
@@ -283,6 +288,7 @@ export class UIManager {
 
   updateMinimap(playerX: number, playerZ: number, playerAngle: number): void {
     this.minimap.update(playerX, playerZ, playerAngle);
+    this.minimapWidget.update(playerX, playerZ, playerAngle);
   }
 
   // ── Quest & Zone helpers ─────────────────────────────────────────────────

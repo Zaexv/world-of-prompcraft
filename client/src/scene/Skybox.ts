@@ -7,29 +7,27 @@ export class Skybox {
   private cloudMesh: THREE.Mesh | null = null;
   private sunMesh: THREE.Group | null = null;
   private skyDome: THREE.Mesh | null = null;
-constructor(scene: THREE.Scene) {
 
-  // 1. Sky Color (Lighter, more vibrant)
-  const skyColor = 0x88d0ff;
-  scene.background = new THREE.Color(skyColor);
-  scene.environment = null;
+  constructor(scene: THREE.Scene) {
+    
+    // 1. Sky Color (Vibrant sky blue) using a Sky Dome
+    scene.background = new THREE.Color(0x3ea3ff); // Keep as fallback
+    scene.environment = null;
 
-  // Radius must be < 1600 so it doesn't get culled by the camera's far plane!
-  // Optimized: Reduced segments from 32,15 to 16,8. It's a sky dome, it doesn't need high geo.
-  const skyGeo = new THREE.SphereGeometry(1400, 16, 8);
-  const skyMat = new THREE.MeshBasicMaterial({ 
-    color: skyColor, 
-    side: THREE.BackSide, 
-    fog: false,
-    depthWrite: false
-  });
-  this.skyDome = new THREE.Mesh(skyGeo, skyMat);
-  this.skyDome.renderOrder = -1; // Render behind everything else
-  this.skyDome.frustumCulled = false;
-  scene.add(this.skyDome);
+    // Radius must be < 1600 so it doesn't get culled by the camera's far plane!
+    const skyGeo = new THREE.SphereGeometry(1400, 32, 15);
+    const skyMat = new THREE.MeshBasicMaterial({ 
+      color: 0x3ea3ff, 
+      side: THREE.BackSide, 
+      fog: false,
+      depthWrite: false
+    });
+    this.skyDome = new THREE.Mesh(skyGeo, skyMat);
+    this.skyDome.renderOrder = -1; // Render behind everything else
+    this.skyDome.frustumCulled = false;
+    scene.add(this.skyDome);
 
-  // 2. Minecraft-like Clouds
-  // ... (rest of clouds logic)
+    // 2. Minecraft-like Clouds
     const canvas = document.createElement('canvas');
     canvas.width = 512;
     canvas.height = 512;
@@ -71,7 +69,7 @@ constructor(scene: THREE.Scene) {
     this.cloudMesh = new THREE.Mesh(cloudGeo, cloudMat);
     this.cloudMesh.rotation.x = -Math.PI / 2;
     this.cloudMesh.position.y = 500; // Raised clouds even higher to get out of the way
-    this.cloudMesh.frustumCulled = false; // Disable culling for massive meshes
+    this.cloudMesh.frustumCulled = false;
     scene.add(this.cloudMesh);
   }
 

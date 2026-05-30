@@ -9,73 +9,22 @@ export interface PhysicsEntry {
   body: CollisionBody;
 }
 
-/** Cache for inverted world matrices to avoid expensive per-mesh re-inversion. */
-const _invMatrixCache = new WeakMap<THREE.Mesh, THREE.Matrix4>();
-
-/** 
- * Grid-based spatial index for fast proximity lookups.
- * Grid size of 32m (half chunk) is efficient for large-scale queries.
- */
-class SpatialGrid {
-  private grid: Map<string, Set<THREE.Mesh>> = new Map();
-  private readonly cellSize = 32;
-
-  public add(mesh: THREE.Mesh): void {
-    const box = new THREE.Box3().setFromObject(mesh);
-    const minCX = Math.floor(box.min.x / this.cellSize);
-    const maxCX = Math.floor(box.max.x / this.cellSize);
-    const minCZ = Math.floor(box.min.z / this.cellSize);
-    const maxCZ = Math.floor(box.max.z / this.cellSize);
-
-    for (let cx = minCX; cx <= maxCX; cx++) {
-      for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const key = `${cx},${cz}`;
-        if (!this.grid.has(key)) this.grid.set(key, new Set());
-        this.grid.get(key)!.add(mesh);
-      }
-    }
-  }
-
-  public remove(mesh: THREE.Mesh): void {
-    for (const set of this.grid.values()) {
-      set.delete(mesh);
-    }
-  }
-
-  public query(x: number, z: number, radius: number): THREE.Mesh[] {
-    const result = new Set<THREE.Mesh>();
-    const minCX = Math.floor((x - radius) / this.cellSize);
-    const maxCX = Math.floor((x + radius) / this.cellSize);
-    const minCZ = Math.floor((z - radius) / this.cellSize);
-    const maxCZ = Math.floor((z + radius) / this.cellSize);
-
-    for (let cx = minCX; cx <= maxCX; cx++) {
-      for (let cz = minCZ; cz <= maxCZ; cz++) {
-        const key = `${cx},${cz}`;
-        const set = this.grid.get(key);
-        if (set) {
-          for (const mesh of set) result.add(mesh);
-        }
-      }
-    }
-    return Array.from(result);
-  }
-
-  public clear(): void {
-    this.grid.clear();
-  }
-}
-
 export class CollisionSystem {
   private bvhManager: BVHManager;
   private debug: CollisionDebug | null = null;
-  private statics: Map<THREE.Object3D, CollisionBody> = new Map();
-  private spatialGrid = new SpatialGrid();
+  private statics: PhysicsEntry[] = [];
+  private dynamicBodies: Map<THREE.Object3D, CollisionBody> = new Map();
+
+  // O(1) dedup check — replacing the O(n) Array.some() call
+  private _staticSet = new Set<THREE.Object3D>();
+
+  // Tracks which child objects were registered under which parent group.
+  // Populated by addCollidableFiltered(); used by removeCollidable() to avoid
+  // the O(statics × scene_depth) ancestor walk on chunk unload.
+  private _groupToChildren = new Map<THREE.Object3D, Set<THREE.Object3D>>();
 
   // Reusable
   private _box3 = new THREE.Box3();
-  private _pos = new THREE.Vector3();
-  private _localBox = new THREE.Box3();
 
   constructor() {
     this.bvhManager = new BVHManager();
@@ -89,15 +38,13 @@ export class CollisionSystem {
   // ── Registration ──────────────────────────────────────────────────────
 
   async addCollidable(obj: THREE.Object3D): Promise<void> {
-    if (this.statics.has(obj)) return;
+    if (this._staticSet.has(obj)) return; // O(1) instead of O(n)
 
     const body = this.createCollisionBody(obj, true);
     if (body) {
       await this.bvhManager.addBody(body);
-      this.statics.set(obj, body);
-      if (body.object instanceof THREE.Mesh) {
-        this.spatialGrid.add(body.object);
-      }
+      this.statics.push({ obj, body });
+      this._staticSet.add(obj);
       this.debug?.update();
     }
   }
@@ -106,16 +53,12 @@ export class CollisionSystem {
     await Promise.all(objs.map(obj => this.addCollidable(obj)));
   }
 
+  /**
+   * Register collision shapes for a group by decomposing it into its tagged
+   * children. Tagged colliders (`userData.isCollider === true`) are preferred.
+   */
   async addCollidableFiltered(group: THREE.Object3D): Promise<void> {
     if (group.userData.noCollision === true) return;
-
-    if (group instanceof THREE.LOD) {
-      const level0 = group.levels[0]?.object;
-      if (level0) {
-        await this.addCollidableFiltered(level0);
-      }
-      return;
-    }
 
     const tagged: THREE.Object3D[] = [];
     const fallbackMeshes: THREE.Object3D[] = [];
@@ -126,7 +69,6 @@ export class CollisionSystem {
         return;
       }
       if (child instanceof THREE.Mesh) fallbackMeshes.push(child);
-      if (child instanceof THREE.LOD) return;
     });
 
     const targets = tagged.length > 0 ? tagged : fallbackMeshes;
@@ -137,16 +79,21 @@ export class CollisionSystem {
 
     group.updateWorldMatrix(true, true);
 
+    // Ensure a child-tracking set exists for this group before the parallel loop.
+    if (!this._groupToChildren.has(group)) {
+      this._groupToChildren.set(group, new Set());
+    }
+    const childSet = this._groupToChildren.get(group)!;
+
     await Promise.all(targets.map(async (child) => {
-      if (this.statics.has(child)) return;
+      if (this._staticSet.has(child)) return; // O(1) dedup
 
       const body = this.createCollisionBody(child, true);
       if (body) {
         await this.bvhManager.addBody(body);
-        this.statics.set(child, body);
-        if (body.object instanceof THREE.Mesh) {
-          this.spatialGrid.add(body.object);
-        }
+        this.statics.push({ obj: child, body });
+        this._staticSet.add(child);
+        childSet.add(child);
       }
     }));
     this.debug?.update();
@@ -157,143 +104,123 @@ export class CollisionSystem {
   }
 
   removeCollidable(obj: THREE.Object3D): void {
-    const entry = this.statics.get(obj);
-    if (entry) {
-      this.bvhManager.removeBody(entry.id);
-      if (entry.object instanceof THREE.Mesh) {
-        this.spatialGrid.remove(entry.object);
-      }
-      this.statics.delete(obj);
+    // Fast path: direct reference match — O(n) scan but no per-entry work
+    const idx = this.statics.findIndex((e) => e.obj === obj);
+    if (idx !== -1) {
+      this.bvhManager.removeBody(this.statics[idx].body.id);
+      this._staticSet.delete(this.statics[idx].obj);
+      this.statics.splice(idx, 1);
+      this._groupToChildren.delete(obj);
       this.debug?.update();
       return;
     }
 
-    const toRemove: THREE.Object3D[] = [];
-    for (const [mesh] of this.statics) {
-      let ancestor = mesh.parent;
-      while (ancestor) {
-        if (ancestor === obj) {
-          toRemove.push(mesh);
-          break;
+    // Medium path: group removal via stored child set.
+    // O(statics) filter — avoids the O(statics × scene_depth) ancestor walk.
+    const children = this._groupToChildren.get(obj);
+    if (children) {
+      const before = this.statics.length;
+      this.statics = this.statics.filter((e) => {
+        if (children.has(e.obj)) {
+          this.bvhManager.removeBody(e.body.id);
+          this._staticSet.delete(e.obj);
+          return false;
         }
+        return true;
+      });
+      this._groupToChildren.delete(obj);
+      if (this.statics.length !== before) this.debug?.update();
+      return;
+    }
+
+    // Slow path: ancestor walk — only reached for objects registered outside
+    // addCollidableFiltered (e.g. direct addCollidable with a group parent).
+    const toRemove: number[] = [];
+    for (let i = 0; i < this.statics.length; i++) {
+      let ancestor = this.statics[i].obj.parent;
+      while (ancestor) {
+        if (ancestor === obj) { toRemove.push(i); break; }
         ancestor = ancestor.parent;
       }
     }
-
-    for (const mesh of toRemove) {
-      const body = this.statics.get(mesh);
-      if (body) {
-        this.bvhManager.removeBody(body.id);
-        if (body.object instanceof THREE.Mesh) {
-          this.spatialGrid.remove(body.object);
-        }
-        this.statics.delete(mesh);
-      }
+    for (let i = toRemove.length - 1; i >= 0; i--) {
+      const entry = this.statics[toRemove[i]!]!;
+      this.bvhManager.removeBody(entry.body.id);
+      this._staticSet.delete(entry.obj);
+      this.statics.splice(toRemove[i]!, 1);
     }
-    
     if (toRemove.length > 0) this.debug?.update();
   }
 
   removeCollidablesWhere(predicate: (obj: THREE.Object3D) => boolean): void {
-    const toRemove: [THREE.Object3D, CollisionBody][] = [];
-    for (const [obj, body] of this.statics) {
-      if (predicate(obj)) {
-        toRemove.push([obj, body]);
-      }
+    const toRemove = this.statics.filter((e) => predicate(e.obj));
+    for (const entry of toRemove) {
+      this.bvhManager.removeBody(entry.body.id);
     }
-
-    for (const [obj, body] of toRemove) {
-      this.bvhManager.removeBody(body.id);
-      if (body.object instanceof THREE.Mesh) {
-        this.spatialGrid.remove(body.object);
-      }
-      this.statics.delete(obj);
-    }
-
+    this.statics = this.statics.filter((e) => !predicate(e.obj));
     if (toRemove.length > 0) this.debug?.update();
   }
 
   async setCollidables(objs: THREE.Object3D[]): Promise<void> {
-    for (const body of this.statics.values()) {
-      this.bvhManager.removeBody(body.id);
+    for (const entry of this.statics) {
+      this.bvhManager.removeBody(entry.body.id);
     }
-    this.statics.clear();
-    this.spatialGrid.clear();
+    this.statics = [];
     await this.addCollidables(objs);
   }
 
   saveCollidables(): PhysicsEntry[] {
-    return Array.from(this.statics.entries()).map(([obj, body]) => ({ obj, body }));
+    return [...this.statics];
   }
 
   restoreCollidables(saved: PhysicsEntry[]): void {
-    for (const body of this.statics.values()) {
-      this.bvhManager.removeBody(body.id);
+    for (const entry of this.statics) {
+      this.bvhManager.removeBody(entry.body.id);
     }
-    this.statics.clear();
-    this.spatialGrid.clear();
-    for (const entry of saved) {
-      this.statics.set(entry.obj, entry.body);
-      if (entry.body.object instanceof THREE.Mesh) {
-        this.spatialGrid.add(entry.body.object);
-      }
+    this.statics = [...saved];
+    for (const entry of this.statics) {
       this.bvhManager.addBody(entry.body);
     }
     this.debug?.update();
   }
 
   getCollidableCount(): number {
-    return this.statics.size;
+    return this.statics.length + this.dynamicBodies.size;
   }
 
   getCollidableObjects(): THREE.Object3D[] {
-    const result: THREE.Object3D[] = [];
-    for (const [obj] of this.statics) {
-      if (obj.visible) result.push(obj);
-    }
-    return result;
+    return this.statics
+      .filter(e => e.obj.visible)
+      .map(e => e.obj);
   }
 
-  getStaticMeshes(nearPos?: THREE.Vector3, radius?: number): THREE.Mesh[] {
-    if (!nearPos || radius === undefined) return this.bvhManager.getStaticMeshes();
-    return this.spatialGrid.query(nearPos.x, nearPos.z, radius);
+  getStaticMeshes(): THREE.Mesh[] {
+    return this.bvhManager.getStaticMeshes();
   }
 
   isPositionBlocked(x: number, y: number, z: number, halfExtent = 0.5): boolean {
     this._box3.min.set(x - halfExtent, y, z - halfExtent);
     this._box3.max.set(x + halfExtent, y + 1.8, z + halfExtent);
-    
-    this._pos.set(x, y, z);
-    const nearby = this.getStaticMeshes(this._pos, 5.0);
-    
-    for (const mesh of nearby) {
-      if (!mesh.geometry.boundsTree) continue;
+    return this.bvhManager.intersectsBox(this._box3);
+  }
 
-      let invMatrix = _invMatrixCache.get(mesh);
-      if (!invMatrix) {
-        invMatrix = new THREE.Matrix4().copy(mesh.matrixWorld).invert();
-        _invMatrixCache.set(mesh, invMatrix);
-      }
-
-      this._localBox.copy(this._box3).applyMatrix4(invMatrix);
-
-      const hit = mesh.geometry.boundsTree.shapecast({
-        intersectsBounds: (b) => b.intersectsBox(this._localBox),
-        intersectsTriangle: () => true,
-      });
-
-      if (hit) return true;
-    }
-    return false;
+  /** Returns all static meshes that overlap the given bounding box. */
+  getCandidates(box: THREE.Box3): THREE.Mesh[] {
+    return this.bvhManager.getCandidates(box);
   }
 
   // ── Resolution ────────────────────────────────────────────────────────
 
+  /**
+   * Movement resolution façade.
+   * Temporary: returns desiredPos until Agent 2 implements the Kinematic Solver.
+   */
   resolveMovement(
     currentPos: THREE.Vector3,
     desiredPos: THREE.Vector3,
     _scene: THREE.Scene,
   ): THREE.Vector3 {
+    // For now, allow all movement. Agent 2 will swap this with the Capsule Solver.
     return desiredPos;
   }
 
@@ -320,6 +247,8 @@ export class CollisionSystem {
   }
 
   update(): void {
+    // Drain max 2 BVH builds per frame — prevents burst spikes when chunks load.
+    this.bvhManager.drainBvhQueue(2);
     this.debug?.update();
   }
 }

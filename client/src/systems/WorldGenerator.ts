@@ -14,7 +14,6 @@ import type { CollisionSystem } from './CollisionSystem';
 import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
 import { ProceduralPopulator } from './ProceduralPopulator';
-import type { LandmarkDefinition } from '../state/WorldManifest';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
 
@@ -36,9 +35,6 @@ export class WorldGenerator {
 
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
   private chunkNPCs: Map<string, string[]> = new Map();
-
-  /** Spatial index for landmarks: Map<"chunkX,chunkZ", LandmarkDefinition[]> */
-  private landmarkSpatialIndex: Map<string, LandmarkDefinition[]> = new Map();
 
   constructor(
     scene: THREE.Scene,
@@ -73,7 +69,6 @@ export class WorldGenerator {
   /** Set the world manifest for data-driven landmark spawning. */
   setWorldManifest(wm: WorldManifest): void {
     this.worldManifest = wm;
-    this.rebuildSpatialIndex();
     this.syncMinimapWaypoints();
   }
 
@@ -85,39 +80,29 @@ export class WorldGenerator {
   /** Prevent procedural spawns inside authored city/structure footprints. */
   setExclusionFootprints(_footprints: ExclusionFootprint[]): void {}
 
-  /** Rebuild the spatial index for manifest landmarks. */
-  private rebuildSpatialIndex(): void {
-    this.landmarkSpatialIndex.clear();
-    if (!this.worldManifest) return;
-
-    for (const landmark of this.worldManifest.getAllLandmarks()) {
-      const [lx, , lz] = landmark.transform.position;
-      const cx = Math.floor(lx / CHUNK_SIZE);
-      const cz = Math.floor(lz / CHUNK_SIZE);
-      const key = `${cx},${cz}`;
-
-      if (!this.landmarkSpatialIndex.has(key)) {
-        this.landmarkSpatialIndex.set(key, []);
-      }
-      this.landmarkSpatialIndex.get(key)!.push(landmark);
-    }
-  }
-
   /** Clean up all spawned objects and NPCs for a chunk. */
   onChunkUnloaded(chunkX: number, chunkZ: number): void {
     const key = `${chunkX},${chunkZ}`;
+    console.debug(`[WorldGenerator] Unloading chunk ${key}`);
 
     // Remove scene objects
     const objects = this.chunkObjects.get(key);
     if (objects) {
       for (const obj of objects) {
-        this.scene.remove(obj);
-        this.collisionSystem?.removeCollidable(obj);
-        obj.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-          }
-        });
+        // If the object was managed by WorldBuilder, release it from there too
+        // Landmarks are identified by their UUID-like IDs or manifest IDs.
+        const objectId = obj.userData.objectId;
+        if (objectId && this.worldBuilder) {
+          this.worldBuilder.releaseObject(objectId);
+        } else {
+          this.scene.remove(obj);
+          this.collisionSystem?.removeCollidable(obj);
+          obj.traverse((child) => {
+            if (child instanceof THREE.Mesh) {
+              child.geometry.dispose();
+            }
+          });
+        }
       }
       this.chunkObjects.delete(key);
     }
@@ -142,6 +127,8 @@ export class WorldGenerator {
     if (this.generatedChunks.has(key)) return;
     this.generatedChunks.add(key);
 
+    console.debug(`[WorldGenerator] Loading chunk ${key} at ${worldX}, ${worldZ}`);
+
     if (!this.worldManifest || !this.worldBuilder) return;
 
     // Determine bounds for this chunk
@@ -152,10 +139,12 @@ export class WorldGenerator {
 
     const chunkObjects: THREE.Object3D[] = [];
 
-    // Query spatial index for landmarks in this chunk
-    const landmarks = this.landmarkSpatialIndex.get(key);
-    if (landmarks) {
-      for (const landmark of landmarks) {
+    // Query manifest for landmarks in this chunk using spatial index
+    const landmarks = this.worldManifest.getLandmarksInBounds(minX, maxX, minZ, maxZ);
+    for (const landmark of landmarks) {
+      const [lx, , lz] = landmark.transform.position;
+
+      if (lx >= minX && lx < maxX && lz >= minZ && lz < maxZ) {
         // Spawn the landmark using WorldBuilder
         const obj = this.worldBuilder.spawnObject({
           objectId: landmark.id,
@@ -164,7 +153,6 @@ export class WorldGenerator {
           rotation: landmark.transform.rotation,
           scale: landmark.transform.scale,
           label: landmark.visual.label,
-          persist: false, // Don't track manifest landmarks in WorldBuilder.objects
         }, false);
 
         if (obj) {

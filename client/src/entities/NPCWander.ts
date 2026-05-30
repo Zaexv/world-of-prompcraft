@@ -252,10 +252,7 @@ export class NPCWander {
     const dx = toX - fromX;
     const dz = toZ - fromZ;
     const distance = Math.sqrt(dx * dx + dz * dz);
-    
-    // Optimization: step=0.5m instead of 0.08m. For a 1.1m wide NPC (halfExtent 0.55),
-    // 0.5m steps are perfectly safe and ~6x faster.
-    const steps = Math.max(1, Math.ceil(distance / 0.5));
+    const steps = Math.max(1, Math.ceil(distance / 0.08));
     for (let i = 1; i <= steps; i++) {
       const t = i / steps;
       const sx = fromX + dx * t;

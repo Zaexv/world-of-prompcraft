@@ -5,6 +5,7 @@ export interface PlayerInteraction {
   npcId: string;
   npcName?: string;
   personalityKey?: string;
+  npcPosition?: [number, number, number];
   prompt: string;
   playerId: string;
   playerState: {
@@ -130,6 +131,10 @@ export interface EmoteParams {
   animation: string;
 }
 
+export interface SetSkinParams {
+  style: string;
+}
+
 export interface MoveNpcParams {
   position: [number, number, number];
   duration?: number;
@@ -191,6 +196,7 @@ export type Action =
   | { kind: "give_item"; params: GiveItemParams }
   | { kind: "take_item"; params: TakeItemParams }
   | { kind: "emote"; params: EmoteParams }
+  | { kind: "set_skin"; params: SetSkinParams }
   | { kind: "move_npc"; params: MoveNpcParams }
   | { kind: "spawn_effect"; params: SpawnEffectParams }
   | { kind: "change_weather"; params: ChangeWeatherParams }

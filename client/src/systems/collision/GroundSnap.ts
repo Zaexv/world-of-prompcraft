@@ -3,6 +3,7 @@ import { Capsule } from './Capsule';
 
 const _raycaster = new THREE.Raycaster();
 const _down = new THREE.Vector3(0, -1, 0);
+const _rayOrigin = new THREE.Vector3();
 
 export class GroundSnap {
   private snapDistance: number = 0.5;
@@ -14,11 +15,13 @@ export class GroundSnap {
    * Returns 0 if no ground is found within snapDistance.
    */
   public getSnapDistance(capsule: Capsule, meshes: THREE.Mesh[]): number {
-    // Raycast down from just above the capsule bottom
-    const rayOrigin = capsule.start.clone();
-    rayOrigin.y += 0.1; // Offset slightly to avoid starting inside the floor
+    if (meshes.length === 0) return 0;
 
-    _raycaster.set(rayOrigin, _down);
+    // Raycast down from just above the capsule bottom
+    _rayOrigin.copy(capsule.start);
+    _rayOrigin.y += 0.1; // Offset slightly to avoid starting inside the floor
+
+    _raycaster.set(_rayOrigin, _down);
     _raycaster.far = capsule.radius + 0.1 + this.snapDistance;
 
     const intersects = _raycaster.intersectObjects(meshes, true);

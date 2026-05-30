@@ -1,3 +1,4 @@
+import { RichTextFormatter } from "./utils/RichTextFormatter";
 import { UIComponent } from "./core/UIComponent";
 
 /** Stored message for per-NPC chat history. */
@@ -152,6 +153,14 @@ export class InteractionPanel extends UIComponent {
     this._buildActionBar();
     this._buildChatArea();
     this._buildInput();
+
+    // Add formatting styles
+    const style = document.createElement('style');
+    style.textContent = `
+      .chat-action { color: #88ffcc; font-style: italic; }
+      .chat-highlight { color: #ffcc66; font-weight: 700; text-shadow: 0 0 8px rgba(255,204,102,0.4); }
+    `;
+    this.container.appendChild(style);
   }
 
   // ── Public API ─────────────────────────────────────────────────────────────
@@ -190,7 +199,11 @@ export class InteractionPanel extends UIComponent {
   addMessage(sender: "player" | "npc" | "system", text: string): void {
     const now = new Date();
     const ts  = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    const entry: ChatEntry = { sender, text, ts, npcName: this.npcName };
+    
+    // Format if it's a raw player message
+    const finalHtml = sender === "player" ? RichTextFormatter.format(text).html : text;
+    
+    const entry: ChatEntry = { sender, text: finalHtml, ts, npcName: this.npcName };
     this.currentMessages.push(entry);
     this._renderEntry(entry, true);
   }
@@ -403,18 +416,32 @@ export class InteractionPanel extends UIComponent {
     this.input.placeholder = "Say something or type an action…";
     Object.assign(this.input.style, {
       flex: "1",
-      padding: "9px 14px",
-      border: "1px solid rgba(197,165,90,0.3)",
-      borderRadius: "22px",
-      background: "rgba(255,255,255,0.04)",
+      padding: "10px 18px",
+      border: "1px solid rgba(197,165,90,0.35)",
+      borderRadius: "24px",
+      background: "rgba(255,255,255,0.06)",
+      backdropFilter: "blur(12px)",
       color: "#e8dcc8",
-      fontSize: "13px",
+      fontSize: "14px",
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       outline: "none",
-      transition: "border-color 0.2s",
+      boxShadow: "inset 0 1px 4px rgba(0,0,0,0.5)",
+      transition: "all 0.3s cubic-bezier(0.4, 0, 0.2, 1)",
     } as CSSStyleDeclaration);
-    this.input.addEventListener("focus", () => { this.input.style.borderColor = "rgba(197,165,90,0.7)"; });
-    this.input.addEventListener("blur",  () => { this.input.style.borderColor = "rgba(197,165,90,0.3)"; });
+
+    this.input.addEventListener("focus", () => {
+      this.input.style.borderColor = "rgba(197,165,90,0.85)";
+      this.input.style.background = "rgba(255,255,255,0.1)";
+      this.input.style.boxShadow = "0 0 20px rgba(197,165,90,0.4), inset 0 1px 4px rgba(0,0,0,0.3)";
+      this.input.style.transform = "scale(1.01) translateY(-1px)";
+    });
+
+    this.input.addEventListener("blur", () => {
+      this.input.style.borderColor = "rgba(197,165,90,0.35)";
+      this.input.style.background = "rgba(255,255,255,0.06)";
+      this.input.style.boxShadow = "inset 0 1px 4px rgba(0,0,0,0.5)";
+      this.input.style.transform = "none";
+    });
 
     const send = () => {
       const text = this.input.value.trim();
@@ -577,7 +604,7 @@ export class InteractionPanel extends UIComponent {
           : "1px solid rgba(197,165,90,0.25)",
         color: isPlayer ? "#c4dcf8" : "#e8dcc8",
       } as CSSStyleDeclaration);
-      bubble.textContent = text;
+      bubble.innerHTML = text;
 
       row.appendChild(bubble);
       this.chatHistory.appendChild(row);

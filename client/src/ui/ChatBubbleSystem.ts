@@ -103,6 +103,19 @@ const BUBBLE_CSS = `
 .cb-bubble--system::after {
   border-top-color: rgba(40, 40, 40, 0.85);
 }
+
+.chat-action {
+  color: #88ffcc;
+  font-style: italic;
+  font-weight: 600;
+  text-shadow: 0 0 4px rgba(136, 255, 204, 0.4);
+}
+
+.chat-highlight {
+  color: #ffcc66;
+  font-weight: 700;
+  text-shadow: 0 0 8px rgba(255, 204, 102, 0.6);
+}
 `;
 
 export class ChatBubbleSystem extends UIComponent {
@@ -161,9 +174,9 @@ export class ChatBubbleSystem extends UIComponent {
     let innerHTML = '';
     if (senderName) {
       const nameColor = style === 'npc' ? '#c5a55a' : '#88bbff';
-      innerHTML = `<strong style="color: ${nameColor}">[${senderName}]</strong> ${this.escapeHtml(text)}`;
+      innerHTML = `<strong style="color: ${nameColor}">[${senderName}]</strong> ${text}`;
     } else {
-      innerHTML = this.escapeHtml(text);
+      innerHTML = text;
     }
 
     // Create div
@@ -253,11 +266,5 @@ export class ChatBubbleSystem extends UIComponent {
     const b = this.bubbles[index];
     b.div.remove();
     this.bubbles.splice(index, 1);
-  }
-
-  private escapeHtml(str: string): string {
-    const div = document.createElement('div');
-    div.textContent = str;
-    return div.innerHTML;
   }
 }

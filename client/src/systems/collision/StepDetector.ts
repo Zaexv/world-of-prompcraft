@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { Capsule } from './Capsule';
 import { ContactSolver } from './ContactSolver';
 
+const _horizontalVelocity = new THREE.Vector3();
+const _moveStep = new THREE.Vector3();
+const _liftVec = new THREE.Vector3();
+const _blockedCapsule = new Capsule();
+const _liftedCapsule = new Capsule();
+
 export class StepDetector {
   constructor(private contactSolver: ContactSolver) {}
 
@@ -17,36 +23,42 @@ export class StepDetector {
   ): number {
     if (velocity.lengthSq() < 0.0001) return 0;
 
-    const horizontalVelocity = new THREE.Vector3(velocity.x, 0, velocity.z);
-    if (horizontalVelocity.lengthSq() < 0.0001) return 0;
+    _horizontalVelocity.set(velocity.x, 0, velocity.z);
+    if (_horizontalVelocity.lengthSq() < 0.0001) return 0;
 
-    const moveStep = horizontalVelocity.clone().multiplyScalar(delta);
+    _moveStep.copy(_horizontalVelocity).multiplyScalar(delta);
     
     // Check if blocked at current height
-    const blockedCapsule = new Capsule();
-    blockedCapsule.copy(capsule);
-    blockedCapsule.translate(moveStep);
-    const blockedContacts = this.contactSolver.getContacts(blockedCapsule, meshes);
+    _blockedCapsule.copy(capsule);
+    _blockedCapsule.translate(_moveStep);
+    const blockedContacts = this.contactSolver.getContacts(_blockedCapsule, meshes);
     
     if (blockedContacts.length === 0) {
       return 0; // Path is clear, no need to step up
     }
 
-    // Probe A: Lift capsule and check if clear
-    // We try multiple heights to find the smallest one that works, or just a more reasonable one.
-    // For now, let's just make it return a smaller step if the path is clear.
-    const liftedCapsule = new Capsule();
-    
-    // Check multiple heights for more precise stepping
+    // Optimization for tall vertical walls: 
+    // If we are blocked at the maximum step height, we know we can't step up at all.
+    // Check this FIRST to save multiple BVH queries.
+    _liftedCapsule.copy(capsule);
+    _liftedCapsule.translate(_liftVec.set(0, 0.5, 0));
+    _liftedCapsule.translate(_moveStep);
+    const maxBlockedContacts = this.contactSolver.getContacts(_liftedCapsule, meshes);
+    if (maxBlockedContacts.length > 0) {
+      return 0; // Wall is too tall to step over
+    }
+
+    // Now we know the max step (0.5) clears the obstacle. 
+    // We check lower heights to find the minimal step up required.
     const heights = [0.1, 0.2, 0.3, 0.4, 0.5];
     for (const h of heights) {
-      liftedCapsule.copy(capsule);
-      liftedCapsule.translate(new THREE.Vector3(0, h, 0));
-      liftedCapsule.translate(moveStep);
+      _liftedCapsule.copy(capsule);
+      _liftedCapsule.translate(_liftVec.set(0, h, 0));
+      _liftedCapsule.translate(_moveStep);
 
-      const contacts = this.contactSolver.getContacts(liftedCapsule, meshes);
+      const contacts = this.contactSolver.getContacts(_liftedCapsule, meshes);
       if (contacts.length === 0) {
-        // Found a height that clears the obstacle
+        // Found the smallest height that clears the obstacle
         return h;
       }
     }

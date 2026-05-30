@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { RichTextFormatter } from '../ui/utils/RichTextFormatter';
 import type { AgentResponse, RemotePlayerData } from '../network/MessageProtocol';
 import type { EntityManager } from '../entities/EntityManager';
 import type { UIManager } from '../ui/UIManager';
@@ -10,6 +11,7 @@ import type { PlayerController } from '../entities/PlayerController';
 import type { LoginScreen } from '../ui/LoginScreen';
 import { DamagePopup } from '../ui/DamagePopup';
 import type { RuntimeState } from './RuntimeState';
+import type { NPCConfig } from '../entities/NPC';
 
 interface LoadingOverlay { hide(): void }
 
@@ -37,6 +39,50 @@ export class WebSocketHandler {
   constructor(private readonly d: WSHandlerDeps) {}
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _parseNPCConfig(raw: any): NPCConfig | null {
+    const id = raw?.npc_id || raw?.id;
+    const pos = raw?.position;
+    if (!id || !Array.isArray(pos) || pos.length < 3) {
+      return null;
+    }
+
+    return {
+      id: String(id),
+      name: String(raw?.name ?? id),
+      position: new THREE.Vector3(Number(pos[0]), Number(pos[1]), Number(pos[2])),
+      hp: Number(raw?.hp ?? 100),
+      maxHp: Number(raw?.maxHp ?? 100),
+      personality: String(raw?.personality ?? ''),
+      scale: Number(raw?.scale ?? 1),
+    };
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private _syncServerNPCs(rawNpcs: any[]): void {
+    const configs: NPCConfig[] = [];
+    for (const raw of rawNpcs) {
+      const config = this._parseNPCConfig(raw);
+      if (!config) {
+        console.warn('Skipping invalid NPC data (missing id or position array):', raw);
+        continue;
+      }
+
+      configs.push(config);
+      this.d.npcNameMap.set(config.id, config.name);
+      this.d.npcStateStore.updateState(config.id, {
+        name: config.name,
+        hp: config.hp ?? 100,
+        maxHp: config.maxHp ?? 100,
+        personality: config.personality ?? '',
+        scale: config.scale ?? 1,
+        mood: raw?.mood ?? 'neutral',
+      });
+    }
+
+    this.d.entityManager.syncServerNPCs(configs);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handle(data: any): void {
     if (data.type === 'join_ok') {
       this.d.runtime.localPlayerId = data.playerId as string;
@@ -58,42 +104,9 @@ export class WebSocketHandler {
           }
         }
 
-        if (data.npcs) {
+        if (Array.isArray(data.npcs)) {
           console.info(`Received ${data.npcs.length} NPCs from server.`);
-          for (const n of data.npcs) {
-            const id = n.npc_id || n.id;
-            const pos = n.position;
-
-            if (!id || !pos || !Array.isArray(pos) || pos.length < 3) {
-              console.warn('Skipping invalid NPC data (missing id or position array):', n);
-              continue;
-            }
-
-            this.d.npcNameMap.set(id, n.name);
-
-            try {
-              this.d.entityManager.addNPC({
-                id,
-                name: n.name,
-                position: new THREE.Vector3(pos[0], pos[1], pos[2]),
-                hp: n.hp,
-                maxHp: n.maxHp,
-                personality: n.personality,
-                scale: n.scale,
-              });
-            } catch (err) {
-              console.error(`join_ok: failed to spawn NPC ${n.name} (${id}):`, err);
-            }
-
-            this.d.npcStateStore.updateState(id, {
-              name: n.name,
-              hp: n.hp,
-              maxHp: n.maxHp,
-              personality: n.personality,
-              scale: n.scale,
-              mood: n.mood,
-            });
-          }
+          this._syncServerNPCs(data.npcs);
         } else {
           console.warn('No NPCs received in join_ok message.');
         }
@@ -134,36 +147,49 @@ export class WebSocketHandler {
         p => p.playerId !== this.d.runtime.localPlayerId,
       );
       this.d.entityManager.updateRemotePlayers(others);
+
+      if (Array.isArray(data.npcs)) {
+        this._syncServerNPCs(data.npcs);
+      }
       return;
     }
 
     if (data.type === 'chat_broadcast') {
-      this.d.uiManager.chatPanel.addMessage(data.sender as string, data.text as string);
+      const formatted = RichTextFormatter.format(data.text as string);
+      this.d.uiManager.chatPanel.addMessage(data.sender as string, formatted.html);
       const remote = this.d.entityManager.getRemotePlayer(data.sender as string);
       if (remote) {
-        this.d.spawnChatBubble(data.text as string, remote.group, 'player', data.sender as string);
+        this.d.spawnChatBubble(formatted.html, remote.group, 'player', data.sender as string);
       } else if (data.position) {
         const pos = new THREE.Vector3(data.position[0], data.position[1], data.position[2]);
         const tmpObj = new THREE.Object3D();
         tmpObj.position.copy(pos);
         this.d.scene.add(tmpObj);
-        this.d.spawnChatBubble(data.text as string, tmpObj, 'player', data.sender as string);
+        this.d.spawnChatBubble(formatted.html, tmpObj, 'player', data.sender as string);
         setTimeout(() => this.d.scene.remove(tmpObj), 8000);
       } else {
-        this.d.spawnChatBubble(data.text as string, undefined, 'player', data.sender as string);
+        this.d.spawnChatBubble(formatted.html, undefined, 'player', data.sender as string);
       }
       return;
     }
 
     if (data.type === 'npc_dialogue') {
+      const formatted = RichTextFormatter.format(data.dialogue as string);
       if (data.npcName) {
-        this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, '#c5a55a');
+        this.d.uiManager.chatPanel.addMessage(data.npcName as string, formatted.html, '#c5a55a');
         const npc = this.d.entityManager.getNPC(data.npcId as string);
-        this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
+        this.d.spawnChatBubble(formatted.html, npc?.mesh, 'npc', data.npcName as string);
+        
+        // Trigger animations found in dialogue
+        if (npc) {
+          for (const actionName of formatted.actions) {
+            npc.playEmote(actionName);
+          }
+        }
       } else {
-        this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
+        this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, formatted.html);
         const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
-        this.d.spawnChatBubble(data.dialogue as string, remote?.group, 'player', data.speakerPlayer as string);
+        this.d.spawnChatBubble(formatted.html, remote?.group, 'player', data.speakerPlayer as string);
       }
       return;
     }
@@ -193,22 +219,35 @@ export class WebSocketHandler {
       const response = data as AgentResponse;
       const isActiveNpc = response.npcId === this.d.runtime.activeNpcId;
 
+      // Parse rich text and actions
+      const formatted = RichTextFormatter.format(response.dialogue);
+
       if (isActiveNpc) {
         this.d.uiManager.interactionPanel.hideThinking();
-        this.d.uiManager.interactionPanel.addMessage('npc', response.dialogue);
+        this.d.uiManager.interactionPanel.addMessage('npc', formatted.html);
       }
 
       const respondingNpc = this.d.entityManager.getNPC(response.npcId);
       if (respondingNpc) {
         respondingNpc.actionIcon.hide();
-        this.d.spawnChatBubble(response.dialogue, respondingNpc.mesh, 'npc');
+        this.d.spawnChatBubble(formatted.html, respondingNpc.mesh, 'npc');
+        
+        // Sync mood to animator
+        if (response.npcStateUpdate?.mood != null) {
+          respondingNpc.animator.setMood(response.npcStateUpdate.mood);
+        }
+
+        // Trigger animations found in dialogue
+        for (const actionName of formatted.actions) {
+          respondingNpc.playEmote(actionName);
+        }
       }
 
       const chatNpcName =
         this.d.npcNameMap.get(response.npcId) ??
         this.d.entityManager.getNPC(response.npcId)?.name ??
         response.npcId;
-      this.d.uiManager.chatPanel.addMessage(chatNpcName, response.dialogue, '#c5a55a');
+      this.d.uiManager.chatPanel.addMessage(chatNpcName, formatted.html, '#c5a55a');
       this.d.reactionSystem.handleResponse(response);
 
       if (isActiveNpc && this.d.uiManager.combatHUD.isVisible) {
@@ -348,4 +387,3 @@ export class WebSocketHandler {
     }
   }
 }
-

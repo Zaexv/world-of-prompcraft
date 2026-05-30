@@ -50,9 +50,6 @@ const _segPt = new THREE.Vector3();
 const _triPt = new THREE.Vector3();
 const _ray = new THREE.Ray();
 
-const _bestSeg = new THREE.Vector3();
-const _bestTri = new THREE.Vector3();
-
 /**
  * Finds the exact closest points between a line segment and a triangle.
  */
@@ -63,6 +60,8 @@ export function segmentToTriangleClosestPoints(
   targetTri: THREE.Vector3
 ): number {
   let minDistSq = Infinity;
+  const bestSeg = new THREE.Vector3();
+  const bestTri = new THREE.Vector3();
 
   // 1. Check if segment pierces the triangle
   segment.delta(_ray.direction).normalize();
@@ -78,22 +77,21 @@ export function segmentToTriangleClosestPoints(
     }
   }
 
+  const updateMin = (segP: THREE.Vector3, triP: THREE.Vector3) => {
+    const distSq = segP.distanceToSquared(triP);
+    if (distSq < minDistSq) {
+      minDistSq = distSq;
+      bestSeg.copy(segP);
+      bestTri.copy(triP);
+    }
+  };
+
   // 2. Endpoints of segment against the solid triangle
   triangle.closestPointToPoint(segment.start, _triPt);
-  const distSq1 = segment.start.distanceToSquared(_triPt);
-  if (distSq1 < minDistSq) {
-    minDistSq = distSq1;
-    _bestSeg.copy(segment.start);
-    _bestTri.copy(_triPt);
-  }
+  updateMin(segment.start, _triPt);
 
   triangle.closestPointToPoint(segment.end, _triPt);
-  const distSq2 = segment.end.distanceToSquared(_triPt);
-  if (distSq2 < minDistSq) {
-    minDistSq = distSq2;
-    _bestSeg.copy(segment.end);
-    _bestTri.copy(_triPt);
-  }
+  updateMin(segment.end, _triPt);
 
   // 3. Edges of triangle against the segment
   const edges = [
@@ -105,15 +103,10 @@ export function segmentToTriangleClosestPoints(
   for (const [v1, v2] of edges) {
     _edge.set(v1, v2);
     lineToLineClosestPoints(segment, _edge, _segPt, _triPt);
-    const distSq = _segPt.distanceToSquared(_triPt);
-    if (distSq < minDistSq) {
-      minDistSq = distSq;
-      _bestSeg.copy(_segPt);
-      _bestTri.copy(_triPt);
-    }
+    updateMin(_segPt, _triPt);
   }
 
-  targetSeg.copy(_bestSeg);
-  targetTri.copy(_bestTri);
+  targetSeg.copy(bestSeg);
+  targetTri.copy(bestTri);
   return Math.sqrt(minDistSq);
 }

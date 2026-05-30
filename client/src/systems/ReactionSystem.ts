@@ -55,6 +55,7 @@ export interface EntityManagerLike {
     mesh: THREE.Group;
     position?: THREE.Vector3;
     playEmote?: (emote: string) => void;
+    setSkin?: (style: string) => void;
     showAction?: (kind: string, duration?: number) => void;
     nameplate?: {
       updateHP: (hp: number, maxHp: number) => void;
@@ -264,6 +265,15 @@ export class ReactionSystem {
         if (actingNpc?.showAction) actingNpc.showAction(animation, 3.0);
         const npc = this.entityManager.getNPC(npcId);
         if (npc?.playEmote) npc.playEmote(animation ?? "wave");
+        break;
+      }
+
+      case "set_skin": {
+        const { style } = action.params;
+        const npc = this.entityManager.getNPC(npcId);
+        if (npc?.setSkin && style) {
+          npc.setSkin(style);
+        }
         break;
       }
 

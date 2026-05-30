@@ -163,7 +163,64 @@ async def test_apply_change_weather() -> None:
 def test_get_context_for_npc() -> None:
     ws = WorldState()
     ctx = ws.get_context_for_npc("tutorial_01", "p1")
+    assert ctx["npc_id"] == "tutorial_01"
     assert "zone" in ctx
     assert "weather" in ctx
     assert "nearby_entities" in ctx
     assert isinstance(ctx["nearby_entities"], list)
+    assert "player_active_quests" in ctx
+
+
+def test_get_nearby_npcs_returns_nearest_with_limit() -> None:
+    ws = WorldState()
+    ws.npcs = {
+        "npc_close": NPCData(
+            npc_id="npc_close", name="Close", personality="p", position=[1.0, 0.0, 0.0]
+        ),
+        "npc_mid": NPCData(npc_id="npc_mid", name="Mid", personality="p", position=[3.0, 0.0, 0.0]),
+        "npc_far": NPCData(npc_id="npc_far", name="Far", personality="p", position=[8.0, 0.0, 0.0]),
+        "npc_dead": NPCData(
+            npc_id="npc_dead",
+            name="Dead",
+            personality="p",
+            position=[0.5, 0.0, 0.0],
+            hp=0,
+            max_hp=100,
+        ),
+    }
+
+    nearby = ws.get_nearby_npcs([0.0, 0.0, 0.0], 10.0, limit=2)
+    assert [npc.npc_id for npc in nearby] == ["npc_close", "npc_mid"]
+
+
+def test_get_nearby_npcs_zero_limit_returns_empty() -> None:
+    ws = WorldState()
+    assert ws.get_nearby_npcs([0.0, 0.0, 0.0], 100.0, limit=0) == []
+
+
+@pytest.mark.asyncio
+async def test_apply_actions_accepts_quest_aliases_and_moves_without_y() -> None:
+    ws = WorldState()
+    npc = ws.npcs["tutorial_01"]
+    npc.position = [10.0, 4.0, 10.0]
+
+    await ws.apply_actions(
+        [
+            {
+                "kind": "start_quest",
+                "params": {"questId": "sacred_flame"},
+            },
+            {
+                "kind": "complete_quest",
+                "params": {"questId": "sacred_flame"},
+            },
+            {
+                "kind": "move_npc",
+                "params": {"npc_id": "tutorial_01", "position": [15.0, None, 20.0]},
+            },
+        ]
+    )
+
+    player = ws.get_player("default")
+    assert player.has_completed_quest("sacred_flame")
+    assert npc.position == [15.0, 4.0, 20.0]

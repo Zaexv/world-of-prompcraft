@@ -104,6 +104,10 @@ export class WorldManifest {
   private paths: PathDefinition[] = [];
   private zones: Map<string, ZoneDefinition> = new Map();
 
+  // Spatial partitioning for landmarks
+  private static readonly CELL_SIZE = 128;
+  private landmarkGrid: Map<string, Set<string>> = new Map();
+
   constructor() {
     this.hydrate(manifestData as unknown as WorldManifestData);
   }
@@ -122,6 +126,7 @@ export class WorldManifest {
     this.npcs = [];
     this.paths = [];
     this.zones.clear();
+    this.landmarkGrid.clear();
 
     // 3. Process Zones
     for (const [zoneId, zone] of Object.entries(data.zones)) {
@@ -135,7 +140,7 @@ export class WorldManifest {
       // Collect Landmarks
       if (zone.architecture?.landmarks) {
         zone.architecture.landmarks.forEach(l => {
-          this.landmarks.set(l.id, l);
+          this.addLandmark(l);
         });
       }
 
@@ -177,6 +182,49 @@ export class WorldManifest {
 
   public addLandmark(landmark: LandmarkDefinition): void {
     this.landmarks.set(landmark.id, landmark);
+    
+    // Add to spatial grid
+    const [x, , z] = landmark.transform.position;
+    const gx = Math.floor(x / WorldManifest.CELL_SIZE);
+    const gz = Math.floor(z / WorldManifest.CELL_SIZE);
+    const key = `${gx},${gz}`;
+    
+    if (!this.landmarkGrid.has(key)) {
+      this.landmarkGrid.set(key, new Set());
+    }
+    this.landmarkGrid.get(key)!.add(landmark.id);
+  }
+
+  /**
+   * Returns all landmarks that might be in the given bounding box.
+   */
+  public getLandmarksInBounds(minX: number, maxX: number, minZ: number, maxZ: number): LandmarkDefinition[] {
+    const gx0 = Math.floor(minX / WorldManifest.CELL_SIZE);
+    const gz0 = Math.floor(minZ / WorldManifest.CELL_SIZE);
+    const gx1 = Math.floor(maxX / WorldManifest.CELL_SIZE);
+    const gz1 = Math.floor(maxZ / WorldManifest.CELL_SIZE);
+    
+    const result: LandmarkDefinition[] = [];
+    const seenIds = new Set<string>();
+
+    for (let gx = gx0; gx <= gx1; gx++) {
+      for (let gz = gz0; gz <= gz1; gz++) {
+        const key = `${gx},${gz}`;
+        const ids = this.landmarkGrid.get(key);
+        if (ids) {
+          for (const id of ids) {
+            if (!seenIds.has(id)) {
+              const l = this.landmarks.get(id);
+              if (l) {
+                result.push(l);
+                seenIds.add(id);
+              }
+            }
+          }
+        }
+      }
+    }
+    return result;
   }
 
   public getLandmark(id: string): LandmarkDefinition | undefined {

@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>World of Promptcraft - LLMday</title>
+  <style>
+    :root {
+      --bg: #0d0a07;
+      --bg-2: #17120d;
+      --panel: rgba(255, 255, 255, 0.035);
+      --line: rgba(205, 162, 92, 0.24);
+      --gold: #cda25c;
+      --gold-bright: #f2d48e;
+      --ivory: #f4efe4;
+      --mist: #cbc6bb;
+      --green: #49d49f;
+    }
+
+    @page {
+      size: 13.333in 7.5in;
+      margin: 0;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--bg);
+      color: var(--ivory);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    body {
+      background: linear-gradient(180deg, #0d0a07, #15100c 62%, #18130f);
+    }
+
+    .slide {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      padding: 38px 48px 58px;
+      overflow: hidden;
+      page-break-after: always;
+      background:
+        radial-gradient(circle at top right, rgba(205, 162, 92, 0.10), transparent 28%),
+        linear-gradient(180deg, var(--bg), var(--bg-2));
+    }
+
+    .slide:last-child {
+      page-break-after: auto;
+    }
+
+    .slide::before {
+      content: "";
+      position: absolute;
+      inset: 14px;
+      border-radius: 24px;
+      border: 1px solid rgba(205, 162, 92, 0.28);
+      pointer-events: none;
+    }
+
+    .topline,
+    .footer {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mist);
+    }
+
+    .footer {
+      position: absolute;
+      left: 48px;
+      right: 48px;
+      bottom: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: linear-gradient(180deg, var(--gold-bright), var(--gold));
+    }
+
+    h1,
+    h2,
+    h3,
+    .stat-number {
+      margin: 0;
+      font-family: Baskerville, "Palatino Linotype", "Book Antiqua", Georgia, serif;
+      color: var(--gold-bright);
+      letter-spacing: -0.02em;
+    }
+
+    h1 {
+      font-size: 64px;
+      line-height: 0.93;
+      margin: 18px 0 18px;
+      max-width: 8em;
+    }
+
+    h2 {
+      position: relative;
+      z-index: 1;
+      font-size: 34px;
+      margin-bottom: 16px;
+    }
+
+    h3 {
+      font-size: 20px;
+      margin-bottom: 10px;
+    }
+
+    p,
+    li {
+      margin: 0;
+      font-size: 17px;
+      line-height: 1.45;
+    }
+
+    .small {
+      color: var(--mist);
+      font-size: 15px;
+      line-height: 1.48;
+    }
+
+    .shell {
+      position: relative;
+      z-index: 1;
+    }
+
+    .hero-grid,
+    .two-col {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .hero-grid {
+      height: calc(100% - 88px);
+      align-items: center;
+      grid-template-columns: 0.95fr 1.05fr;
+    }
+
+    .grid-3,
+    .steps,
+    .stats {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      gap: 12px;
+    }
+
+    .grid-3 {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .steps {
+      grid-template-columns: repeat(4, 1fr);
+    }
+
+    .stats {
+      grid-template-columns: repeat(3, 1fr);
+    }
+
+    .stack {
+      display: grid;
+      gap: 12px;
+    }
+
+    .panel,
+    .image-panel {
+      border-radius: 20px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+    }
+
+    .panel {
+      padding: 18px 20px;
+    }
+
+    .image-panel {
+      padding: 10px;
+    }
+
+    .image-panel img {
+      display: block;
+      width: 100%;
+      border-radius: 12px;
+      border: 1px solid rgba(205, 162, 92, 0.18);
+    }
+
+    .hero-shot img {
+      height: 408px;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .art-shot img {
+      height: 402px;
+      object-fit: cover;
+      object-position: center top;
+    }
+
+    .stat-number {
+      font-size: 36px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .section-label,
+    .stat-label,
+    .step-number {
+      font-size: 12px;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--mist);
+      margin-bottom: 8px;
+    }
+
+    .list {
+      margin: 10px 0 0;
+      padding-left: 18px;
+    }
+
+    .list li {
+      margin: 8px 0;
+    }
+
+    .list li::marker {
+      color: var(--gold);
+    }
+
+    .hero-copy p {
+      font-size: 21px;
+      line-height: 1.42;
+      max-width: 33rem;
+      color: #f7f2e7;
+    }
+
+    .hero-points {
+      margin-top: 18px;
+      display: grid;
+      gap: 10px;
+      max-width: 35rem;
+    }
+
+    .hero-point {
+      display: flex;
+      gap: 10px;
+      align-items: flex-start;
+      padding: 10px 14px;
+      border-radius: 16px;
+      border: 1px solid rgba(205, 162, 92, 0.18);
+      background: rgba(255, 255, 255, 0.025);
+    }
+
+    .hero-point::before {
+      content: "";
+      width: 9px;
+      height: 9px;
+      margin-top: 7px;
+      border-radius: 999px;
+      background: var(--green);
+      flex: 0 0 auto;
+    }
+
+    .quote {
+      font-size: 23px;
+      line-height: 1.32;
+      color: #fff4da;
+    }
+
+    .tag-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .tag {
+      display: inline-flex;
+      align-items: center;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(205, 162, 92, 0.18);
+      background: rgba(255, 255, 255, 0.035);
+      color: var(--ivory);
+      font-size: 14px;
+    }
+  </style>
+</head>
+<body>
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">LLMday / World of Promptcraft</div>
+      <div>Conference deck</div>
+    </div>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h1>World of Promptcraft</h1>
+        <p>
+          A fantasy multiplayer world where the game loop, world state,
+          and LangGraph-driven NPCs all reinforce one another.
+        </p>
+
+        <div class="hero-points">
+          <div class="hero-point"><div><strong>A world first.</strong> The project already reads as a game, not as a chatbot demo.</div></div>
+          <div class="hero-point"><div><strong>Agents with consequences.</strong> NPCs can reason, remember, and act inside shared state.</div></div>
+          <div class="hero-point"><div><strong>A strong fit for LLMday.</strong> It shows what agent design looks like when embedded in a real runtime.</div></div>
+        </div>
+      </div>
+
+      <div class="stack">
+        <figure class="image-panel hero-shot">
+          <img src="llmday-presentation-assets/hero-bg.jpg" alt="World of Promptcraft game screenshot" width="1280" height="720" decoding="async" />
+        </figure>
+
+        <div class="stats">
+          <div class="panel">
+            <div class="stat-number">7</div>
+            <div class="stat-label">manifest zones</div>
+          </div>
+          <div class="panel">
+            <div class="stat-number">1/NPC</div>
+            <div class="stat-label">compiled graph</div>
+          </div>
+          <div class="panel">
+            <div class="stat-number">6</div>
+            <div class="stat-label">tool families</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>World of Promptcraft</div>
+      <div>01</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 02 / How the game works</div>
+      <div>Player loop</div>
+    </div>
+
+    <h2>What the player actually does</h2>
+
+    <div class="grid-3">
+      <div class="panel">
+        <div class="section-label">Identity</div>
+        <h3>Create a character</h3>
+        <p class="small">
+          The experience starts with MMO-style identity: faction, race, appearance, and character fantasy.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Exploration</div>
+        <h3>Move through a living realm</h3>
+        <p class="small">
+          The player traverses zones, settlements, dungeons, interfaces, and atmosphere systems built on the 3D client.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Interaction</div>
+        <h3>Talk, trade, quest, fight, build</h3>
+        <p class="small">
+          Core play comes from interacting with NPCs, progressing quests, handling combat, and shaping the world.
+        </p>
+      </div>
+    </div>
+
+    <div class="panel shell" style="margin-top: 14px;">
+      <div class="section-label">Short explanation for the audience</div>
+      <p class="small">
+        This is a world-based game loop: identity creates roleplay, exploration creates context,
+        and interaction creates the need for believable agents.
+      </p>
+    </div>
+
+    <div class="footer">
+      <div>Game loop before architecture</div>
+      <div>02</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 03 / Why this world makes sense</div>
+      <div>Design logic</div>
+    </div>
+
+    <h2>Why a fantasy world is a strong fit for agentic NPCs</h2>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="section-label">Why the setting works</div>
+        <ul class="list">
+          <li>Fantasy worlds naturally contain merchants, guards, quest givers, druids, and rivals with clear roles</li>
+          <li>Persistent towns and factions make relationships and memory feel meaningful</li>
+          <li>Magic, weather, rituals, and world events make tool-driven behavior legible to players</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Why the simulation works</div>
+        <ul class="list">
+          <li>Manifest-driven zones give the world structure instead of one flat map</li>
+          <li>Server authority gives every action a single source of truth</li>
+          <li>World builder systems let both players and agents change the environment</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel shell" style="margin-top: 14px;">
+      <div class="section-label">Speaker line</div>
+      <p class="quote">“This world makes sense because the fiction, the mechanics, and the agent model all ask for the same thing: persistent characters inside a shared realm.”</p>
+    </div>
+
+    <div class="footer">
+      <div>Explain the design rationale explicitly</div>
+      <div>03</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 04 / World and visual identity</div>
+      <div>Manifest + art</div>
+    </div>
+
+    <h2>The world is data-driven and visually authored in code</h2>
+
+    <div class="two-col">
+      <figure class="image-panel art-shot">
+        <img src="llmday-presentation-assets/art-showcase.jpg" alt="Procedural art and meshes from World of Promptcraft" width="1280" height="1000" decoding="async" />
+      </figure>
+
+      <div class="stack">
+        <div class="panel">
+          <div class="section-label">Manifest zones</div>
+          <p class="small">
+            The world is described as structured zones instead of one hardcoded map, which makes it extensible.
+          </p>
+          <div class="tag-row">
+            <div class="tag">teldrassil_central</div>
+            <div class="tag">malaka_wilderness</div>
+            <div class="tag">fort_malaka</div>
+            <div class="tag">ember_wastes</div>
+            <div class="tag">crystal_tundra</div>
+            <div class="tag">twilight_marsh</div>
+            <div class="tag">sunlit_meadows</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="section-label">Procedural look</div>
+          <ul class="list">
+            <li>Materials, structures, and silhouettes come from in-repo generators</li>
+            <li>The world feels authored even though much of the visual language is procedural</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Visual identity supports the world logic</div>
+      <div>04</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 05 / Architecture</div>
+      <div>How it is built</div>
+    </div>
+
+    <h2>The architecture behind the world</h2>
+
+    <div class="grid-3">
+      <div class="panel">
+        <div class="section-label">Client layer</div>
+        <h3>Three.js game runtime</h3>
+        <p class="small">
+          Terrain, atmosphere, movement, collision, dungeons, combat UI, quests, and world builder tools all live in the client.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Server layer</div>
+        <h3>FastAPI + WebSockets + WorldState</h3>
+        <p class="small">
+          The server handles connections, nearby broadcasts, cleanup, and authoritative state mutation.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Agent layer</div>
+        <h3>LangGraph per NPC</h3>
+        <p class="small">
+          The agent system injects personality, context, memory, and tools into each non-player character.
+        </p>
+      </div>
+    </div>
+
+    <div class="panel shell" style="margin-top: 14px;">
+      <div class="section-label">One-line architecture summary</div>
+      <p class="small">
+        The client makes the world feel alive, the server makes it consistent, and the agent layer makes the NPCs feel intentional.
+      </p>
+    </div>
+
+    <div class="footer">
+      <div>Three layers, one coherent runtime</div>
+      <div>05</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 06 / NPC architecture</div>
+      <div>LangGraph loop</div>
+    </div>
+
+    <h2>The NPC loop is deeper than prompt and reply</h2>
+
+    <div class="steps">
+      <div class="panel">
+        <div class="step-number">01</div>
+        <h3>Pre-check</h3>
+        <p class="small">Fast routing handles simple or out-of-band turns before expensive reasoning.</p>
+      </div>
+
+      <div class="panel">
+        <div class="step-number">02</div>
+        <h3>Reason</h3>
+        <p class="small">The model sees persona, goal, player state, world context, recent chat, and lore.</p>
+      </div>
+
+      <div class="panel">
+        <div class="step-number">03</div>
+        <h3>Act</h3>
+        <p class="small">Tool calls emit pending actions instead of mutating the world directly.</p>
+      </div>
+
+      <div class="panel">
+        <div class="step-number">04</div>
+        <h3>Reflect</h3>
+        <p class="small">The NPC updates internal state so the next encounter feels continuous.</p>
+      </div>
+    </div>
+
+    <div class="panel shell" style="margin-top: 14px;">
+      <div class="section-label">Why this matters</div>
+      <p class="small">This is what turns a model call into a believable world character rather than a stateless answer box.</p>
+    </div>
+
+    <div class="footer">
+      <div>Show the actual agent mechanism</div>
+      <div>06</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 07 / Memory and tools</div>
+      <div>Bounded agency</div>
+    </div>
+
+    <h2>Memory gives continuity, tools give consequence</h2>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="section-label">Persistent memory</div>
+        <div class="tag-row">
+          <div class="tag">conversation_summary</div>
+          <div class="tag">episodic_memories</div>
+          <div class="tag">mood</div>
+          <div class="tag">relationship_score</div>
+          <div class="tag">current_goal</div>
+        </div>
+        <p class="small" style="margin-top: 12px;">
+          The NPC can remember gifts, grudges, promises, and its own next intention.
+        </p>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">Tool families</div>
+        <div class="tag-row">
+          <div class="tag">combat</div>
+          <div class="tag">dialogue</div>
+          <div class="tag">trade</div>
+          <div class="tag">environment</div>
+          <div class="tag">world query</div>
+          <div class="tag">quest</div>
+        </div>
+        <p class="small" style="margin-top: 12px;">
+          Tools write to a pending-action sink, then the server applies them through authoritative state.
+        </p>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>Bounded power is what keeps the system believable</div>
+      <div>07</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 08 / State of the art</div>
+      <div>Why this is interesting now</div>
+    </div>
+
+    <h2>Where this sits relative to the state of the art</h2>
+
+    <div class="two-col">
+      <div class="panel">
+        <div class="section-label">A common AI NPC demo</div>
+        <ul class="list">
+          <li>Interesting dialogue but shallow simulation grounding</li>
+          <li>Little or no memory beyond recent chat</li>
+          <li>No authoritative world model behind the conversation</li>
+        </ul>
+      </div>
+
+      <div class="panel">
+        <div class="section-label">What the frontier is moving toward</div>
+        <ul class="list">
+          <li>Persistent memory and identity over many interactions</li>
+          <li>Tool use, planning, and bounded world actions</li>
+          <li>Embodied agents inside shared simulated environments</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="panel shell" style="margin-top: 14px;">
+      <div class="section-label">Why World of Promptcraft matters</div>
+      <p class="small">
+        It is a strong state-of-the-art direction because it combines memory, tools, server authority,
+        and a coherent 3D world instead of treating AI as a detached conversation surface.
+      </p>
+    </div>
+
+    <div class="footer">
+      <div>Position the project against the current frontier</div>
+      <div>08</div>
+    </div>
+  </section>
+
+  <section class="slide">
+    <div class="topline">
+      <div class="badge">Slide 09 / Closing</div>
+      <div>Takeaway</div>
+    </div>
+
+    <div class="hero-grid">
+      <div class="hero-copy">
+        <h2>World of Promptcraft is compelling because the game design, the architecture, and the agent model all point in the same direction.</h2>
+        <div class="hero-points">
+          <div class="hero-point"><div><strong>The game works.</strong> The player has a real loop: explore, interact, progress, and build.</div></div>
+          <div class="hero-point"><div><strong>The architecture works.</strong> Client, server, and agents each have a clear responsibility.</div></div>
+          <div class="hero-point"><div><strong>The world makes sense.</strong> Persistent characters and world logic support the agent fiction naturally.</div></div>
+        </div>
+      </div>
+
+      <div class="panel" style="padding: 24px; display: grid; place-items: center; min-height: 260px;">
+        <div>
+          <div class="stat-number" style="font-size: 82px; text-align: center;">World</div>
+          <p class="small" style="text-align: center; margin-top: 8px;">
+            where AI is one of the native systems
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div>World of Promptcraft</div>
+      <div>09</div>
+    </div>
+  </section>
+</body>
+</html>
