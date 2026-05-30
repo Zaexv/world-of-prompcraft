@@ -993,6 +993,46 @@
             }
           },
           {
+            "id": "malaka_patio_house_02",
+            "type": "malaka_patio_house",
+            "transform": {
+              "position": [
+                -210,
+                0,
+                -265
+              ],
+              "scale": 1.1,
+              "rotation": [
+                0,
+                1.57,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Casa del Gobernador"
+            }
+          },
+          {
+            "id": "malaka_cortijo_02",
+            "type": "malaka_cortijo",
+            "transform": {
+              "position": [
+                -270,
+                0,
+                -180
+              ],
+              "scale": 1.0,
+              "rotation": [
+                0,
+                0.2,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Cortijo Real"
+            }
+          },
+          {
             "id": "malaka_market_01",
             "type": "pavilion",
             "transform": {

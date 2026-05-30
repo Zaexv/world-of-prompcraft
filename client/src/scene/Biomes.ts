@@ -376,53 +376,44 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
   }
 
   // --- Fort Malaka Mediterranean Plaza ---
-  // Apply a specialized "Andalusian Solería" (stone floor) to the city area
+  // Apply a specialized "Ancient Sand" floor to the city area
   const fx = x + 160;
   const fz = z + 220;
   const fDist = Math.sqrt(fx * fx + fz * fz);
-  const CITY_INNER = 68; // Matches the flattening radius in Terrain.ts
-  const CITY_OUTER = 110; // Fade out to the surrounding meadows
+  const CITY_INNER = 85; // Wide central plaza of sand
+  const CITY_OUTER = 140; 
 
   if (fDist < CITY_OUTER) {
     const cityBlend = 1.0 - smoothstep(CITY_INNER, CITY_OUTER, fDist);
     
-    // Mediterranean Stone Palette: A mix of warm Limestone, Sandstone, and aged granite
-    const tileScale = 0.35;
-    const tx = x * tileScale;
-    const tz = z * tileScale;
+    // Ancient Sand Palette: Sophisticated mix of desert sands and coastal silt
+    const sandBase  = new THREE.Color(0xd9c5b2); // Warm Silt
+    const sandHighlight = new THREE.Color(0xf2e8d5); // Sun-bleached sand
+    const sandShadow = new THREE.Color(0xbfa68a); // Damp/Shadow sand
 
-    // Procedural Large Rectangular Flagstones
-    // Using a grid with slight jitter/variation
-    const gridX = Math.abs(Math.sin(tx));
-    const gridZ = Math.abs(Math.sin(tz * 0.6));
-    const pattern = gridX * gridZ;
-    const grout = smoothstep(0.82, 0.96, pattern); // Deep dark grout lines between pavers
+    // High-frequency wind streaks (simulating aeolian processes)
+    const streaks = Math.sin(x * 0.8 - z * 0.5) * Math.cos(z * 0.1);
+    const microRipple = Math.sin(x * 5.0 + z * 5.0) * 0.02;
 
-    const limestone = new THREE.Color(0xd9d2c5); // Light oyster white / limestone
-    const sandstone = new THREE.Color(0xcab79a); // Warm sandstone
-    const granite   = new THREE.Color(0xb0a89a); // Cooler grey stone
+    // Layered noise for mineral variation
+    const mineralNoise = (Math.sin(x * 0.05) * Math.cos(z * 0.04)) * 0.5 + 0.5;
+    
+    _colorTemp.copy(sandBase).lerp(sandHighlight, mineralNoise);
+    _colorTemp.lerp(sandShadow, streaks * 0.3 + 0.2);
 
-    // Mix colors based on large-scale noise for realistic stone variation
-    const varNoise = (Math.sin(x * 0.05) + Math.cos(z * 0.04)) * 0.5 + 0.5;
-    _colorTemp.copy(limestone).lerp(sandstone, varNoise);
-    if (varNoise > 0.8) _colorTemp.lerp(granite, (varNoise - 0.8) * 5.0);
+    // Apply micro-details and glints (sand crystals)
+    const glint = (Math.sin(x * 20.0) * Math.cos(z * 18.0)) > 0.98 ? 0.1 : 0;
+    _colorTemp.r += microRipple + glint;
+    _colorTemp.g += microRipple + glint;
+    _colorTemp.b += microRipple;
 
-    // Weathering: High-frequency grain and dirt
-    const weathering = (Math.sin(x * 4.0) * Math.cos(z * 3.5)) * 0.03;
-    _colorTemp.r += weathering;
-    _colorTemp.g += weathering;
-    _colorTemp.b += weathering;
-
-    // Darken the grout (cracks)
-    _colorTemp.lerp(new THREE.Color(0x201c18), grout * 0.8);
-
-    // Moss / Dirt Accumulation in corners/low-traffic areas
-    const humidity = (Math.sin(x * 0.12) + Math.cos(z * 0.15)) * 0.5 + 0.5;
-    if (grout > 0.4 && humidity > 0.75) {
-      _colorTemp.lerp(new THREE.Color(0x3a4a1a), 0.35); // Subtle green/moss in cracks
+    // "Ancient" dampness/footprints simulation (low frequency patches)
+    const history = (Math.sin(x * 0.15) + Math.cos(z * 0.12)) * 0.5 + 0.5;
+    if (history > 0.8) {
+      _colorTemp.lerp(new THREE.Color(0x8c7a65), (history - 0.8) * 2.0);
     }
 
-    _colorResult.lerp(_colorTemp, cityBlend * 0.95);
+    _colorResult.lerp(_colorTemp, cityBlend * 0.995);
   }
 
   // Paint roads on the terrain using spatial index

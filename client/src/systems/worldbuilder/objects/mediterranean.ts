@@ -70,11 +70,11 @@ function createStoneWallTexture(): THREE.Texture {
   canvas.height = 256;
   const ctx = canvas.getContext('2d')!;
 
-  ctx.fillStyle = '#e2dfd2'; // Light limestone / oyster white
+  ctx.fillStyle = '#eeeeee'; // Match city limestone white
   ctx.fillRect(0, 0, 256, 256);
 
-  ctx.lineWidth = 2;
-  ctx.strokeStyle = '#bab7a9';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = '#333333'; // Sharp dark grout lines
   for (let y = 0; y <= 256; y += 32) {
     ctx.beginPath();
     ctx.moveTo(0, y);
@@ -695,30 +695,88 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   g.position.copy(pos);
   const mats = getMaterials();
 
-  const base = new THREE.Mesh(new THREE.BoxGeometry(13 * scale, 0.6 * scale, 17 * scale), mats.stone);
-  base.position.y = 0.3 * scale;
+  // 1. Massive Stone Base
+  const baseW = 16 * scale;
+  const baseD = 24 * scale;
+  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, 0.8 * scale, baseD), mats.stone);
+  base.position.y = 0.4 * scale;
   base.castShadow = base.receiveShadow = true;
   base.userData.isCollider = true;
   g.add(base);
 
-  const naveW = 7 * scale;
-  const naveH = 8 * scale;
-  const naveD = 15 * scale;
+  // 2. Main Nave (High Cathedral)
+  const naveW = 10 * scale;
+  const naveH = 14 * scale;
+  const naveD = 20 * scale;
   const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
-  nave.position.y = 0.6 * scale + naveH / 2;
+  nave.position.y = 0.8 * scale + naveH / 2;
   nave.castShadow = nave.receiveShadow = true;
   nave.userData.isCollider = true;
   g.add(nave);
 
-  const roofRadius = (naveW / 2) * 1.2;
-  const naveRoof = new THREE.Mesh(new THREE.CylinderGeometry(roofRadius, roofRadius, naveD + 1 * scale, 4), mats.roof);
+  // 3. Main Roof (Vaulted/Curved)
+  const roofH = 4 * scale;
+  const naveRoof = new THREE.Mesh(new THREE.CylinderGeometry(0.1, naveW / 2 + 0.5 * scale, roofH, 8), mats.roof);
   naveRoof.rotation.z = Math.PI / 4;
   naveRoof.rotation.x = Math.PI / 2;
-  naveRoof.position.y = 0.6 * scale + naveH + (roofRadius * Math.cos(Math.PI/4));
+  naveRoof.scale.set(1, naveD / roofH, 1);
+  naveRoof.position.y = 0.8 * scale + naveH + (naveW / 4);
+  naveRoof.userData.noCollision = true;
   g.add(naveRoof);
 
-  const entrance = createArchedDoor(3.5 * scale, 4.5 * scale, 0.5 * scale, mats);
-  entrance.position.set(0, 0.6 * scale, naveD / 2 + 0.2 * scale);
+  // 4. Central Dome (Transept)
+  const domeR = 5 * scale;
+  const domeBase = new THREE.Mesh(new THREE.CylinderGeometry(domeR, domeR, 4 * scale, 16), mats.stone);
+  domeBase.position.set(0, 0.8 * scale + naveH + 2 * scale, -2 * scale);
+  domeBase.userData.noCollision = true;
+  g.add(domeBase);
+
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(domeR + 0.2 * scale, 16, 16, 0, Math.PI * 2, 0, Math.PI / 2), mats.roof);
+  dome.position.set(0, 0.8 * scale + naveH + 4 * scale, -2 * scale);
+  dome.userData.noCollision = true;
+  g.add(dome);
+
+  // 5. The Single Tower ("La Manquita")
+  const towerW = 4.5 * scale;
+  const towerH = 22 * scale;
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerW), mats.stone);
+  tower.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH / 2, naveD / 2 - towerW / 2);
+  tower.userData.isCollider = true;
+  g.add(tower);
+
+  // Tower Belfry (Open Arches)
+  const belfryH = 5 * scale;
+  const belfry = new THREE.Mesh(new THREE.CylinderGeometry(towerW * 0.6, towerW * 0.6, belfryH, 8), mats.stone);
+  belfry.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH + belfryH / 2, naveD / 2 - towerW / 2);
+  belfry.userData.noCollision = true;
+  g.add(belfry);
+  
+  const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.6, 8, 8, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
+  belfryDome.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH + belfryH, naveD / 2 - towerW / 2);
+  belfryDome.userData.noCollision = true;
+  g.add(belfryDome);
+
+  // Missing Right Tower Base
+  const missingTower = new THREE.Mesh(new THREE.BoxGeometry(towerW, 8 * scale, towerW), mats.stone);
+  missingTower.position.set(naveW / 2 - towerW / 2, 0.8 * scale + 4 * scale, naveD / 2 - towerW / 2);
+  missingTower.userData.isCollider = true;
+  g.add(missingTower);
+
+  // 6. Flying Buttresses (Contrafuertes)
+  for (let z = -naveD / 2 + 4 * scale; z <= naveD / 2 - 6 * scale; z += 4 * scale) {
+    for (const side of [-1, 1]) {
+      const buttress = new THREE.Mesh(new THREE.BoxGeometry(3 * scale, 10 * scale, 1.5 * scale), mats.stone);
+      buttress.position.set(side * (naveW / 2 + 1.5 * scale), 0.8 * scale + 5 * scale, z);
+      buttress.userData.noCollision = true;
+      g.add(buttress);
+    }
+  }
+
+  // 7. Grand Entrance
+  const entrance = createArchedDoor(4.0 * scale, 6.0 * scale, 1.0 * scale, mats);
+  entrance.userData.noCollision = true;
+  entrance.traverse(c => { c.userData.noCollision = true; });
+  entrance.position.set(0, 0.8 * scale, naveD / 2 + 0.4 * scale);
   g.add(entrance);
 
   return g;
@@ -773,67 +831,55 @@ export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Grou
   g.position.copy(pos);
   const mats = getMaterials();
 
-  // 1. Level 1 Base (The Stronghold)
-  const baseW = 10 * scale;
-  const baseH = 8 * scale;
-  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseW), mats.stone);
-  base.position.y = baseH / 2;
-  base.castShadow = base.receiveShadow = true;
-  base.userData.isCollider = true;
-  g.add(base);
+  // 1. Lower Defensive Tier (The Barbican)
+  const tier1W = 16 * scale;
+  const tier1H = 6 * scale;
+  const base1 = new THREE.Mesh(new THREE.BoxGeometry(tier1W, tier1H, tier1W), mats.stone);
+  base1.position.y = tier1H / 2;
+  base1.userData.isCollider = true;
+  g.add(base1);
 
-  // 2. Level 2 (Upper Keep)
-  const upperW = 6 * scale;
-  const upperH = 6 * scale;
-  const upper = new THREE.Mesh(new THREE.BoxGeometry(upperW, upperH, upperW), mats.stone);
-  upper.position.y = baseH + upperH / 2;
-  upper.castShadow = true;
-  g.add(upper);
+  // 2. Middle Palace Tier (with Horseshoe Arches)
+  const tier2W = 10 * scale;
+  const tier2H = 5 * scale;
+  const base2 = new THREE.Mesh(new THREE.BoxGeometry(tier2W, tier2H, tier2W), mats.stone);
+  base2.position.set(0, tier1H + tier2H / 2, -2 * scale);
+  base2.userData.isCollider = true;
+  g.add(base2);
 
-  // 3. Corner Turrets (Bartizans)
-  const turretR = 1.2 * scale;
-  const turretH = 4 * scale;
-  const turretGeo = new THREE.CylinderGeometry(turretR, turretR, turretH, 8);
-  for (const [tx, tz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
-    const turret = new THREE.Mesh(turretGeo, mats.stone);
-    turret.position.set(tx * (baseW / 2), baseH + turretH / 2 - 1 * scale, tz * (baseW / 2));
+  // 3. Upper Keep (Torre del Homenaje)
+  const keepW = 6 * scale;
+  const keepH = 8 * scale;
+  const keep = new THREE.Mesh(new THREE.BoxGeometry(keepW, keepH, keepW), mats.stone);
+  keep.position.set(0, tier1H + tier2H + keepH / 2, -4 * scale);
+  keep.userData.isCollider = true;
+  g.add(keep);
+
+  // 4. Courtyard Gardens (Green zones on tiers)
+  const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 1.0 });
+  const garden = new THREE.Mesh(new THREE.BoxGeometry(tier1W - 2 * scale, 0.2 * scale, 4 * scale), grassMat);
+  garden.position.set(0, tier1H + 0.1 * scale, 4 * scale);
+  garden.userData.noCollision = true;
+  g.add(garden);
+
+  // 5. Corner Turrets (Bartizans)
+  for (const tx of [-1, 1]) {
+    const turretH = 4 * scale;
+    const turret = new THREE.Mesh(new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, turretH, 8), mats.stone);
+    turret.position.set(tx * (tier1W / 2), tier1H + turretH / 2, tier1W / 2);
     g.add(turret);
-    
-    // Turret Crenellations
-    for (let a = 0; a < Math.PI * 2; a += Math.PI / 4) {
-      const cren = new THREE.Mesh(new THREE.BoxGeometry(0.4 * scale, 0.6 * scale, 0.4 * scale), mats.stone);
-      cren.position.set(
-        tx * (baseW / 2) + Math.cos(a) * turretR,
-        baseH + turretH - 1 * scale + 0.3 * scale,
-        tz * (baseW / 2) + Math.sin(a) * turretR
-      );
-      g.add(cren);
-    }
   }
-
-  // 4. Detail: Arrow Slits (Saeteras)
-  for (let i = -1; i <= 1; i += 2) {
-    const slitF = createArrowSlit(1.5 * scale, scale);
-    slitF.position.set(i * 2 * scale, baseH * 0.6, baseW / 2 + 0.05 * scale);
-    g.add(slitF);
-    
-    const slitS = createArrowSlit(1.5 * scale, scale);
-    slitS.rotation.y = Math.PI / 2;
-    slitS.position.set(baseW / 2 + 0.05 * scale, baseH * 0.6, i * 2 * scale);
-    g.add(slitS);
-  }
-
-  // 5. Machicolations (Corbels)
-  g.add(createMachicolations(baseW, baseW, baseH, mats, scale));
-  const rearM = createMachicolations(baseW, baseW, baseH, mats, scale);
-  rearM.rotation.y = Math.PI;
-  g.add(rearM);
 
   // 6. Horseshoe Arch Entrance
-  const arch = createHorseshoeArch(3 * scale, 4 * scale, 0.8 * scale, mats);
-  arch.position.set(0, 0, baseW / 2 + 0.2 * scale);
-  g.add(arch);
+  const gate = createHorseshoeArch(3 * scale, 4 * scale, 1.0 * scale, mats);
+  gate.userData.noCollision = true;
+  gate.traverse(c => { c.userData.noCollision = true; });
+  gate.position.set(0, 0, tier1W / 2 + 0.1 * scale);
+  g.add(gate);
 
+  // 7. Arrow Slits and Machicolations
+  g.add(createMachicolations(tier1W, tier1W, tier1H, mats, scale));
+  
   return g;
 }
 

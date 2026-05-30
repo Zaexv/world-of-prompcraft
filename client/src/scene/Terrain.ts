@@ -292,11 +292,23 @@ export class Terrain {
       const fx = x + 160;
       const fz = z + 220;
       const fDist = Math.sqrt(fx * fx + fz * fz);
-      const INNER = 65, OUTER = 120;
+      const INNER = 95; // Wide enough for all landmarks including the new ones
+      const OUTER = 150;
       if (fDist < OUTER) {
         const raw = Math.max(0, Math.min(1, (fDist - INNER) / (OUTER - INNER)));
-        const flatness = 1 - raw * raw * (3 - 2 * raw); // smoothstep, 1=flat at centre
-        h = h * (1 - flatness) + 4.0 * flatness; // Force height 4.0 at centre
+        const flatness = 1 - raw * raw * (3 - 2 * raw); // smoothstep
+        
+        // Target city height
+        let cityH = 4.0;
+        
+        // Add subtle "Ancient Sand Dunes" (low frequency undulation)
+        // only in the flat city area to make the sand feel natural
+        if (fDist < INNER) {
+          const dune = Math.sin(x * 0.15) * Math.cos(z * 0.12) * 0.15;
+          cityH += dune;
+        }
+
+        h = h * (1 - flatness) + cityH * flatness;
       }
     }
 
