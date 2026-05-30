@@ -25,6 +25,9 @@ export interface NPCConfig {
   personality?: string;
   personalityKey?: string;
   scale?: number;
+  mood?: string;
+  relationshipScore?: number;
+  personalityNotes?: string;
 }
 
 export class NPC {
@@ -191,7 +194,7 @@ export class NPC {
   }
 
   playEmote(emote: string): void {
-    this.animator.play(emote === 'attack' ? 'attack' : 'emote');
+    this.animator.play(emote);
     this.actionIcon.displayAction(emote, 2.5);
   }
 

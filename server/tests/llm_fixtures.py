@@ -11,9 +11,8 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
 from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import BaseMessage, HumanMessage
-from langchain_core.outputs import LLMResult
-from langchain_core.outputs.generation import Generation
+from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
+from langchain_core.outputs import ChatGeneration, ChatResult
 
 
 class MockChatModel(BaseChatModel):
@@ -32,7 +31,7 @@ class MockChatModel(BaseChatModel):
         stop: list[str] | None = None,
         run_manager: Any = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> ChatResult:
         """Synchronous generate (not used in async context)."""
         raise NotImplementedError("Use async_generate instead")
 
@@ -42,7 +41,7 @@ class MockChatModel(BaseChatModel):
         stop: list[str] | None = None,
         run_manager: Any = None,
         **kwargs: Any,
-    ) -> Any:
+    ) -> ChatResult:
         """Async generate—returns deterministic response."""
         self.call_count += 1
         self.last_messages = messages
@@ -56,8 +55,9 @@ class MockChatModel(BaseChatModel):
 
         response_text = self.response_template.format(input=user_input)
 
-        # Return with text field for Generation
-        return LLMResult(generations=[[Generation(text=response_text)]])
+        # Return with ChatGeneration containing an AIMessage
+        message = AIMessage(content=response_text)
+        return ChatResult(generations=[ChatGeneration(message=message)])
 
     def bind_tools(
         self,

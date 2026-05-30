@@ -77,6 +77,45 @@ class PlayerData:
             "kill_count": self.kill_count,
         }
 
+    def to_storage_dict(self) -> dict[str, Any]:
+        return {
+            "hp": self.hp,
+            "max_hp": self.max_hp,
+            "mana": self.mana,
+            "max_mana": self.max_mana,
+            "level": self.level,
+            "inventory": list(self.inventory),
+            "position": list(self.position),
+            "active_quests": list(self.active_quests),
+            "completed_quests": list(self.completed_quests),
+            "kill_count": self.kill_count,
+            "username": self.username,
+            "race": self.race,
+            "faction": self.faction,
+            "skin": self.skin,
+            "yaw": self.yaw,
+        }
+
+    @classmethod
+    def from_storage_dict(cls, payload: dict[str, Any]) -> PlayerData:
+        return cls(
+            hp=int(payload.get("hp", 100)),
+            max_hp=int(payload.get("max_hp", 100)),
+            mana=int(payload.get("mana", 50)),
+            max_mana=int(payload.get("max_mana", 50)),
+            level=int(payload.get("level", 1)),
+            inventory=list(payload.get("inventory", [])),
+            position=list(payload.get("position", [0.0, 0.0, 0.0])),
+            active_quests=list(payload.get("active_quests", [])),
+            completed_quests=list(payload.get("completed_quests", [])),
+            kill_count=int(payload.get("kill_count", 0)),
+            username=str(payload.get("username", "")),
+            race=str(payload.get("race", "human")),
+            faction=str(payload.get("faction", "alliance")),
+            skin=str(payload.get("skin", "skin-1")),
+            yaw=float(payload.get("yaw", 0.0)),
+        )
+
     def start_quest(self, quest_id: str) -> None:
         """Add a quest to active_quests from QUEST_DEFINITIONS."""
         if self.has_active_quest(quest_id) or self.has_completed_quest(quest_id):

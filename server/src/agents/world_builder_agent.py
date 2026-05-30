@@ -6,7 +6,9 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import AIMessage, SystemMessage, ToolMessage
 from langgraph.graph import END, START, StateGraph
+from openai import APIConnectionError
 
+from ..llm.errors import LLMProviderUnavailableError
 from .agent_state import NPCAgentState
 from .tools.environment import create_environment_tools
 from .tools.world_builder import create_world_builder_tools
@@ -67,7 +69,10 @@ def create_world_builder_agent(
             ]
         else:
             messages = [system, *state["messages"]]
-        response = llm_with_tools.invoke(messages)
+        try:
+            response = llm_with_tools.invoke(messages)
+        except APIConnectionError as exc:
+            raise LLMProviderUnavailableError("LLM provider is unavailable") from exc
         return {"messages": [*state["messages"], response]}
 
     def act_node(state: NPCAgentState) -> dict[str, Any]:

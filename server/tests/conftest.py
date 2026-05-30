@@ -8,6 +8,14 @@ from src.world.player_state import PlayerData
 from src.world.world_state import NPCData
 
 
+@pytest.fixture(autouse=True)
+def mock_db_path(monkeypatch):
+    """Ensure all tests use an in-memory database."""
+    from src.config import settings
+
+    monkeypatch.setattr(settings, "sqlite_game_db_path", ":memory:")
+
+
 @pytest.fixture()
 def player_data() -> PlayerData:
     """Fresh PlayerData with defaults."""

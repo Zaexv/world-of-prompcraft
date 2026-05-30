@@ -27,6 +27,51 @@ export class EntityManager {
     this.assetLoader = assetLoader;
   }
 
+  /**
+   * Synchronize the local NPC registry with a server snapshot.
+   * Updates stats (HP, mood, etc.) for existing NPCs and removes stale ones.
+   * Ignores client-side procedural NPCs (id prefix 'proc_' or 'enc_').
+   */
+  syncServerNPCs(serverNpcs: (Partial<NPCConfig> & { id: string })[]): void {
+    const serverIds = new Set(serverNpcs.map((n) => n.id));
+
+    // 1. Update or Add
+    for (const config of serverNpcs) {
+      // Don't add NPCs that look like client-side procedural ones
+      if (config.id.startsWith('proc_') || config.id.startsWith('enc_')) continue;
+
+      const npc = this.npcs.get(config.id);
+      if (npc) {
+        // Update dynamic stats without full recreation
+        if (config.hp !== undefined) {
+          npc.nameplate.updateHP(config.hp, config.maxHp ?? 100);
+        }
+        if (config.mood !== undefined || config.relationshipScore !== undefined) {
+          npc.nameplate.updateMood(
+            config.mood ?? 'neutral',
+            config.relationshipScore ?? 0,
+          );
+          npc.animator.setMood(config.mood ?? 'neutral');
+        }
+        if (config.scale !== undefined) {
+          npc.mesh.scale.setScalar(config.scale);
+        }
+      } else {
+        this.addNPC(config as NPCConfig);
+      }
+    }
+
+    // 2. Prune stale server NPCs
+    for (const id of this.npcs.keys()) {
+      // Don't prune client-side procedural NPCs
+      if (id.startsWith('proc_') || id.startsWith('enc_')) continue;
+
+      if (!serverIds.has(id)) {
+        this.removeNPC(id);
+      }
+    }
+  }
+
   // ── NPC management ──────────────────────────────────────────────────────────
 
   /**

@@ -7,12 +7,13 @@ Tools use a closure pattern: they close over shared `pending_actions` and
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Protocol
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
     from langchain_core.tools import BaseTool
+
 
 from .combat import create_combat_tools
 from .dialogue import create_dialogue_tools
@@ -21,6 +22,11 @@ from .music import create_music_tools
 from .quest import create_quest_tools
 from .trade import create_trade_tools
 from .world_query import create_world_query_tools
+
+
+class ActionAppender(Protocol):
+    def append(self, action: Any) -> None: ...
+
 
 _CATEGORY_FACTORIES: dict[str, Callable[..., list[Any]]] = {
     "combat": create_combat_tools,
@@ -34,14 +40,14 @@ _CATEGORY_FACTORIES: dict[str, Callable[..., list[Any]]] = {
 
 
 def get_tools_by_category(
-    category: str, pending_actions: list[Any], world_state: dict[str, Any]
+    category: str, pending_actions: ActionAppender, world_state: dict[str, Any]
 ) -> list[BaseTool]:
     """Instantiate and return tools for a specific category.
 
     Args:
         category: One of "combat", "dialogue", "environment", "music",
                   "quest", "trade", "world_query".
-        pending_actions: Shared mutable list for frontend actions.
+        pending_actions: Action appender used by tools.
         world_state: Shared mutable dict of current world state.
 
     Returns:
@@ -59,29 +65,31 @@ def get_tools_by_category(
 
 
 def get_all_tools(
-    pending_actions: list[Any] | None = None,
+    pending_actions: ActionAppender | None = None,
     world_state: dict[str, Any] | None = None,
 ) -> list[BaseTool]:
     """Return all registered NPC tools, closed over shared mutable state.
 
     Args:
-        pending_actions: Mutable list that tools append actions to.
+        pending_actions: Action appender that tools append actions to.
         world_state: Mutable dict with current world/player snapshot.
 
     Returns:
         A flat list of all tool objects.
     """
     if pending_actions is None:
-        pending_actions = []
+        from ..action_sink import PendingActionSink
+
+        pending_actions = PendingActionSink()
     if world_state is None:
         world_state = {}
 
     tools: list[BaseTool] = []
-    tools.extend(create_combat_tools(pending_actions, world_state))
-    tools.extend(create_dialogue_tools(pending_actions, world_state))
-    tools.extend(create_trade_tools(pending_actions, world_state))
-    tools.extend(create_environment_tools(pending_actions, world_state))
-    tools.extend(create_world_query_tools(pending_actions, world_state))
-    tools.extend(create_quest_tools(pending_actions, world_state))
-    tools.extend(create_music_tools(pending_actions, world_state))
+    tools.extend(create_combat_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_dialogue_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_trade_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_environment_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_world_query_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_quest_tools(pending_actions, world_state))  # type: ignore[arg-type]
+    tools.extend(create_music_tools(pending_actions, world_state))  # type: ignore[arg-type]
     return tools
