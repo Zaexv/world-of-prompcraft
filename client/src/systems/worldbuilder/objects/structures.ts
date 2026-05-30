@@ -23,6 +23,10 @@ export function buildMoonwell(pos: THREE.Vector3, scale: number): THREE.Group {
     transparent: true,
     opacity: 0.75,
     roughness: 0.2,
+    // Transparent pool surface: don't write depth, or it punches holes in the
+    // main sea plane (depthWrite:false) that overlaps it when the transparent
+    // draw-order sort flips with camera rotation. See Forest.makeGroundPatch.
+    depthWrite: false,
   });
   const water = new THREE.Mesh(waterGeo, waterMat);
   water.position.y = 0.5 * scale;

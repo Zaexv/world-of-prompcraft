@@ -483,22 +483,15 @@ export function getBiomeSurfaceNoise(
 
 // ── Biome emissive glow ─────────────────────────────────────────────────────
 
-const _teldEmA = new THREE.Color(0x4422aa);
-const _teldEmB = new THREE.Color(0x225566);
 const _emissiveResult = new THREE.Color();
-const _emissiveTemp = new THREE.Color();
 
 export function getBiomeEmissive(x: number, z: number, y: number, t: number, cachedWeights?: BiomeWeights): THREE.Color {
   const weights = cachedWeights ?? getBiomeWeights(x, z);
   _emissiveResult.setRGB(0, 0, 0);
 
-  if (weights[BiomeType.Teldrassil] > 0.01 && t < 0.25) {
-    const str = (1.0 - t / 0.25) * 0.15 * weights[BiomeType.Teldrassil];
-    _emissiveTemp.copy(_teldEmA).lerp(_teldEmB, t / 0.25);
-    _emissiveResult.r += _emissiveTemp.r * str;
-    _emissiveResult.g += _emissiveTemp.g * str;
-    _emissiveResult.b += _emissiveTemp.b * str;
-  }
+  // Teldrassil (spawn) ground has no emissive glow — the world is in daytime,
+  // so the floor is lit purely by the warm sun/sky. (A nocturnal magic glow
+  // used to be baked in here, which read as a persistent cold blue cast.)
 
   if (weights[BiomeType.EmberWastes] > 0.01 && t < 0.35) {
     const str = (1.0 - t / 0.35) * 0.25 * weights[BiomeType.EmberWastes];

@@ -111,11 +111,17 @@ export class SceneManager {
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     pmremGenerator.compileCubemapShader();
     
-    // We'll update the environment map whenever the skybox or biome changes 
+    // We'll update the environment map whenever the skybox or biome changes
     // significantly. For now, a one-time high-quality generation.
     setTimeout(() => {
       const renderTarget = pmremGenerator.fromScene(this.scene);
       this.scene.environment = renderTarget.texture;
+      // The captured environment is dominated by the saturated blue sky
+      // (0x88d0ff). At full strength it casts a cold blue reflection over every
+      // material (trees, characters, buildings — everything except the terrain,
+      // which opts out with envMapIntensity:0) and overpowers the warm sun.
+      // Keep it as a subtle indirect-light fill, not the dominant term.
+      this.scene.environmentIntensity = 0.15;
       pmremGenerator.dispose();
     }, 1000);
 
