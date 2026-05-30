@@ -94,9 +94,19 @@ export class Water {
       normalScale: new THREE.Vector2(0.8, 0.8),
       transparent: true,
       opacity: 0.5, // Increased transparency
-      depthWrite: false, 
+      depthWrite: false,
       depthTest: true,
       depthFunc: THREE.LessEqualDepth, // Improved depth handling
+      // The sea plane sits at y=-1 and the terrain noise crosses that same level
+      // at every shoreline, leaving the two surfaces nearly coplanar there. Since
+      // water tests (but doesn't write) depth, that coplanarity makes the depth
+      // comparison flip with camera angle/distance — the waterline shimmers and
+      // whole patches blink out as the camera moves. Biasing the water's tested
+      // depth slightly toward the camera makes it win the comparison cleanly at
+      // the boundary instead of fighting the terrain for it.
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
       side: THREE.DoubleSide,
     });
     

@@ -25,6 +25,7 @@
 
 import * as THREE from 'three';
 import { BiomeType, getDominantBiome } from '../scene/Biomes';
+import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
@@ -143,7 +144,17 @@ export class ProceduralPopulator {
   // Reusable scratch Vector3 — avoids per-chunk allocation (GC pressure)
   private static _v = new THREE.Vector3();
 
+  // Small margin above the sea surface: anything whose ground sits at or below
+  // this never spawns, so props/buildings/monsters don't end up submerged (or
+  // half-sunk at the shoreline) in basins and lakebeds.
+  private static readonly WATER_SPAWN_MARGIN = 0.3;
+
   constructor(terrain: Terrain) { this.terrain = terrain; }
+
+  /** True when the ground at (x, z) is at/below the water surface — no spawning there. */
+  private isUnderwater(x: number, z: number): boolean {
+    return this.terrain.getHeightAt(x, z) <= Water.LEVEL + ProceduralPopulator.WATER_SPAWN_MARGIN;
+  }
 
   setScene(scene: THREE.Scene): void { this.scene = scene; }
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
@@ -254,6 +265,7 @@ export class ProceduralPopulator {
 
         const ex = worldX + rng.nextRange(8, SIZE - 8);
         const ez = worldZ + rng.nextRange(8, SIZE - 8);
+        if (this.isUnderwater(ex, ez)) continue;
         const ey = this.terrain.getHeightAt(ex, ez);
         const anchor = ProceduralPopulator._v.set(ex, ey, ez);
 
@@ -300,18 +312,20 @@ export class ProceduralPopulator {
     if (rng.chance(0.20)) {
       const bx = worldX + rng.nextRange(8, SIZE - 8);
       const bz = worldZ + rng.nextRange(8, SIZE - 8);
-      const by = this.terrain.getHeightAt(bx, bz);
-      const pos = ProceduralPopulator._v.set(bx, by, bz);
+      if (!this.isUnderwater(bx, bz)) {
+        const by = this.terrain.getHeightAt(bx, bz);
+        const pos = ProceduralPopulator._v.set(bx, by, bz);
 
-      const building = registryEntry
-        ? registryEntry.buildingFn(pos, rng, dist)
-        : buildBiomeBuilding(biome, pos, rng, dist);
+        const building = registryEntry
+          ? registryEntry.buildingFn(pos, rng, dist)
+          : buildBiomeBuilding(biome, pos, rng, dist);
 
-      if (building && this.scene) {
-        building.rotation.y = rng.nextRange(0, Math.PI * 2);
-        this.scene.add(building);
-        void this.collisionSystem?.addCollidableFiltered(building);
-        objs.push(building);
+        if (building && this.scene) {
+          building.rotation.y = rng.nextRange(0, Math.PI * 2);
+          this.scene.add(building);
+          void this.collisionSystem?.addCollidableFiltered(building);
+          objs.push(building);
+        }
       }
     }
 
@@ -329,6 +343,7 @@ export class ProceduralPopulator {
       for (let i = 0; i < count; i++) {
         const mx = worldX + rng.nextRange(6, SIZE - 6);
         const mz = worldZ + rng.nextRange(6, SIZE - 6);
+        if (this.isUnderwater(mx, mz)) continue;
         const my = this.terrain.getHeightAt(mx, mz);
         const def = rng.pick(defs);
         const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
@@ -350,6 +365,7 @@ export class ProceduralPopulator {
       for (let i = 0; i < propCount; i++) {
         const px = worldX + rng.nextRange(3, SIZE - 3);
         const pz = worldZ + rng.nextRange(3, SIZE - 3);
+        if (this.isUnderwater(px, pz)) continue;
         const py = this.terrain.getHeightAt(px, pz);
         const pos = ProceduralPopulator._v.set(px, py, pz);
         const scale = rng.nextRange(0.7, 1.35);

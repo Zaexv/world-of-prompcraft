@@ -101,7 +101,9 @@
       "Bash(Select-Object -Last 15)",
       "Bash(echo \"EXIT: $?\")",
       "Bash(git checkout *)",
-      "Bash(git --no-pager diff --stat)"
+      "Bash(git --no-pager diff --stat)",
+      "Bash(git --no-pager diff --cached client/src/scene/SceneManager.ts)",
+      "Bash(git --no-pager diff --cached --stat)"
     ]
   },
   "hooks": {
