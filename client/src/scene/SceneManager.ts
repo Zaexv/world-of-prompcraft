@@ -243,7 +243,7 @@ export class SceneManager {
   tick(): number {
     const delta = this.clock.getDelta();
 
-    this.water.update(delta, this.camera);
+    this.water.update(delta, this.camera, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);
 
     this.forest.update(delta);
