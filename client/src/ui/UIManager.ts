@@ -1,3 +1,4 @@
+import { AudioSystem } from "../audio/AudioSystem";
 import { InteractionPanel } from "./InteractionPanel";
 import { InventoryPanel } from "./InventoryPanel";
 import { StatusBars } from "./StatusBars";
@@ -219,6 +220,7 @@ export class UIManager {
   }
 
   showInteractionPanel(npcId: string, npcName: string): void {
+    AudioSystem.getInstance().playSfx("ui_click");
     this.interactionPanel.show(npcId, npcName);
   }
 
@@ -231,6 +233,7 @@ export class UIManager {
   }
 
   showInventory(): void {
+    AudioSystem.getInstance().playSfx("ui_click");
     this.inventoryPanel.show();
   }
 
