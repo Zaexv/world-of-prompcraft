@@ -936,3 +936,122 @@ export function buildMalakaHouseReconstructed(pos: THREE.Vector3, scale: number)
   g.add(body);
   return g;
 }
+
+export function buildMalakaCortijo(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const mats = getMaterials();
+
+  const mainW = 12 * scale;
+  const mainH = 4 * scale;
+
+  // 1. L-Shaped Main Body (two wings)
+  const wing1 = new THREE.Mesh(new THREE.BoxGeometry(mainW, mainH, 4 * scale), mats.stucco);
+  wing1.position.set(0, mainH / 2, 0);
+  wing1.castShadow = true;
+  wing1.userData.isCollider = true;
+  g.add(wing1);
+
+  const wing2 = new THREE.Mesh(new THREE.BoxGeometry(4 * scale, mainH, 6 * scale), mats.stucco);
+  wing2.position.set(-mainW / 2 + 2 * scale, mainH / 2, 5 * scale);
+  wing2.castShadow = true;
+  wing2.userData.isCollider = true;
+  g.add(wing2);
+
+  // 2. Flat Terrace (Terraza Plana)
+  const terrace = new THREE.Mesh(new THREE.BoxGeometry(mainW - 0.2 * scale, 0.4 * scale, 4 * scale - 0.2 * scale), mats.stone);
+  terrace.position.set(0, mainH + 0.2 * scale, 0);
+  g.add(terrace);
+
+  // 3. Small Tower with Pitched Roof
+  const towerW = 3.5 * scale;
+  const towerH = 3 * scale;
+  const tower = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerW), mats.stucco);
+  tower.position.set(0, mainH + towerH / 2, 0);
+  tower.userData.noCollision = true; // Optimization: high-up detail
+  g.add(tower);
+
+  const tRoof = new THREE.Mesh(new THREE.ConeGeometry(towerW * 0.8, 1.8 * scale, 4), mats.roof);
+  tRoof.position.set(0, mainH + towerH + 0.9 * scale, 0);
+  tRoof.rotation.y = Math.PI / 4;
+  tRoof.userData.noCollision = true;
+  g.add(tRoof);
+
+  // 4. Large Arched Gate (Portón de Carros)
+  const gate = createArchedDoor(3.5 * scale, 3.2 * scale, 0.6 * scale, mats);
+  gate.userData.noCollision = true;
+  gate.traverse(c => { c.userData.noCollision = true; });
+  gate.position.set(2 * scale, 0, 2.05 * scale);
+  g.add(gate);
+
+  // 5. Exterior Windows & Details
+  for (let x = -4 * scale; x <= 4 * scale; x += 4 * scale) {
+    if (Math.abs(x - 2 * scale) < 1) continue; // Skip if gate is here
+    const win = createWindowWithGrille(0.8 * scale, 1.2 * scale, scale, mats);
+    win.position.set(x, 2.2 * scale, 2.05 * scale);
+    win.userData.noCollision = true;
+    g.add(win);
+  }
+
+  return g;
+}
+
+export function buildMalakaBodega(pos: THREE.Vector3, scale: number): THREE.Group {
+  const g = new THREE.Group();
+  g.position.copy(pos);
+  const mats = getMaterials();
+
+  const length = 15 * scale;
+  const width = 8 * scale;
+  const height = 6 * scale;
+
+  // 1. Massive Industrial Nave
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), mats.stucco);
+  body.position.y = height / 2;
+  body.castShadow = true;
+  body.userData.isCollider = true;
+  g.add(body);
+
+  // 2. High Ventilation Windows (Ventanas Altas)
+  const winW = 0.6 * scale;
+  const winH = 0.6 * scale;
+  for (let z = -length / 2 + 2 * scale; z <= length / 2 - 2 * scale; z += 3 * scale) {
+    const winL = new THREE.Mesh(new THREE.BoxGeometry(0.1 * scale, winH, winW), mats.glass);
+    winL.position.set(-width / 2 - 0.05 * scale, height - 1 * scale, z);
+    g.add(winL);
+
+    const winR = winL.clone();
+    winR.position.x = width / 2 + 0.05 * scale;
+    g.add(winR);
+  }
+
+  // 3. Tasting Porch (Porche de Degustación)
+  const porch = createPergola(4 * scale, 6 * scale, scale, mats);
+  porch.userData.noCollision = true;
+  porch.traverse(c => { c.userData.noCollision = true; });
+  porch.position.set(width / 2 + 2 * scale, 0, 2 * scale);
+  g.add(porch);
+
+  // 4. Large Main Doors (End)
+  const door = createArchedDoor(3.5 * scale, 4.5 * scale, 0.6 * scale, mats);
+  door.userData.noCollision = true;
+  door.traverse(c => { c.userData.noCollision = true; });
+  door.position.set(0, 0, length / 2 + 0.1 * scale);
+  g.add(door);
+
+  // 5. Front Oculus
+  const oculus = new THREE.Mesh(new THREE.CircleGeometry(0.6 * scale, 16), new THREE.MeshStandardMaterial({ color: 0x000000 }));
+  oculus.position.set(0, height - 1.5 * scale, length / 2 + 0.31 * scale);
+  oculus.userData.noCollision = true;
+  g.add(oculus);
+
+  // 6. Gabled Roof
+  const roofH = 3 * scale;
+  const roof = new THREE.Mesh(new THREE.CylinderGeometry(0.1, Math.sqrt(Math.pow(width/2 + 0.5 * scale, 2) * 2), roofH, 4), mats.roof);
+  roof.rotation.y = Math.PI / 4;
+  roof.position.y = height + roofH / 2;
+  roof.userData.noCollision = true;
+  g.add(roof);
+
+  return g;
+}

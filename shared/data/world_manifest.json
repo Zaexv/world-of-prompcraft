@@ -1240,6 +1240,46 @@
             "visual": {}
           },
           {
+            "id": "malaka_cortijo_01",
+            "type": "malaka_cortijo",
+            "transform": {
+              "position": [
+                -240,
+                0,
+                -170
+              ],
+              "scale": 1.0,
+              "rotation": [
+                0,
+                -0.5,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Cortijo de la Olivar"
+            }
+          },
+          {
+            "id": "malaka_bodega_01",
+            "type": "malaka_bodega",
+            "transform": {
+              "position": [
+                -120,
+                0,
+                -165
+              ],
+              "scale": 1.0,
+              "rotation": [
+                0,
+                1.57,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Bodega del Puerto"
+            }
+          },
+          {
             "id": "malaka_tree_01",
             "type": "ancient_tree",
             "transform": {
