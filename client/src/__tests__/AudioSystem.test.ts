@@ -44,6 +44,9 @@ vi.mock('tone', () => {
     PolySynth: vi.fn(() => mockPolySynth),
     NoiseSynth: vi.fn(() => mockWithChain),
     Filter: vi.fn(() => mockFilter),
+    Frequency: vi.fn((note: string) => ({
+      transpose: vi.fn(() => ({ toNote: () => note })),
+    })),
     start: vi.fn().mockResolvedValue(undefined),
     Transport: {
       bpm: { value: 70 },

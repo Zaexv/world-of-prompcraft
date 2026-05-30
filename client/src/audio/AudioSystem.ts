@@ -58,22 +58,20 @@ export class AudioSystem {
   playStartMusic(): void {
     if (!this.initialized) return;
     this.stopCurrentMusic();
-    const roots = ['C2', 'D2', 'E2', 'F2', 'G2', 'A2'];
-    const scalesList: { name: string; notes: string[] }[] = [
-      { name: 'major', notes: ['C', 'D', 'E', 'F', 'G', 'A', 'B'] },
-      { name: 'minor', notes: ['C', 'D', 'Eb', 'F', 'G', 'Ab', 'Bb'] },
-      { name: 'pentatonic', notes: ['C', 'D', 'E', 'G', 'A'] },
-    ];
-    const root = roots[Math.floor(Math.random() * roots.length)];
-    const entry = scalesList[Math.floor(Math.random() * scalesList.length)];
     const bpm = 76 + Math.floor(Math.random() * 22);
-    const scale = entry.notes;
-    const octave = parseInt(root.slice(-1), 10) || 2;
-
     Tone.Transport.bpm.value = bpm;
 
-    const scalePitches = scale.map(s => s + String(octave + 1));
-    const bassPitches = scale.map(s => s + String(octave));
+    const semisUp = (note: string, semis: number): string =>
+      Tone.Frequency(note).transpose(semis).toNote();
+
+    // Fixed progression: a chromatic descent — Ab minor → G major → Gb major →
+    // F minor — each as a root-position triad [root, third, fifth].
+    const progression: string[][] = [
+      ['Ab3', 'B3', 'Eb4'],  // Ab minor (Cb written as B)
+      ['G3', 'B3', 'D4'],    // G major
+      ['Gb3', 'Bb3', 'Db4'], // Gb major
+      ['F3', 'A3', 'C4'],    // F major
+    ];
 
     // Persistent voices — created once and retriggered each tick so the audio
     // graph stays a fixed size (no per-note allocation, no Draw-based disposal).
@@ -98,31 +96,22 @@ export class AudioSystem {
       envelope: { attack: 0.4, decay: 0.5, sustain: 0.15, release: 1.2 },
       volume: -19,
     }).connect(this.musicGain);
-    const melSynth = new Tone.Synth({
-      oscillator: { type: 'sine' },
-      envelope: { attack: 0.02, decay: 0.2, sustain: 0, release: 0.3 },
-      volume: -17,
-    }).connect(this.musicGain);
     const arpSynth = new Tone.Synth({
       oscillator: { type: 'triangle' },
       envelope: { attack: 0.005, decay: 0.18, sustain: 0, release: 0.2 },
       volume: -22,
     }).connect(this.musicGain);
-    this.currentMusicNodes.push(kick, snare, bassSynth, chordSynth, melSynth, arpSynth);
+    this.currentMusicNodes.push(kick, snare, bassSynth, chordSynth, arpSynth);
 
-    // Harmony: a wandering, modal progression rather than a pop cadence —
-    // I–iii–IV–vi (by scale degree). The mediant (iii) and the unresolved
-    // landing on vi give the contemplative, exploratory feel of adventure /
-    // Minecraft-style music. Every voice derives the bar's chord from this
-    // independently, so bass, chords, and arp stay in sync regardless of
-    // callback order.
-    const progression = [0, 2, 3, 5];
-    const triad = (pitches: string[], degree: number): string[] => [
-      pitches[degree % pitches.length],
-      pitches[(degree + 2) % pitches.length],
-      pitches[(degree + 4) % pitches.length],
-    ];
-    const arpPitches = scale.map(s => s + String(octave + 2));
+    // Arpeggio set per chord: the triad an octave above the pad, plus the root
+    // two octaves up — i.e. scale-degrees [1, 3, 5, 8].
+    const arpTones = progression.map((chord) => {
+      const up = chord.map(n => semisUp(n, 12));
+      return [up[0], up[1], up[2], semisUp(up[0], 12)];
+    });
+
+    // Bass per chord: root and fifth an octave below the pad.
+    const bassTones = progression.map(chord => [semisUp(chord[0], -12), semisUp(chord[2], -12)]);
 
     // ── Light pulse: soft kick on beat 1, gentle brush on beat 3 ──
     let beat4 = 0;
@@ -137,9 +126,8 @@ export class AudioSystem {
     // ── Bass: chord root on beat 1, fifth on beat 3 ──
     let bassHalf = 0;
     const bassInterval = Tone.Transport.scheduleRepeat((time) => {
-      const degree = progression[Math.floor(bassHalf / 2) % progression.length];
-      const noteIdx = (bassHalf % 2 === 0 ? degree : degree + 4) % bassPitches.length;
-      bassSynth.triggerAttackRelease(bassPitches[noteIdx], '2n', time);
+      const [bassRoot, bassFifth] = bassTones[Math.floor(bassHalf / 2) % bassTones.length];
+      bassSynth.triggerAttackRelease(bassHalf % 2 === 0 ? bassRoot : bassFifth, '2n', time);
       bassHalf++;
     }, '2n');
     this.registerTransportEvent(bassInterval);
@@ -147,31 +135,21 @@ export class AudioSystem {
     // ── Chords: hold one triad per bar (airy pad) ──
     let chordBar = 0;
     const chordInterval = Tone.Transport.scheduleRepeat((time) => {
-      const degree = progression[chordBar % progression.length];
-      chordSynth.triggerAttackRelease(triad(scalePitches, degree), '1n', time);
+      chordSynth.triggerAttackRelease(progression[chordBar % progression.length], '1n', time);
       chordBar++;
     }, '1n');
     this.registerTransportEvent(chordInterval);
 
-    // ── Arpeggio: the bar's chord, one note per eighth, an octave above ──
+    // ── Arpeggio: pattern 8-5-3-1-3-5-8-5 over the bar's chord ──
+    // Degrees map to arp-set indices: 1→0 (root), 3→1, 5→2, 8→3 (octave).
+    const arpPattern = [3, 2, 1, 0, 1, 2, 3, 2];
     let arpEighth = 0;
     const arpInterval = Tone.Transport.scheduleRepeat((time) => {
-      const degree = progression[Math.floor(arpEighth / 8) % progression.length];
-      const arpChord = triad(arpPitches, degree);
-      arpSynth.triggerAttackRelease(arpChord[arpEighth % arpChord.length], '8n', time);
+      const tones = arpTones[Math.floor(arpEighth / 8) % arpTones.length];
+      arpSynth.triggerAttackRelease(tones[arpPattern[arpEighth % arpPattern.length]], '8n', time);
       arpEighth++;
     }, '8n');
     this.registerTransportEvent(arpInterval);
-
-    // ── Melody: rising/falling through the scale, one note per beat ──
-    let mel8 = 0;
-    const melInterval = Tone.Transport.scheduleRepeat((time) => {
-      const step = mel8 % (scalePitches.length * 2 - 2 || 1);
-      const idx = step < scalePitches.length ? step : (scalePitches.length * 2 - 2) - step;
-      melSynth.triggerAttackRelease(scalePitches[idx], '4n', time);
-      mel8++;
-    }, '4n');
-    this.registerTransportEvent(melInterval);
   }
 
   setMasterVolume(v: number): void {
