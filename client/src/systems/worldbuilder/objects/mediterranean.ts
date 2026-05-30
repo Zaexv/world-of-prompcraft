@@ -376,6 +376,8 @@ export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group
     const edgeLen = width + roofOverhang;
     for (let j = 0; j < tileCount; j++) {
       const tile = createRoofTile(scale, mats);
+      tile.userData.noCollision = true;
+      tile.userData.noCollision = true; // Optimization: decorative tile
       const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
       const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
       const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;
@@ -527,6 +529,8 @@ export function buildMalakaPatioHouse(pos: THREE.Vector3, scale: number): THREE.
     const edgeLen = outerW + roofOverhang;
     for (let j = 0; j < tileCount; j++) {
       const tile = createRoofTile(scale, mats);
+      tile.userData.noCollision = true;
+      tile.userData.noCollision = true; // Optimization: decorative tile
       const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
       const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
       const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;
@@ -606,6 +610,7 @@ export function buildMalakaErmita(pos: THREE.Vector3, scale: number): THREE.Grou
     const sz = side === 0 ? (naveD / 2) + 0.2 * scale : -(naveD / 2) - 0.2 * scale;
     for (let j = 0; j < tileCount; j++) {
       const tile = createRoofTile(scale, mats);
+      tile.userData.noCollision = true;
       const tx = (j / (tileCount - 1) - 0.5) * (naveW + roofOverhang);
       tile.position.set(tx, naveH + 0.2 * scale, sz);
       g.add(tile);
