@@ -1,6 +1,4 @@
 import * as THREE from 'three';
-import * as vegetation from './vegetation';
-import * as furniture from './furniture';
 import { buildMesh } from '../../../meshes';
 
 export type ObjectType =
@@ -10,25 +8,12 @@ export type ObjectType =
   | 'campfire' | 'bonfire' | 'lantern';
 
 export function buildObject(type: string, pos: THREE.Vector3, scale: number, label?: string): THREE.Object3D {
-  // Registry-driven meshes (buildings/structures) take precedence. Anything not
-  // yet migrated falls through to the legacy switch below.
+  // Every placeable mesh is registered in the catalog. Unknown types fall back to
+  // a visible marker so missing data is obvious in-world.
   const registered = buildMesh(type, { position: pos, scale, label });
   if (registered) return registered;
 
-  switch (type) {
-    case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);
-    case 'ancient_tree': 
-    case 'ancient_tree_cluster':
-    case 'tree':
-    case 'pine': return vegetation.buildAncientTree(pos, scale);
-    case 'crystal_cluster': return vegetation.buildCrystalCluster(pos, scale);
-    
-    case 'campfire': return furniture.buildCampfire(pos, scale);
-    case 'bonfire': return furniture.buildBonfire(pos, scale);
-    case 'lantern': return furniture.buildLantern(pos, scale);
-    
-    default: return buildDefaultMarker(pos, scale, label ?? type);
-  }
+  return buildDefaultMarker(pos, scale, label ?? type);
 }
 
 function buildDefaultMarker(pos: THREE.Vector3, scale: number, _label: string): THREE.Object3D {

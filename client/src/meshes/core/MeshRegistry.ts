@@ -17,8 +17,18 @@ export function registerMesh(cls: MeshClass): void {
   if (registry.has(cls.type)) {
     throw new Error(`Duplicate mesh type "${cls.type}" registered.`);
   }
-  registry.set(cls.type, new cls());
+  const instance = new cls();
+  registry.set(cls.type, instance);
   categories.set(cls.type, cls.category);
+
+  // Register any alias type strings against the same instance.
+  for (const alias of cls.aliases ?? []) {
+    if (registry.has(alias)) {
+      throw new Error(`Duplicate mesh type "${alias}" (alias of "${cls.type}") registered.`);
+    }
+    registry.set(alias, instance);
+    categories.set(alias, cls.category);
+  }
 }
 
 /** True if a mesh type is known to the registry. */

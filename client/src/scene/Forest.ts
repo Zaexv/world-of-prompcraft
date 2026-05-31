@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import { AssetPaths } from '../config/AssetPaths';
 import type { CollisionSystem } from '../systems/CollisionSystem';
-import { buildBonfire } from '../systems/worldbuilder/objects/furniture';
 import { buildMesh } from '../meshes';
 import { applyBarkPBR, applyCanopyPBR } from '../utils/PBRMaps';
 import { Water } from './Water';
@@ -671,16 +670,18 @@ export class StartingForest {
       for (let i = 0; i < site.bonfires; i++) {
         const angle = (i / Math.max(1, site.bonfires)) * Math.PI * 2;
         const dist = site.includeTemple ? 18 : 12;
-        const fire = buildBonfire(
-          new THREE.Vector3(
+        const fire = buildMesh('bonfire', {
+          position: new THREE.Vector3(
             site.x + Math.cos(angle) * dist,
             y,
             site.z + Math.sin(angle) * dist,
           ),
-          site.scale * 0.75,
-        );
-        fire.rotation.y = angle;
-        this.root.add(fire);
+          scale: site.scale * 0.75,
+        });
+        if (fire) {
+          fire.rotation.y = angle;
+          this.root.add(fire);
+        }
       }
     }
   }
