@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
+import { applyWoodPBR } from '../../../utils/PBRMaps';
 
 export class Pavilion extends Mesh {
   static readonly type = 'pavilion';
@@ -12,6 +13,7 @@ export class Pavilion extends Mesh {
     g.position.copy(pos);
 
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.85 });
+    applyWoodPBR(woodMat);
     const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a0845, roughness: 0.7 });
 
     for (const [px, pz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]] as [number, number][]) {

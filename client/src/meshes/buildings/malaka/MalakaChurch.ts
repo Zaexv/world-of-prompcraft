@@ -2,6 +2,60 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArchedDoor, createWindowWithGrille } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyMalakaPBR } from '../../../utils/PBRMaps';
+
+const STONE_UNITS_PER_TILE = 2.2; // ~one stone course every 2.2 world units
+
+/**
+ * Rewrite a BoxGeometry's UVs so the stone texture tiles by world size. Each
+ * face is scaled by its own world dimensions (rounded to whole tiles so edges
+ * stay seam-free), which also fixes per-face anisotropy on slabs and towers.
+ */
+function tileBoxUVsWorld(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z (4 verts each). Each face's
+  // U/V axes span these world dimensions:
+  const faceSpan: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) {
+    const uTiles = Math.max(1, Math.round(faceSpan[f][0] / STONE_UNITS_PER_TILE));
+    const vTiles = Math.max(1, Math.round(faceSpan[f][1] / STONE_UNITS_PER_TILE));
+    for (let i = 0; i < 4; i++) {
+      const idx = f * 4 + i;
+      uv.setXY(idx, uv.getX(idx) * uTiles, uv.getY(idx) * vTiles);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+
+/** A stone box whose masonry tiles at a constant world scale (no stretching). */
+function stoneBox(w: number, h: number, d: number): THREE.Mesh {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  tileBoxUVsWorld(geo, w, h, d);
+  return new THREE.Mesh(geo, getWorldStone());
+}
+
+// ─── World-scaled stone (fixes stretched masonry on large meshes) ─────────────
+// The shared `mats.stone` tiles its texture a fixed 4×4 per UV face, so a tiny
+// foundation and a 16 m cathedral base get the same number of stone courses —
+// huge meshes look stretched. `stoneBox` instead writes UVs in *world units*, so
+// the blocks stay a constant size whatever the mesh dimensions.
+
+let _worldStone: THREE.MeshStandardMaterial | null = null;
+function getWorldStone(): THREE.MeshStandardMaterial {
+  if (!_worldStone) {
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+    applyMalakaPBR(m, 'stone');
+    // Clone the maps so tiling lives in the geometry UVs (repeat 1×1 here),
+    // independent of the shared stone material used elsewhere.
+    if (m.map) { m.map = m.map.clone(); m.map.repeat.set(1, 1); m.map.needsUpdate = true; }
+    if (m.normalMap) { m.normalMap = m.normalMap.clone(); m.normalMap.repeat.set(1, 1); m.normalMap.needsUpdate = true; }
+    m.needsUpdate = true;
+    _worldStone = m;
+  }
+  return _worldStone;
+}
 
 export class MalakaChurch extends Mesh {
   static readonly type = 'malaka_church';
@@ -16,11 +70,11 @@ export class MalakaChurch extends Mesh {
     // 1. Massive Stone Base (Plinth)
     const baseW = 16 * scale;
     const baseD = 24 * scale;
-    const baseH = 1.0 * scale;
-    const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, baseH, baseD), mats.stone);
+    const baseH = 0.8 * scale; // Keep main's lower base
+    const base = stoneBox(baseW, baseH, baseD);
     base.position.y = baseH / 2;
     base.castShadow = base.receiveShadow = true;
-    base.userData.isCollider = true;
+    // We add explicit proxies at the end, but kept for visibility
     g.add(base);
 
     // Steps leading to the entrance
@@ -29,7 +83,6 @@ export class MalakaChurch extends Mesh {
     for (let i = 0; i < 3; i++) {
       const step = new THREE.Mesh(new THREE.BoxGeometry(stepsW, (baseH / 3), stepsD - (i * 0.8 * scale)), mats.stone);
       step.position.set(0, (baseH / 3) / 2 + i * (baseH / 3), baseD / 2 + (stepsD / 2) - (i * 0.4 * scale));
-      step.userData.isCollider = true;
       g.add(step);
     }
 
@@ -37,10 +90,12 @@ export class MalakaChurch extends Mesh {
     const naveW = 10 * scale;
     const naveH = 15 * scale;
     const naveD = 20 * scale;
-    const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
-    nave.position.y = baseH + naveH / 2;
+    // Overlap the base so the nave's bottom face is buried inside it (no coplanar
+    // seam → no z-fighting). Keeps the top edge exactly at baseH + naveH.
+    const naveSink = 0.3 * scale;
+    const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH + naveSink, naveD), mats.stucco);
+    nave.position.y = baseH + naveH / 2 - naveSink / 2;
     nave.castShadow = nave.receiveShadow = true;
-    nave.userData.isCollider = true;
     g.add(nave);
 
     // Nave Side Windows (Tall Arched)
@@ -66,10 +121,12 @@ export class MalakaChurch extends Mesh {
     // 4. Central Dome (Transept) - Upgraded with Drum
     const domeR = 5 * scale;
     
-    // Drum (Base of Dome)
+    // Drum extends 0.6 below the nave top so its base ring sits inside the nave
+    // instead of coplanar with the nave's top face. Top stays at +naveH + drumH.
     const drumH = 3 * scale;
-    const domeDrum = new THREE.Mesh(new THREE.CylinderGeometry(domeR, domeR, drumH, 16), mats.stucco);
-    domeDrum.position.set(0, baseH + naveH + drumH / 2, -2 * scale);
+    const drumSink = 0.6 * scale;
+    const domeDrum = new THREE.Mesh(new THREE.CylinderGeometry(domeR, domeR, drumH + drumSink, 16), mats.stucco);
+    domeDrum.position.set(0, baseH + naveH + drumH / 2 - drumSink / 2, -2 * scale);
     domeDrum.userData.noCollision = true;
     g.add(domeDrum);
 
@@ -100,36 +157,38 @@ export class MalakaChurch extends Mesh {
     // 5. The Single Tower ("La Manquita")
     const towerW = 4.8 * scale;
     const towerH = 24 * scale;
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerW), mats.stone);
-    tower.position.set(-naveW / 2 + towerW / 2, baseH + towerH / 2, naveD / 2 - towerW / 2);
-    tower.userData.isCollider = true;
+    // Nudge the tower outward so its outer faces clear the nave walls instead of
+    // being coplanar with them; the inner half still overlaps the nave (no seam).
+    const towerX = -naveW / 2 + towerW / 2 - 0.3 * scale;
+    const towerZ = naveD / 2 - towerW / 2 + 0.3 * scale;
+    const tower = stoneBox(towerW, towerH, towerW);
+    tower.position.set(towerX, baseH + towerH / 2, towerZ);
     g.add(tower);
 
     // Tower Cornices
     const cornice1 = new THREE.Mesh(new THREE.BoxGeometry(towerW + 0.4 * scale, 0.4 * scale, towerW + 0.4 * scale), mats.stone);
-    cornice1.position.set(-naveW / 2 + towerW / 2, baseH + towerH * 0.4, naveD / 2 - towerW / 2);
+    cornice1.position.set(towerX, baseH + towerH * 0.4, towerZ);
     g.add(cornice1);
     
     const cornice2 = new THREE.Mesh(new THREE.BoxGeometry(towerW + 0.6 * scale, 0.6 * scale, towerW + 0.6 * scale), mats.stone);
-    cornice2.position.set(-naveW / 2 + towerW / 2, baseH + towerH, naveD / 2 - towerW / 2);
+    cornice2.position.set(towerX, baseH + towerH, towerZ);
     g.add(cornice2);
 
     // Tower Belfry (Open Arches)
     const belfryH = 6 * scale;
     const belfry = new THREE.Mesh(new THREE.CylinderGeometry(towerW * 0.55, towerW * 0.55, belfryH, 8), mats.stucco);
-    belfry.position.set(-naveW / 2 + towerW / 2, baseH + towerH + belfryH / 2 + 0.3 * scale, naveD / 2 - towerW / 2);
+    belfry.position.set(towerX, baseH + towerH + belfryH / 2 + 0.3 * scale, towerZ);
     belfry.userData.noCollision = true;
     g.add(belfry);
 
-    const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.6, 8, 8, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
-    belfryDome.position.set(-naveW / 2 + towerW / 2, baseH + towerH + belfryH + 0.3 * scale, naveD / 2 - towerW / 2);
+    const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.55, 8, 8, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
+    belfryDome.position.set(towerX, baseH + towerH + belfryH + 0.3 * scale, towerZ);
     belfryDome.userData.noCollision = true;
     g.add(belfryDome);
 
-    // Missing Right Tower Base
-    const missingTower = new THREE.Mesh(new THREE.BoxGeometry(towerW, 8 * scale, towerW), mats.stone);
-    missingTower.position.set(naveW / 2 - towerW / 2, baseH + 4 * scale, naveD / 2 - towerW / 2);
-    missingTower.userData.isCollider = true;
+    // Missing Right Tower Base — mirror the outward nudge of the main tower.
+    const missingTower = stoneBox(towerW, 8 * scale, towerW);
+    missingTower.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, baseH + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
     g.add(missingTower);
 
     // 6. Flying Buttresses (Contrafuertes) - Improved with Slopes
@@ -165,6 +224,35 @@ export class MalakaChurch extends Mesh {
     const roseGlass = new THREE.Mesh(new THREE.CircleGeometry(1.8 * scale, 24), mats.glass);
     roseGlass.position.set(0, baseH + 10 * scale, naveD / 2 + 0.05 * scale);
     g.add(roseGlass);
+
+    // ── Collision proxies (explicit invisible hitboxes) ──────────
+    // The capsule collides against these clean convex boxes instead of the
+    // decorated stone/stucco render meshes above. They mirror the visible solid
+    // masonry — including the buttresses.
+    const naveProxy = boxCollider(naveW, naveH, naveD);
+    naveProxy.position.y = baseH + naveH / 2;
+    g.add(naveProxy);
+
+    const baseProxy = boxCollider(baseW, baseH, baseD);
+    baseProxy.position.y = baseH / 2;
+    g.add(baseProxy);
+
+    const towerProxy = boxCollider(towerW, towerH, towerW);
+    towerProxy.position.set(towerX, baseH + towerH / 2, towerZ);
+    g.add(towerProxy);
+
+    const missingTowerProxy = boxCollider(towerW, 8 * scale, towerW);
+    missingTowerProxy.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, baseH + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
+    g.add(missingTowerProxy);
+
+    // Proxies for the buttress vertical pillars
+    for (let z = -naveD / 2 + 4 * scale; z <= naveD / 2 - 6 * scale; z += 4 * scale) {
+      for (const side of [-1, 1]) {
+        const buttressProxy = boxCollider(2 * scale, 8 * scale, 1.5 * scale);
+        buttressProxy.position.set(side * (naveW / 2 + 2.5 * scale), baseH + 4 * scale, z);
+        g.add(buttressProxy);
+      }
+    }
 
     return g;
   }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createPergola, createArchedDoor } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaBodega extends Mesh {
   static readonly type = 'malaka_bodega';
@@ -21,8 +22,11 @@ export class MalakaBodega extends Mesh {
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), mats.stucco);
     body.position.y = height / 2;
     body.castShadow = true;
-    body.userData.isCollider = true;
     g.add(body);
+
+    const bodyProxy = boxCollider(width, height, length);
+    bodyProxy.position.y = height / 2;
+    g.add(bodyProxy);
 
     // 2. High Ventilation Windows (Ventanas Altas)
     const winW = 0.6 * scale;

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArrowSlit } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaWall extends Mesh {
   static readonly type = 'malaka_wall';
@@ -19,8 +20,12 @@ export class MalakaWall extends Mesh {
     const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallT), mats.stone);
     wall.position.y = wallH / 2;
     wall.castShadow = wall.receiveShadow = true;
-    wall.userData.isCollider = true;
     g.add(wall);
+
+    const wallProxy = boxCollider(wallW, wallH, wallT);
+    wallProxy.position.y = wallH / 2;
+    g.add(wallProxy);
+
 
     // Arrow Slits in the wall
     for (let x = -3 * scale; x <= 3 * scale; x += 3 * scale) {

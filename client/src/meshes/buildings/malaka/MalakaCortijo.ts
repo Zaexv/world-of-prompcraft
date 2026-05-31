@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArchedDoor, createWindowWithGrille } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaCortijo extends Mesh {
   static readonly type = 'malaka_cortijo';
@@ -20,14 +21,20 @@ export class MalakaCortijo extends Mesh {
     const wing1 = new THREE.Mesh(new THREE.BoxGeometry(mainW, mainH, 4 * scale), mats.stucco);
     wing1.position.set(0, mainH / 2, 0);
     wing1.castShadow = true;
-    wing1.userData.isCollider = true;
     g.add(wing1);
+
+    const wing1Proxy = boxCollider(mainW, mainH, 4 * scale);
+    wing1Proxy.position.set(0, mainH / 2, 0);
+    g.add(wing1Proxy);
 
     const wing2 = new THREE.Mesh(new THREE.BoxGeometry(4 * scale, mainH, 6 * scale), mats.stucco);
     wing2.position.set(-mainW / 2 + 2 * scale, mainH / 2, 5 * scale);
     wing2.castShadow = true;
-    wing2.userData.isCollider = true;
     g.add(wing2);
+
+    const wing2Proxy = boxCollider(4 * scale, mainH, 6 * scale);
+    wing2Proxy.position.set(-mainW / 2 + 2 * scale, mainH / 2, 5 * scale);
+    g.add(wing2Proxy);
 
     // 2. Flat Terrace (Terraza Plana)
     const terrace = new THREE.Mesh(new THREE.BoxGeometry(mainW - 0.2 * scale, 0.4 * scale, 4 * scale - 0.2 * scale), mats.stone);

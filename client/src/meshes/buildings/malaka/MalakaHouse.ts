@@ -11,6 +11,7 @@ import {
   createFlowerPot,
   createPergola,
 } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaHouse extends Mesh {
   static readonly type = 'malaka_house';
@@ -44,8 +45,11 @@ export class MalakaHouse extends Mesh {
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight - foundH, depth), mats.stucco);
     body.position.y = foundH + (totalHeight - foundH) / 2;
     body.castShadow = body.receiveShadow = true;
-    body.userData.isCollider = true;
     g.add(body);
+
+    const bodyProxy = boxCollider(width, totalHeight - foundH, depth);
+    bodyProxy.position.y = foundH + (totalHeight - foundH) / 2;
+    g.add(bodyProxy);
 
     // 3. Roof with 3D Overhang Beams
     const roofOverhang = 0.5 * scale;

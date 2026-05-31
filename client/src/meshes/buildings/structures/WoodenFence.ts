@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
+import { applyWoodPBR } from '../../../utils/PBRMaps';
 
 export class WoodenFence extends Mesh {
   static readonly type = 'wooden_fence';
@@ -11,6 +12,7 @@ export class WoodenFence extends Mesh {
     const g = new THREE.Group();
     g.position.copy(pos);
     const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 });
+    applyWoodPBR(woodMat);
 
     for (let i = 0; i < 3; i++) {
       const post = new THREE.Mesh(

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaHouseReconstructed extends Mesh {
   static readonly type = 'malaka_house_reconstructed';
@@ -17,8 +18,11 @@ export class MalakaHouseReconstructed extends Mesh {
     const totalHeight = 5 * scale;
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight, depth), mats.stucco);
     body.position.y = totalHeight / 2;
-    body.userData.isCollider = true;
     g.add(body);
+
+    const bodyProxy = boxCollider(width, totalHeight, depth);
+    bodyProxy.position.y = totalHeight / 2;
+    g.add(bodyProxy);
     return g;
   }
 }

@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArrowSlit, createMachicolations } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaTower extends Mesh {
   static readonly type = 'malaka_tower';
@@ -18,8 +19,11 @@ export class MalakaTower extends Mesh {
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, width), mats.stone);
     body.position.y = height / 2;
     body.castShadow = true;
-    body.userData.isCollider = true;
     g.add(body);
+    
+    const bodyProxy = boxCollider(width, height, width);
+    bodyProxy.position.y = height / 2;
+    g.add(bodyProxy);
 
     // High Arrow Slits
     for (let y = 0.3; y < 0.9; y += 0.2) {

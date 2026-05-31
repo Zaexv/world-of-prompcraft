@@ -7,124 +7,6 @@
 import * as THREE from 'three';
 import { applyMalakaPBR } from '../../../utils/PBRMaps';
 
-// ─── Procedural Canvas Texture Generators ──────────────────────────────────────
-
-function createStuccoTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#ffffff'; // Pure Andalusian White
-  ctx.fillRect(0, 0, 256, 256);
-
-  // Add subtle plaster grain
-  for (let i = 0; i < 3000; i++) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1, 1);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createTerracottaRoofTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  // Deep Saturated Terracotta Red
-  ctx.fillStyle = '#a63d2d';
-  ctx.fillRect(0, 0, 256, 256);
-
-  // Draw tile lines
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#4a1810'; // Deep dark crevices
-  for (let x = 0; x < 256; x += 16) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 256);
-    ctx.stroke();
-
-    for (let y = 0; y < 256; y += 32) {
-      const offset = (x / 16) % 2 === 0 ? 0 : 16;
-      ctx.beginPath();
-      ctx.moveTo(x, y + offset);
-      ctx.lineTo(x + 16, y + offset);
-      ctx.stroke();
-
-      // Real clay highlight
-      ctx.fillStyle = '#c15541';
-      ctx.fillRect(x, y + offset - 3, 16, 3);
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(4, 4);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createStoneWallTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#eeeeee'; // Match city limestone white
-  ctx.fillRect(0, 0, 256, 256);
-
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#333333'; // Sharp dark grout lines
-  for (let y = 0; y <= 256; y += 32) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(256, y);
-    ctx.stroke();
-
-    const offsetX = (y / 32) % 2 === 0 ? 0 : 32;
-    for (let x = offsetX; x <= 256; x += 64) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x, y + 32);
-      ctx.stroke();
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createWoodTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#1a1a1a'; // Deep Black/Dark Brown Wood
-  ctx.fillRect(0, 0, 256, 256);
-
-  ctx.fillStyle = '#111111';
-  for (let i = 0; i < 200; i++) {
-    const w = 1 + Math.random() * 2;
-    const h = 20 + Math.random() * 100;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, w, h);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 // ─── Material Cache (Singleton) ───────────────────────────────────────────────
 
 export interface MedMaterials {
@@ -141,30 +23,32 @@ export function getMaterials(): MedMaterials {
   if (!_materials) {
     _materials = {
       stucco: (() => {
-        const m = new THREE.MeshStandardMaterial({
-          map: createStuccoTexture(),
-          roughness: 0.95,
-        });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.95 });
         applyMalakaPBR(m, 'stucco');
+        // Whitewashed Andalusian plaster: drop the cream albedo (a colour tint
+        // can only darken it) and use a bright near-white base so the walls read
+        // white. The procedural normal map kept by applyMalakaPBR still gives the
+        // plaster its surface relief.
+        m.map = null;
+        m.color.set(0xf4f1eb);
+        m.needsUpdate = true;
         return m;
       })(),
       roof: (() => {
-        const m = new THREE.MeshStandardMaterial({
-          map: createTerracottaRoofTexture(),
-          roughness: 0.8,
-        });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
         applyMalakaPBR(m, 'roof');
         return m;
       })(),
       stone: (() => {
-        const m = new THREE.MeshStandardMaterial({ map: createStoneWallTexture(), roughness: 0.9 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
         applyMalakaPBR(m, 'stone');
         return m;
       })(),
-      wood: new THREE.MeshStandardMaterial({
-        map: createWoodTexture(),
-        roughness: 0.8,
-      }),
+      wood: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+        applyMalakaPBR(m, 'wood');
+        return m;
+      })(),
       glass: new THREE.MeshStandardMaterial({
         color: 0x111111,
         roughness: 0.1,

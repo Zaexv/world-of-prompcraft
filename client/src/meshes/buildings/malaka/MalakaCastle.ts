@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createHorseshoeArch, createMachicolations } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaCastle extends Mesh {
   static readonly type = 'malaka_castle';
@@ -18,24 +19,34 @@ export class MalakaCastle extends Mesh {
     const tier1H = 6 * scale;
     const base1 = new THREE.Mesh(new THREE.BoxGeometry(tier1W, tier1H, tier1W), mats.stone);
     base1.position.y = tier1H / 2;
-    base1.userData.isCollider = true;
     g.add(base1);
+
+    const base1Proxy = boxCollider(tier1W, tier1H, tier1W);
+    base1Proxy.position.y = tier1H / 2;
+    g.add(base1Proxy);
 
     // 2. Middle Palace Tier (with Horseshoe Arches)
     const tier2W = 10 * scale;
     const tier2H = 5 * scale;
     const base2 = new THREE.Mesh(new THREE.BoxGeometry(tier2W, tier2H, tier2W), mats.stone);
     base2.position.set(0, tier1H + tier2H / 2, -2 * scale);
-    base2.userData.isCollider = true;
     g.add(base2);
+
+    const base2Proxy = boxCollider(tier2W, tier2H, tier2W);
+    base2Proxy.position.set(0, tier1H + tier2H / 2, -2 * scale);
+    g.add(base2Proxy);
 
     // 3. Upper Keep (Torre del Homenaje)
     const keepW = 6 * scale;
     const keepH = 8 * scale;
     const keep = new THREE.Mesh(new THREE.BoxGeometry(keepW, keepH, keepW), mats.stone);
     keep.position.set(0, tier1H + tier2H + keepH / 2, -4 * scale);
-    keep.userData.isCollider = true;
     g.add(keep);
+
+    const keepProxy = boxCollider(keepW, keepH, keepW);
+    keepProxy.position.set(0, tier1H + tier2H + keepH / 2, -4 * scale);
+    g.add(keepProxy);
+
 
     // 4. Courtyard Gardens (Green zones on tiers)
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 1.0 });
