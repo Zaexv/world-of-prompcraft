@@ -109,7 +109,10 @@ Create `client/src/meshes/buildings/<bucket>/<ClassName>.ts`. Rules:
     local 0-1 mapping. **Custom BufferGeometry MUST explicitly define a `uv`
     attribute based on world units (e.g., 1 unit = 1 meter) rather than a 0-1
     range, and call `geo.computeVertexNormals()` or textures and lighting will
-    not render correctly.** Use `DoubleSide` for thin surfaces.
+    not render correctly.** Use `DoubleSide` for thin surfaces. **Low flat
+    cylinders/cones** (disc floors, drums, basins): `applyWorldTiling` stretches
+    their top/bottom caps (it tiles caps by circumference×height) — after tiling,
+    re-map cap UVs (`|normal.y| > 0.9`) to world XZ.
 - **Performance (LOD)**:
   - **LOD Wrapper**: Every building MUST be wrapped in `withLOD(group)` at the
     end of the `build()` method.
