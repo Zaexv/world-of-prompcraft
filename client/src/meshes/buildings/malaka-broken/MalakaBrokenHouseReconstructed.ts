@@ -8,14 +8,16 @@ import {
   createWoodenShutters,
   createFlowerPot,
   createChimney,
+  withLOD,
 } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaBrokenHouseReconstructed extends Mesh {
   static readonly type = 'malaka_broken_house_reconstructed';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -27,12 +29,14 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     const houseHeight = 3.5 * scale;
     const foundationHeight = 0.2 * scale;
 
-    // 1. Foundation (Stone)
+    // 1. Foundation (Stone) — skirt buried below grade (top stays at foundationHeight)
+    // so the house doesn't float on the downhill side of slopes.
+    const foundSkirt = foundationHeight + 0.4 * scale;
     const foundation = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.2 * scale, foundationHeight, depth + 0.2 * scale),
+      new THREE.BoxGeometry(width + 0.2 * scale, foundSkirt, depth + 0.2 * scale),
       mats.stone
     );
-    foundation.position.y = foundationHeight / 2;
+    foundation.position.y = foundationHeight - foundSkirt / 2;
     foundation.castShadow = true;
     foundation.receiveShadow = true;
     g.add(foundation);
@@ -50,11 +54,7 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
 
     // 3. Azulejos (Decorative Tile Baseboard / Zócalo)
     const tileHeight = 0.7 * scale;
-    const azulejoMat = new THREE.MeshStandardMaterial({ 
-      color: 0x2b579a, // Traditional blue
-      roughness: 0.2,
-      metalness: 0.1
-    });
+    const azulejoMat = mats.azulejo;
     
     // Add the zocalo slightly offset from the wall to avoid Z-fighting
     const zocalo = new THREE.Mesh(
@@ -95,6 +95,11 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     roof.receiveShadow = true;
     g.add(roof);
 
+    // Roof Collider
+    const rColl = boxCollider(roofWidth, roofHeight, roofDepth);
+    rColl.position.y = houseHeight + roofHeight / 2;
+    g.add(rColl);
+
     // 5. Chimney
     const chimney = createChimney(scale, mats);
     chimney.position.set(width * 0.25, houseHeight + roofHeight * 0.4, depth * 0.2);
@@ -123,10 +128,12 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
       wg.add(frame);
       
       const win = createWindowWithGrille(winW, winH, scale, mats);
+      // Nudge to avoid Z-fighting with frame
       win.position.z = 0.02 * scale;
       wg.add(win);
       
       const shutters = createWoodenShutters(winW, winH, scale, mats);
+      // Nudge to avoid Z-fighting with window
       shutters.position.z = 0.05 * scale;
       wg.add(shutters);
       
@@ -214,7 +221,10 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     patioProxy.position.set(0, wallH / 2, depth / 2 + patioDepth / 2);
     g.add(patioProxy);
 
-    return g;
+    applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.roof);
+    return withLOD(g);
   }
 }
 

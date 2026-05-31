@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, withLOD } from './MalakaBrokenKit';
-import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { boxCollider, cylinderCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
 function stoneBox(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
@@ -67,23 +67,36 @@ export class MalakaBrokenCastle extends Mesh {
       parent.add(slitG);
     };
 
-    // 1. Lower Defensive Tier (The Barbican)
+    // 0. Massive Stone Foundation
     const tier1W = 16 * scale;
+    const foundationH = 1.5 * scale;
+    const foundation = stoneBox(tier1W + 0.8 * scale, foundationH, tier1W + 0.8 * scale, stoneMat);
+    foundation.position.y = foundationH / 2 - 0.4 * scale;
+    g.add(foundation);
+
+    const foundationProxy = boxCollider(tier1W + 0.8 * scale, foundationH, tier1W + 0.8 * scale);
+    foundationProxy.position.y = foundationH / 2 - 0.4 * scale;
+    g.add(foundationProxy);
+
+    // 1. Lower Defensive Tier (The Barbican)
     const tier1H = 6 * scale;
     const base1 = stoneBox(tier1W, tier1H, tier1W, stoneMat);
-    base1.position.y = tier1H / 2;
+    base1.position.y = foundationH + tier1H / 2 - 0.4 * scale;
     base1.castShadow = base1.receiveShadow = true;
     g.add(base1);
 
     const base1Proxy = boxCollider(tier1W, tier1H, tier1W);
-    base1Proxy.position.y = tier1H / 2;
+    base1Proxy.position.y = foundationH + tier1H / 2 - 0.4 * scale;
     g.add(base1Proxy);
 
-    addCrenellations(g, tier1W, tier1W, tier1H);
+    const tier1BattlementG = new THREE.Group();
+    tier1BattlementG.position.y = foundationH - 0.4 * scale;
+    addCrenellations(tier1BattlementG, tier1W, tier1W, tier1H);
+    g.add(tier1BattlementG);
 
     // Stone Cornice (Trim) - nudged to avoid overlapping base1 top face
     const cornice1 = stoneBox(tier1W + 0.4 * scale, 0.38 * scale, tier1W + 0.4 * scale, stoneMat);
-    cornice1.position.y = tier1H - 0.22 * scale;
+    cornice1.position.y = foundationH + tier1H - 0.62 * scale;
     g.add(cornice1);
 
     // 2. Middle Palace Tier
@@ -91,16 +104,16 @@ export class MalakaBrokenCastle extends Mesh {
     const tier2H = 5 * scale;
     const tier2Z = -2 * scale;
     const base2 = stoneBox(tier2W, tier2H, tier2W, stoneMat);
-    base2.position.set(0, tier1H + tier2H / 2, tier2Z);
+    base2.position.set(0, foundationH + tier1H + tier2H / 2 - 0.4 * scale, tier2Z);
     base2.castShadow = base2.receiveShadow = true;
     g.add(base2);
 
     const base2Proxy = boxCollider(tier2W, tier2H, tier2W);
-    base2Proxy.position.set(0, tier1H + tier2H / 2, tier2Z);
+    base2Proxy.position.set(0, foundationH + tier1H + tier2H / 2 - 0.4 * scale, tier2Z);
     g.add(base2Proxy);
 
     const tier2G = new THREE.Group();
-    tier2G.position.set(0, tier1H, tier2Z);
+    tier2G.position.set(0, foundationH + tier1H - 0.4 * scale, tier2Z);
     addCrenellations(tier2G, tier2W, tier2W, tier2H);
     g.add(tier2G);
 
@@ -109,16 +122,16 @@ export class MalakaBrokenCastle extends Mesh {
     const keepH = 9 * scale;
     const keepZ = -4 * scale;
     const keep = stoneBox(keepW, keepH, keepW, stoneMat);
-    keep.position.set(0, tier1H + tier2H + keepH / 2, keepZ);
+    keep.position.set(0, foundationH + tier1H + tier2H + keepH / 2 - 0.4 * scale, keepZ);
     keep.castShadow = keep.receiveShadow = true;
     g.add(keep);
 
     const keepProxy = boxCollider(keepW, keepH, keepW);
-    keepProxy.position.set(0, tier1H + tier2H + keepH / 2, keepZ);
+    keepProxy.position.set(0, foundationH + tier1H + tier2H + keepH / 2 - 0.4 * scale, keepZ);
     g.add(keepProxy);
 
     const keepG = new THREE.Group();
-    keepG.position.set(0, tier1H + tier2H, keepZ);
+    keepG.position.set(0, foundationH + tier1H + tier2H - 0.4 * scale, keepZ);
     addCrenellations(keepG, keepW, keepW, keepH);
     
     // Add arrow slits to Keep
@@ -133,12 +146,16 @@ export class MalakaBrokenCastle extends Mesh {
       const turretH = 5 * scale;
       const turretR = 1.8 * scale;
       const turret = new THREE.Group();
-      turret.position.set(tx * (tier1W / 2), tier1H, tier1W / 2);
+      turret.position.set(tx * (tier1W / 2), foundationH + tier1H - 0.4 * scale, tier1W / 2);
       
       const body = new THREE.Mesh(new THREE.CylinderGeometry(turretR, turretR, turretH, 12), stoneMat);
       body.position.y = turretH / 2;
       body.castShadow = true;
       turret.add(body);
+
+      const turretColl = cylinderCollider(turretR, turretH);
+      turretColl.position.y = turretH / 2;
+      turret.add(turretColl);
 
       // Turret Battlements
       const topR = turretR + 0.2 * scale;
@@ -146,6 +163,10 @@ export class MalakaBrokenCastle extends Mesh {
       const battlement = new THREE.Mesh(new THREE.CylinderGeometry(topR, turretR, topH, 12), stoneMat);
       battlement.position.y = turretH + topH / 2;
       turret.add(battlement);
+
+      const battlementColl = cylinderCollider(topR, topH);
+      battlementColl.position.y = turretH + topH / 2;
+      turret.add(battlementColl);
 
       // Circular Crenellations
       const mCount = 8;
@@ -194,7 +215,9 @@ export class MalakaBrokenCastle extends Mesh {
       const blockH = isKeystone ? 1.0 * scale : voussoirHeight;
       const block = stoneBox(blockW, blockH, voussoirDepth, stoneMat);
       const r = archRadius + blockH / 2 - 0.1 * scale;
-      block.position.set(-Math.cos(angle) * r, archInnerH + Math.sin(angle) * r, 0.01 * scale);
+      // Use alternating nudges for ALL voussoirs to avoid coplanar faces at rotated joints
+      const zNudge = (i % 2 === 0) ? 0.002 * scale : 0;
+      block.position.set(-Math.cos(angle) * r, archInnerH + Math.sin(angle) * r, 0.01 * scale + zNudge);
       block.rotation.z = angle - Math.PI / 2;
       gateGroup.add(block);
     }
@@ -211,7 +234,9 @@ export class MalakaBrokenCastle extends Mesh {
       const end = hoodPoints[i+1];
       const dist = start.distanceTo(end);
       const segment = stoneBox(0.2 * scale, 0.15 * scale, dist + 0.05 * scale, stoneMat);
-      segment.position.copy(start).lerp(end, 0.5);
+      // Nudge alternate segments to avoid Z-fighting at joints
+      const zNudge = (i % 2 === 0) ? 0.002 * scale : 0;
+      segment.position.copy(start).lerp(end, 0.5).add(new THREE.Vector3(0, 0, zNudge));
       segment.lookAt(end);
       gateGroup.add(segment);
     }
@@ -262,12 +287,13 @@ export class MalakaBrokenCastle extends Mesh {
     for (let i = 0; i <= mCount; i++) {
       const x = -tier1W / 2 + i * mSpacing;
       const bracket = stoneBox(0.4 * scale, 1.0 * scale, 0.6 * scale, stoneMat);
-      bracket.position.set(x, tier1H - 0.5 * scale, tier1W / 2 + 0.1 * scale);
+      bracket.position.set(x, foundationH + tier1H - 0.9 * scale, tier1W / 2 + 0.1 * scale);
       machicGroup.add(bracket);
     }
     g.add(machicGroup);
 
-    applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, stoneMat);
+    applyWorldTiling(g, mats.wood);
     return withLOD(g);
   }
 }

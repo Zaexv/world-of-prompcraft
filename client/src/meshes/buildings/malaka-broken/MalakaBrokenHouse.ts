@@ -36,21 +36,25 @@ export class MalakaBrokenHouse extends Mesh {
     const floorHeight = 2.5 * scale;
     const totalHeight = floors * floorHeight;
 
-    // 1. Stone Foundation
+    // 1. Stone Foundation — plinth wider than walls (scale-aware step) and
+    // skirted into the terrain so it doesn't float on slopes.
     const foundH = 0.6 * scale;
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, foundH, depth + 0.1), mats.stone);
-    foundation.position.y = foundH / 2;
+    const step = 0.1 * scale;
+    const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + step, foundH, depth + step), mats.stone);
+    foundation.position.y = foundH / 2 - 0.2 * scale;
     foundation.castShadow = foundation.receiveShadow = true;
     g.add(foundation);
 
-    // 2. Main Stucco Body
-    const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight - foundH, depth), mats.stucco);
-    body.position.y = foundH + (totalHeight - foundH) / 2;
+    // 2. Main Stucco Body — base buried into the foundation to avoid a coplanar seam.
+    const bodyH = totalHeight - foundH + 0.1 * scale;
+    const body = new THREE.Mesh(new THREE.BoxGeometry(width, bodyH, depth), mats.stucco);
+    body.position.y = foundH + (totalHeight - foundH) / 2 - 0.05 * scale;
     body.castShadow = body.receiveShadow = true;
     g.add(body);
 
-    const bodyProxy = boxCollider(width, totalHeight - foundH, depth);
-    bodyProxy.position.y = foundH + (totalHeight - foundH) / 2;
+    // Single proxy covers plinth + walls (ground to roof line).
+    const bodyProxy = boxCollider(width, totalHeight, depth);
+    bodyProxy.position.y = totalHeight / 2;
     g.add(bodyProxy);
 
     // 3. Roof with 3D Overhang Beams
@@ -58,7 +62,7 @@ export class MalakaBrokenHouse extends Mesh {
     const roofRadius = Math.sqrt(Math.pow((width + roofOverhang)/2, 2) * 2);
     const roofHeight = 1.8 * scale;
     const roof = new THREE.Mesh(new THREE.ConeGeometry(roofRadius, roofHeight, 4), mats.roof);
-    roof.position.y = totalHeight + (roofHeight / 2);
+    roof.position.y = totalHeight + (roofHeight / 2) - 0.05 * scale; // bury base into body top
     roof.rotation.y = Math.PI / 4;
     roof.castShadow = roof.receiveShadow = true;
     g.add(roof);
@@ -70,8 +74,7 @@ export class MalakaBrokenHouse extends Mesh {
       const edgeLen = width + roofOverhang;
       for (let j = 0; j < tileCount; j++) {
         const tile = createRoofTile(scale, mats);
-        tile.userData.noCollision = true;
-        tile.userData.noCollision = true; // Optimization: decorative tile
+        tile.userData.noCollision = true; // decorative tile
         const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
         const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
         const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;
@@ -115,8 +118,9 @@ export class MalakaBrokenHouse extends Mesh {
           g.add(balc);
 
           const ironMat = new THREE.MeshStandardMaterial({ color: 0x000000 });
+          const barGeo = new THREE.BoxGeometry(0.02 * scale, 0.8 * scale, 0.02 * scale);
           for (let i = -0.7; i <= 0.7; i += 0.1) {
-            const bar = new THREE.Mesh(new THREE.BoxGeometry(0.02 * scale, 0.8 * scale, 0.02 * scale), ironMat);
+            const bar = new THREE.Mesh(barGeo, ironMat);
             bar.position.set(wx + i * scale, fy - 0.3 * scale, depth / 2 + 0.7 * scale);
             g.add(bar);
           }
@@ -130,8 +134,15 @@ export class MalakaBrokenHouse extends Mesh {
       g.add(pergola);
     }
 
-    // Keep stone foundation/balcony masonry a constant scale (no stretching).
+    // Roof Collider — sized to footprint+eaves, not the diagonal cone radius.
+    const rColl = boxCollider(width + roofOverhang, roofHeight, depth + roofOverhang);
+    rColl.position.y = totalHeight + roofHeight / 2;
+    g.add(rColl);
+
+    // Keep materials a constant scale (no stretching).
     applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.roof);
 
     return withLOD(g);
   }

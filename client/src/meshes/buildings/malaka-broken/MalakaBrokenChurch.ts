@@ -18,6 +18,8 @@ function createStoneCross(scale: number, mat: THREE.Material): THREE.Group {
   const v = new THREE.Mesh(new THREE.BoxGeometry(t, 1.2 * scale, t), mat);
   const h = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, t, t), mat);
   h.position.y = 0.2 * scale;
+  // Nudge slightly in Z to avoid coplanar faces with the vertical bar
+  h.position.z = 0.002 * scale;
   g.add(v, h);
   v.castShadow = h.castShadow = true;
   return g;
@@ -56,7 +58,8 @@ function createRectangularGlassWindow(width: number, height: number, scale: numb
     group.add(mullionV);
 
     const mullionH = stoneBox(width, 0.12 * scale, 0.15 * scale, stoneMat);
-    mullionH.position.set(0, height/2, 0.1 * scale);
+    // Nudge slightly in Z to avoid coplanar faces with vertical mullion
+    mullionH.position.set(0, height/2, 0.102 * scale);
     group.add(mullionH);
 
     return group;
@@ -114,8 +117,10 @@ export class MalakaBrokenChurch extends Mesh {
     const plinthD = frontEdgeZ - backEdgeZ;
     const plinthZ = (frontEdgeZ + backEdgeZ) / 2;
 
-    const plinth = stoneBox(transeptW + 4 * scale, baseH, plinthD, stoneMat);
-    plinth.position.set(0, baseH / 2, plinthZ);
+    // Skirt the plinth below grade (top stays at baseH) so it doesn't float on slopes.
+    const plinthHeight = baseH + 0.4 * scale;
+    const plinth = stoneBox(transeptW + 4 * scale, plinthHeight, plinthD, stoneMat);
+    plinth.position.set(0, baseH - plinthHeight / 2, plinthZ);
     g.add(plinth);
 
     // 2. MAIN BODIES
@@ -341,7 +346,8 @@ export class MalakaBrokenChurch extends Mesh {
     const apseCross = createStoneCross(scale * 0.6, stoneMat);
     apseCross.position.set(0, naveH + apseR + 0.3 * scale, 0);
     apseG.add(apseCross);
-    apseG.position.set(0, baseH, -naveD / 2);
+    // Nudge slightly into the nave to avoid Z-fighting
+    apseG.position.set(0, baseH, -naveD / 2 + 0.1 * scale);
     g.add(apseG);
 
     // 8. STEPPED BUTTRESSES & RECTANGULAR SIDE WINDOWS
@@ -393,8 +399,29 @@ export class MalakaBrokenChurch extends Mesh {
     apseColl.position.set(0, baseH + naveH / 2, -naveD / 2 - apseR / 2);
     g.add(apseColl);
 
+    // Roof Colliders (Gabled)
+    const addGableColliders = (w: number, l: number, h: number, y: number, z: number, ry: number = 0) => {
+        const over = 1.2 * scale;
+        const sw = Math.sqrt(Math.pow(w / 2 + over, 2) + Math.pow(h, 2));
+        const ang = Math.atan2(h, w / 2 + over);
+        for (const s of [-1, 1]) {
+            const rColl = boxCollider(sw, 0.4 * scale, l);
+            // Local position within a temporary group to handle rotation
+            const rg = new THREE.Group();
+            rColl.position.set(s * (w / 4 + over / 2), h / 2, 0);
+            rColl.rotation.z = -s * ang;
+            rg.add(rColl);
+            rg.position.set(0, y, z);
+            rg.rotation.y = ry;
+            g.add(rg);
+        }
+    };
+    addGableColliders(naveW, naveD, 4.5 * scale, baseH + naveH, 0);
+    addGableColliders(transeptW, transeptD, 4.5 * scale, baseH + naveH, transeptZ, Math.PI / 2);
+
     applyWorldTiling(g, mats.stone);
     applyWorldTiling(g, mats.roof);
+    applyWorldTiling(g, mats.stucco);
     return withLOD(g);
   }
 }
