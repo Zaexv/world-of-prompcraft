@@ -45,9 +45,9 @@ export class MushroomCluster extends Mesh {
       oz: (Math.random() - 0.5) * 3 * scale,
     }));
 
-    lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);   // Full (0–80)
-    lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 80);  // Mid (80–220)
-    lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 220); // Low (220+)
+    lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);    // Full (0–130)
+    lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 130); // Mid (130–340)
+    lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 340); // Low (340+)
 
     return lod;
   }

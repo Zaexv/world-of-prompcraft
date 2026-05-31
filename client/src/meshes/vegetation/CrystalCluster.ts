@@ -45,9 +45,9 @@ export class CrystalCluster extends Mesh {
       rx: (Math.random() - 0.5) * 0.3,
     }));
 
-    lod.addLevel(buildCrystalGroup(scale, crystals, 5, true), 0);    // Full (0–100)
-    lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 100); // Mid (100–260)
-    lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 260); // Low (260+)
+    lod.addLevel(buildCrystalGroup(scale, crystals, 5, true), 0);    // Full (0–160)
+    lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 160); // Mid (160–400)
+    lod.addLevel(buildCrystalGroup(scale, crystals, 4, false), 400); // Low (400+)
 
     return lod;
   }

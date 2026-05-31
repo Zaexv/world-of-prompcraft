@@ -44,9 +44,9 @@ export class Tower extends Mesh {
     const { position: pos, scale } = ctx;
     const lod = new THREE.LOD();
     lod.position.copy(pos);
-    lod.addLevel(buildTowerGroup(scale, 8, true), 0);    // Full (0–120)
-    lod.addLevel(buildTowerGroup(scale, 6, false), 120); // Mid (120–280)
-    lod.addLevel(buildTowerGroup(scale, 4, false), 280); // Low (280+)
+    lod.addLevel(buildTowerGroup(scale, 8, true), 0);    // Full (0–180)
+    lod.addLevel(buildTowerGroup(scale, 6, false), 180); // Mid (180–420)
+    lod.addLevel(buildTowerGroup(scale, 4, false), 420); // Low (420+)
     return lod;
   }
 }
