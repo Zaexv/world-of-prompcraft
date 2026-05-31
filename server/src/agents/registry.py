@@ -18,6 +18,27 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _build_input_state(
+    npc_id: str,
+    npc_name: str,
+    npc_personality: str,
+    prompt: str,
+    player_state: dict[str, Any],
+    world_context: dict[str, Any],
+) -> dict[str, Any]:
+    """Build the per-turn graph input without clobbering persisted memory."""
+    return {
+        "messages": [HumanMessage(content=prompt)],
+        "npc_id": npc_id,
+        "npc_name": npc_name,
+        "npc_personality": npc_personality,
+        "player_state": player_state,
+        "world_context": world_context,
+        "pending_actions": [],
+        "response_text": "",
+    }
+
+
 class AgentRegistry:
     """Creates and manages one LangGraph agent per NPC."""
 
@@ -186,21 +207,14 @@ class AgentRegistry:
         # Populate the tool-closure snapshot before invocation
         self._populate_world_snapshot(npc_id, player_id)
 
-        input_state = {
-            "messages": [HumanMessage(content=prompt)],
-            "npc_id": npc_id,
-            "npc_name": npc_config["name"],
-            "npc_personality": npc_config["personality"],
-            "player_state": player_state,
-            "world_context": world_context,
-            "pending_actions": [],
-            "response_text": "",
-            # Enrichment fields — defaults here, persisted values loaded from checkpoint
-            "conversation_summary": "",
-            "mood": "neutral",
-            "relationship_score": 0,
-            "personality_notes": "",
-        }
+        input_state = _build_input_state(
+            npc_id=npc_id,
+            npc_name=npc_config["name"],
+            npc_personality=npc_config["personality"],
+            prompt=prompt,
+            player_state=player_state,
+            world_context=world_context,
+        )
 
         config = {"configurable": {"thread_id": f"{npc_id}_{player_id}"}}
 

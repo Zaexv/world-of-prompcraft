@@ -31,6 +31,8 @@ Key issues:
 - Route graph through `summarize` conditionally (token/turn thresholds).
 - Store rolling summary + only last N raw messages in active prompt.
 - Keep summary stable and bounded in size.
+- Keep checkpointed memory separate from per-turn input so long-term state is not overwritten.
+- Preserve stable player facts in the summary prompt so the NPC keeps continuity after compaction.
 
 **Target files:**
 - `server/src/agents/npc_agent.py`

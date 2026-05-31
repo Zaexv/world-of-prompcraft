@@ -9,6 +9,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 
 from src.agents.nodes.reason import make_reason_node
 from src.agents.nodes.summarize import make_summarize_node, route_after_reflect
+from src.agents.registry import _build_input_state
 
 
 def _build_messages(turns: int) -> list[object]:
@@ -44,6 +45,23 @@ def test_route_after_reflect_skips_non_interval_turns() -> None:
     state = {"messages": _build_messages(11)}
 
     assert route_after_reflect(state) == "end"
+
+
+def test_build_input_state_keeps_persistent_memory_out() -> None:
+    state = _build_input_state(
+        npc_id="npc-1",
+        npc_name="Aster",
+        npc_personality="Cautious archivist",
+        prompt="Hello again.",
+        player_state={"hp": 100},
+        world_context={"zone": "Library"},
+    )
+
+    assert "conversation_summary" not in state
+    assert "mood" not in state
+    assert "relationship_score" not in state
+    assert "personality_notes" not in state
+    assert state["messages"][0].content == "Hello again."
 
 
 @pytest.mark.asyncio
