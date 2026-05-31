@@ -8,7 +8,6 @@ import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Effects } from './Effects';
-import type { CollisionSystem } from '../systems/CollisionSystem';
 
 export class SceneManager {
   public scene: THREE.Scene;
@@ -115,9 +114,6 @@ export class SceneManager {
     window.addEventListener('resize', this.onResize.bind(this));
   }
 
-  setCollisionSystem(collisionSystem: CollisionSystem): void {
-    // Other systems that need collisions can be updated here
-  }
 
   private onResize(): void {
     this.maxPixelRatio = Math.min(window.devicePixelRatio, 1.5);

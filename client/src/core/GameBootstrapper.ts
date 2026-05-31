@@ -101,9 +101,6 @@ export function bootstrap(
   // Future landmarks will be loaded via WorldManifest and WorldBuilder.
 
   playerController.setCollisionSystem(collisionSystem);
-  // Register the scene's static colliders (starting-forest tree trunks, desert
-  // props). Without this the forest trees have no collision.
-  sceneManager.setCollisionSystem(collisionSystem);
 
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
 
