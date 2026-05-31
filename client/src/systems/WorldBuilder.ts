@@ -3,6 +3,7 @@ import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import { buildObject } from './worldbuilder/objects';
 import { WorldBuilderPersistence, PersistedObject } from './worldbuilder/WorldBuilderPersistence';
+import { tagDebugInfo } from '../debug/DebugInfo';
 
 /** A world object placed by the WorldBuilder agent */
 export interface PlacedObject {
@@ -101,6 +102,7 @@ export class WorldBuilder {
       const builtGroup = buildObject(params.objectType, pos, scale, label);
       if (!builtGroup) return undefined;
       group = builtGroup;
+      tagDebugInfo(group, { type: params.objectType, category: 'building', label: params.label });
 
       if (params.rotation) {
         group.rotation.set(rotation[0], rotation[1], rotation[2]);
