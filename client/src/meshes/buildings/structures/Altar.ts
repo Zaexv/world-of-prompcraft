@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { applyStonePBR } from '../../../utils/PBRMaps';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
+import { applyWorldTiling } from '../worldTiled';
 
 export class Altar extends Mesh {
   static readonly type = 'altar';
@@ -42,6 +43,8 @@ export class Altar extends Mesh {
     rune.position.y = 1.5 * scale;
     rune.userData.noCollision = true;
     g.add(rune);
+
+    applyWorldTiling(g, stoneMat);
 
     return g;
   }

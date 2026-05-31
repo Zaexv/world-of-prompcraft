@@ -1,14 +1,14 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createPergola, createDoor } from './MalakaKit';
+import { getMaterials, createPergola, createArchedDoor, withLOD } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaBodega extends Mesh {
   static readonly type = 'malaka_bodega';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -49,7 +49,7 @@ export class MalakaBodega extends Mesh {
     g.add(porch);
 
     // 4. Large Main Doors (End)
-    const door = createDoor(3.5 * scale, 4.5 * scale, 0.6 * scale, mats);
+    const door = createArchedDoor(3.5 * scale, 4.5 * scale, 0.6 * scale, mats);
     door.userData.noCollision = true;
     door.traverse(c => { c.userData.noCollision = true; });
     door.position.set(0, 0, length / 2 + 0.1 * scale);
@@ -69,7 +69,7 @@ export class MalakaBodega extends Mesh {
     roof.userData.noCollision = true;
     g.add(roof);
 
-    return g;
+    return withLOD(g);
   }
 }
 

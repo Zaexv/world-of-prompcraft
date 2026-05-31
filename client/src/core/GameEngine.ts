@@ -18,6 +18,7 @@ import type { PlayerState } from '../state/PlayerState';
 import { getWorldHeightAt } from '../scene/VerticalTerrain';
 import type { RuntimeState } from './RuntimeState';
 import type { NPCStateStore } from '../state/NPCState';
+import { WorldDebugOverlay } from '../debug/WorldDebugOverlay';
 
 const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
 const MOVE_SEND_INTERVAL = 1 / 10;
@@ -73,10 +74,18 @@ export class GameEngine {
   private readonly _camDir       = new THREE.Vector3();
   private readonly _idleVelocity = new THREE.Vector3();
 
-
+  private debugOverlay: WorldDebugOverlay | null = null;
 
   constructor(private readonly d: GameEngineDeps) {
     this.wireCallbacks();
+    const appContainer = d.sceneManager.renderer.domElement.parentElement;
+    if (appContainer) {
+      this.debugOverlay = new WorldDebugOverlay(
+        appContainer,
+        d.sceneManager.scene,
+        d.sceneManager.camera,
+      );
+    }
   }
 
   start(): void {
@@ -258,6 +267,14 @@ export class GameEngine {
       d.uiManager.showZoneTransition(name, desc);
       d.zoneAtmosphere.enterZone(name);
     };
+
+    // Debug overlay toggle
+    window.addEventListener('keydown', (e: KeyboardEvent) => {
+      if (e.key === 'F3') {
+        e.preventDefault();
+        this.debugOverlay?.toggle();
+      }
+    });
   }
 
   private animate(): void {
@@ -347,6 +364,8 @@ export class GameEngine {
         });
       }
     }
+
+    this.debugOverlay?.update(d.playerController.position);
   }
 
   private getTerrainHeight(x: number, z: number): number {

@@ -10,6 +10,7 @@
 import './buildings';
 import './props';
 import './vegetation';
+import './encounters';
 
 export { Mesh } from './core/Mesh';
 export type { BuildContext, MeshCategory, MeshClass } from './core/Mesh';

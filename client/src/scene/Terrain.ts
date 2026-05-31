@@ -11,6 +11,117 @@ import {
 } from './Biomes';
 import { getVerticalLiftAt, hasLiftInBounds } from './VerticalTerrain';
 
+// ── Fort Malaka city platform ────────────────────────────────────────────────
+// `cityPlatformFlatness` returns how strongly the Fort Malaka platform overrides
+// the base terrain noise at (x, z): 1 = flat plaza interior, 0 = wilderness
+// beyond it, smoothstep-blended in the ring between. Used by computeHeight to
+// level the rolling-hills noise so the city reads as a coherent plain — while
+// the authored topology features (castle hill, suarezlands mountain) are left
+// to rise on top of it.
+const CITY_CENTER_X = -160;
+const CITY_CENTER_Z = -220;
+const CITY_INNER = 95;  // radius held perfectly flat (covers every landmark)
+const CITY_OUTER = 150; // radius where the platform blends back to wilderness
+const CITY_HEIGHT = 4.0;
+
+function cityPlatformFlatness(x: number, z: number): number {
+  const fx = x - CITY_CENTER_X;
+  const fz = z - CITY_CENTER_Z;
+  const fDist = Math.sqrt(fx * fx + fz * fz);
+  if (fDist >= CITY_OUTER) return 0;
+  const raw = Math.max(0, Math.min(1, (fDist - CITY_INNER) / (CITY_OUTER - CITY_INNER)));
+  return 1 - raw * raw * (3 - 2 * raw); // smoothstep
+}
+
+// ── Flat building pads ───────────────────────────────────────────────────────
+// A building placed at a single `getHeightAt(center)` floats/tilts when the
+// authored hills/mountain slope the ground across its footprint. Rather than
+// remove those features (they're deliberate terrain), each affected building
+// gets a local pad: its footprint is levelled to the natural ground height at
+// its own centre, then smoothly blended back out — so the building sits flush
+// while the surrounding mountain/hill is preserved beyond the blend ring.
+//
+// `target` is computed lazily as the *natural* (pre-pad) height at the centre,
+// so the building stays exactly where it's placed and only the ground moves.
+interface BuildingPad {
+  x: number;
+  z: number;
+  inner: number;        // radius levelled flat — must cover the footprint
+  outer: number;        // radius where the pad blends back to natural terrain
+  target?: number;      // lazily-filled natural ground height at (x, z)
+}
+
+const PAD_BLEND = 14;   // width of the flat→natural blend ring
+
+// Only the landmarks whose footprint actually straddles a slope (range > ~1.5u);
+// flat-sited buildings (castle on its hill, etc.) are intentionally omitted.
+// `inner` ≈ the building's footprint radius (½·diagonal · scale, +margin).
+function pad(x: number, z: number, inner: number): BuildingPad {
+  return { x, z, inner, outer: inner + PAD_BLEND };
+}
+const BUILDING_PADS: BuildingPad[] = [
+  pad(-160, -220, 22), // Cathedral of Malaka
+  pad(-110, -210, 12), // Ermita de la Victoria
+  pad(-120, -165, 9),  // Bodega del Puerto
+  pad(-220, -280, 28), // Teatro Romano (amphitheatre)
+  pad(-210, -265, 9),  // Casa del Gobernador (patio_house_02)
+  pad(-270, -180, 10), // Cortijo Real (cortijo_02)
+  pad(-190, -245, 6),  // malaka_house_s1
+  pad(-115, -265, 6),  // malaka_house_e1
+  pad(-105, -230, 6),  // malaka_house_e2
+  pad(-145, -280, 7),  // malaka_house_n3 (reconstructed)
+  pad(-130, -190, 17), // Torre del Homenaje (castle) — covers its corner turrets,
+                       // which reach past the castle-hill's flat top onto the skirt.
+];
+
+/** Cheap AABB pre-check: does any pad overlap this region? */
+function padsInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  for (const p of BUILDING_PADS) {
+    const dx = Math.max(0, Math.max(minX - p.x, p.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - p.z, p.z - maxZ));
+    if (dx * dx + dz * dz < p.outer * p.outer) return true;
+  }
+  return false;
+}
+
+function padTarget(p: BuildingPad): number {
+  if (p.target === undefined) {
+    // Natural ground height at the centre (noise + platform + full lift), no pad.
+    p.target = Terrain.computeHeight(p.x, p.z) + getVerticalLiftAt(p.x, p.z);
+  }
+  return p.target;
+}
+
+/**
+ * Level a sample toward the strongest overlapping building pad. "Strongest
+ * wins" (rather than a blend of overlapping pads) guarantees a building's own
+ * footprint — where its pad is at full strength — is never pulled off-level by
+ * a neighbouring pad at a different height. Any height difference between two
+ * adjacent pads therefore lands in the open ground between them as a terrace
+ * step, never under either building.
+ */
+function applyBuildingPads(x: number, z: number, h: number): number {
+  let bestFlat = 0;
+  let bestTarget = 0;
+  for (const p of BUILDING_PADS) {
+    const dist = Math.hypot(x - p.x, z - p.z);
+    if (dist >= p.outer) continue;
+    let flat: number;
+    if (dist <= p.inner) {
+      flat = 1;
+    } else {
+      const t = (dist - p.inner) / (p.outer - p.inner);
+      flat = 1 - t * t * (3 - 2 * t); // smoothstep falloff
+    }
+    if (flat > bestFlat) {
+      bestFlat = flat;
+      bestTarget = padTarget(p);
+    }
+  }
+  if (bestFlat <= 0) return h;
+  return h * (1 - bestFlat) + bestTarget * bestFlat;
+}
+
 /**
  * Infinite procedural terrain with chunk-based loading and biome blending.
  *
@@ -162,7 +273,8 @@ export class Terrain {
    * This is the authoritative height used by PlayerController and all placement code.
    */
   getHeightAt(x: number, z: number): number {
-    return Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
+    const h = Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
+    return applyBuildingPads(x, z, h);
   }
 
   setManifest(_data: TerrainManifestData): void { /* no-op: worker removed */ }
@@ -287,27 +399,16 @@ export class Terrain {
     // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
     h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
-    // Fort Malaka city platform — smoothly flatten terrain so buildings sit flush
+    // Fort Malaka city platform — smoothly flatten terrain so buildings sit flush.
+    // (Vertical-lift suppression that completes the flattening lives in liftAt,
+    // applied alongside this by getHeightAt and the chunk mesher.)
     {
-      const fx = x + 160;
-      const fz = z + 220;
-      const fDist = Math.sqrt(fx * fx + fz * fz);
-      const INNER = 95; // Wide enough for all landmarks including the new ones
-      const OUTER = 150;
-      if (fDist < OUTER) {
-        const raw = Math.max(0, Math.min(1, (fDist - INNER) / (OUTER - INNER)));
-        const flatness = 1 - raw * raw * (3 - 2 * raw); // smoothstep
-        
-        // Target city height
-        let cityH = 4.0;
-        
-        // Add subtle "Ancient Sand Dunes" (low frequency undulation)
-        // only in the flat city area to make the sand feel natural
-        if (fDist < INNER) {
-          const dune = Math.sin(x * 0.15) * Math.cos(z * 0.12) * 0.15;
-          cityH += dune;
-        }
-
+      const flatness = cityPlatformFlatness(x, z);
+      if (flatness > 0) {
+        // Subtle "Ancient Sand Dunes" undulation, only in the fully-flat
+        // interior, so the plaza sand still reads natural.
+        const dune = flatness >= 1 ? Math.sin(x * 0.15) * Math.cos(z * 0.12) * 0.15 : 0;
+        const cityH = CITY_HEIGHT + dune;
         h = h * (1 - flatness) + cityH * flatness;
       }
     }
@@ -351,6 +452,14 @@ export class Terrain {
     // Fast pre-check: if no terrain feature overlaps this chunk, getVerticalLiftAt
     // returns 0 for every vertex and we can skip calling it entirely.
     const chunkHasLift = hasLiftInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
+    const chunkHasPad = padsInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
+
+    // Full world height for a sample point, matching getHeightAt (noise + lift +
+    // building-pad levelling). Used for edge-neighbour normals below too.
+    const sampleHeight = (sx: number, sz: number, weights?: BiomeWeights): number => {
+      const h = Terrain.computeHeight(sx, sz, weights) + (chunkHasLift ? getVerticalLiftAt(sx, sz) : 0);
+      return chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
+    };
 
     // ── Pass 1: world-space positions + biome weights + heights ───────────────
     // getBiomeWeights (sqrt + atan2 + 5 cos) is called ONCE per vertex here and
@@ -368,7 +477,7 @@ export class Terrain {
       biomeWeightsCache[i] = weights;
 
       // Pass cached weights so computeHeight skips its own getBiomeWeights call.
-      const h = Terrain.computeHeight(lx, lz, weights) + (chunkHasLift ? getVerticalLiftAt(lx, lz) : 0);
+      const h = sampleHeight(lx, lz, weights);
       heightCache[i] = h;
       positions.setY(i, h);
     }
@@ -386,10 +495,10 @@ export class Terrain {
       const vx = positions.getX(i);
       const vz = positions.getZ(i);
 
-      const hL = ix > 0       ? heightCache[i - 1]!    : Terrain.computeHeight(vx - STEP, vz) + (chunkHasLift ? getVerticalLiftAt(vx - STEP, vz) : 0);
-      const hR = ix < segments ? heightCache[i + 1]!    : Terrain.computeHeight(vx + STEP, vz) + (chunkHasLift ? getVerticalLiftAt(vx + STEP, vz) : 0);
-      const hD = iy > 0       ? heightCache[i - COLS]! : Terrain.computeHeight(vx, vz - STEP) + (chunkHasLift ? getVerticalLiftAt(vx, vz - STEP) : 0);
-      const hU = iy < segments ? heightCache[i + COLS]! : Terrain.computeHeight(vx, vz + STEP) + (chunkHasLift ? getVerticalLiftAt(vx, vz + STEP) : 0);
+      const hL = ix > 0       ? heightCache[i - 1]!    : sampleHeight(vx - STEP, vz);
+      const hR = ix < segments ? heightCache[i + 1]!    : sampleHeight(vx + STEP, vz);
+      const hD = iy > 0       ? heightCache[i - COLS]! : sampleHeight(vx, vz - STEP);
+      const hU = iy < segments ? heightCache[i + COLS]! : sampleHeight(vx, vz + STEP);
 
       const dX = (hR - hL) / (2 * STEP);
       const dZ = (hU - hD) / (2 * STEP);

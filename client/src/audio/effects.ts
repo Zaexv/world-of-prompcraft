@@ -4,6 +4,18 @@ export interface SfxDefinition {
   play: (destination: Tone.ToneAudioNode) => void;
 }
 
+/**
+ * Dispose throwaway voices after `seconds`. Uses setTimeout rather than
+ * Tone.Draw: Draw is driven by requestAnimationFrame, which fully pauses when
+ * the tab is backgrounded, so Draw-scheduled disposals never fire and the Web
+ * Audio graph grows without bound (footsteps fire every step) until it chokes
+ * and the music/SFX go silent. setTimeout still fires (throttled) in the
+ * background, so nodes are always reclaimed.
+ */
+function disposeAfter(seconds: number, fn: () => void): void {
+  setTimeout(fn, seconds * 1000);
+}
+
 function noiseSynth(duration: number, filterFreq: number, volume = -8): Tone.NoiseSynth {
   return new Tone.NoiseSynth({
     noise: { type: 'white' },
@@ -33,7 +45,7 @@ export const SFX: Record<string, SfxDefinition> = {
       s.connect(dest);
       n.triggerAttackRelease('8n');
       s.triggerAttackRelease('C2', '32n');
-      Tone.Draw.schedule(() => { n.dispose(); s.dispose(); }, Tone.now() + 0.3);
+      disposeAfter(0.3, () => { n.dispose(); s.dispose(); });
     },
   },
 
@@ -47,7 +59,7 @@ export const SFX: Record<string, SfxDefinition> = {
       }).connect(dest);
       const now = Tone.now();
       notes.forEach((n, i) => synth.triggerAttackRelease(n, '8n', now + i * 0.1));
-      Tone.Draw.schedule(() => synth.dispose(), now + 1);
+      disposeAfter(1, () => synth.dispose());
     },
   },
 
@@ -60,7 +72,7 @@ export const SFX: Record<string, SfxDefinition> = {
       filter.frequency.rampTo(200, 0.3);
       n.connect(filter);
       filter.connect(dest);
-      Tone.Draw.schedule(() => { n.dispose(); filter.dispose(); }, Tone.now() + 0.6);
+      disposeAfter(0.6, () => { n.dispose(); filter.dispose(); });
     },
   },
 
@@ -75,7 +87,7 @@ export const SFX: Record<string, SfxDefinition> = {
       synth.triggerAttackRelease('E6', '4n', now);
       synth.triggerAttackRelease('G6', '8n', now + 0.1);
       synth.triggerAttackRelease('C7', '16n', now + 0.2);
-      Tone.Draw.schedule(() => synth.dispose(), now + 1);
+      disposeAfter(1, () => synth.dispose());
     },
   },
 
@@ -87,7 +99,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const synth = shortSynth('square', 60, 0.05, -12);
       synth.connect(dest);
       synth.triggerAttackRelease('C1', '64n');
-      Tone.Draw.schedule(() => { n.dispose(); synth.dispose(); }, Tone.now() + 0.4);
+      disposeAfter(0.4, () => { n.dispose(); synth.dispose(); });
     },
   },
 
@@ -102,7 +114,7 @@ export const SFX: Record<string, SfxDefinition> = {
       synth.triggerAttackRelease('C6', '32n', now);
       synth.triggerAttackRelease('E6', '32n', now + 0.05);
       synth.triggerAttackRelease('G6', '32n', now + 0.1);
-      Tone.Draw.schedule(() => synth.dispose(), now + 0.4);
+      disposeAfter(0.4, () => synth.dispose());
     },
   },
 
@@ -114,7 +126,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const s = shortSynth('sine', 40, 0.5, -4);
       s.connect(dest);
       s.triggerAttackRelease('C1', '4n');
-      Tone.Draw.schedule(() => { n.dispose(); s.dispose(); }, Tone.now() + 0.8);
+      disposeAfter(0.8, () => { n.dispose(); s.dispose(); });
     },
   },
 
@@ -123,7 +135,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const s = shortSynth('square', 800, 0.04, -16);
       s.connect(dest);
       s.triggerAttackRelease('C5', '64n');
-      Tone.Draw.schedule(() => s.dispose(), Tone.now() + 0.1);
+      disposeAfter(0.1, () => s.dispose());
     },
   },
 
@@ -132,7 +144,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const s = shortSynth('sine', 1000, 0.06, -20);
       s.connect(dest);
       s.triggerAttackRelease('E5', '64n');
-      Tone.Draw.schedule(() => s.dispose(), Tone.now() + 0.1);
+      disposeAfter(0.1, () => s.dispose());
     },
   },
 
@@ -141,7 +153,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const s = shortSynth('square', 440, 0.15, -12);
       s.connect(dest);
       s.triggerAttackRelease('A4', '32n');
-      Tone.Draw.schedule(() => s.dispose(), Tone.now() + 0.3);
+      disposeAfter(0.3, () => s.dispose());
     },
   },
 
@@ -155,7 +167,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const now = Tone.now();
       synth.triggerAttackRelease(['C4', 'E4', 'G4'], '4n', now);
       synth.triggerAttackRelease(['C5', 'E5', 'G5'], '2n', now + 0.5);
-      Tone.Draw.schedule(() => synth.dispose(), now + 2);
+      disposeAfter(2, () => synth.dispose());
     },
   },
 
@@ -169,7 +181,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const now = Tone.now();
       synth.triggerAttackRelease(['G4', 'B4', 'D5'], '2n', now);
       synth.triggerAttackRelease(['G5', 'B5', 'D6'], '4n', now + 0.8);
-      Tone.Draw.schedule(() => synth.dispose(), now + 2);
+      disposeAfter(2, () => synth.dispose());
     },
   },
 
@@ -178,7 +190,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const s = shortSynth('sine', 1200, 0.12, -10);
       s.connect(dest);
       s.triggerAttackRelease('E6', '32n');
-      Tone.Draw.schedule(() => s.dispose(), Tone.now() + 0.2);
+      disposeAfter(0.2, () => s.dispose());
     },
   },
 
@@ -189,7 +201,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const now = Tone.now();
       s.triggerAttackRelease('C5', '16n', now);
       s.triggerAttackRelease('E5', '16n', now + 0.12);
-      Tone.Draw.schedule(() => s.dispose(), now + 0.4);
+      disposeAfter(0.4, () => s.dispose());
     },
   },
 
@@ -198,7 +210,7 @@ export const SFX: Record<string, SfxDefinition> = {
       const n = noiseSynth(0.06, 400, -35);
       n.connect(dest);
       n.triggerAttackRelease('64n');
-      Tone.Draw.schedule(() => n.dispose(), Tone.now() + 0.1);
+      disposeAfter(0.1, () => n.dispose());
     },
   },
 
@@ -214,7 +226,7 @@ export const SFX: Record<string, SfxDefinition> = {
       // Quick upward pitch sweep gives a springy "boing" lift-off.
       s.frequency.setValueAtTime('C4', now);
       s.frequency.exponentialRampToValueAtTime('G4', now + 0.12);
-      Tone.Draw.schedule(() => s.dispose(), now + 0.3);
+      disposeAfter(0.3, () => s.dispose());
     },
   },
 
@@ -240,7 +252,7 @@ export const SFX: Record<string, SfxDefinition> = {
       n.connect(filter);
       filter.connect(dest);
       n.triggerAttackRelease(0.6, now);
-      Tone.Draw.schedule(() => { n.dispose(); filter.dispose(); }, now + 1.4);
+      disposeAfter(1.4, () => { n.dispose(); filter.dispose(); });
     },
   },
 
@@ -253,7 +265,7 @@ export const SFX: Record<string, SfxDefinition> = {
       filter.frequency.rampTo(40, 0.6);
       s.connect(filter);
       filter.connect(dest);
-      Tone.Draw.schedule(() => { s.dispose(); filter.dispose(); }, Tone.now() + 1);
+      disposeAfter(1, () => { s.dispose(); filter.dispose(); });
     },
   },
 
@@ -268,7 +280,7 @@ export const SFX: Record<string, SfxDefinition> = {
       synth.triggerAttackRelease('C4', '4n', now);
       synth.triggerAttackRelease('E4', '4n', now + 0.2);
       synth.triggerAttackRelease('G4', '2n', now + 0.4);
-      Tone.Draw.schedule(() => synth.dispose(), now + 1.5);
+      disposeAfter(1.5, () => synth.dispose());
     },
   },
 };

@@ -3,6 +3,7 @@ import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArrowSlit, createMachicolations } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaTower extends Mesh {
   static readonly type = 'malaka_tower';
@@ -42,6 +43,10 @@ export class MalakaTower extends Mesh {
       c1.position.set(i, height + 0.4 * scale, width / 2 - 0.2 * scale);
       g.add(c1);
     }
+
+    // World-tile the stone so the masonry keeps a constant block size instead of
+    // stretching across the tall tower faces.
+    applyWorldTiling(g, mats.stone);
 
     return g;
   }
