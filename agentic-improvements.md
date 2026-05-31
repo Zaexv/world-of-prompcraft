@@ -21,9 +21,60 @@ Key issues:
 
 ---
 
+## Tool-Specific Findings
+
+### Combat / attack
+
+- The server detects attack-like prompts in `_handle_interaction()` and applies damage before the agent call, but it still waits for the full agent invocation before returning `agent_response` (`server/src/ws/handler.py:588-695`).
+- The client only renders damage and combat logs after `agent_response` is received, inside `WebSocketHandler.handleMessage()` (`client/src/core/WebSocketHandler.ts:192-296`), so the visible hit is gated by the slower LLM round trip.
+- The attack path also sits behind the shared `_agent_semaphore` and `wait_for(..., settings.agent_invoke_timeout_seconds)` block (`server/src/ws/handler.py:652-689`), which makes combat compete with normal dialogue traffic.
+
+### Merchants / item giving
+
+- Merchant personalities are explicitly instructed to call `offer_item` when the player asks to buy, and the shared tool preamble says every response must use at least one tool (`server/src/agents/personalities/templates.py:7-18,84-102`).
+- `offer_item()` always enqueues a `give_item` action and appends the item to the player inventory, even when the price is `0` (`server/src/agents/tools/trade.py:21-45`).
+- That combination makes “browse” or friendly opening prompts very likely to resolve as an immediate item grant instead of a browsing/sales exchange.
+
+---
+
 ## Priority Improvements
 
-## 1) Wire memory summarization into routing
+## 0) Split combat from full agent latency
+
+**Why:** Combat is already resolved server-side, but the result is held until the agent finishes, so the hit feels delayed.
+
+**Changes:**
+- Add a fast combat path in `ws/handler.py` for attack prompts:
+  - classify the prompt
+  - apply damage and effects
+  - return a compact `agent_response` immediately
+- Keep the full LangGraph run for non-combat dialogue only, or run it asynchronously for flavor text after the hit is already visible.
+- Move combat responses out of the shared LLM queue so they do not wait behind ordinary NPC chat.
+
+**Target files:**
+- `server/src/ws/handler.py`
+- `client/src/core/WebSocketHandler.ts`
+
+---
+
+## 1) Gate merchant item grants behind explicit purchase state
+
+**Why:** Merchants currently have a prompt/tool combination that makes item grants the default outcome of first contact.
+
+**Changes:**
+- Relax the “must use at least one tool in every response” rule for merchant-style interactions, or replace it with “use a tool only when the conversation changes game state.”
+- Add a browse/listing tool or response path that shows inventory without calling `offer_item`.
+- Restrict `offer_item` to explicit buy confirmation or a separate gift condition, not generic greeting/browse prompts.
+- Keep server-side inventory sync in `offer_item`, but make the tool harder to reach from casual merchant chatter.
+
+**Target files:**
+- `server/src/agents/personalities/templates.py`
+- `server/src/agents/tools/trade.py`
+- `client/src/ui/NPCActionConfig.ts`
+
+---
+
+## 2) Wire memory summarization into routing
 
 **Why:** Reduces prompt bloat and improves long-session consistency.
 
@@ -43,7 +94,7 @@ Key issues:
 
 ---
 
-## 2) Introduce strict action normalization/validation
+## 3) Introduce strict action normalization/validation
 
 **Why:** Improves reliability and avoids mismatched action payloads.
 
@@ -59,7 +110,7 @@ Key issues:
 
 ---
 
-## 3) Split concurrency budgets by traffic type
+## 4) Split concurrency budgets by traffic type
 
 **Why:** Keep player-initiated interactions fast even during ambient NPC chatter.
 
@@ -75,7 +126,7 @@ Key issues:
 
 ---
 
-## 4) Add stage-level latency telemetry
+## 5) Add stage-level latency telemetry
 
 **Why:** Enables evidence-based tuning and regressions detection.
 
@@ -96,7 +147,7 @@ Key issues:
 
 ---
 
-## 5) Expand deterministic fast paths
+## 6) Expand deterministic fast paths
 
 **Why:** Avoid expensive full-agent runs for simple intents.
 
@@ -114,7 +165,7 @@ Key issues:
 
 ---
 
-## 6) Improve retrieval relevance and cost control
+## 7) Improve retrieval relevance and cost control
 
 **Why:** Better context improves response quality while avoiding unnecessary tokens.
 
@@ -129,7 +180,7 @@ Key issues:
 
 ---
 
-## 7) Tool contract hardening
+## 8) Tool contract hardening
 
 **Why:** Better tool IO quality improves final dialogue and world consistency.
 

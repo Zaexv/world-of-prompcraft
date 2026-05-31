@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any
 
 import httpx
-from langchain_anthropic import ChatAnthropic
 from langchain_openai import ChatOpenAI
 
 if TYPE_CHECKING:
@@ -11,18 +10,38 @@ if TYPE_CHECKING:
 
     from ..config import Settings
 
-_HTTP_TIMEOUT = 20.0
-
 
 def get_llm(settings: Settings) -> BaseChatModel:
-    """Factory that returns a chat model based on the configured provider."""
+    """Return a ChatOpenAI-compatible model for the configured provider.
+
+    All three providers (claude, openai, ollama) use the ChatOpenAI adapter so
+    they share the same interface, configuration surface, and timeout handling.
+    Claude is accessed via Anthropic's OpenAI-compatible endpoint; Ollama via
+    its built-in /v1 shim; OpenAI natively.
+    """
     if settings.llm_provider == "claude":
-        return ChatAnthropic(
-            model=settings.anthropic_model,  # type: ignore[call-arg]
+        model_kwargs: dict[str, Any] = {}
+        if settings.anthropic_reasoning_effort:
+            model_kwargs["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": 1024,
+            }
+        return ChatOpenAI(
+            model=settings.anthropic_model,
             api_key=settings.anthropic_api_key,  # type: ignore[arg-type]
-            http_client=httpx.AsyncClient(timeout=_HTTP_TIMEOUT),
+            base_url=settings.anthropic_base_url,
+            temperature=settings.llm_temperature,
+            max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
+            request_timeout=settings.anthropic_request_timeout_seconds,
+            max_retries=settings.anthropic_max_retries,
+            http_client=httpx.AsyncClient(timeout=settings.anthropic_request_timeout_seconds),
+            model_kwargs=model_kwargs if model_kwargs else {},
         )
+
     if settings.llm_provider == "openai":
+        model_kwargs = {}
+        if settings.openai_reasoning_effort:
+            model_kwargs["reasoning_effort"] = settings.openai_reasoning_effort
         return ChatOpenAI(
             model=settings.openai_model,
             api_key=settings.openai_api_key,  # type: ignore[arg-type]
@@ -30,12 +49,12 @@ def get_llm(settings: Settings) -> BaseChatModel:
             temperature=settings.llm_temperature,
             max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
             request_timeout=settings.openai_request_timeout_seconds,
+            max_retries=settings.openai_max_retries,
+            model_kwargs=model_kwargs if model_kwargs else {},
         )
+
     if settings.llm_provider == "ollama":
-        # `reasoning_effort` is forwarded to ollama's OpenAI-compatible endpoint to
-        # control "thinking" models. Without it, a reasoning model burns the whole
-        # token budget on its hidden reasoning block and returns empty content.
-        model_kwargs: dict[str, Any] = {}
+        model_kwargs = {}
         if settings.ollama_reasoning_effort:
             model_kwargs["reasoning_effort"] = settings.ollama_reasoning_effort
         return ChatOpenAI(
@@ -48,4 +67,5 @@ def get_llm(settings: Settings) -> BaseChatModel:
             max_retries=settings.ollama_max_retries,
             model_kwargs=model_kwargs,
         )
+
     raise ValueError(f"Unknown LLM provider: {settings.llm_provider}")

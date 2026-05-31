@@ -160,6 +160,19 @@ export class WebSocketHandler {
         this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, '#c5a55a');
         const npc = this.d.entityManager.getNPC(data.npcId as string);
         this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
+
+        // Show NPC narration in the active interaction panel so the player sees it mid-combat
+        const isActiveNpc = (data.npcId as string) === this.d.runtime.activeNpcId;
+        if (isActiveNpc && data.dialogue) {
+          this.d.uiManager.interactionPanel.addMessage('npc', data.dialogue as string);
+        }
+        // Log to combat HUD when a fight is in progress
+        if (this.d.uiManager.combatHUD.isVisible && data.dialogue) {
+          this.d.uiManager.combatHUD.addLogEntry(
+            `${data.npcName as string}: ${data.dialogue as string}`,
+            '#c5a55a',
+          );
+        }
       } else {
         this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
         const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
@@ -169,12 +182,33 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'npc_actions') {
-      this.d.reactionSystem.handleResponse({
-        type: 'agent_response', npcId: data.npcId as string, dialogue: '',
+      const npcActionsResponse: AgentResponse = {
+        type: 'agent_response',
+        npcId: data.npcId as string,
+        dialogue: '',
         actions: (data.actions as AgentResponse['actions']) ?? [],
         npcStateUpdate: data.npcStateUpdate ?? undefined,
         playerStateUpdate: undefined,
-      } as AgentResponse);
+      };
+      this.d.reactionSystem.handleResponse(npcActionsResponse);
+
+      // Log NPC counter-attack damage from multiplayer broadcast to combat log
+      const npcActionsName =
+        this.d.npcNameMap.get(data.npcId as string) ??
+        this.d.entityManager.getNPC(data.npcId as string)?.name ??
+        (data.npcId as string);
+      for (const action of (data.actions as AgentResponse['actions']) ?? []) {
+        if (action.kind === 'damage' && (action.params.target as string | undefined) === 'player') {
+          const amount = (action.params.amount as number | undefined) ?? 0;
+          const dmgType = (action.params.damageType as string | undefined) ?? 'physical';
+          const msg = `${npcActionsName} retaliates for ${amount} ${dmgType} damage!`;
+          if (this.d.uiManager.combatHUD.isVisible) {
+            this.d.uiManager.combatHUD.addLogEntry(msg, '#ff4444');
+          } else {
+            this.d.uiManager.addCombatLog(msg, '#ff4444');
+          }
+        }
+      }
       return;
     }
 
