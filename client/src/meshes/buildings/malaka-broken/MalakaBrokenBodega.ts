@@ -23,12 +23,14 @@ export class MalakaBrokenBodega extends Mesh {
     const foundationH = 1.2 * scale;
     const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + 0.4 * scale, foundationH, length + 0.4 * scale), mats.stone);
     foundation.position.y = foundationH / 2 - 0.2 * scale; // Sunk into ground
+    foundation.userData.noCollision = true;
     g.add(foundation);
 
     // 1. Massive Industrial Nave
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), mats.stucco);
     body.position.y = foundationH + height / 2 - 0.2 * scale;
     body.castShadow = true;
+    body.userData.noCollision = true;
     g.add(body);
 
     const bodyProxy = boxCollider(width, height + foundationH, length);
@@ -41,10 +43,12 @@ export class MalakaBrokenBodega extends Mesh {
     for (let z = -length / 2 + 2 * scale; z <= length / 2 - 2 * scale; z += 3 * scale) {
       const winL = new THREE.Mesh(new THREE.BoxGeometry(0.1 * scale, winH, winW), mats.glass);
       winL.position.set(-width / 2 - 0.05 * scale, foundationH + height - 1.2 * scale, z);
+      winL.userData.noCollision = true;
       g.add(winL);
 
       const winR = winL.clone();
       winR.position.x = width / 2 + 0.05 * scale;
+      winR.userData.noCollision = true;
       g.add(winR);
     }
 
@@ -91,7 +95,6 @@ export class MalakaBrokenBodega extends Mesh {
     }
 
     applyWorldTiling(g, mats.stone);
-    applyWorldTiling(g, mats.stucco);
     applyWorldTiling(g, mats.roof);
     return withLOD(g);
   }
