@@ -2,9 +2,15 @@ import * as THREE from 'three';
 
 const loader = new THREE.TextureLoader();
 
+// 4× anisotropic filtering keeps tiled detail (terrain, stone, bark, roof tiles)
+// crisp at the grazing angles the third-person camera constantly looks across,
+// where plain trilinear mipmapping would otherwise smear it into a blur.
+const ANISOTROPY = 4;
+
 function rep(url: string): THREE.Texture {
   const t = loader.load(url);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.anisotropy = ANISOTROPY;
   return t;
 }
 
@@ -150,7 +156,7 @@ export function applyCanopyPBR(m: THREE.MeshStandardMaterial): void {
 export function applyStonePBR(m: THREE.MeshStandardMaterial): void {
   m.map = stoneDiff;
   m.normalMap = stoneNor;
-  m.normalScale.set(0.5, 0.5);
+  m.normalScale.set(0.85, 0.85); // stronger relief — the masonry was reading too flat
   m.roughnessMap = stoneRough;
   m.needsUpdate = true;
 }
@@ -180,7 +186,7 @@ export function applyMalakaPBR(
     case 'roof':
       m.map = malakaRoofDiff;
       m.normalMap = malakaRoofNor;
-      m.normalScale.set(0.8, 0.8);
+      m.normalScale.set(1.3, 1.3); // strong relief so the clay tiles don't read flat
       m.roughness = 0.75; // Weathered clay
       break;
     case 'stone':
@@ -248,6 +254,7 @@ function makeCanopyNor(size: number): THREE.Texture {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(3, 3);
+  tex.anisotropy = ANISOTROPY;
   tex.needsUpdate = true;
   return tex;
 }
@@ -285,6 +292,7 @@ function makeSkinNor(size: number): THREE.Texture {
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(4, 4); // tile finely so pores read at face scale
+  tex.anisotropy = ANISOTROPY;
   tex.needsUpdate = true;
   return tex;
 }
