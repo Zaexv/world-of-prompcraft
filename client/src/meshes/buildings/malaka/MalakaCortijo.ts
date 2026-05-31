@@ -8,9 +8,11 @@ import {
   createChimney,
   createFlowerPot,
   createWoodenShutters,
-  createPergola
+  createPergola,
+  withLOD,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 /**
  * Helper to create a proper Mediterranean hip roof.
@@ -51,7 +53,7 @@ export class MalakaCortijo extends Mesh {
   static readonly type = 'malaka_cortijo';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -97,6 +99,7 @@ export class MalakaCortijo extends Mesh {
     // Tower Roof (Hip)
     const tRoof = createHipRoof(towerSize + ovr * 2, towerSize + ovr * 2, 2.2 * scale, mats.roof);
     tRoof.position.y = towerH - 0.05 * scale;
+    tRoof.userData.noCollision = true;
     g.add(tRoof);
 
     // ── 2. BACK WING (Left-Extending, Pitched Roof) ──────────────────────────
@@ -124,12 +127,17 @@ export class MalakaCortijo extends Mesh {
     // Arched Gate (Portón de Carros) in Back Wing
     const gate = createArchedDoor(3.8 * scale, 4.4 * scale, 0.6 * scale, mats);
     gate.position.set(bWX + 2.5 * scale, 0, wingLD / 2 + 0.05 * scale);
+    gate.userData.noCollision = true;
+    gate.traverse((child) => {
+      child.userData.noCollision = true;
+    });
     g.add(gate);
 
     // Windows for Back Wing
     for (let i = -1; i <= 0; i++) {
         const win = createWindowWithGrille(0.9 * scale, 1.2 * scale, scale, mats);
         win.position.set(bWX + i * 4 * scale - 1.5 * scale, 2.2 * scale, wingLD / 2 + 0.05 * scale);
+        win.userData.noCollision = true;
         g.add(win);
     }
 
@@ -201,7 +209,8 @@ export class MalakaCortijo extends Mesh {
         g.add(pot);
     }
 
-    return g;
+    applyWorldTiling(g, mats.stone);
+    return withLOD(g);
   }
 }
 

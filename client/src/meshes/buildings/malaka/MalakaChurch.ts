@@ -1,33 +1,12 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createDoor, createRoofTile } from './MalakaKit';
+import { getMaterials, createDoor, createRoofTile, withLOD } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
-import { applyMalakaPBR } from '../../../utils/PBRMaps';
-
-const STONE_UNITS_PER_TILE = 2.2;
-
-/**
- * Rewrite a BoxGeometry's UVs so the stone texture tiles by world size.
- */
-function tileBoxUVsWorld(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  const faceSpan: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-  for (let f = 0; f < 6; f++) {
-    const uTiles = Math.max(1, Math.round(faceSpan[f][0] / STONE_UNITS_PER_TILE));
-    const vTiles = Math.max(1, Math.round(faceSpan[f][1] / STONE_UNITS_PER_TILE));
-    for (let i = 0; i < 4; i++) {
-      const idx = f * 4 + i;
-      uv.setXY(idx, uv.getX(idx) * uTiles, uv.getY(idx) * vTiles);
-    }
-  }
-  uv.needsUpdate = true;
-}
+import { applyWorldTiling } from '../worldTiled';
 
 function stoneBox(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
-  const geo = new THREE.BoxGeometry(w, h, d);
-  tileBoxUVsWorld(geo, w, h, d);
-  const mesh = new THREE.Mesh(geo, mat);
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
@@ -83,29 +62,16 @@ function createRectangularGlassWindow(width: number, height: number, scale: numb
     return group;
 }
 
-let _worldStone: THREE.MeshStandardMaterial | null = null;
-function getWorldStone(): THREE.MeshStandardMaterial {
-  if (!_worldStone) {
-    const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
-    applyMalakaPBR(m, 'stone');
-    if (m.map) { m.map = m.map.clone(); m.map.repeat.set(1, 1); m.map.needsUpdate = true; }
-    if (m.normalMap) { m.normalMap = m.normalMap.clone(); m.normalMap.repeat.set(1, 1); m.normalMap.needsUpdate = true; }
-    m.needsUpdate = true;
-    _worldStone = m;
-  }
-  return _worldStone;
-}
-
 export class MalakaChurch extends Mesh {
   static readonly type = 'malaka_church';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
     const mats = getMaterials();
-    const stoneMat = getWorldStone();
+    const stoneMat = mats.stone;
 
     // Helper for Corbel Tables
     const addCorbels = (parent: THREE.Group, width: number, length: number, height: number, spacing: number) => {
@@ -427,7 +393,9 @@ export class MalakaChurch extends Mesh {
     apseColl.position.set(0, baseH + naveH / 2, -naveD / 2 - apseR / 2);
     g.add(apseColl);
 
-    return g;
+    applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.roof);
+    return withLOD(g);
   }
 }
 

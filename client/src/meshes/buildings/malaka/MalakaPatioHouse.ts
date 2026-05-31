@@ -12,15 +12,17 @@ import {
   createWoodenBench,
   createWoodenTable,
   createClimbingPlant,
+  withLOD,
   MedMaterials,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaPatioHouse extends Mesh {
   static readonly type = 'malaka_patio_house';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -384,7 +386,8 @@ export class MalakaPatioHouse extends Mesh {
         }
     }
 
-    return g;
+    applyWorldTiling(g, mats.stone);
+    return withLOD(g);
   }
 
   private createRailing(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
