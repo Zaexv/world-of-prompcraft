@@ -5,18 +5,18 @@ import {
   getMaterials,
   createRoofTile,
   createChimney,
-  createArchedDoor,
+  createDoor,
   createWindowWithGrille,
   createWoodenShutters,
   createFlowerPot,
   createPergola,
   withLOD,
-} from './MalakaKit';
+} from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
-export class MalakaHouse extends Mesh {
-  static readonly type = 'malaka_house';
+export class MalakaBrokenHouse extends Mesh {
+  static readonly type = 'malaka_broken_house';
   static readonly category = 'building' as const;
 
   build(ctx: BuildContext): THREE.LOD {
@@ -88,7 +88,7 @@ export class MalakaHouse extends Mesh {
     }
 
     // 4. Arched Door
-    const door = createArchedDoor(1.0 * scale, 2.2 * scale, 0.2 * scale, mats);
+    const door = createDoor(1.0 * scale, 2.2 * scale, 0.2 * scale, mats);
     door.position.set(0, 0, depth / 2 + 0.05 * scale);
     g.add(door);
 
@@ -137,4 +137,4 @@ export class MalakaHouse extends Mesh {
   }
 }
 
-registerMesh(MalakaHouse);
+registerMesh(MalakaBrokenHouse);

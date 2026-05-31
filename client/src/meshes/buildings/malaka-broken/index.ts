@@ -1,0 +1,11 @@
+import './MalakaBrokenHouse';
+import './MalakaBrokenHouseReconstructed';
+import './MalakaBrokenPatioHouse';
+import './MalakaBrokenErmita';
+import './MalakaBrokenChurch';
+import './MalakaBrokenCastle';
+import './MalakaBrokenTower';
+import './MalakaBrokenWall';
+import './MalakaBrokenCortijo';
+import './MalakaBrokenBodega';
+import './MalakaBrokenRomanAmphitheatre';
