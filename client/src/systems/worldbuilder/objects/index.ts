@@ -1,41 +1,21 @@
 import * as THREE from 'three';
-import * as structures from './structures';
-import * as mediterranean from './mediterranean';
 import * as vegetation from './vegetation';
 import * as furniture from './furniture';
+import { buildMesh } from '../../../meshes';
 
-export type ObjectType = 
+export type ObjectType =
   | 'moonwell' | 'tower' | 'ruins' | 'altar' | 'runic_stone' | 'wooden_fence' | 'pavilion' | 'portal_arch'
   | 'malaka_house' | 'malaka_house_reconstructed' | 'malaka_ermita' | 'malaka_patio_house' | 'malaka_cortijo' | 'malaka_bodega' | 'malaka_church' | 'malaka_castle' | 'malaka_wall' | 'malaka_tower' | 'roman_amphitheatre' | 'road'
   | 'mushroom_cluster' | 'ancient_tree' | 'crystal_cluster'
   | 'campfire' | 'bonfire' | 'lantern';
 
 export function buildObject(type: string, pos: THREE.Vector3, scale: number, label?: string): THREE.Object3D {
-  switch (type) {
-    // Basic Structures
-    case 'moonwell': return structures.buildMoonwell(pos, scale);
-    case 'tower': return structures.buildTower(pos, scale);
-    case 'ruins': return structures.buildRuins(pos, scale);
-    case 'altar': return structures.buildAltar(pos, scale);
-    case 'runic_stone': return structures.buildRunicStone(pos, scale);
-    case 'wooden_fence': return structures.buildWoodenFence(pos, scale);
-    case 'pavilion': return structures.buildPavilion(pos, scale);
-    case 'portal_arch': return structures.buildPortalArch(pos, scale);
-    case 'road': return structures.buildRoad(pos, scale);
+  // Registry-driven meshes (buildings/structures) take precedence. Anything not
+  // yet migrated falls through to the legacy switch below.
+  const registered = buildMesh(type, { position: pos, scale, label });
+  if (registered) return registered;
 
-    // Mediterranean City
-    case 'malaka_house': return mediterranean.buildMalakaHouse(pos, scale);
-    case 'malaka_house_reconstructed': return mediterranean.buildMalakaHouseReconstructed(pos, scale);
-    case 'malaka_ermita': return mediterranean.buildMalakaErmita(pos, scale);
-    case 'malaka_patio_house': return mediterranean.buildMalakaPatioHouse(pos, scale);
-    case 'malaka_cortijo': return mediterranean.buildMalakaCortijo(pos, scale);
-    case 'malaka_bodega': return mediterranean.buildMalakaBodega(pos, scale);
-    case 'malaka_church': return mediterranean.buildMalakaChurch(pos, scale);
-    case 'malaka_castle': return mediterranean.buildMalakaCastle(pos, scale);
-    case 'malaka_wall': return mediterranean.buildMalakaWall(pos, scale);
-    case 'malaka_tower': return mediterranean.buildMalakaTower(pos, scale);
-    case 'roman_amphitheatre': return mediterranean.buildRomanAmphitheatre(pos, scale);
-    
+  switch (type) {
     case 'mushroom_cluster': return vegetation.buildMushroomCluster(pos, scale);
     case 'ancient_tree': 
     case 'ancient_tree_cluster':

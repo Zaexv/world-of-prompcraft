@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { AssetPaths } from '../config/AssetPaths';
 import type { CollisionSystem } from '../systems/CollisionSystem';
 import { buildBonfire } from '../systems/worldbuilder/objects/furniture';
-import { buildMoonwell, buildPavilion } from '../systems/worldbuilder/objects/structures';
+import { buildMesh } from '../meshes';
 import { applyBarkPBR, applyCanopyPBR } from '../utils/PBRMaps';
 import { Water } from './Water';
 import type { Terrain } from './Terrain';
@@ -647,15 +647,25 @@ export class StartingForest {
       this.root.add(ring);
 
       if (site.includeMoonwell) {
-        const moonwell = buildMoonwell(new THREE.Vector3(site.x - 8, y, site.z + 6), site.scale);
-        moonwell.rotation.y = site.rotation;
-        this.root.add(moonwell);
+        const moonwell = buildMesh('moonwell', {
+          position: new THREE.Vector3(site.x - 8, y, site.z + 6),
+          scale: site.scale,
+        });
+        if (moonwell) {
+          moonwell.rotation.y = site.rotation;
+          this.root.add(moonwell);
+        }
       }
 
       if (site.includeTemple) {
-        const temple = buildPavilion(new THREE.Vector3(site.x + 12, y, site.z - 6), site.scale);
-        temple.rotation.y = site.rotation + Math.PI * 0.25;
-        this.root.add(temple);
+        const temple = buildMesh('pavilion', {
+          position: new THREE.Vector3(site.x + 12, y, site.z - 6),
+          scale: site.scale,
+        });
+        if (temple) {
+          temple.rotation.y = site.rotation + Math.PI * 0.25;
+          this.root.add(temple);
+        }
       }
 
       for (let i = 0; i < site.bonfires; i++) {

@@ -155,6 +155,59 @@ flowchart TD
 
 ---
 
+## Mesh Catalog & Registry (`client/src/meshes/`)
+
+Every building is a **class in its own file** under `client/src/meshes/`, registered
+in a central catalog. Geometry ("what a building looks like") is fully separated from
+placement ("where/when it appears"). There are **no `switch` statements** mapping a
+type string to a builder — the registry does that lookup.
+
+```mermaid
+flowchart TD
+    subgraph Catalog["meshes/ — geometry catalog"]
+        BASE["core/Mesh.ts\nabstract base: static type + category\nbuild(ctx): Object3D"]
+        REG["core/MeshRegistry.ts\ntype → instance map\nregisterMesh · buildMesh · meshTypes"]
+        MAL["buildings/malaka/*\n11 Andalusian classes + MalakaKit\n(shared material cache + helpers)"]
+        STR["buildings/structures/*\n9 generic classes\n(Moonwell, Tower, Ruins, Road…)"]
+        BIO["buildings/biome/*\n19 procedural classes + BiomeKit\n+ BiomeBuildings (biome→type[] table)"]
+    end
+
+    subgraph Placement["Placement layer — where/when"]
+        WB["WorldBuilder.spawnObject()\nauthored landmarks → buildObject()"]
+        PP["ProceduralPopulator\nselectBiomeBuildingType(biome, rng, dist)"]
+        FO["Forest.ts\nmoonwell / pavilion set-pieces"]
+    end
+
+    MAL & STR & BIO -->|"registerMesh() at import"| REG
+    BASE --> MAL & STR & BIO
+    WB -->|"buildMesh(type, ctx)"| REG
+    PP -->|"buildMesh(type, ctx)"| REG
+    FO -->|"buildMesh(type, ctx)"| REG
+```
+
+**Key points**
+- **One mesh = one class = one file.** Each `extends Mesh`, declares `static readonly type`
+  / `static readonly category`, implements `build(ctx: BuildContext): THREE.Object3D`, and
+  calls `registerMesh(...)` at the bottom of its file.
+- **Self-registration.** `meshes/index.ts` side-effect-imports `buildings/index.ts`, which
+  imports every class file. Importing the catalog registers everything; nothing else needs editing.
+- **`build()` is pure geometry.** No scene insertion, collision registration, or persistence —
+  those stay in the placement layer (`WorldBuilder` / `WorldGenerator` / `ProceduralPopulator`).
+- **Procedural selection is a data table.** `BiomeBuildings.ts` maps each biome to its building
+  `type[]`; `selectBiomeBuildingType()` picks one with the seeded RNG (preserving deterministic
+  layouts), then `buildMesh()` constructs it.
+- **Shared kits.** `MalakaKit` (Andalusian material cache + architectural helpers) and `BiomeKit`
+  (`m`/`solid`/`deco` helpers + material cache) are imported by their building classes so textures
+  and materials are created once and reused.
+- `buildObject()` in `worldbuilder/objects/` now delegates to `buildMesh()` first, falling back to
+  the legacy switch only for not-yet-migrated kinds (vegetation, furniture).
+
+> **Scope:** buildings (authored + procedural) are migrated. Props, vegetation, encounter
+> set-pieces, and NPC body meshes still live under `systems/worldbuilder/objects/` and
+> `entities/`; they will follow the same `Mesh` base class + registry in a later pass.
+
+---
+
 ## Collision System
 
 The game uses **cannon-es swept AABB** with tag-based geometry filtering so decorative mesh parts (canopies, arches) don't block movement.
