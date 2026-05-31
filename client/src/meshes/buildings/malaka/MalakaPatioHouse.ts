@@ -30,7 +30,7 @@ export class MalakaPatioHouse extends Mesh {
     const wallT = 1.2 * scale;
 
     // 1. Foundation
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.4, 0.5 * scale, outerD + 0.4), mats.stone);
+    const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.4 * scale, 0.5 * scale, outerD + 0.4 * scale), mats.stone);
     foundation.position.y = 0.25 * scale;
     g.add(foundation);
 
@@ -57,21 +57,25 @@ export class MalakaPatioHouse extends Mesh {
     // 3. Central Patio Floor & Fountain
     const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioW + 1 * scale, patioD + 1 * scale), mats.stone);
     patioFloor.rotation.x = -Math.PI / 2;
-    patioFloor.position.y = 0.51 * scale;
+    // Raise floor so it clears the foundation top (0.5*scale) with 0.05*scale margin
+    patioFloor.position.y = 0.55 * scale;
     g.add(patioFloor);
 
-    // Fountain
+    // Fountain — decorative, no collision
     const fountainBase = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * scale, 1.0 * scale, 0.4 * scale, 8), mats.stone);
     fountainBase.position.y = 0.7 * scale;
+    fountainBase.userData.noCollision = true;
     g.add(fountainBase);
 
     const waterMat = new THREE.MeshStandardMaterial({ color: 0x44aa88, metalness: 0.9, roughness: 0.1, transparent: true, opacity: 0.8 });
     const water = new THREE.Mesh(new THREE.CylinderGeometry(0.7 * scale, 0.7 * scale, 0.1 * scale, 16), waterMat);
     water.position.y = 0.9 * scale;
+    water.userData.noCollision = true;
     g.add(water);
 
     const fountainStem = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.2 * scale, 0.8 * scale, 8), mats.stone);
     fountainStem.position.y = 1.1 * scale;
+    fountainStem.userData.noCollision = true;
     g.add(fountainStem);
 
     // 4. Interior Arched Portico (The hallmark of the Patio house)
@@ -111,7 +115,6 @@ export class MalakaPatioHouse extends Mesh {
       for (let j = 0; j < tileCount; j++) {
         const tile = createRoofTile(scale, mats);
         tile.userData.noCollision = true;
-        tile.userData.noCollision = true; // Optimization: decorative tile
         const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
         const tx = Math.cos(angle) * (edgeLen / 2) - Math.sin(angle) * offset;
         const tz = Math.sin(angle) * (edgeLen / 2) + Math.cos(angle) * offset;

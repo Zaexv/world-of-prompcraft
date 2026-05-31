@@ -18,7 +18,7 @@ export class Campfire extends Mesh {
       const geo = new THREE.SphereGeometry(0.25 * scale, 5, 4);
       const mesh = new THREE.Mesh(geo, stoneMat);
       mesh.position.set(Math.cos(angle) * 0.6 * scale, 0.2 * scale, Math.sin(angle) * 0.6 * scale);
-      mesh.userData.noCollision = true;
+      mesh.userData.isCollider = true;
       g.add(mesh);
     }
 

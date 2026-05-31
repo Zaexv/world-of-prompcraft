@@ -21,7 +21,7 @@ function buildMushroomGroup(scale: number, stems: StemData[], stemSegs: number, 
     g.add(stem);
 
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.3, 0.4 * scale, capSegs), capMat);
-    cap.position.set(ox, h + 0.2 * scale, oz);
+    cap.position.set(ox, h + 0.3 * scale, oz);
     cap.userData.noCollision = true;
     g.add(cap);
   }
