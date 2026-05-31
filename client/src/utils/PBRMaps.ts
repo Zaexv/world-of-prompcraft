@@ -17,15 +17,31 @@ const leatherNor = rep('/textures/leather_nor.jpg');
 const leatherRough = rep('/textures/leather_rough.jpg');
 
 // Building stone: cobblestone_floor_01 (Poly Haven CC0) — 2 tiles per UV unit
+const stoneDiff = rep('/textures/stone_diff.jpg');
 const stoneNor = rep('/textures/stone_nor.jpg');
 const stoneRough = rep('/textures/stone_rough.jpg');
+stoneDiff.colorSpace = THREE.SRGBColorSpace;
+stoneDiff.repeat.set(2, 2);
 stoneNor.repeat.set(2, 2);
 stoneRough.repeat.set(2, 2);
 
-// Malaka procedural maps
+// Malaka procedural normal maps
 const malakaStuccoNor = makeMalakaStuccoNor(512);
 const malakaRoofNor = makeMalakaRoofNor(512);
 const malakaStoneNor = makeMalakaStoneNor(512);
+
+// Malaka albedo maps (Poly Haven CC0): white plaster, terracotta tiles,
+// cut limestone blocks, dark wood. Replace the old procedural canvas maps.
+function diff(url: string, rx: number, ry: number): THREE.Texture {
+  const t = rep(url);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.repeat.set(rx, ry);
+  return t;
+}
+const malakaStuccoDiff = diff('/textures/stucco_diff.jpg', 3, 3);
+const malakaRoofDiff = diff('/textures/roof_diff.jpg', 5, 5);
+const malakaStoneDiff = diff('/textures/malaka_stone_diff.jpg', 4, 4);
+const malakaWoodDiff = diff('/textures/wood_diff.jpg', 2, 2);
 
 // Skin: procedural pore-noise normal map — tiled fine over the face
 const skinNor = makeSkinNor(256);
@@ -55,8 +71,9 @@ export function warmUpTextures(renderer: THREE.WebGLRenderer): void {
   const all = [
     terrainNor, terrainRough,
     leatherNor, leatherRough,
-    stoneNor, stoneRough,
+    stoneDiff, stoneNor, stoneRough,
     malakaStuccoNor, malakaRoofNor, malakaStoneNor,
+    malakaStuccoDiff, malakaRoofDiff, malakaStoneDiff, malakaWoodDiff,
     skinNor,
     barkDiff, barkNor, barkRough,
     canopyDiff, canopyNor,
@@ -116,31 +133,54 @@ export function applyCanopyPBR(m: THREE.MeshStandardMaterial): void {
   m.needsUpdate = true;
 }
 
-/** Add cobblestone detail to a stone building material. */
+/**
+ * Add cobblestone detail to a stone building material. The albedo multiplies
+ * with the material's existing `color`, so callers keep their tint (e.g. the
+ * moonwell blue, altar purple) while gaining real stone texture + relief.
+ */
 export function applyStonePBR(m: THREE.MeshStandardMaterial): void {
+  m.map = stoneDiff;
   m.normalMap = stoneNor;
   m.normalScale.set(0.5, 0.5);
   m.roughnessMap = stoneRough;
   m.needsUpdate = true;
 }
 
-/** Apply custom Malaka architectural PBR maps. */
-export function applyMalakaPBR(m: THREE.MeshStandardMaterial, type: 'stucco' | 'roof' | 'stone'): void {
+/** Apply the dark-wood albedo (Poly Haven CC0) to a timber material. */
+export function applyWoodPBR(m: THREE.MeshStandardMaterial): void {
+  m.map = malakaWoodDiff;
+  m.color.set(0xffffff); // let the wood grain drive colour
+  m.needsUpdate = true;
+}
+
+/** Apply custom Malaka architectural PBR maps (albedo + procedural normal). */
+export function applyMalakaPBR(
+  m: THREE.MeshStandardMaterial,
+  type: 'stucco' | 'roof' | 'stone' | 'wood',
+): void {
+  m.color.set(0xffffff); // let the albedo texture drive colour
   switch (type) {
     case 'stucco':
+      m.map = malakaStuccoDiff;
       m.normalMap = malakaStuccoNor;
       m.normalScale.set(0.4, 0.4);
       m.roughness = 0.85; // Matte plaster
       break;
     case 'roof':
+      m.map = malakaRoofDiff;
       m.normalMap = malakaRoofNor;
       m.normalScale.set(0.8, 0.8);
       m.roughness = 0.75; // Weathered clay
       break;
     case 'stone':
+      m.map = malakaStoneDiff;
       m.normalMap = malakaStoneNor;
       m.normalScale.set(0.6, 0.6);
       m.roughness = 0.80; // Old masonry
+      break;
+    case 'wood':
+      m.map = malakaWoodDiff;
+      m.roughness = 0.8; // Aged timber
       break;
   }
   m.needsUpdate = true;

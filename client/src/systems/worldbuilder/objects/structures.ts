@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { applyStonePBR } from '../../../utils/PBRMaps';
+import { applyStonePBR, applyWoodPBR } from '../../../utils/PBRMaps';
 
 export function buildMoonwell(pos: THREE.Vector3, scale: number): THREE.Group {
   const g = new THREE.Group();
@@ -226,6 +226,7 @@ export function buildWoodenFence(pos: THREE.Vector3, scale: number): THREE.Group
   const g = new THREE.Group();
   g.position.copy(pos);
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x5a3a1a, roughness: 0.9 });
+  applyWoodPBR(woodMat);
 
   for (let i = 0; i < 3; i++) {
     const post = new THREE.Mesh(
@@ -262,6 +263,7 @@ export function buildPavilion(pos: THREE.Vector3, scale: number): THREE.Group {
   g.position.copy(pos);
 
   const woodMat = new THREE.MeshStandardMaterial({ color: 0x4a3520, roughness: 0.85 });
+  applyWoodPBR(woodMat);
   const roofMat = new THREE.MeshStandardMaterial({ color: 0x2a0845, roughness: 0.7 });
 
   for (const [px, pz] of [[-2, -2], [2, -2], [-2, 2], [2, 2]] as [number, number][]) {

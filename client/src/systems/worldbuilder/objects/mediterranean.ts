@@ -1,124 +1,6 @@
 import * as THREE from 'three';
 import { applyMalakaPBR } from '../../../utils/PBRMaps';
 
-// ─── Procedural Canvas Texture Generators ──────────────────────────────────────
-
-function createStuccoTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#ffffff'; // Pure Andalusian White
-  ctx.fillRect(0, 0, 256, 256);
-
-  // Add subtle plaster grain
-  for (let i = 0; i < 3000; i++) {
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.02)';
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, 1, 1);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createTerracottaRoofTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  // Deep Saturated Terracotta Red
-  ctx.fillStyle = '#a63d2d'; 
-  ctx.fillRect(0, 0, 256, 256);
-
-  // Draw tile lines
-  ctx.lineWidth = 4;
-  ctx.strokeStyle = '#4a1810'; // Deep dark crevices
-  for (let x = 0; x < 256; x += 16) {
-    ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 256);
-    ctx.stroke();
-
-    for (let y = 0; y < 256; y += 32) {
-      const offset = (x / 16) % 2 === 0 ? 0 : 16;
-      ctx.beginPath();
-      ctx.moveTo(x, y + offset);
-      ctx.lineTo(x + 16, y + offset);
-      ctx.stroke();
-      
-      // Real clay highlight
-      ctx.fillStyle = '#c15541';
-      ctx.fillRect(x, y + offset - 3, 16, 3);
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(4, 4);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createStoneWallTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#eeeeee'; // Match city limestone white
-  ctx.fillRect(0, 0, 256, 256);
-
-  ctx.lineWidth = 3;
-  ctx.strokeStyle = '#333333'; // Sharp dark grout lines
-  for (let y = 0; y <= 256; y += 32) {
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(256, y);
-    ctx.stroke();
-
-    const offsetX = (y / 32) % 2 === 0 ? 0 : 32;
-    for (let x = offsetX; x <= 256; x += 64) {
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x, y + 32);
-      ctx.stroke();
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
-function createWoodTexture(): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = 256;
-  canvas.height = 256;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = '#1a1a1a'; // Deep Black/Dark Brown Wood
-  ctx.fillRect(0, 0, 256, 256);
-
-  ctx.fillStyle = '#111111';
-  for (let i = 0; i < 200; i++) {
-    const w = 1 + Math.random() * 2;
-    const h = 20 + Math.random() * 100;
-    ctx.fillRect(Math.random() * 256, Math.random() * 256, w, h);
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.colorSpace = THREE.SRGBColorSpace;
-  return tex;
-}
-
 // ─── Material Cache (Singleton) ───────────────────────────────────────────────
 
 interface MedMaterials {
@@ -135,30 +17,32 @@ function getMaterials(): MedMaterials {
   if (!_materials) {
     _materials = {
       stucco: (() => {
-        const m = new THREE.MeshStandardMaterial({
-          map: createStuccoTexture(),
-          roughness: 0.95,
-        });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.95 });
         applyMalakaPBR(m, 'stucco');
+        // Whitewashed Andalusian plaster: drop the cream albedo (a colour tint
+        // can only darken it) and use a bright near-white base so the walls read
+        // white. The procedural normal map kept by applyMalakaPBR still gives the
+        // plaster its surface relief.
+        m.map = null;
+        m.color.set(0xf4f1eb);
+        m.needsUpdate = true;
         return m;
       })(),
       roof: (() => {
-        const m = new THREE.MeshStandardMaterial({
-          map: createTerracottaRoofTexture(),
-          roughness: 0.8,
-        });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
         applyMalakaPBR(m, 'roof');
         return m;
       })(),
       stone: (() => {
-        const m = new THREE.MeshStandardMaterial({ map: createStoneWallTexture(), roughness: 0.9 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
         applyMalakaPBR(m, 'stone');
         return m;
       })(),
-      wood: new THREE.MeshStandardMaterial({
-        map: createWoodTexture(),
-        roughness: 0.8,
-      }),
+      wood: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+        applyMalakaPBR(m, 'wood');
+        return m;
+      })(),
       glass: new THREE.MeshStandardMaterial({
         color: 0x111111,
         roughness: 0.1,
@@ -167,6 +51,57 @@ function getMaterials(): MedMaterials {
     };
   }
   return _materials;
+}
+
+// ─── World-scaled stone (fixes stretched masonry on large meshes) ─────────────
+// The shared `mats.stone` tiles its texture a fixed 4×4 per UV face, so a tiny
+// foundation and a 16 m cathedral base get the same number of stone courses —
+// huge meshes look stretched. `stoneBox` instead writes UVs in *world units*, so
+// the blocks stay a constant size whatever the mesh dimensions.
+
+let _worldStone: THREE.MeshStandardMaterial | null = null;
+function getWorldStone(): THREE.MeshStandardMaterial {
+  if (!_worldStone) {
+    const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+    applyMalakaPBR(m, 'stone');
+    // Clone the maps so tiling lives in the geometry UVs (repeat 1×1 here),
+    // independent of the shared stone material used elsewhere.
+    if (m.map) { m.map = m.map.clone(); m.map.repeat.set(1, 1); m.map.needsUpdate = true; }
+    if (m.normalMap) { m.normalMap = m.normalMap.clone(); m.normalMap.repeat.set(1, 1); m.normalMap.needsUpdate = true; }
+    m.needsUpdate = true;
+    _worldStone = m;
+  }
+  return _worldStone;
+}
+
+const STONE_UNITS_PER_TILE = 2.2; // ~one stone course every 2.2 world units
+
+/**
+ * Rewrite a BoxGeometry's UVs so the stone texture tiles by world size. Each
+ * face is scaled by its own world dimensions (rounded to whole tiles so edges
+ * stay seam-free), which also fixes per-face anisotropy on slabs and towers.
+ */
+function tileBoxUVsWorld(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
+  const uv = geo.attributes.uv as THREE.BufferAttribute;
+  // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z (4 verts each). Each face's
+  // U/V axes span these world dimensions:
+  const faceSpan: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
+  for (let f = 0; f < 6; f++) {
+    const uTiles = Math.max(1, Math.round(faceSpan[f][0] / STONE_UNITS_PER_TILE));
+    const vTiles = Math.max(1, Math.round(faceSpan[f][1] / STONE_UNITS_PER_TILE));
+    for (let i = 0; i < 4; i++) {
+      const idx = f * 4 + i;
+      uv.setXY(idx, uv.getX(idx) * uTiles, uv.getY(idx) * vTiles);
+    }
+  }
+  uv.needsUpdate = true;
+}
+
+/** A stone box whose masonry tiles at a constant world scale (no stretching). */
+function stoneBox(w: number, h: number, d: number): THREE.Mesh {
+  const geo = new THREE.BoxGeometry(w, h, d);
+  tileBoxUVsWorld(geo, w, h, d);
+  return new THREE.Mesh(geo, getWorldStone());
 }
 
 // ─── Architectural Helpers ───────────────────────────────────────────────────
@@ -698,7 +633,7 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   // 1. Massive Stone Base
   const baseW = 16 * scale;
   const baseD = 24 * scale;
-  const base = new THREE.Mesh(new THREE.BoxGeometry(baseW, 0.8 * scale, baseD), mats.stone);
+  const base = stoneBox(baseW, 0.8 * scale, baseD);
   base.position.y = 0.4 * scale;
   base.castShadow = base.receiveShadow = true;
   base.userData.isCollider = true;
@@ -708,8 +643,11 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   const naveW = 10 * scale;
   const naveH = 14 * scale;
   const naveD = 20 * scale;
-  const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
-  nave.position.y = 0.8 * scale + naveH / 2;
+  // Overlap the base so the nave's bottom face is buried inside it (no coplanar
+  // seam → no z-fighting). Keeps the top edge exactly at 0.8*scale + naveH.
+  const naveSink = 0.3 * scale;
+  const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH + naveSink, naveD), mats.stucco);
+  nave.position.y = 0.8 * scale + naveH / 2 - naveSink / 2;
   nave.castShadow = nave.receiveShadow = true;
   nave.userData.isCollider = true;
   g.add(nave);
@@ -726,8 +664,10 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
 
   // 4. Central Dome (Transept)
   const domeR = 5 * scale;
-  const domeBase = new THREE.Mesh(new THREE.CylinderGeometry(domeR, domeR, 4 * scale, 16), mats.stone);
-  domeBase.position.set(0, 0.8 * scale + naveH + 2 * scale, -2 * scale);
+  // Drum extends 0.6 below the nave top so its base ring sits inside the nave
+  // instead of coplanar with the nave's top face. Top stays at +naveH + 4.
+  const domeBase = new THREE.Mesh(new THREE.CylinderGeometry(domeR, domeR, 4.6 * scale, 16), mats.stone);
+  domeBase.position.set(0, 0.8 * scale + naveH + 1.7 * scale, -2 * scale);
   domeBase.userData.noCollision = true;
   g.add(domeBase);
 
@@ -739,34 +679,39 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   // 5. The Single Tower ("La Manquita")
   const towerW = 4.5 * scale;
   const towerH = 22 * scale;
-  const tower = new THREE.Mesh(new THREE.BoxGeometry(towerW, towerH, towerW), mats.stone);
-  tower.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH / 2, naveD / 2 - towerW / 2);
+  // Nudge the tower outward so its outer faces clear the nave walls instead of
+  // being coplanar with them; the inner half still overlaps the nave (no seam).
+  const towerX = -naveW / 2 + towerW / 2 - 0.3 * scale;
+  const towerZ = naveD / 2 - towerW / 2 + 0.3 * scale;
+  const tower = stoneBox(towerW, towerH, towerW);
+  tower.position.set(towerX, 0.8 * scale + towerH / 2, towerZ);
   tower.userData.isCollider = true;
   g.add(tower);
 
   // Tower Belfry (Open Arches)
   const belfryH = 5 * scale;
   const belfry = new THREE.Mesh(new THREE.CylinderGeometry(towerW * 0.6, towerW * 0.6, belfryH, 8), mats.stone);
-  belfry.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH + belfryH / 2, naveD / 2 - towerW / 2);
+  belfry.position.set(towerX, 0.8 * scale + towerH + belfryH / 2, towerZ);
   belfry.userData.noCollision = true;
   g.add(belfry);
-  
+
   const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.6, 8, 8, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
-  belfryDome.position.set(-naveW / 2 + towerW / 2, 0.8 * scale + towerH + belfryH, naveD / 2 - towerW / 2);
+  belfryDome.position.set(towerX, 0.8 * scale + towerH + belfryH, towerZ);
   belfryDome.userData.noCollision = true;
   g.add(belfryDome);
 
-  // Missing Right Tower Base
-  const missingTower = new THREE.Mesh(new THREE.BoxGeometry(towerW, 8 * scale, towerW), mats.stone);
-  missingTower.position.set(naveW / 2 - towerW / 2, 0.8 * scale + 4 * scale, naveD / 2 - towerW / 2);
+  // Missing Right Tower Base — mirror the outward nudge of the main tower.
+  const missingTower = stoneBox(towerW, 8 * scale, towerW);
+  missingTower.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, 0.8 * scale + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
   missingTower.userData.isCollider = true;
   g.add(missingTower);
 
   // 6. Flying Buttresses (Contrafuertes)
   for (let z = -naveD / 2 + 4 * scale; z <= naveD / 2 - 6 * scale; z += 4 * scale) {
     for (const side of [-1, 1]) {
-      const buttress = new THREE.Mesh(new THREE.BoxGeometry(3 * scale, 10 * scale, 1.5 * scale), mats.stone);
-      buttress.position.set(side * (naveW / 2 + 1.5 * scale), 0.8 * scale + 5 * scale, z);
+      const buttress = stoneBox(3 * scale, 10 * scale, 1.5 * scale);
+      // Inner face embeds 0.4 into the nave wall rather than sitting flush on it.
+      buttress.position.set(side * (naveW / 2 + 1.1 * scale), 0.8 * scale + 5 * scale, z);
       buttress.userData.noCollision = true;
       g.add(buttress);
     }
