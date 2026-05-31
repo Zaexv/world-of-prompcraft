@@ -97,7 +97,10 @@ def test_paren_colon_form_key_value() -> None:
     cleaned, calls = extract_inline_tool_calls(text, PARAMS)
     assert cleaned == "Stand back!"
     assert calls == [
-        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}}
+        {
+            "name": "deal_damage",
+            "args": {"target": "player", "amount": 20, "damage_type": "physical"},
+        }
     ]
 
 
@@ -106,7 +109,10 @@ def test_star_form_key_value() -> None:
     cleaned, calls = extract_inline_tool_calls(text, PARAMS)
     assert cleaned == "I am Captain Aldric!"
     assert calls == [
-        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}}
+        {
+            "name": "deal_damage",
+            "args": {"target": "player", "amount": 20, "damage_type": "physical"},
+        }
     ]
 
 
@@ -151,7 +157,10 @@ def test_full_mixed_input() -> None:
     cleaned, calls = extract_inline_tool_calls(text, PARAMS)
     assert calls == [
         {"name": "offer_item", "args": {"item_name": "Plato de Jamón Ibérico"}},
-        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}},
+        {
+            "name": "deal_damage",
+            "args": {"target": "player", "amount": 20, "damage_type": "physical"},
+        },
     ]
     assert "gurgles softly" in cleaned
     assert "spawns a small splash of smoke" in cleaned
