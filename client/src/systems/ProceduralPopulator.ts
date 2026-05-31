@@ -29,7 +29,8 @@ import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
-import { buildBiomeBuilding, buildBiomeProp } from './worldbuilder/objects/biomeProps';
+import { buildBiomeProp } from './worldbuilder/objects/biomeProps';
+import { buildMesh, selectBiomeBuildingType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
 import { getEncountersFor } from './EncounterRegistry';
 // Side-effect import: registers all built-in encounters
@@ -316,9 +317,13 @@ export class ProceduralPopulator {
         const by = this.terrain.getHeightAt(bx, bz);
         const pos = ProceduralPopulator._v.set(bx, by, bz);
 
-        const building = registryEntry
-          ? registryEntry.buildingFn(pos, rng, dist)
-          : buildBiomeBuilding(biome, pos, rng, dist);
+        let building: THREE.Object3D | null;
+        if (registryEntry) {
+          building = registryEntry.buildingFn(pos, rng, dist);
+        } else {
+          const type = selectBiomeBuildingType(biome, rng, dist);
+          building = type ? buildMesh(type, { position: pos, scale: 1 }) ?? null : null;
+        }
 
         if (building && this.scene) {
           building.rotation.y = rng.nextRange(0, Math.PI * 2);
