@@ -104,7 +104,7 @@ export class MalakaBrokenCortijo extends Mesh {
     const towerProxy = boxCollider(towerSize, towerH, towerSize);
     towerProxy.position.y = towerH / 2;
     g.add(towerProxy);
-    const tRoof = createHipRoof(towerSize + ovr * 2, towerSize + ovr * 2, 2.2 * scale, mats.roof, scale);
+    const tRoof = createHipRoof(towerSize + ovr * 2, towerSize + ovr * 2, 2.2 * scale, mats.roof);
     tRoof.position.y = towerH - 0.05 * scale;
     tRoof.userData.noCollision = true;
     g.add(tRoof);
@@ -124,7 +124,7 @@ export class MalakaBrokenCortijo extends Mesh {
     g.add(bWProxy);
     const bRoofW = wingLW + ovr;
     const bRoofD = wingLD + ovr * 2;
-    const bRoof = createHipRoof(bRoofW, bRoofD, 2.4 * scale, mats.roof, scale);
+    const bRoof = createHipRoof(bRoofW, bRoofD, 2.4 * scale, mats.roof);
     bRoof.position.set(bWX - ovr/2, wingLH - 0.05 * scale, 0);
     g.add(bRoof);
 
