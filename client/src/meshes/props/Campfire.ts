@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../core/Mesh';
 import { registerMesh } from '../core/MeshRegistry';
+import { createEmberParticles } from './fireParticles';
 
 export class Campfire extends Mesh {
   static readonly type = 'campfire';
@@ -50,6 +51,9 @@ export class Campfire extends Mesh {
       orb.userData.noCollision = true;
       g.add(orb);
     }
+
+    // Small rising embers above the fire orbs.
+    g.add(createEmberParticles({ scale, count: 12, radius: 0.18, baseY: 0.5, rise: 1.4, speed: 1.0, size: 0.12 }));
 
     return g;
   }
