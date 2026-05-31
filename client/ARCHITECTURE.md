@@ -1,6 +1,6 @@
 # Client Architecture — World of Promptcraft
 
-Three.js + TypeScript frontend. No buttons — the text prompt is the entire game interface. The client is a **render mirror**: all authoritative game state lives on the server; the client reflects it visually and ships player input over WebSocket. The world itself is defined by a **Zonal Hybrid Manifest** (`shared/data/world_manifest.json`).
+Three.js + TypeScript frontend. The client is a render/runtime mirror around server-authoritative state, with local simulation for movement, camera, effects, and UI.
 
 ---
 
@@ -8,68 +8,69 @@ Three.js + TypeScript frontend. No buttons — the text prompt is the entire gam
 
 ```mermaid
 flowchart TD
-    subgraph Network["🌐 Network Layer"]
-        WS["WebSocketClient\nws://localhost:8000/ws\nauto-reconnect · heartbeat"]
-        Proto["MessageProtocol\ndiscriminated union types"]
+    subgraph Boot["Bootstrap Layer"]
+        M["main.ts"]
+        GB["core/GameBootstrapper.ts"]
+        GE["core/GameEngine.ts"]
+        WSH["core/WebSocketHandler.ts"]
     end
 
-    subgraph State["📦 State Layer"]
-        PS["PlayerState (singleton)\nhp · mana · level · inventory\nquests · isDead"]
-        WS2["WorldState\nrender mirror of server"]
-        NS["NPCState\ncached NPC metadata"]
-        QD["QuestDefinitions\nquest templates"]
-        WM["WorldManifest\ndata-driven world definitions (JSON)"]
+    subgraph Scene["Scene Layer"]
+        SM["SceneManager"]
+        TR["Terrain"]
+        LT["Lighting"]
+        WA["Water"]
+        FX["Effects"]
     end
 
-    subgraph Systems["⚙️ Systems Layer"]
-        CS["CollisionSystem\ncannon-es swept AABB\nstatic + dynamic bodies"]
-        IS["InteractionSystem\nraycaster · click · hover\npointer lock aware"]
-        RS["ReactionSystem\naction dispatch\n3D effect triggers"]
-        WG["WorldGenerator\nchunk lifecycle orchestrator\ndelegates to WorldBuilder"]
-        WB["WorldBuilder\nspawn manifest landmarks/dungeons"]
-        ZT["ZoneTracker\nzone boundary detection"]
+    subgraph Runtime["Runtime Systems"]
+        PC["PlayerController"]
+        EM["EntityManager"]
+        COL["CollisionSystem"]
+        WG["WorldGenerator + ProceduralPopulator"]
+        WB["WorldBuilder"]
+        RE["ReactionSystem"]
+        ZT["ZoneTracker + ZoneAtmosphere"]
+        DUN["DungeonSystem"]
     end
 
-    subgraph Entities["🧑 Entity Layer"]
-        PL["Player\nmodel · animation · movement"]
-        NPC["NPC\nwander AI · HP bar · dialogue"]
-        RP["RemotePlayer\ninterpolated remote positions"]
-        EM["EntityManager\nMap<id, NPC | RemotePlayer>\nscene lifecycle"]
-        PC["PlayerController\npointer lock · WASD · camera orbit"]
+    subgraph State["State Layer"]
+        PS["PlayerState (singleton)"]
+        NS["NPCStateStore"]
+        WS["WorldState (client aggregate)"]
+        WM["WorldManifest"]
+        RT["RuntimeState"]
     end
 
-    subgraph Scene["🎨 Scene Layer"]
-        SM["SceneManager\nWebGLRenderer + PerspectiveCamera\nEffectComposer (UnrealBloom)"]
-        TR["Terrain\nheightmap + biome colours (from Manifest)"]
-        WA["Water\nanimated plane + reflections"]
-        SB["Skybox\nday/night gradient"]
-        LT["Lighting\nambient + directional"]
-        LM["Landmarks\nManifest-defined POIs"]
-        DG["Dungeons\nManifest-defined interior instances"]
-        EF["Effects\nparticles · floating text"]
+    subgraph Net["Network Layer"]
+        WSC["WebSocketClient"]
+        MP["MessageProtocol types"]
     end
 
-    subgraph UI["🖼️ UI Layer"]
-        LP["LoginScreen"]
-        IH["InteractionPanel\nfree-text prompt input"]
-        CH["CombatHUD\nhp/mana bars"]
-        IV["InventoryPanel"]
-        QL["QuestLog"]
-        CP["ChatPanel\nmultiplayer chat"]
+    subgraph UI["UI Layer"]
+        UIM["UIManager"]
+        IP["InteractionPanel"]
+        CH["CombatHUD + CombatLog"]
         MM["Minimap"]
-        DS2["DeathScreen"]
+        CP["ChatPanel + ChatBubbleSystem"]
     end
 
-    WS -->|"JSON messages"| Proto
-    Proto --> State
-    State --> Systems
-    State --> Entities
-    Systems --> Entities
-    Entities --> Scene
-    Scene --> SM
-    UI -->|"player input"| WS
-    WS -->|"AgentResponse\nactions[]"| RS
-    RS --> EF
+    M --> GB --> GE
+    GB --> WSH
+    GB --> SM
+    GB --> Runtime
+    GB --> State
+    GE --> Runtime
+    GE --> UIM
+    WSH --> RE
+    WSC --> WSH
+    MP --> WSC
+    UIM --> WSC
+
+    style GB fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style GE fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style WSH fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style RE fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ---
@@ -80,248 +81,153 @@ flowchart TD
 sequenceDiagram
     participant L as LoginScreen
     participant M as main.ts
-    participant SM as SceneManager
-    participant WS as WebSocketClient
-    participant SYS as Systems
+    participant B as bootstrap()
+    participant W as WebSocketClient
+    participant H as WebSocketHandler
+    participant E as GameEngine
 
-    L->>M: onLogin(playerName)
-    M->>SM: new SceneManager()
-    SM->>SM: WebGLRenderer + EffectComposer (UnrealBloom)
-    SM->>SM: Terrain · Skybox · Lighting · Water · Effects
-    M->>SYS: new CollisionSystem(scene)
-    M->>SYS: new WorldManifest() (loads JSON)
-    M->>SYS: new WorldBuilder(scene, manifest)
-    M->>SYS: new WorldGenerator(scene, collisionSystem, manifest, builder)
-    M->>SYS: new InteractionSystem(camera, scene, ...)
-    M->>SYS: new ReactionSystem(scene, ...)
-    M->>SYS: new ZoneTracker()
-    M->>WS: new WebSocketClient(url)
-    WS-->>M: onOpen → send join {playerName}
-    WS-->>M: join_ok {playerId, npcs[], worldState}
-    M->>M: EntityManager.init(npcs)
-    M->>M: requestAnimationFrame → render loop
+    L->>M: onEnterWorld(username,race,faction,skin)
+    M->>B: bootstrap(config, app, overlay, loginScreen)
+    B->>B: Build SceneManager + systems + UI + state stores
+    B->>W: new WebSocketClient(ws://.../ws)
+    B->>H: new WebSocketHandler(deps)
+    B->>E: new GameEngine(deps)
+    M->>E: start()
+    W-->>H: join_ok / world_update / agent_response / npc_actions
+    H-->>B: update entities/state/UI/effects
 ```
 
 ---
 
-## Render Loop
+## Runtime Tick (GameEngine)
 
 ```mermaid
 flowchart TD
     RAF["requestAnimationFrame"]
-    DT["delta = clock.getDelta()"]
-    PC["PlayerController.update(delta)\nWASD movement · camera orbit · pointer lock"]
-    COL["CollisionSystem.update(delta)\nwall-slide · terrain follow\ndynamic NPC bodies sync"]
-    WG["WorldGenerator.update(playerPos)\nchunk generation / despawn"]
-    ZT["ZoneTracker.update(playerPos)\nzone change events"]
-    IS["InteractionSystem.update()\nhover highlight · click detection"]
-    ENT["EntityManager.update(delta)\nNPC wander AI · remote player lerp"]
-    SC["SceneManager.tick()\nwater/effects update + adaptive quality\nThree.js renderer + EffectComposer"]
-    WS["WebSocket\nposition broadcast (throttled)"]
+    SC["SceneManager.tick()"]
+    PC["PlayerController.update(delta)"]
+    PL["Player model update"]
+    TR["Terrain.update(playerX, playerZ)"]
+    WB["WorldBuilder.update()"]
+    WG["WorldGenerator.update()"]
+    EM["EntityManager.update()"]
+    COL["CollisionSystem.update()"]
+    RE["ReactionSystem.tick()"]
+    ZS["ZoneTracker/ZoneAtmosphere update"]
+    UI["UI updates (minimap, bubbles, HUD)"]
+    NET["player_move send (10Hz)"]
 
-    RAF --> DT --> PC --> COL --> WG --> ZT --> IS --> ENT --> SC --> WS --> RAF
+    RAF --> SC --> PC --> PL --> TR --> WB --> WG --> EM --> COL --> RE --> ZS --> UI --> NET --> RAF
+
+    style SC fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style RE fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ---
 
-## Data-Driven World (Version 2.1.0 Manifest System)
+## Network & Message Handling
 
-The game uses a **Zonal Hybrid Manifest** (`shared/data/world_manifest.json`) instead of purely procedural generation. This ensures consistency between client visuals and server authority.
+```mermaid
+flowchart LR
+    subgraph Outbound["Client → Server"]
+        JOIN["join"]
+        MOVE["player_move"]
+        INT["interaction"]
+        CHAT["chat_message"]
+        ITEM["use_item / equip_item"]
+        MOD["world_modify"]
+    end
+
+    subgraph Inbound["Server → Client"]
+        JOK["join_ok / join_error"]
+        WUP["world_update / player_joined / player_left"]
+        ADR["agent_response"]
+        NPA["npc_actions / npc_dialogue"]
+        QUEST["quest_update / use_item_result"]
+        WMOD["world_modify_start/chunk/end/response"]
+    end
+
+    WSC["WebSocketClient\nreconnect + heartbeat"] --> WSH["WebSocketHandler"]
+    WSH --> EM["EntityManager"]
+    WSH --> RE["ReactionSystem"]
+    WSH --> UIM["UIManager"]
+
+    Outbound --> WSC
+    WSC --> Inbound
+
+    style WSC fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style WSH fill:#4a90d9,color:#fff,stroke:#2c6fad
+```
+
+---
+
+## Data-Driven World
+
+`WorldManifest` is loaded in bootstrap and injected into terrain/biome/dungeon systems. `WorldGenerator` uses chunk callbacks from `Terrain` and delegates procedural spawn work to `ProceduralPopulator`, while authored objects are built through `WorldBuilder`.
 
 ```mermaid
 flowchart TD
-    POS["Player position"]
-    CK["Chunk key = ⌊x/64⌋, ⌊z/64⌋"]
-    LOAD["Load 5×5 chunk radius"]
-    UNLOAD["Unload chunks outside 7×7"]
+    WM["WorldManifest (shared/data/world_manifest.json)"]
+    TER["Terrain chunk callbacks"]
+    WG["WorldGenerator"]
+    PP["ProceduralPopulator"]
+    WB["WorldBuilder.spawnObject"]
+    CS["CollisionSystem.addCollidableFiltered"]
+    MM["Minimap waypoints"]
 
-    subgraph Manifest["world_manifest.json"]
-        MEnv["world.environment\nBiomes (colors, height modifiers)"]
-        MTop["world.topology\nVertical features (mountains)"]
-        MZones["zones\nBounds, Landmarks, NPCs, Dungeons"]
-    end
+    WM --> WG
+    TER --> WG
+    WG --> PP
+    WG --> WB
+    WB --> CS
+    WG --> MM
 
-    subgraph Generation["Chunk Generation"]
-        TR["Terrain.ts\nBuilds mesh using Manifest Biome data"]
-        WG["WorldGenerator.ts\nQueries Manifest for Landmarks in chunk"]
-        WB["WorldBuilder.ts\nInstantiates 3D Landmark models"]
-    end
-
-    POS --> CK --> LOAD
-    LOAD --> Generation
-    Manifest --> Generation
-    LOAD --> UNLOAD
+    style WG fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style WB fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ---
 
 ## Mesh Catalog & Registry (`client/src/meshes/`)
 
-Every placeable object — buildings, props, and vegetation — is a **class in its own
-file** under `client/src/meshes/`, registered in a central catalog. Geometry ("what it
-looks like") is fully separated from placement ("where/when it appears"). There are
-**no `switch` statements** mapping a type string to a builder — the registry does that
-lookup, and `buildObject()` is a thin wrapper over it (unknown types render a marker).
-
-```mermaid
-flowchart TD
-    subgraph Catalog["meshes/ — geometry catalog"]
-        BASE["core/Mesh.ts\nabstract base: static type/category (+aliases)\nbuild(ctx): Object3D"]
-        REG["core/MeshRegistry.ts\ntype → instance map\nregisterMesh · buildMesh · meshTypes"]
-        MAL["buildings/malaka/*\n11 Andalusian classes + MalakaKit"]
-        STR["buildings/structures/*\n9 generic classes (Moonwell, Tower, Road…)"]
-        BIO["buildings/biome/*\n19 procedural classes + BiomeKit\n+ BiomeBuildings (biome→type[] table)"]
-        PROP["props/*\n3 furniture + 20 biome props\n+ BiomeProps (biome→type[] table)"]
-        VEG["vegetation/*\n3 LOD classes (AncientTree, Mushroom, Crystal)"]
-    end
-
-    subgraph Placement["Placement layer — where/when"]
-        WB["WorldBuilder.spawnObject()\nauthored landmarks → buildObject()"]
-        PP["ProceduralPopulator\nselectBiomeBuildingType / selectBiomePropType"]
-        FO["Forest.ts\nmoonwell / pavilion / bonfire set-pieces"]
-    end
-
-    MAL & STR & BIO & PROP & VEG -->|"registerMesh() at import"| REG
-    BASE --> MAL & STR & BIO & PROP & VEG
-    WB -->|"buildMesh(type, ctx)"| REG
-    PP -->|"buildMesh(type, ctx)"| REG
-    FO -->|"buildMesh(type, ctx)"| REG
-```
-
-**Key points**
-- **One mesh = one class = one file.** Each `extends Mesh`, declares `static readonly type`
-  / `static readonly category` (`building` | `prop` | `vegetation`), implements
-  `build(ctx: BuildContext): THREE.Object3D`, and calls `registerMesh(...)` at the bottom of its file.
-- **Self-registration.** `meshes/index.ts` side-effect-imports `buildings/`, `props/`, and
-  `vegetation/`, which import every class file. Importing the catalog registers everything; nothing
-  else needs editing.
-- **Aliases.** A class may expose `static readonly aliases` to answer to legacy/synonym type
-  strings (e.g. `AncientTree` also serves `tree` / `pine` / `ancient_tree_cluster`).
-- **`build()` is pure geometry.** No scene insertion, collision registration, or persistence —
-  those stay in the placement layer (`WorldBuilder` / `WorldGenerator` / `ProceduralPopulator`).
-- **Procedural selection is a data table.** `BiomeBuildings.ts` / `BiomeProps.ts` map each biome to
-  its building/prop `type[]`; `selectBiomeBuildingType()` / `selectBiomePropType()` pick one with the
-  seeded RNG (preserving deterministic layouts), then `buildMesh()` constructs it.
-- **Shared kits.** `MalakaKit` (Andalusian material cache + architectural helpers) and `BiomeKit`
-  (`m`/`solid`/`deco` helpers + material cache) are imported by the classes so textures and materials
-  are created once and reused. Biome props reuse `BiomeKit` too.
-
-> **Scope:** buildings, props, and vegetation are migrated. The remaining geometry outside the
-> catalog is **encounter set-pieces** (`worldbuilder/objects/encounterBuilders.ts` — multi-object
-> compositions placed by the encounter system, a different layer) and **NPC body meshes**
-> (`entities/`). Both can adopt the same `Mesh` base + registry in a later pass.
-
----
-
-## Collision System
-
-The game uses **cannon-es swept AABB** with tag-based geometry filtering so decorative mesh parts (canopies, arches) don't block movement.
-
-```mermaid
-flowchart TD
-    subgraph Registration["Collision Registration"]
-        AC["addCollidable(mesh)\nwhole mesh → static body"]
-        ACF["addCollidableFiltered(group)\nonly userData.isCollider=true meshes"]
-        DS["setDynamicSource(npcId, getPos)\nNPC hitbox — position polled each frame"]
-    end
-
-    subgraph Update["Per-Frame Update"]
-        AABB["Collect all static bodies\n+ dynamic NPC positions"]
-        SWEEP["Swept AABB\nplayerBox + velocity * dt"]
-        SLIDE["Wall sliding\n3 iterations: X → Z → XZ\nskin width = 0.05"]
-        TF["Terrain follow\ngetHeightAt(x,z) → y clamp"]
-    end
-
-    subgraph Tags["Tag-Based Filtering"]
-        T1["wall.userData.isCollider = true   → blocks"]
-        T2["arch.userData.isCollider = false  → pass-through"]
-    end
-
-    Registration --> Update
-    Tags --> ACF
-```
-
----
-
-## Network Layer
+All reusable buildings/props/vegetation are class-based meshes registered via `registerMesh(...)`, then instantiated by type through the mesh registry.
 
 ```mermaid
 flowchart LR
-    subgraph Client["Client"]
-        WSC["WebSocketClient\nws://localhost:8000/ws"]
-        MP["MessageProtocol\ndiscriminated union:\nPlayerInteraction\nPlayerMovement\nChatMessage\n…"]
-    end
+    BASE["Mesh base class"]
+    REG["MeshRegistry\nregisterMesh/buildMesh"]
+    BLD["buildings/*"]
+    PRP["props/*"]
+    VEG["vegetation/*"]
+    PLC["WorldBuilder / ProceduralPopulator"]
 
-    subgraph Server["Server"]
-        FE["FastAPI /ws endpoint"]
-    end
-
-    subgraph Reconnect["Auto-Reconnect"]
-        EB["Exponential backoff\n1s → 2s → 4s … max 30s"]
-        HB["Heartbeat ping every 30s\ndetects silent drops"]
-    end
-
-    WSC -->|"JSON send()"| MP
-    MP -->|"WebSocket frame"| FE
-    FE -->|"AgentResponse\nnpc_dialogue\nnpc_actions\nplayer_moved"| WSC
-    WSC --> EB
-    WSC --> HB
-```
-
----
-
-## UI Layer
-
-```mermaid
-flowchart TD
-    subgraph Always["Always Present"]
-        CH["CombatHUD\nhp/mana bars · level badge"]
-        MM["Minimap\ncanvas 2D · dot per entity"]
-        CP["ChatPanel\nmultiplayer chat"]
-    end
-
-    subgraph Contextual["Contextual"]
-        IP["InteractionPanel\nfree-text input on NPC click/hover\nhidden until interaction starts"]
-        IV["InventoryPanel\ngrid layout · drag-drop"]
-        QL["QuestLog\nactive/completed quests"]
-    end
-
-    subgraph Screens["Full-Screen Overlays"]
-        LS["LoginScreen\ncharacter name + server URL"]
-        DS["DeathScreen\nrespawn button"]
-        QB["QuestBanner\nquest start/complete overlay"]
-    end
-
-    subgraph Floating["World-Space Floating"]
-        FT["FloatingText\ndamage · heal · loot numbers"]
-        HB["HP Bars (CSS2DObject)\nabove NPC heads"]
-        NL["Name Labels (CSS2DObject)\nremote player names"]
-    end
+    BASE --> BLD
+    BASE --> PRP
+    BASE --> VEG
+    BLD --> REG
+    PRP --> REG
+    VEG --> REG
+    PLC --> REG
 ```
 
 ---
 
 ## ReactionSystem — Action Dispatch
 
-When the server returns `agent_response.actions[]`, `ReactionSystem` translates each `kind` into a 3D effect:
+`ReactionSystem` maps `actions[]` to visual and state effects (damage/heal/items/quests/weather/move/emotes/world modifications/music), while avoiding double-application against partial `playerStateUpdate`.
 
 ```mermaid
 flowchart TD
-    AR["AgentResponse\nactions: Action[]"]
+    AR["agent_response.actions[]"]
+    DMG["damage/heal -> PlayerState + floating text + flashes"]
+    NPC["npcStateUpdate -> NPCStateStore + nameplate"]
+    FX["spawn_effect/change_weather/play_music"]
+    Q["start/advance/complete quest banners"]
+    WORLD["world_spawn/world_remove -> WorldBuilder"]
 
-    subgraph Kinds["Action Kinds"]
-        DMG["damage\n→ reduce PlayerState.hp\n→ red FloatingText + screen flash"]
-        HEAL["heal\n→ restore PlayerState.hp\n→ green FloatingText + green flash"]
-        GIVE["give_item\n→ PlayerState.inventory.push()\n→ gold FloatingText + inventory open"]
-        TAKE["take_item\n→ PlayerState.inventory.splice()\n→ inventory update"]
-        EMOTE["emote\n→ NPC animation trigger"]
-        MOVE["move_npc\n→ NPC lerp to new position"]
-        EFFECT["spawn_effect\n→ ParticleSystem.burst(position)"]
-        WEATHER["change_weather\n→ scene fog density adjust"]
-        QUEST_S["start_quest\n→ QuestLog.add()\n→ QuestBanner overlay"]
-        QUEST_C["complete_quest\n→ QuestLog.complete()\n→ QuestBanner + reward"]
-        QUEST_A["advance_objective\n→ QuestLog.updateObjective()\n→ tracker update"]
-    end
-
-    AR --> Kinds
+    AR --> DMG
+    AR --> NPC
+    AR --> FX
+    AR --> Q
+    AR --> WORLD
 ```
