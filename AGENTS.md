@@ -19,7 +19,7 @@ structure, and commands see [`CLAUDE.md`](./CLAUDE.md). This file focuses on the
 ```
 meshes/
   core/
-    Mesh.ts            # abstract base class + BuildContext
+    Mesh.ts            # abstract base class + BuildContext (+ optional static aliases)
     MeshRegistry.ts    # registerMesh · buildMesh · hasMesh · meshTypes
   index.ts             # importing this registers every mesh; re-exports the API
   buildings/
@@ -27,12 +27,21 @@ meshes/
     malaka/            # 11 Andalusian classes + MalakaKit (shared materials/helpers)
     structures/        # 9 generic classes (Moonwell, Tower, Ruins, Road, …)
     biome/             # 19 procedural classes + BiomeKit + BiomeBuildings (biome→type[])
+  props/
+    index.ts           # side-effect imports every prop file
+    Campfire/Bonfire/Lantern.ts   # 3 furniture props
+    biome/             # 20 biome ambient props + BiomeProps (biome→type[])
+  vegetation/
+    index.ts           # side-effect imports every vegetation file
+    AncientTree/MushroomCluster/CrystalCluster.ts   # 3 LOD classes
 ```
 
 - **Catalog (geometry):** the `meshes/` tree. Each class knows how to build itself.
+  Category is `building`, `prop`, or `vegetation`.
 - **Placement (where/when):** `WorldBuilder` (authored landmarks from
-  `shared/data/world_manifest.json`), `ProceduralPopulator` (per-biome procedural spawns),
-  and `Forest.ts` (a few set-pieces). They call `buildMesh(type, ctx)` — never geometry directly.
+  `shared/data/world_manifest.json`), `ProceduralPopulator` (per-biome procedural buildings
+  *and* props), and `Forest.ts` (a few set-pieces). They call `buildMesh(type, ctx)` — never
+  geometry directly.
 
 ## How to add a new building
 
@@ -67,11 +76,15 @@ meshes/
 3. **Place it:**
    - *Authored* (fixed location): add a landmark entry to `shared/data/world_manifest.json`
      with `"type": "watchtower"` and a `transform`. `WorldGenerator` spawns it automatically.
-   - *Procedural* (scattered in a biome): add `'watchtower'` to that biome's array in
-     `client/src/meshes/buildings/biome/BiomeBuildings.ts`. `selectBiomeBuildingType()` will
-     pick it via the seeded RNG.
+   - *Procedural* (scattered in a biome): add the `type` to that biome's array in the matching
+     data table — `buildings/biome/BiomeBuildings.ts` for buildings, `props/biome/BiomeProps.ts`
+     for props. `selectBiomeBuildingType()` / `selectBiomePropType()` pick it via the seeded RNG.
 
 That's it — no dispatcher or `switch` edits.
+
+> For a **prop** or **vegetation** mesh, the steps are identical — put the file under
+> `meshes/props/` (category `'prop'`) or `meshes/vegetation/` (category `'vegetation'`) and
+> add its import to that folder's `index.ts`.
 
 ## Shared kits
 
@@ -91,6 +104,11 @@ That's it — no dispatcher or `switch` edits.
 
 ## Not yet migrated
 
-Props, vegetation, encounter set-pieces, and NPC body meshes still live under
-`systems/worldbuilder/objects/` and `entities/`. They will adopt the same `Mesh` base class +
-registry in a follow-up pass — reuse this pattern when you migrate them.
+Two things still live outside the catalog:
+- **Encounter set-pieces** (`systems/worldbuilder/objects/encounterBuilders.ts`) — multi-object
+  compositions placed by the encounter system (with NPCs + gating). A different layer, not
+  single reusable meshes.
+- **NPC body meshes** (`entities/`).
+
+Both can adopt the same `Mesh` base class + registry in a follow-up pass — reuse this pattern
+when you migrate them.

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Mesh Visualizer</title>
+    <style>
+      body {
+        margin: 0;
+        overflow: hidden;
+        background-color: #1a1a2e;
+        font-family: sans-serif;
+        color: white;
+      }
+      #ui {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background: rgba(0, 0, 0, 0.7);
+        padding: 15px;
+        border-radius: 8px;
+        z-index: 10;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+      select {
+        padding: 5px;
+        font-size: 16px;
+        background: #333;
+        color: white;
+        border: 1px solid #555;
+        border-radius: 4px;
+      }
+      h2 {
+        margin: 0;
+        font-size: 18px;
+      }
+      #viewer {
+        width: 100vw;
+        height: 100vh;
+      }
+      a {
+        color: #88ccff;
+        text-decoration: none;
+        font-size: 14px;
+      }
+      a:hover {
+        text-decoration: underline;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="ui">
+      <h2>Mesh Visualizer</h2>
+      <select id="meshSelect">
+        <option value="">Select a mesh...</option>
+      </select>
+      <a href="/">&larr; Back to Game</a>
+    </div>
+    <div id="viewer"></div>
+    <script type="module" src="/src/mesh-viewer.ts"></script>
+  </body>
+</html>

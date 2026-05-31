@@ -33,6 +33,8 @@ export abstract class Mesh {
   static readonly type: string;
   /** Coarse category for map-generation filtering. */
   static readonly category: MeshCategory;
+  /** Optional extra type strings this mesh also answers to (legacy/synonyms). */
+  static readonly aliases?: readonly string[];
 
   /** Build the Three.js object for this mesh. */
   abstract build(ctx: BuildContext): THREE.Object3D;
@@ -42,5 +44,6 @@ export abstract class Mesh {
 export interface MeshClass {
   readonly type: string;
   readonly category: MeshCategory;
+  readonly aliases?: readonly string[];
   new (): Mesh;
 }
