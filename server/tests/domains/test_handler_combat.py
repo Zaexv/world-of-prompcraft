@@ -97,50 +97,51 @@ class TestFastCombatPath:
         assert "explosion" in resolution.visual_tags
 
     @pytest.mark.asyncio
-    async def test_narrate_combat_async_drops_when_no_registry(self) -> None:
-        """_narrate_combat_async should silently return when _registry is None."""
+    async def test_fast_combat_reaction_drops_when_no_registry(self) -> None:
+        """_fast_combat_reaction should silently return when _registry is None."""
         from src.ws import handler
 
         original_registry = handler._registry
         handler._registry = None
         try:
             resolution = self._make_resolution()
-            # Should return without error
-            await handler._narrate_combat_async(
+            await handler._fast_combat_reaction(
                 player_id="player1",
                 npc_id="npc1",
                 npc_name="Goblin",
+                npc_personality="You are a goblin.",
                 resolution=resolution,
                 prompt="attack",
-                npc_system_prompt="You are a goblin.",
                 manager=MagicMock(),
             )
         finally:
             handler._registry = original_registry
 
     @pytest.mark.asyncio
-    async def test_narrate_combat_async_sends_npc_dialogue(self) -> None:
-        """_narrate_combat_async should send agent_response when registry.invoke succeeds."""
+    async def test_fast_combat_reaction_sends_agent_response(self) -> None:
+        """_fast_combat_reaction sends agent_response with dialogue and counter-attack."""
         from src.ws import handler
 
-        mock_registry = AsyncMock()
-        mock_registry.invoke = AsyncMock(
-            return_value={
-                "dialogue": "That actually hurt, you fool!",
-                "actions": [],
-                "npcStateUpdate": {},
-            }
-        )
+        mock_llm = AsyncMock()
+        mock_llm_response = MagicMock()
+        mock_llm_response.content = "You dare strike me?! Feel my wrath!"
+        mock_llm.ainvoke = AsyncMock(return_value=mock_llm_response)
+
+        mock_registry = MagicMock()
+        mock_registry._llm = mock_llm
+
+        mock_npc = MagicMock()
+        mock_npc.hp = 80
+        mock_npc.max_hp = 100
+        mock_npc.position = [0.0, 0.0, 0.0]
 
         mock_player = MagicMock()
-        mock_player.to_dict.return_value = {"id": "player1"}
-        mock_player.active_quests = []
-        mock_player.completed_quests = []
-        mock_player.kill_count = 0
+        mock_player.to_dict.return_value = {"id": "player1", "hp": 90}
 
         mock_world_state = MagicMock()
-        mock_world_state.get_npc.return_value = None
+        mock_world_state.get_npc.return_value = mock_npc
         mock_world_state.get_player.return_value = mock_player
+        mock_world_state.apply_actions = AsyncMock()
 
         mock_manager = AsyncMock()
 
@@ -151,20 +152,58 @@ class TestFastCombatPath:
 
         try:
             resolution = self._make_resolution()
-            await handler._narrate_combat_async(
+            await handler._fast_combat_reaction(
                 player_id="player1",
                 npc_id="npc1",
                 npc_name="Goblin",
+                npc_personality="You are a goblin.",
                 resolution=resolution,
                 prompt="I slash with my sword",
-                npc_system_prompt="You are a goblin.",
                 manager=mock_manager,
             )
             mock_manager.send_to.assert_called_once()
             call_args = mock_manager.send_to.call_args
             assert call_args[0][0] == "player1"
-            assert call_args[0][1]["type"] == "agent_response"
-            assert call_args[0][1]["dialogue"] == "That actually hurt, you fool!"
+            payload = call_args[0][1]
+            assert payload["type"] == "agent_response"
+            assert payload["dialogue"] == "You dare strike me?! Feel my wrath!"
+            # Counter-attack action should be included
+            assert any(a["kind"] == "damage" for a in payload["actions"])
+        finally:
+            handler._registry = original_registry
+            handler._world_state = original_world_state
+
+    @pytest.mark.asyncio
+    async def test_update_combat_memory_silently_handles_failure(self) -> None:
+        """_update_combat_memory_async should not raise even when registry fails."""
+        from src.ws import handler
+
+        mock_registry = AsyncMock()
+        mock_registry.invoke = AsyncMock(side_effect=Exception("LLM unavailable"))
+
+        mock_player = MagicMock()
+        mock_player.to_dict.return_value = {"id": "player1"}
+        mock_player.active_quests = []
+        mock_player.completed_quests = []
+        mock_player.kill_count = 0
+
+        mock_world_state = MagicMock()
+        mock_world_state.get_player.return_value = mock_player
+
+        original_registry = handler._registry
+        original_world_state = handler._world_state
+        handler._registry = mock_registry  # type: ignore[assignment]
+        handler._world_state = mock_world_state  # type: ignore[assignment]
+
+        try:
+            resolution = self._make_resolution()
+            # Must not raise
+            await handler._update_combat_memory_async(
+                player_id="player1",
+                npc_id="npc1",
+                resolution=resolution,
+                prompt="I slash with my sword",
+            )
         finally:
             handler._registry = original_registry
             handler._world_state = original_world_state

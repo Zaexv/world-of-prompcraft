@@ -340,39 +340,154 @@ async def _npc_react_to_chat(
     )
 
 
-async def _narrate_combat_async(
+_COMBAT_FALLBACKS = [
+    "You dare strike me?!",
+    "I'll make you pay for that!",
+    "You'll regret this, fool!",
+    "Feel my wrath!",
+    "Is that all you've got?!",
+]
+
+
+async def _fast_combat_reaction(
     player_id: str,
     npc_id: str,
     npc_name: str,
+    npc_personality: str,
     resolution: CombatResolution,
     prompt: str,
-    npc_system_prompt: str,
     manager: ConnectionManager,
 ) -> None:
-    """Run the full agent pipeline after a fast-path combat hit.
+    """Send a fast NPC reaction using a single direct LLM call — no full pipeline.
 
-    Delivers:
-    - NPC counter-attack (via agent tools — deal_damage, emote, etc.)
-    - In-character combat narration
-    - Relationship / memory update (reflect node)
+    - NPC dialogue: one direct LLM call with a minimal prompt (≈1-2 s).
+    - Counter-attack: computed deterministically from NPC max HP (no LLM needed).
 
-    The player already received their damage confirmation instantly.
-    This sends the NPC's reaction + retaliation as a follow-up agent_response.
+    The player already received the damage action instantly. This follow-up
+    delivers the NPC's voice and retaliation damage with minimum extra latency.
     """
     if _registry is None or _world_state is None:
         return
 
-    # Build player state so the agent has full context
+    npc_data = _world_state.get_npc(npc_id)
+    if npc_data is None or npc_data.hp <= 0:
+        return
+
+    # Deterministic counter-attack: scales with NPC max HP so bosses hit harder
+    counter_damage = max(3, random.randint(npc_data.max_hp // 15, npc_data.max_hp // 8))
+
+    # Single direct LLM call — no tools, no pipeline, minimal prompt
+    llm = _registry._llm
+    from langchain_core.messages import HumanMessage as _HumanMessage
+    from langchain_core.messages import SystemMessage as _SystemMessage
+
+    short_personality = npc_personality[:300].strip()
+    system_text = (
+        f"You are {npc_name}.\n{short_personality}\n\n"
+        "The player just attacked you. React in ONE short, dramatic, in-character sentence. "
+        "Do NOT break character. Do NOT explain or add commentary."
+    )
+    user_text = f'Player did: "{prompt}". Combat result: {resolution.combat_text}'
+
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke([_SystemMessage(content=system_text), _HumanMessage(content=user_text)]),
+            timeout=12.0,
+        )
+        raw = response.content if isinstance(response.content, str) else ""
+        dialogue = raw.strip() or random.choice(_COMBAT_FALLBACKS)
+    except Exception:
+        logger.warning("Fast combat reaction failed for NPC %s — using fallback", npc_id)
+        dialogue = random.choice(_COMBAT_FALLBACKS)
+
+    # Apply counter-attack to world state
+    counter_actions: list[dict[str, Any]] = []
+    if npc_data.hp > 0:
+        counter_action: dict[str, Any] = {
+            "kind": "damage",
+            "params": {
+                "target": "player",
+                "amount": counter_damage,
+                "damageType": "physical",
+                "combatText": f"{npc_name} retaliates for {counter_damage} damage!",
+            },
+        }
+        await _world_state.apply_actions([counter_action])
+        counter_actions.append(counter_action)
+
+    # Re-fetch updated state
+    npc_after = _world_state.get_npc(npc_id)
+    npc_state: dict[str, Any] = {}
+    if npc_after is not None:
+        npc_state = {"hp": npc_after.hp, "maxHp": npc_after.max_hp}
+
+    player = _world_state.get_player(player_id)
+    player_update = player.to_dict() if player else None
+
+    await manager.send_to(
+        player_id,
+        {
+            "type": "agent_response",
+            "npcId": npc_id,
+            "dialogue": dialogue,
+            "actions": counter_actions,
+            "playerStateUpdate": player_update,
+            "npcStateUpdate": npc_state,
+        },
+    )
+
+    # Broadcast to nearby players
+    if npc_after is not None:
+        if dialogue:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_dialogue",
+                    "npcId": npc_id,
+                    "npcName": npc_name,
+                    "dialogue": dialogue,
+                },
+                origin=npc_after.position,
+                radius=100.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+        bcast = [a for a in counter_actions if a.get("params", {}).get("target") != "player"]
+        if bcast or npc_state:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_actions",
+                    "npcId": npc_id,
+                    "actions": bcast,
+                    "npcStateUpdate": npc_state,
+                },
+                origin=npc_after.position,
+                radius=200.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+
+
+async def _update_combat_memory_async(
+    player_id: str,
+    npc_id: str,
+    resolution: CombatResolution,
+    prompt: str,
+) -> None:
+    """Run the full agent pipeline silently to update NPC memory and relationship score.
+
+    The player already received their combat response from _fast_combat_reaction.
+    This function persists the relationship penalty and mood change so future
+    interactions reflect that the NPC was attacked — no further client message sent.
+    """
+    if _registry is None or _world_state is None:
+        return
+
     player = _world_state.get_player(player_id)
     player_dict = player.to_dict()
     player_dict["active_quests"] = player.active_quests
     player_dict["completed_quests"] = list(player.completed_quests)
     player_dict["kill_count"] = player.kill_count
 
-    # Prefix the prompt with the combat outcome so:
-    #   - reason_node builds a hostile system prompt context
-    #   - act_node decides to retaliate (deal_damage → player)
-    #   - reflect_node sees the attack and penalises relationship score
     combat_prompt = (
         f"[COMBAT: {resolution.outcome} — "
         f"{resolution.final_damage} {resolution.damage_type} damage] "
@@ -382,7 +497,7 @@ async def _narrate_combat_async(
     lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
     try:
         async with lock, _agent_semaphore:
-            result = await asyncio.wait_for(
+            await asyncio.wait_for(
                 _registry.invoke(
                     npc_id=npc_id,
                     player_id=player_id,
@@ -391,75 +506,8 @@ async def _narrate_combat_async(
                 ),
                 timeout=settings.agent_invoke_timeout_seconds,
             )
-    except TimeoutError:
-        logger.warning("Combat narration timed out for NPC %s player %s", npc_id, player_id)
-        return
     except Exception:
-        logger.exception("Combat narration agent call failed for NPC %s", npc_id)
-        return
-
-    dialogue = result.get("dialogue", "")
-    actions: list[dict[str, Any]] = result.get("actions", []) or []
-
-    # Re-fetch NPC HP after the agent applied its own actions (counter-attack etc.)
-    npc_data = _world_state.get_npc(npc_id)
-    npc_state: dict[str, Any] = {}
-    if npc_data is not None:
-        npc_state = {"hp": npc_data.hp, "maxHp": npc_data.max_hp}
-        agent_npc_update = result.get("npcStateUpdate") or {}
-        # Server HP is authoritative; merge mood/relationship from agent on top
-        npc_state = {**agent_npc_update, **npc_state}
-
-    # Send the NPC reaction + counter-attack as a full agent_response so the
-    # client's existing handler shows it in the interaction panel, combat log,
-    # floating damage numbers, and HP bars — all in one message.
-    await manager.send_to(
-        player_id,
-        {
-            "type": "agent_response",
-            "npcId": npc_id,
-            "dialogue": dialogue,
-            "actions": actions,
-            "playerStateUpdate": None,
-            "npcStateUpdate": npc_state,
-        },
-    )
-
-    # Broadcast NPC dialogue + actions to nearby other players
-    if npc_data is not None:
-        if dialogue:
-            await manager.broadcast_nearby(
-                {
-                    "type": "npc_dialogue",
-                    "npcId": npc_id,
-                    "npcName": npc_name,
-                    "dialogue": dialogue,
-                },
-                origin=npc_data.position,
-                radius=100.0,
-                world_state=_world_state,
-                exclude=player_id,
-            )
-        _BROADCAST_KINDS_NARR = {"damage", "move_npc", "emote", "spawn_effect"}  # noqa: N806
-        bcast = [
-            a
-            for a in actions
-            if a.get("kind") in _BROADCAST_KINDS_NARR
-            and a.get("params", {}).get("target") != "player"
-        ]
-        if bcast or npc_state:
-            await manager.broadcast_nearby(
-                {
-                    "type": "npc_actions",
-                    "npcId": npc_id,
-                    "actions": bcast,
-                    "npcStateUpdate": npc_state,
-                },
-                origin=npc_data.position,
-                radius=200.0,
-                world_state=_world_state,
-                exclude=player_id,
-            )
+        logger.debug("Background memory update timed out/failed for NPC %s", npc_id)
 
 
 async def _handle_interaction(
@@ -612,22 +660,34 @@ async def _handle_interaction(
                     exclude=player_id,
                 )
 
-        # Fire LLM narration as background task (non-blocking)
+        # Fast reaction: single LLM call → NPC dialogue + counter-attack (≈1-2 s)
         npc_data = _world_state.get_npc(npc_id)
-        npc_system_prompt = npc_data.personality if npc_data is not None else ""
-        narration_task = asyncio.create_task(
-            _narrate_combat_async(
+        npc_personality = npc_data.personality if npc_data is not None else ""
+        reaction_task = asyncio.create_task(
+            _fast_combat_reaction(
                 player_id=player_id,
                 npc_id=npc_id,
                 npc_name=npc_name,
+                npc_personality=npc_personality,
                 resolution=_combat_resolution,
                 prompt=prompt,
-                npc_system_prompt=npc_system_prompt,
                 manager=manager,
             )
         )
-        _background_tasks.add(narration_task)
-        narration_task.add_done_callback(_background_tasks.discard)
+        _background_tasks.add(reaction_task)
+        reaction_task.add_done_callback(_background_tasks.discard)
+
+        # Memory update: full pipeline silently in background (no extra client message)
+        memory_task = asyncio.create_task(
+            _update_combat_memory_async(
+                player_id=player_id,
+                npc_id=npc_id,
+                resolution=_combat_resolution,
+                prompt=prompt,
+            )
+        )
+        _background_tasks.add(memory_task)
+        memory_task.add_done_callback(_background_tasks.discard)
 
         return {
             "type": "agent_response",
