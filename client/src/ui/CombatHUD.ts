@@ -179,12 +179,17 @@ export class CombatHUD extends UIComponent {
 
   addLogEntry(text: string, color = "#e8dcc8"): void {
     const entry = document.createElement("div");
+    const isBold = color === "#ffd700" || color === "#ff4400";
     Object.assign(entry.style, {
-      fontSize: "11px",
+      fontSize: isBold ? "12px" : "11px",
       fontFamily: "'Courier New', monospace",
       color,
+      fontWeight: isBold ? "900" : "400",
       lineHeight: "1.3",
-      textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+      textShadow: isBold
+        ? `0 1px 4px ${color}88, 0 1px 2px rgba(0,0,0,0.8)`
+        : "0 1px 2px rgba(0,0,0,0.8)",
+      letterSpacing: isBold ? "0.5px" : "0",
     } as CSSStyleDeclaration);
     entry.textContent = `> ${text}`;
     this.logEntries.appendChild(entry);
@@ -194,6 +199,13 @@ export class CombatHUD extends UIComponent {
     }
 
     this.logEntries.scrollTop = this.logEntries.scrollHeight;
+  }
+
+  flashNpcPortrait(): void {
+    this.triggerFlash(this.npcHpFill);
+    const orig = this.npcPortrait.style.border;
+    this.npcPortrait.style.border = "2px solid #ff4400";
+    setTimeout(() => { this.npcPortrait.style.border = orig; }, 300);
   }
 
   /** Check if combat HUD is currently visible. */
