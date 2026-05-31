@@ -37,6 +37,8 @@ Key issues:
 - `server/src/agents/nodes/summarize.py`
 - `server/src/agents/registry.py`
 
+**Status:** implemented with the summarize policy owned by `summarize.py` and bounded prompt assembly kept in `reason.py`.
+
 ---
 
 ## 2) Introduce strict action normalization/validation

@@ -20,6 +20,8 @@ _ACTION_INTENT_PATTERNS = re.compile(
     r"\b(attack|fight|hit|kill|trade|buy|sell|shop|quest|item|heal|use|equip|give|take)\b",
     re.IGNORECASE,
 )
+_MAX_REASON_HISTORY_MESSAGES = 8
+_MAX_SHORT_SOCIAL_MESSAGES = 3
 
 
 def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
@@ -135,6 +137,12 @@ def _build_compact_system_prompt(state: NPCAgentState) -> str:
     )
 
 
+def _select_reasoning_messages(state: NPCAgentState, short_social: bool) -> list[Any]:
+    """Keep the active prompt bounded while preserving the current exchange."""
+    max_messages = _MAX_SHORT_SOCIAL_MESSAGES if short_social else _MAX_REASON_HISTORY_MESSAGES
+    return state.get("messages", [])[-max_messages:]
+
+
 def make_reason_node(
     llm: BaseChatModel, tools: list[BaseTool], shared_pending_actions: list[Any]
 ) -> Any:
@@ -164,7 +172,7 @@ def make_reason_node(
             if short_social
             else _build_system_prompt(state, player_prompt)
         )
-        msg_tail = state["messages"][-1:] if short_social else state["messages"]
+        msg_tail = _select_reasoning_messages(state, short_social)
         messages = [SystemMessage(content=system_prompt), *msg_tail]
         active_llm = llm if short_social else llm_with_tools
         ai_message = await active_llm.ainvoke(messages)
