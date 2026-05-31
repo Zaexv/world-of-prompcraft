@@ -5,6 +5,7 @@ export const BIOME_VEGETATION: Partial<Record<BiomeType, readonly string[]>> = {
   [BiomeType.Teldrassil]: [
     'ancient_tree',
     'mushroom_cluster',
+    'crystal_cluster',
     'biome_prop_forest_grass',
     'biome_prop_forest_orb',
   ],

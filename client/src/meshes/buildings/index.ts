@@ -30,6 +30,7 @@ import './structures/Road';
 // Procedural biome buildings (selected per-biome by ProceduralPopulator)
 import './biome/ElvenTower';
 import './biome/MoonShrine';
+import './biome/ForestSanctuary';
 import './biome/RuinedOutpost';
 import './biome/ObsidianSpire';
 import './biome/Forge';

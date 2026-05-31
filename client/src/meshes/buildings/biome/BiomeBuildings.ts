@@ -12,7 +12,7 @@ import type { Rng } from '../../../systems/worldbuilder/RngTypes';
 
 /** Each biome's procedural building variants, in their original selection order. */
 export const BIOME_BUILDINGS: Partial<Record<BiomeType, readonly string[]>> = {
-  [BiomeType.Teldrassil]: ['biome_elven_tower', 'biome_moon_shrine', 'biome_ruined_outpost'],
+  [BiomeType.Teldrassil]: ['biome_elven_tower', 'biome_moon_shrine', 'biome_forest_sanctuary', 'biome_ruined_outpost'],
   [BiomeType.EmberWastes]: ['biome_obsidian_spire', 'biome_forge', 'biome_fire_temple'],
   [BiomeType.CrystalTundra]: ['biome_ice_castle', 'biome_frozen_caravan', 'biome_crystal_spire'],
   [BiomeType.TwilightMarsh]: ['biome_swamp_hut', 'biome_drowned_temple', 'biome_witch_tower'],
