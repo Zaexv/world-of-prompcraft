@@ -22,11 +22,13 @@ export class MalakaBrokenWall extends Mesh {
     const plinthH = 1.2 * scale;
     const plinth = new THREE.Mesh(new THREE.BoxGeometry(wallW + 0.4 * scale, plinthH, wallT + 0.4 * scale), mats.stone);
     plinth.position.y = plinthH / 2 - 0.2 * scale;
+    plinth.userData.noCollision = true;
     g.add(plinth);
 
     const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallT), mats.stone);
     wall.position.y = plinthH + wallH / 2 - 0.2 * scale;
     wall.castShadow = wall.receiveShadow = true;
+    wall.userData.noCollision = true;
     g.add(wall);
 
     const wallProxy = boxCollider(wallW, wallH + plinthH, wallT);
@@ -34,10 +36,11 @@ export class MalakaBrokenWall extends Mesh {
     g.add(wallProxy);
 
 
-    // Arrow Slits in the wall
+    // Arrow Slits
     for (let x = -3 * scale; x <= 3 * scale; x += 3 * scale) {
       const slit = createArrowSlit(1.2 * scale, scale);
       slit.position.set(x, plinthH + wallH * 0.5 - 0.2 * scale, wallT / 2 + 0.05 * scale);
+      slit.userData.noCollision = true;
       g.add(slit);
     }
 
@@ -47,6 +50,7 @@ export class MalakaBrokenWall extends Mesh {
     const walkT = wallT - 0.8 * scale;
     const walk = new THREE.Mesh(new THREE.BoxGeometry(walkW, walkH, walkT), mats.stone);
     walk.position.y = plinthH + wallH + walkH / 2 - 0.2 * scale;
+    walk.userData.noCollision = true;
     g.add(walk);
 
     // Crenellations
@@ -55,11 +59,10 @@ export class MalakaBrokenWall extends Mesh {
     for (let x = -wallW / 2 + crenSize / 2; x <= wallW / 2; x += crenSize * 2) {
       const cren = new THREE.Mesh(new THREE.BoxGeometry(crenSize, crenH, 0.6 * scale), mats.stone);
       cren.position.set(x, plinthH + wallH + crenH / 2 - 0.2 * scale, wallT / 2 - 0.3 * scale);
+      cren.userData.noCollision = true;
       g.add(cren);
     }
 
-    // World-tile the stone so the masonry keeps a constant block size instead of
-    // stretching across the wide wall faces.
     applyWorldTiling(g, mats.stone);
 
     return withLOD(g);

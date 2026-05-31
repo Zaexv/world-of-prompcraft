@@ -301,7 +301,17 @@ export class CollisionSystem {
 
   private createCollisionBody(obj: THREE.Object3D, isStatic: boolean): CollisionBody | null {
     obj.updateWorldMatrix(true, true);
-    this._box3.setFromObject(obj);
+    
+    // Custom box calculation that includes invisible objects (standard setFromObject ignores them)
+    if (obj instanceof THREE.Mesh) {
+      if (!obj.geometry.boundingBox) obj.geometry.computeBoundingBox();
+      this._box3.copy(obj.geometry.boundingBox!).applyMatrix4(obj.matrixWorld);
+    } else {
+      // Fallback for groups/others (will still ignore invisible children, 
+      // but isCollider proxies are usually meshes anyway)
+      this._box3.setFromObject(obj);
+    }
+
     if (this._box3.isEmpty()) return null;
 
     const aabb: AABB = {
