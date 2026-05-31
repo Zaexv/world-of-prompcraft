@@ -6,7 +6,6 @@ import {
   createArchedDoor,
   createWindowWithGrille,
   createChimney,
-  createRoofTile,
   createFlowerPot,
   createWoodenShutters,
   createPergola

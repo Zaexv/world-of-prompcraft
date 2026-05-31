@@ -12,6 +12,7 @@ import {
   createWoodenBench,
   createWoodenTable,
   createClimbingPlant,
+  MedMaterials,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
@@ -118,8 +119,8 @@ export class MalakaPatioHouse extends Mesh {
       wingGroup.add(cCap);
 
       // --- Upper Floor ---
-      let uWallH = upperH;
-      let isBackWing = (i === 1); 
+      const uWallH = upperH;
+      const isBackWing = (i === 1); 
       
       if (isBackWing) {
         // Receded Central Balcony
@@ -386,7 +387,7 @@ export class MalakaPatioHouse extends Mesh {
     return g;
   }
 
-  private createRailing(width: number, height: number, scale: number, mats: any): THREE.Group {
+  private createRailing(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
     const g = new THREE.Group();
     const railT = 0.08 * scale;
     const top = new THREE.Mesh(new THREE.BoxGeometry(width, railT, railT), mats.wood);
@@ -406,7 +407,7 @@ export class MalakaPatioHouse extends Mesh {
     return g;
   }
 
-  private createFountain(scale: number, mats: any): THREE.Group {
+  private createFountain(scale: number, mats: MedMaterials): THREE.Group {
     const g = new THREE.Group();
     const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * scale, 1.0 * scale, 0.4 * scale, 8), mats.stone);
     base.position.y = 0.2 * scale;
@@ -436,7 +437,7 @@ export class MalakaPatioHouse extends Mesh {
     return g;
   }
 
-  private createRoofSegment(width: number, depth: number, height: number, mats: any): THREE.Mesh {
+  private createRoofSegment(width: number, depth: number, height: number, mats: MedMaterials): THREE.Mesh {
     const geo = new THREE.BufferGeometry();
     const w2 = width / 2;
     const d2 = depth / 2;

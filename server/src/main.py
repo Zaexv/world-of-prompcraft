@@ -78,8 +78,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
     # Limit to 30 messages per 2 seconds to allow for bursts of player movement
     # while preventing massive spamming.
     msg_timestamps: list[float] = []
-    RATE_LIMIT_COUNT = 30
-    RATE_LIMIT_WINDOW = 2.0
+    rate_limit_count = 30
+    rate_limit_window = 2.0
 
     # Each message is handled in its own task so a slow message (e.g. an
     # interaction waiting tens of seconds on the LLM) does not block the receive
@@ -111,8 +111,8 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
             # Apply rate limiting
             now = time.time()
-            msg_timestamps = [t for t in msg_timestamps if now - t < RATE_LIMIT_WINDOW]
-            if len(msg_timestamps) >= RATE_LIMIT_COUNT:
+            msg_timestamps = [t for t in msg_timestamps if now - t < rate_limit_window]
+            if len(msg_timestamps) >= rate_limit_count:
                 await websocket.send_json({"type": "error", "message": "Rate limit exceeded"})
                 await asyncio.sleep(0.1)  # small backoff
                 continue
