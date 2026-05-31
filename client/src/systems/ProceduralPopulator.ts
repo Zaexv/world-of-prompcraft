@@ -32,6 +32,7 @@ import type { EntityManager } from '../entities/EntityManager';
 import { buildMesh, selectBiomeBuildingType, selectBiomePropType, selectBiomeVegetationType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
 import { getEncountersFor } from './EncounterRegistry';
+import { tagDebugInfo } from '../debug/DebugInfo';
 // Side-effect import: registers all built-in encounters
 import './encounters';
 
@@ -276,6 +277,7 @@ export class ProceduralPopulator {
           // addCollidableFiltered is now instant — BVH trees are built lazily
           // by CollisionSystem.update() at max 2/frame (no burst spikes).
           void this.collisionSystem?.addCollidableFiltered(group);
+          tagDebugInfo(group, { type: 'encounter_' + enc.id, category: 'encounter', zone: BiomeType[biome] });
           objs.push(group);
         }
 
@@ -317,17 +319,20 @@ export class ProceduralPopulator {
         const pos = ProceduralPopulator._v.set(bx, by, bz);
 
         let building: THREE.Object3D | null;
+        let buildingType = BiomeType[biome] + '_building';
         if (registryEntry) {
           building = registryEntry.buildingFn(pos, rng, dist);
         } else {
-          const type = selectBiomeBuildingType(biome, rng, dist);
-          building = type ? buildMesh(type, { position: pos, scale: 1 }) ?? null : null;
+          const bType = selectBiomeBuildingType(biome, rng, dist);
+          if (bType) buildingType = bType;
+          building = bType ? buildMesh(bType, { position: pos, scale: 1 }) ?? null : null;
         }
 
         if (building && this.scene) {
           building.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(building);
           void this.collisionSystem?.addCollidableFiltered(building);
+          tagDebugInfo(building, { type: buildingType, category: 'building', zone: BiomeType[biome] });
           objs.push(building);
         }
       }
@@ -384,6 +389,7 @@ export class ProceduralPopulator {
           if (veg.userData.isCollider || veg.children.some(c => c.userData.isCollider)) {
             void this.collisionSystem?.addCollidableFiltered(veg);
           }
+          tagDebugInfo(veg, { type: type ?? 'vegetation', category: 'vegetation', zone: BiomeType[biome] });
           objs.push(veg);
         }
       }
@@ -401,16 +407,19 @@ export class ProceduralPopulator {
         const scale = rng.nextRange(0.7, 1.35);
 
         let prop: THREE.Object3D | null;
+        let propType = BiomeType[biome] + '_prop';
         if (registryEntry) {
           prop = registryEntry.propFn(pos, scale, rng);
         } else {
-          const type = selectBiomePropType(biome, rng);
-          prop = type ? buildMesh(type, { position: pos, scale, rng }) ?? null : null;
+          const pType = selectBiomePropType(biome, rng);
+          if (pType) propType = pType;
+          prop = pType ? buildMesh(pType, { position: pos, scale, rng }) ?? null : null;
         }
 
         if (prop && this.scene) {
           prop.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(prop);
+          tagDebugInfo(prop, { type: propType, category: 'prop', zone: BiomeType[biome] });
           objs.push(prop);
         }
       }

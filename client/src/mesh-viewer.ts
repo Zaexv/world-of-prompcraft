@@ -1,34 +1,94 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
-// We import from 'three-mesh-bvh' if needed, but it's optional here.
 import { meshTypes, buildMesh } from './meshes/index';
 
-// ─── Setup Scene ─────────────────────────────────────────────────────────────
+// ─── Category helpers ─────────────────────────────────────────────────────────
 
-const container = document.getElementById('viewer')!;
+type TabId = 'all' | 'building' | 'prop' | 'vegetation' | 'encounter';
+
+const buildingSet = new Set(meshTypes('building'));
+const vegSet      = new Set(meshTypes('vegetation'));
+
+function tabFor(type: string): Exclude<TabId, 'all'> {
+  if (type.startsWith('encounter_')) return 'encounter';
+  if (buildingSet.has(type)) return 'building';
+  if (vegSet.has(type)) return 'vegetation';
+  return 'prop';
+}
+
+const allTypes = meshTypes().sort();
+
+// ─── Thumbnail renderer (offscreen) ──────────────────────────────────────────
+
+const thumbScene = new THREE.Scene();
+thumbScene.background = new THREE.Color(0x1a1a2e);
+thumbScene.add(new THREE.AmbientLight(0xffffff, 0.7));
+const td1 = new THREE.DirectionalLight(0xffeedd, 1.4);
+td1.position.set(10, 20, 10);
+thumbScene.add(td1);
+const td2 = new THREE.DirectionalLight(0xccddff, 0.3);
+td2.position.set(-10, 10, -10);
+thumbScene.add(td2);
+
+const thumbCam = new THREE.PerspectiveCamera(45, 1, 0.01, 5000);
+const thumbRend = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+thumbRend.setSize(200, 200);
+thumbRend.setPixelRatio(1);
+
+let _thumbObj: THREE.Object3D | null = null;
+
+function renderThumbnail(type: string): { url: string; bboxSize: THREE.Vector3 } {
+  if (_thumbObj) { thumbScene.remove(_thumbObj); _thumbObj = null; }
+
+  const obj = buildMesh(type, { position: new THREE.Vector3(), scale: 1 });
+  const bboxSize = new THREE.Vector3(1, 1, 1);
+
+  if (obj) {
+    _thumbObj = obj;
+    thumbScene.add(_thumbObj);
+
+    const bbox = new THREE.Box3().setFromObject(obj);
+    bbox.getSize(bboxSize);
+    const center = new THREE.Vector3();
+    bbox.getCenter(center);
+
+    const maxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) || 1;
+    const fov = thumbCam.fov * (Math.PI / 180);
+    const dist = (maxDim / 2) / Math.tan(fov / 2) * 2.5;
+
+    thumbCam.position.set(
+      center.x + dist * 0.65,
+      center.y + dist * 0.45,
+      center.z + dist * 0.85,
+    );
+    thumbCam.lookAt(center);
+    thumbCam.near = Math.max(0.001, dist * 0.01);
+    thumbCam.far  = dist * 20;
+    thumbCam.updateProjectionMatrix();
+  }
+
+  thumbRend.render(thumbScene, thumbCam);
+  return { url: thumbRend.domElement.toDataURL('image/jpeg', 0.82), bboxSize: bboxSize.clone() };
+}
+
+// ─── Main 3D scene (solo orbit view) ──────────────────────────────────────────
+
+const viewerEl = document.getElementById('viewer')!;
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x1a1a2e);
-
-// Grid & Axis
-const gridHelper = new THREE.GridHelper(50, 50, 0x444444, 0x222222);
-scene.add(gridHelper);
-const axesHelper = new THREE.AxesHelper(5);
-scene.add(axesHelper);
-
-// Lighting
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
-scene.add(ambientLight);
+scene.add(new THREE.GridHelper(50, 50, 0x444444, 0x222222));
+scene.add(new THREE.AxesHelper(5));
+scene.add(new THREE.AmbientLight(0xffffff, 0.6));
 
 const dirLight = new THREE.DirectionalLight(0xffeedd, 1.2);
 dirLight.position.set(20, 40, 20);
 dirLight.castShadow = true;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
-dirLight.shadow.camera.near = 0.5;
-dirLight.shadow.camera.far = 100;
-dirLight.shadow.camera.left = -20;
-dirLight.shadow.camera.right = 20;
-dirLight.shadow.camera.top = 20;
+dirLight.shadow.mapSize.set(2048, 2048);
+dirLight.shadow.camera.near   = 0.5;
+dirLight.shadow.camera.far    = 100;
+dirLight.shadow.camera.left   = -20;
+dirLight.shadow.camera.right  = 20;
+dirLight.shadow.camera.top    = 20;
 dirLight.shadow.camera.bottom = -20;
 scene.add(dirLight);
 
@@ -36,85 +96,193 @@ const fillLight = new THREE.DirectionalLight(0xccddff, 0.4);
 fillLight.position.set(-20, 20, -20);
 scene.add(fillLight);
 
-// Camera
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(15, 10, 20);
 
-// Renderer
 const renderer = new THREE.WebGLRenderer({ antialias: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
+viewerEl.appendChild(renderer.domElement);
 
-// Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.enableDamping = true;
 controls.dampingFactor = 0.05;
 controls.target.set(0, 5, 0);
+controls.enabled = false;
 
-// ─── Mesh Management ─────────────────────────────────────────────────────────
+let currentMesh: THREE.Object3D | null = null;
 
-let currentMeshGroup: THREE.Group | undefined;
+function loadMeshSolo(type: string, bboxSize: THREE.Vector3): void {
+  if (currentMesh) { scene.remove(currentMesh); currentMesh = null; }
 
-function loadMesh(type: string) {
-  if (currentMeshGroup) {
-    scene.remove(currentMeshGroup);
-    currentMeshGroup = undefined;
+  const obj = buildMesh(type, { position: new THREE.Vector3(), scale: 1 });
+  if (!obj) return;
+
+  const plane = new THREE.Mesh(
+    new THREE.PlaneGeometry(50, 50),
+    new THREE.ShadowMaterial({ opacity: 0.5 }),
+  );
+  plane.rotation.x = -Math.PI / 2;
+  plane.receiveShadow = true;
+
+  const group = new THREE.Group();
+  group.add(obj, plane);
+  currentMesh = group;
+  scene.add(currentMesh);
+
+  // Fit camera to mesh
+  const bbox = new THREE.Box3().setFromObject(obj);
+  const center = new THREE.Vector3();
+  bbox.getCenter(center);
+  const maxDim = Math.max(bboxSize.x, bboxSize.y, bboxSize.z) || 1;
+  const dist = maxDim * 2.5;
+  camera.position.set(center.x + dist * 0.7, center.y + dist * 0.55, center.z + dist * 0.9);
+  controls.target.copy(center);
+  controls.update();
+}
+
+// ─── UI state ─────────────────────────────────────────────────────────────────
+
+const gridOverlay  = document.getElementById('gridOverlay')!;
+const soloHeader   = document.getElementById('soloHeader')!;
+const meshGrid     = document.getElementById('meshGrid')!;
+const tabBar       = document.getElementById('tabBar')!;
+const searchInput  = document.getElementById('searchInput') as HTMLInputElement;
+const backToGrid   = document.getElementById('backToGrid')!;
+const soloTitle    = document.getElementById('soloTitle')!;
+const soloBbox     = document.getElementById('soloBbox')!;
+
+let activeTab: TabId  = 'all';
+let searchQuery       = '';
+let inSoloMode        = false;
+
+const bboxMap = new Map<string, THREE.Vector3>();
+const tileMap = new Map<string, HTMLElement>();
+
+// ─── Grid ─────────────────────────────────────────────────────────────────────
+
+function buildGrid(): void {
+  for (const type of allTypes) {
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.dataset.type = type;
+    tile.dataset.tabGroup = tabFor(type);
+
+    const placeholder = document.createElement('div');
+    placeholder.className = 'tile-placeholder';
+    placeholder.textContent = '…';
+
+    const info = document.createElement('div');
+    info.className = 'tile-info';
+
+    const typeEl = document.createElement('div');
+    typeEl.className = 'tile-type';
+    typeEl.textContent = type;
+
+    const bboxEl = document.createElement('div');
+    bboxEl.className = 'tile-bbox';
+
+    info.append(typeEl, bboxEl);
+    tile.append(placeholder, info);
+    tile.addEventListener('click', () => onTileClick(type));
+    meshGrid.appendChild(tile);
+    tileMap.set(type, tile);
   }
 
-  if (!type) return;
+  // Update tab counts
+  const counts: Record<string, number> = { all: allTypes.length, building: 0, prop: 0, vegetation: 0, encounter: 0 };
+  for (const type of allTypes) counts[tabFor(type)]++;
+  for (const btn of tabBar.querySelectorAll<HTMLElement>('[data-tab]')) {
+    const tab = btn.dataset.tab as TabId;
+    if (tab && counts[tab] !== undefined) {
+      btn.textContent = `${btn.textContent?.replace(/ \(\d+\)$/, '')} (${counts[tab]})`;
+    }
+  }
 
-  const buildContext = {
-    position: new THREE.Vector3(0, 0, 0),
-    scale: 1, // Default scale
-  };
+  filterGrid();
+}
 
-  const obj = buildMesh(type, buildContext);
-  if (obj) {
-    currentMeshGroup = new THREE.Group();
-    currentMeshGroup.add(obj);
-
-    // Add a simple shadow plane underneath
-    const plane = new THREE.Mesh(
-      new THREE.PlaneGeometry(50, 50),
-      new THREE.ShadowMaterial({ opacity: 0.5 })
-    );
-    plane.rotation.x = -Math.PI / 2;
-    plane.receiveShadow = true;
-    currentMeshGroup.add(plane);
-
-    scene.add(currentMeshGroup);
-    console.info(`Loaded mesh: ${type}`);
+function filterGrid(): void {
+  const query = searchQuery.toLowerCase();
+  for (const [type, tile] of tileMap) {
+    const tabMatch = activeTab === 'all' || tile.dataset.tabGroup === activeTab;
+    const searchMatch = !query || type.includes(query);
+    tile.classList.toggle('hidden', !(tabMatch && searchMatch));
   }
 }
 
-// ─── UI Setup ────────────────────────────────────────────────────────────────
-
-const select = document.getElementById('meshSelect') as HTMLSelectElement;
-
-// Populate dropdown with all registered meshes
-const types = meshTypes();
-types.sort().forEach((type) => {
-  const option = document.createElement('option');
-  option.value = type;
-  option.textContent = type;
-  select.appendChild(option);
-});
-
-select.addEventListener('change', (e) => {
-  const target = e.target as HTMLSelectElement;
-  loadMesh(target.value);
-});
-
-// Auto-load Malaka Church by default if it exists
-if (types.includes('malaka_church')) {
-  select.value = 'malaka_church';
-  loadMesh('malaka_church');
+function onTileClick(type: string): void {
+  const bboxSize = bboxMap.get(type) ?? new THREE.Vector3(1, 1, 1);
+  enterSoloMode(type, bboxSize);
 }
 
-// ─── Render Loop ─────────────────────────────────────────────────────────────
+function enterSoloMode(type: string, bboxSize: THREE.Vector3): void {
+  inSoloMode = true;
+  gridOverlay.style.display = 'none';
+  soloHeader.style.display = 'flex';
+  soloTitle.textContent = type;
+  const { x, y, z } = bboxSize;
+  soloBbox.textContent = `${x.toFixed(1)} × ${y.toFixed(1)} × ${z.toFixed(1)}`;
+  controls.enabled = true;
+  loadMeshSolo(type, bboxSize);
+}
+
+function exitSoloMode(): void {
+  inSoloMode = false;
+  gridOverlay.style.display = 'flex';
+  soloHeader.style.display = 'none';
+  controls.enabled = false;
+}
+
+// ─── Thumbnail generation ─────────────────────────────────────────────────────
+
+async function startThumbnails(): Promise<void> {
+  const BATCH = 5;
+  for (let i = 0; i < allTypes.length; i += BATCH) {
+    const batch = allTypes.slice(i, i + BATCH);
+    for (const type of batch) {
+      const { url, bboxSize } = renderThumbnail(type);
+      bboxMap.set(type, bboxSize);
+
+      const tile = tileMap.get(type);
+      if (tile) {
+        const placeholder = tile.querySelector('.tile-placeholder');
+        if (placeholder) {
+          const img = document.createElement('img');
+          img.src = url;
+          img.alt = type;
+          tile.replaceChild(img, placeholder);
+        }
+        const bboxEl = tile.querySelector<HTMLElement>('.tile-bbox');
+        if (bboxEl) {
+          const { x, y, z } = bboxSize;
+          bboxEl.textContent = `${x.toFixed(1)} × ${y.toFixed(1)} × ${z.toFixed(1)}`;
+        }
+      }
+    }
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+  }
+}
+
+// ─── Event wiring ─────────────────────────────────────────────────────────────
+
+tabBar.addEventListener('click', (e) => {
+  const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-tab]');
+  if (!btn) return;
+  activeTab = btn.dataset.tab as TabId;
+  for (const t of tabBar.querySelectorAll<HTMLElement>('.tab')) t.classList.remove('active');
+  btn.classList.add('active');
+  filterGrid();
+});
+
+searchInput.addEventListener('input', () => {
+  searchQuery = searchInput.value;
+  filterGrid();
+});
+
+backToGrid.addEventListener('click', exitSoloMode);
 
 window.addEventListener('resize', () => {
   camera.aspect = window.innerWidth / window.innerHeight;
@@ -122,10 +290,18 @@ window.addEventListener('resize', () => {
   renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function animate() {
+// ─── Render loop ──────────────────────────────────────────────────────────────
+
+function animate(): void {
   requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
+  if (inSoloMode) {
+    controls.update();
+    renderer.render(scene, camera);
+  }
 }
 
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+buildGrid();
 animate();
+void startThumbnails();
