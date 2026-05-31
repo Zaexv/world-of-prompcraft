@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../core/Mesh';
 import { registerMesh } from '../core/MeshRegistry';
+import { createEmberParticles } from './fireParticles';
 
 export class Bonfire extends Mesh {
   static readonly type = 'bonfire';
@@ -33,6 +34,9 @@ export class Bonfire extends Mesh {
     flame.position.y = 1.5 * scale;
     flame.userData.noCollision = true;
     g.add(flame);
+
+    // Rising embers above the flame.
+    g.add(createEmberParticles({ scale, count: 22, radius: 0.45, baseY: 0.6, rise: 2.4, speed: 1.4, size: 0.22 }));
 
     return g;
   }

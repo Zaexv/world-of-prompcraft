@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createHorseshoeArch, createMachicolations } from './MalakaKit';
+import { getMaterials, createHorseshoeArch, createMachicolations, withLOD } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaCastle extends Mesh {
   static readonly type = 'malaka_castle';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -73,7 +74,11 @@ export class MalakaCastle extends Mesh {
     // 7. Arrow Slits and Machicolations
     g.add(createMachicolations(tier1W, tier1W, tier1H, mats, scale));
 
-    return g;
+    // World-tile the stone tiers/keep so the masonry doesn't stretch across the
+    // large faces (a 16 m tier no longer shows 4 m "blocks").
+    applyWorldTiling(g, mats.stone);
+
+    return withLOD(g);
   }
 }
 

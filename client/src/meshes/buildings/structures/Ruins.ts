@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { applyStonePBR } from '../../../utils/PBRMaps';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
+import { applyWorldTiling } from '../worldTiled';
 
 interface RuinWall { x: number; z: number; h: number; rx: number; ry: number; }
 interface RuinDebris { px: number; pz: number; size: number; ry: number; }
@@ -32,6 +33,7 @@ function buildRuinsGroup(scale: number, walls: RuinWall[], debris: RuinDebris[],
       g.add(mesh);
     }
   }
+  applyWorldTiling(g, stoneMat);
   return g;
 }
 

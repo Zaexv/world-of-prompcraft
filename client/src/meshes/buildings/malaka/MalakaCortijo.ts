@@ -1,14 +1,15 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createArchedDoor, createWindowWithGrille } from './MalakaKit';
+import { getMaterials, createArchedDoor, createWindowWithGrille, withLOD } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaCortijo extends Mesh {
   static readonly type = 'malaka_cortijo';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -71,7 +72,10 @@ export class MalakaCortijo extends Mesh {
       g.add(win);
     }
 
-    return g;
+    // Constant-scale stone on the terrace slab (no stretching).
+    applyWorldTiling(g, mats.stone);
+
+    return withLOD(g);
   }
 }
 
