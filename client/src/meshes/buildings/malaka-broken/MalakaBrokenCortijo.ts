@@ -14,7 +14,7 @@ import { applyWorldTiling } from '../worldTiled';
  * Helper to create a proper Mediterranean hip roof.
  * Uses world-unit UV mapping to prevent texture stretching.
  */
-function createHipRoof(width: number, depth: number, height: number, mat: THREE.Material, scale: number): THREE.Mesh {
+function createHipRoof(width: number, depth: number, height: number, mat: THREE.Material): THREE.Mesh {
     const geo = new THREE.BufferGeometry();
     const ridgeLen = Math.max(0.1, Math.abs(width - depth));
     const isWide = width > depth;
