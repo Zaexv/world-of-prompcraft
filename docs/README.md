@@ -22,7 +22,7 @@ Use `make check` from the repo root to run lint + typecheck + tests for both sid
 
 | Document | Description |
 |----------|-------------|
-| [Agentic Workflow](./agentic-workflow.md) | **LangGraph pipeline reference** — all 5 nodes, agent state schema, full tool system (all 14 tools with args + lifecycle), end-to-end tool call sequence diagram, concrete attack example trace, memory/relationship model, cost strategy, and extension guides |
+| [Agentic Workflow](./agentic-workflow.md) | **LangGraph pipeline reference** — all 5 nodes, agent state schema, full tool system (all 14 tools with args + lifecycle), end-to-end tool call sequence diagram, concrete attack example trace, checkpointed memory / relationship model, cost strategy, and extension guides |
 
 ## Protocol Contract
 

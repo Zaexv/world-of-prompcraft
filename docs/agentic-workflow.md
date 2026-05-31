@@ -58,6 +58,7 @@ All data flowing through the graph lives in a single `TypedDict`:
 | `personality_notes` | `str` | Persistent | NPC-specific observations about this player (max 300 chars) |
 
 `MemorySaver` checkpoints state per `thread_id = "{npc_id}_{player_id}"`. Persistent fields survive across invocations.
+The registry now builds a fresh per-turn input state without reinitializing those checkpointed fields, so summarization can compact context without erasing the user's long-term relationship.
 
 ---
 
@@ -123,7 +124,7 @@ Relationship tiers shown in system prompt:
 **File:** `server/src/agents/nodes/summarize.py`  
 **LLM call:** Yes (conditional)
 
-Fires when `human_count >= 10 AND human_count % 3 == 0` to keep memory bounded. Uses the LLM to produce a 2-3 sentence rolling summary of the last 12 messages, prepended with the previous summary. Output capped at 500 chars to avoid prompt bloat.
+Fires when `human_count >= 10 AND human_count % 3 == 0` to keep memory bounded. Uses the LLM to produce a 2-3 sentence rolling summary of the last 12 messages, prepended with the previous summary. The prompt explicitly preserves stable facts about the player, and output is capped at 500 chars to avoid prompt bloat.
 
 This is the **only second LLM call** in the pipeline and fires roughly every 3 turns after the first 10 — keeping cost predictable.
 
