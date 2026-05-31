@@ -138,8 +138,12 @@ def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-z]+", text.lower()))
 
 
-def _analyze_mood(tokens: set[str], current_mood: str) -> str:
+def _analyze_mood(tokens: set[str], current_mood: str, raw_text: str = "") -> str:
     """Determine new mood based on conversation tokens and current mood."""
+    # Being attacked always triggers anger, regardless of word counts
+    if "[COMBAT:" in raw_text:
+        return "angry"
+
     hostile_count = len(tokens & _HOSTILE_WORDS) + len(tokens & _INSULT_WORDS)
     friendly_count = len(tokens & _FRIENDLY_WORDS) + len(tokens & _HAPPY_TRIGGERS)
     sad_count = len(tokens & _SAD_TRIGGERS)
@@ -166,9 +170,15 @@ def _analyze_mood(tokens: set[str], current_mood: str) -> str:
     return current_mood if current_mood else "neutral"
 
 
-def _compute_relationship_delta(tokens: set[str], actions: list[dict[str, Any]]) -> int:
+def _compute_relationship_delta(
+    tokens: set[str], actions: list[dict[str, Any]], raw_text: str = ""
+) -> int:
     """Compute relationship score change from conversation + actions."""
     delta = 0
+
+    # Combat prefix injected by the fast path: player attacked — heavy penalty
+    if "[COMBAT:" in raw_text:
+        delta -= 15
 
     # Action-based scoring
     for action in actions:
@@ -194,7 +204,7 @@ def _compute_relationship_delta(tokens: set[str], actions: list[dict[str, Any]])
     delta -= hostile_hits * 2
     delta += friendly_hits
 
-    return max(-20, min(15, delta))
+    return max(-25, min(15, delta))
 
 
 def _build_personality_note(
@@ -255,8 +265,8 @@ async def reflect_node(state: NPCAgentState) -> dict[str, Any]:
     current_score = state.get("relationship_score", 0) or 0
     existing_notes = state.get("personality_notes", "") or ""
 
-    new_mood = _analyze_mood(tokens, current_mood)
-    delta = _compute_relationship_delta(tokens, actions)
+    new_mood = _analyze_mood(tokens, current_mood, recent_text)
+    delta = _compute_relationship_delta(tokens, actions, recent_text)
     new_score = max(-100, min(100, current_score + delta))
     new_notes = _build_personality_note(tokens, actions, existing_notes, new_score)
 

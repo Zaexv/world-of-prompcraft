@@ -120,27 +120,34 @@ class TestFastCombatPath:
 
     @pytest.mark.asyncio
     async def test_narrate_combat_async_sends_npc_dialogue(self) -> None:
-        """_narrate_combat_async should send npc_dialogue when LLM succeeds."""
+        """_narrate_combat_async should send agent_response when registry.invoke succeeds."""
         from src.ws import handler
 
-        # Mock the registry LLM
-        mock_llm = AsyncMock()
-        mock_response = MagicMock()
-        mock_response.content = "That actually hurt, you fool!"
-        mock_llm.ainvoke = AsyncMock(return_value=mock_response)
+        mock_registry = AsyncMock()
+        mock_registry.invoke = AsyncMock(
+            return_value={
+                "dialogue": "That actually hurt, you fool!",
+                "actions": [],
+                "npcStateUpdate": {},
+            }
+        )
 
-        mock_registry = MagicMock()
-        mock_registry._llm = mock_llm
+        mock_player = MagicMock()
+        mock_player.to_dict.return_value = {"id": "player1"}
+        mock_player.active_quests = []
+        mock_player.completed_quests = []
+        mock_player.kill_count = 0
 
         mock_world_state = MagicMock()
         mock_world_state.get_npc.return_value = None
+        mock_world_state.get_player.return_value = mock_player
 
         mock_manager = AsyncMock()
 
         original_registry = handler._registry
         original_world_state = handler._world_state
-        handler._registry = mock_registry
-        handler._world_state = mock_world_state
+        handler._registry = mock_registry  # type: ignore[assignment]
+        handler._world_state = mock_world_state  # type: ignore[assignment]
 
         try:
             resolution = self._make_resolution()
@@ -156,7 +163,7 @@ class TestFastCombatPath:
             mock_manager.send_to.assert_called_once()
             call_args = mock_manager.send_to.call_args
             assert call_args[0][0] == "player1"
-            assert call_args[0][1]["type"] == "npc_dialogue"
+            assert call_args[0][1]["type"] == "agent_response"
             assert call_args[0][1]["dialogue"] == "That actually hurt, you fool!"
         finally:
             handler._registry = original_registry

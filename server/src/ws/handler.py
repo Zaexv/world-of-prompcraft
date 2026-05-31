@@ -349,69 +349,85 @@ async def _narrate_combat_async(
     npc_system_prompt: str,
     manager: ConnectionManager,
 ) -> None:
-    """Fire LLM narration after fast combat path resolves.
+    """Run the full agent pipeline after a fast-path combat hit.
 
-    Sends an npc_dialogue message to the player when the LLM responds.
-    Silently drops if the server is saturated or the LLM call fails.
+    Delivers:
+    - NPC counter-attack (via agent tools — deal_damage, emote, etc.)
+    - In-character combat narration
+    - Relationship / memory update (reflect node)
+
+    The player already received their damage confirmation instantly.
+    This sends the NPC's reaction + retaliation as a follow-up agent_response.
     """
     if _registry is None or _world_state is None:
         return
 
-    from langchain_core.messages import HumanMessage, SystemMessage
+    # Build player state so the agent has full context
+    player = _world_state.get_player(player_id)
+    player_dict = player.to_dict()
+    player_dict["active_quests"] = player.active_quests
+    player_dict["completed_quests"] = list(player.completed_quests)
+    player_dict["kill_count"] = player.kill_count
 
-    from ..agents.personalities.templates import _COMBAT_NARRATION_RULES
-
-    llm = _registry._llm
-    combat_context = (
-        f"COMBAT OUTCOME: The player attacked you.\n"
-        f"  Player's attack prompt: '{prompt}'\n"
-        f"  Outcome: {resolution.outcome}\n"
-        f"  Damage dealt: {resolution.final_damage} {resolution.damage_type} damage\n"
-        f"  Attack quality score: {resolution.prompt_quality:.1f}/3.5\n\n"
-        "React to this specific combat outcome in-character. Keep it brief (1-3 sentences). "
-        "Reference the outcome: if it was glancing, mock their weakness; if critical/devastating, "
-        "react with pain or anger; if defeated, give a death scene. DO NOT use any tools."
-    )
-    system_prompt_text = (
-        npc_system_prompt[:600] + "\n\n" + _COMBAT_NARRATION_RULES + "\n" + combat_context
+    # Prefix the prompt with the combat outcome so:
+    #   - reason_node builds a hostile system prompt context
+    #   - act_node decides to retaliate (deal_damage → player)
+    #   - reflect_node sees the attack and penalises relationship score
+    combat_prompt = (
+        f"[COMBAT: {resolution.outcome} — "
+        f"{resolution.final_damage} {resolution.damage_type} damage] "
+        f"{prompt}"
     )
 
-    # Best-effort: skip if semaphore is fully saturated
-    if not _agent_semaphore._value:  # noqa: SLF001, RUF100
-        return
+    lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
     try:
-        async with _agent_semaphore:
+        async with lock, _agent_semaphore:
             result = await asyncio.wait_for(
-                llm.ainvoke(
-                    [
-                        SystemMessage(content=system_prompt_text),
-                        HumanMessage(content=prompt),
-                    ]
+                _registry.invoke(
+                    npc_id=npc_id,
+                    player_id=player_id,
+                    prompt=combat_prompt,
+                    player_state=player_dict,
                 ),
                 timeout=settings.agent_invoke_timeout_seconds,
             )
+    except TimeoutError:
+        logger.warning("Combat narration timed out for NPC %s player %s", npc_id, player_id)
+        return
     except Exception:
-        logger.exception("Combat narration LLM call failed for NPC %s", npc_id)
+        logger.exception("Combat narration agent call failed for NPC %s", npc_id)
         return
 
-    raw = result.content if hasattr(result, "content") else ""
-    dialogue = raw.strip() if isinstance(raw, str) else ""
-    if not dialogue:
-        return
+    dialogue = result.get("dialogue", "")
+    actions: list[dict[str, Any]] = result.get("actions", []) or []
 
+    # Re-fetch NPC HP after the agent applied its own actions (counter-attack etc.)
+    npc_data = _world_state.get_npc(npc_id)
+    npc_state: dict[str, Any] = {}
+    if npc_data is not None:
+        npc_state = {"hp": npc_data.hp, "maxHp": npc_data.max_hp}
+        agent_npc_update = result.get("npcStateUpdate") or {}
+        # Server HP is authoritative; merge mood/relationship from agent on top
+        npc_state = {**agent_npc_update, **npc_state}
+
+    # Send the NPC reaction + counter-attack as a full agent_response so the
+    # client's existing handler shows it in the interaction panel, combat log,
+    # floating damage numbers, and HP bars — all in one message.
     await manager.send_to(
         player_id,
         {
-            "type": "npc_dialogue",
+            "type": "agent_response",
             "npcId": npc_id,
-            "npcName": npc_name,
             "dialogue": dialogue,
+            "actions": actions,
+            "playerStateUpdate": None,
+            "npcStateUpdate": npc_state,
         },
     )
 
-    if _world_state is not None:
-        npc_data = _world_state.get_npc(npc_id)
-        if npc_data is not None:
+    # Broadcast NPC dialogue + actions to nearby other players
+    if npc_data is not None:
+        if dialogue:
             await manager.broadcast_nearby(
                 {
                     "type": "npc_dialogue",
@@ -421,6 +437,26 @@ async def _narrate_combat_async(
                 },
                 origin=npc_data.position,
                 radius=100.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+        _BROADCAST_KINDS_NARR = {"damage", "move_npc", "emote", "spawn_effect"}  # noqa: N806
+        bcast = [
+            a
+            for a in actions
+            if a.get("kind") in _BROADCAST_KINDS_NARR
+            and a.get("params", {}).get("target") != "player"
+        ]
+        if bcast or npc_state:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_actions",
+                    "npcId": npc_id,
+                    "actions": bcast,
+                    "npcStateUpdate": npc_state,
+                },
+                origin=npc_data.position,
+                radius=200.0,
                 world_state=_world_state,
                 exclude=player_id,
             )

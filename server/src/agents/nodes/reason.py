@@ -77,7 +77,15 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
 
     score = state.get("relationship_score", 0) or 0
     if score <= -50:
-        rel_tier = "ENEMY — This player is your sworn foe. Be hostile and guarded."
+        rel_tier = (
+            "ENEMY — This player is your sworn foe. Attack on sight. "
+            "NEVER trade, give items, or help them in any way."
+        )
+    elif score <= -20:
+        rel_tier = (
+            "HOSTILE — This player has attacked you. Be aggressive and defensive. "
+            "REFUSE all trade and quest requests. Do not offer items."
+        )
     elif score <= -10:
         rel_tier = "DISTRUSTFUL — You distrust this player. Be wary and curt."
     elif score <= 10:
