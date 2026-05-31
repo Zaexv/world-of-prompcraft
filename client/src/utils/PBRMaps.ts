@@ -25,11 +25,6 @@ stoneDiff.repeat.set(2, 2);
 stoneNor.repeat.set(2, 2);
 stoneRough.repeat.set(2, 2);
 
-// Malaka procedural normal maps
-const malakaStuccoNor = makeMalakaStuccoNor(512);
-const malakaRoofNor = makeMalakaRoofNor(512);
-const malakaStoneNor = makeMalakaStoneNor(512);
-
 // Malaka albedo maps (Poly Haven CC0): white plaster, terracotta tiles,
 // cut limestone blocks, dark wood. Replace the old procedural canvas maps.
 function diff(url: string, rx: number, ry: number): THREE.Texture {
@@ -42,6 +37,20 @@ const malakaStuccoDiff = diff('/textures/stucco_diff.jpg', 3, 3);
 const malakaRoofDiff = diff('/textures/roof_diff.jpg', 5, 5);
 const malakaStoneDiff = diff('/textures/malaka_stone_diff.jpg', 4, 4);
 const malakaWoodDiff = diff('/textures/wood_diff.jpg', 2, 2);
+
+// Malaka normal maps (Poly Haven CC0), each from the SAME set as its albedo so
+// the relief lines up with the diffuse detail: stucco=painted_plaster_wall,
+// roof=roof_tiles_14, stone=medieval_blocks_02, wood=dark_wood. These replace the
+// old procedural canvas normals. Repeats mirror the albedo repeats above.
+function nor(url: string, rx: number, ry: number): THREE.Texture {
+  const t = rep(url); // linear colour space — normals are not sRGB
+  t.repeat.set(rx, ry);
+  return t;
+}
+const malakaStuccoNor = nor('/textures/stucco_nor.jpg', 3, 3);
+const malakaRoofNor = nor('/textures/roof_nor.jpg', 5, 5);
+const malakaStoneNor = nor('/textures/malaka_stone_nor.jpg', 4, 4);
+const malakaWoodNor = nor('/textures/wood_nor.jpg', 2, 2);
 
 // Skin: procedural pore-noise normal map — tiled fine over the face
 const skinNor = makeSkinNor(256);
@@ -72,7 +81,7 @@ export function warmUpTextures(renderer: THREE.WebGLRenderer): void {
     terrainNor, terrainRough,
     leatherNor, leatherRough,
     stoneDiff, stoneNor, stoneRough,
-    malakaStuccoNor, malakaRoofNor, malakaStoneNor,
+    malakaStuccoNor, malakaRoofNor, malakaStoneNor, malakaWoodNor,
     malakaStuccoDiff, malakaRoofDiff, malakaStoneDiff, malakaWoodDiff,
     skinNor,
     barkDiff, barkNor, barkRough,
@@ -146,9 +155,11 @@ export function applyStonePBR(m: THREE.MeshStandardMaterial): void {
   m.needsUpdate = true;
 }
 
-/** Apply the dark-wood albedo (Poly Haven CC0) to a timber material. */
+/** Apply the dark-wood albedo + normal (Poly Haven CC0) to a timber material. */
 export function applyWoodPBR(m: THREE.MeshStandardMaterial): void {
   m.map = malakaWoodDiff;
+  m.normalMap = malakaWoodNor;
+  m.normalScale.set(0.5, 0.5);
   m.color.set(0xffffff); // let the wood grain drive colour
   m.needsUpdate = true;
 }
@@ -180,6 +191,8 @@ export function applyMalakaPBR(
       break;
     case 'wood':
       m.map = malakaWoodDiff;
+      m.normalMap = malakaWoodNor;
+      m.normalScale.set(0.5, 0.5);
       m.roughness = 0.8; // Aged timber
       break;
   }
@@ -192,125 +205,6 @@ function applySkinPBR(m: THREE.MeshStandardMaterial): void {
   m.normalScale.set(0.12, 0.12); // very subtle — skin is smooth
   m.roughness = 0.82;            // matte, no specular sheen
   m.needsUpdate = true;
-}
-
-/**
- * Procedural Malaka Stucco Normal: fine grain with subtle 'slumping' bumps.
- */
-function makeMalakaStuccoNor(size: number): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = 'rgb(128,128,255)';
-  ctx.fillRect(0, 0, size, size);
-
-  // Fine grain
-  for (let i = 0; i < size * size * 0.05; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(100,100,240,0.1)' : 'rgba(150,150,255,0.1)';
-    ctx.fillRect(x, y, 1, 1);
-  }
-
-  // Larger lumps (slumping)
-  for (let i = 0; i < 200; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const r = 10 + Math.random() * 30;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0, 'rgba(110,110,240,0.05)');
-    grad.addColorStop(1, 'rgba(128,128,255,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(2, 2);
-  return tex;
-}
-
-/**
- * Procedural Malaka Roof Normal: Rounded tiles (Tejas) with height variation.
- */
-function makeMalakaRoofNor(size: number): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = 'rgb(128,128,255)';
-  ctx.fillRect(0, 0, size, size);
-
-  const tileW = size / 8;
-  const tileH = size / 4;
-
-  for (let x = 0; x < size; x += tileW) {
-    for (let y = 0; y < size; y += tileH) {
-      const offsetX = (y / tileH) % 2 === 0 ? 0 : tileW / 2;
-      const tx = (x + offsetX) % size;
-      
-      // Draw a vertical cylindrical bump for each tile
-      const grad = ctx.createLinearGradient(tx, y, tx + tileW, y);
-      grad.addColorStop(0, 'rgb(100,100,255)');
-      grad.addColorStop(0.5, 'rgb(140,140,255)');
-      grad.addColorStop(1, 'rgb(100,100,255)');
-      
-      ctx.fillStyle = grad;
-      ctx.fillRect(tx, y, tileW - 2, tileH - 4);
-      
-      // Bottom edge bevel
-      ctx.fillStyle = 'rgb(110,110,240)';
-      ctx.fillRect(tx, y + tileH - 6, tileW - 2, 2);
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
-}
-
-/**
- * Procedural Malaka Stone Normal: Irregular masonry blocks with deep grout.
- */
-function makeMalakaStoneNor(size: number): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = 'rgb(128,128,255)';
-  ctx.fillRect(0, 0, size, size);
-
-  for (let y = 0; y < size; y += 64) {
-    const rowOffset = (y / 64) % 2 === 0 ? 0 : 32;
-    for (let x = rowOffset; x < size + 64; x += 128) {
-      const tx = x % size;
-      const w = 120 + (Math.random() - 0.5) * 10;
-      const h = 60 + (Math.random() - 0.5) * 5;
-
-      // Bevelled block
-      const grad = ctx.createRadialGradient(tx + w/2, y + h/2, 0, tx + w/2, y + h/2, w/2);
-      grad.addColorStop(0, 'rgba(140,140,255,0.2)');
-      grad.addColorStop(1, 'rgba(110,110,240,0.5)');
-      
-      ctx.fillStyle = grad;
-      ctx.fillRect(tx + 4, y + 4, w - 8, h - 8);
-      
-      // Deep grout lines (darker/flatter normal)
-      ctx.strokeStyle = 'rgb(100,100,240)';
-      ctx.lineWidth = 4;
-      ctx.strokeRect(tx, y, w, h);
-    }
-  }
-
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  return tex;
 }
 
 /**
