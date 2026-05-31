@@ -1,0 +1,9 @@
+import './Campsite';
+import './BanditCamp';
+import './MerchantCaravan';
+import './HermitDwelling';
+import './MineEntrance';
+import './BattlefieldRemnant';
+import './FishingSpot';
+import './RitualSite';
+import './CrashedWagon';
