@@ -49,6 +49,31 @@ export class AudioSystem {
     this.initialized = true;
     await Tone.start();
     Tone.Transport.start();
+
+    // Browsers suspend the AudioContext when the tab is backgrounded, on power
+    // saving, or after the machine sleeps. Once suspended it never resumes on
+    // its own and Tone's Transport clock freezes, which is what made the music
+    // and SFX go silent after a while. Resume it whenever the page is shown or
+    // focused again, plus a periodic safety check for the still-visible case.
+    const resumeAudio = (): void => {
+      const context = Tone.getContext();
+      if (context.state !== "running" && context.state !== "closed") {
+        void context.resume();
+      }
+    };
+    if (typeof document !== "undefined") {
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") resumeAudio();
+      });
+    }
+    if (typeof window !== "undefined") {
+      window.addEventListener("focus", resumeAudio);
+      window.setInterval(() => {
+        if (typeof document === "undefined" || document.visibilityState === "visible") {
+          resumeAudio();
+        }
+      }, 5000);
+    }
   }
 
   get isInitialized(): boolean {
