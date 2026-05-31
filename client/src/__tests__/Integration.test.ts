@@ -15,14 +15,14 @@ THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
 THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
 import { CollisionSystem } from '../systems/CollisionSystem';
-import { buildTower } from '../systems/worldbuilder/objects/structures';
+import { Tower } from '../meshes/buildings/structures/Tower';
 import { Capsule } from '../systems/collision/Capsule';
 import { CapsuleController } from '../systems/collision/CapsuleController';
 
 describe('Collision Integration', () => {
   it('registers and collides with a tower', async () => {
     const cs = new CollisionSystem();
-    const tower = buildTower(new THREE.Vector3(2, 0, 0), 2.0);
+    const tower = new Tower().build({ position: new THREE.Vector3(2, 0, 0), scale: 2.0 });
     
     await cs.addCollidableFiltered(tower);
 

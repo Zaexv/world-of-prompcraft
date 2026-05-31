@@ -133,7 +133,11 @@
       "Bash(curl -s \"https://api.polyhaven.com/files/limestone_wall_01\" -o /tmp/ls.json)",
       "Bash(curl -s \"https://api.polyhaven.com/files/plastered_stone_wall\" -o /tmp/ps.json)",
       "Bash(curl -s \"https://api.polyhaven.com/files/dark_wood\" -o /tmp/dw.json)",
-      "Bash(curl -fsS \"https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_floor_01/cobblestone_floor_01_diff_1k.jpg\" -o stone_diff.jpg)"
+      "Bash(curl -fsS \"https://dl.polyhaven.org/file/ph-assets/Textures/jpg/1k/cobblestone_floor_01/cobblestone_floor_01_diff_1k.jpg\" -o stone_diff.jpg)",
+      "Bash(git --no-pager diff HEAD -- client/src/scene/Forest.ts)",
+      "Bash(type \".git\\\\MERGE_HEAD\")",
+      "Bash(git rev-parse *)",
+      "Bash(type \".git\\\\MERGE_MSG\")"
     ]
   },
   "hooks": {

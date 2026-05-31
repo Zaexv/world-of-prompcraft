@@ -1,5 +1,19 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from 'vitest';
+
+// WorldGenerator transitively imports the mesh catalog, whose Málaga building kit
+// eagerly builds canvas-based PBR textures. happy-dom has no canvas 2d context, so
+// stub the PBR helpers (they're a no-op for this test's logic).
+vi.mock('../utils/PBRMaps', () => ({
+  warmUpTextures: vi.fn(),
+  applyTerrainPBR: vi.fn(),
+  applyCharacterPBR: vi.fn(),
+  applyBarkPBR: vi.fn(),
+  applyCanopyPBR: vi.fn(),
+  applyStonePBR: vi.fn(),
+  applyMalakaPBR: vi.fn(),
+}));
+
 import * as THREE from 'three';
 import { WorldGenerator } from '../systems/WorldGenerator';
 import { WorldManifest } from '../state/WorldManifest';
