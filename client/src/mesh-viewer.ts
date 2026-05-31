@@ -86,7 +86,7 @@ function loadMesh(type: string) {
     currentMeshGroup.add(plane);
 
     scene.add(currentMeshGroup);
-    console.log(`Loaded mesh: ${type}`);
+    console.info(`Loaded mesh: ${type}`);
   }
 }
 

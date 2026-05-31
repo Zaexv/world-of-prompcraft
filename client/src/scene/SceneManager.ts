@@ -8,8 +8,6 @@ import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Effects } from './Effects';
-import { StartingForest } from './Forest';
-import { DesertScenery } from './Desert';
 import type { CollisionSystem } from '../systems/CollisionSystem';
 
 export class SceneManager {
@@ -24,8 +22,6 @@ export class SceneManager {
   private effects: Effects;
   private skybox: Skybox;
   private composer: EffectComposer | null = null;
-  private forest: StartingForest;
-  private desert: DesertScenery;
   private dynamicPixelRatio: number;
   private maxPixelRatio: number;
   private readonly minPixelRatio = 0.9;
@@ -77,10 +73,6 @@ export class SceneManager {
     this.lighting = new Lighting(this.scene);
 
     // --- Post-processing: render → TAA → bloom ---
-    // No SSAO/ambient-occlusion pass: it was removed for performance (it cost a
-    // full-scene depth/normal prepass plus per-pixel AO + denoise every frame).
-    // Indirect/ambient shading comes from the cheap PMREM environment map
-    // generated below.
     try {
       this.composer = new EffectComposer(this.renderer);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
@@ -105,22 +97,12 @@ export class SceneManager {
     }
 
     // --- Environment Lighting (IBL) ---
-    // Use PMREM to generate a performant indirect lighting map from the skybox.
-    // This provides the 'real life' ground bounce by letting materials reflect
-    // the sky and terrain colors.
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     pmremGenerator.compileCubemapShader();
     
-    // We'll update the environment map whenever the skybox or biome changes
-    // significantly. For now, a one-time high-quality generation.
     setTimeout(() => {
       const renderTarget = pmremGenerator.fromScene(this.scene);
       this.scene.environment = renderTarget.texture;
-      // The captured environment is dominated by the saturated blue sky
-      // (0x88d0ff). At full strength it casts a cold blue reflection over every
-      // material (trees, characters, buildings — everything except the terrain,
-      // which opts out with envMapIntensity:0) and overpowers the warm sun.
-      // Keep it as a subtle indirect-light fill, not the dominant term.
       this.scene.environmentIntensity = 0.15;
       pmremGenerator.dispose();
     }, 1000);
@@ -129,15 +111,12 @@ export class SceneManager {
     this.water = new Water(this.scene, this.renderer);
 
     this.effects = new Effects(this.scene);
-    this.forest = new StartingForest(this.scene, this.terrain);
-    this.desert = new DesertScenery(this.scene, this.terrain);
 
     window.addEventListener('resize', this.onResize.bind(this));
   }
 
   setCollisionSystem(collisionSystem: CollisionSystem): void {
-    this.forest.setCollisionSystem(collisionSystem);
-    this.desert.setCollisionSystem(collisionSystem);
+    // Other systems that need collisions can be updated here
   }
 
   private onResize(): void {
@@ -149,7 +128,6 @@ export class SceneManager {
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
     if (this.composer) {
       this.composer.setSize(window.innerWidth, window.innerHeight);
-      // composer.setSize propagates to TemporalAAPass.setSize, which resets history.
     }
   }
 
@@ -170,10 +148,6 @@ export class SceneManager {
     if (Math.abs(nextRatio - this.dynamicPixelRatio) < 0.01) return;
     this.dynamicPixelRatio = nextRatio;
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
-    // Only resize the renderer drawing buffer — skipping composer.setSize avoids
-    // resetting the TAA history (which causes a dark flash) and GPU pipeline stalls.
-    // The composer targets stay at the previous logical size; the minor mismatch
-    // is imperceptible compared to the artifacts it prevents.
     this.renderer.setSize(window.innerWidth, window.innerHeight, false);
   }
 
@@ -182,7 +156,6 @@ export class SceneManager {
     if (this.shadowTimer < this.SHADOW_UPDATE_INTERVAL) return;
     this.shadowTimer = 0;
 
-    // Rebuild shadow-caster cache every ~2 s (objects are static after world gen).
     if (++this._shadowCacheFrame >= this.CACHE_REBUILD_FRAMES) {
       this._shadowCacheFrame = 0;
       this._shadowCasters = [];
@@ -215,7 +188,6 @@ export class SceneManager {
   }
 
   private updateLOD(): void {
-    // Rebuild LOD list every ~2 s — LOD objects are static after world gen.
     if (++this._lodCacheFrame >= this.CACHE_REBUILD_FRAMES) {
       this._lodCacheFrame = 0;
       this._lodObjects = [];
@@ -228,10 +200,8 @@ export class SceneManager {
     }
   }
 
-  /** Update player position for effects, water, and shadow frustum tracking. */
   setPlayerPosition(x: number, z: number): void {
     this.effects.setPlayerPosition(x, z);
-    this.desert.setPlayerPosition(x, z);
     this.playerX = x;
     this.playerZ = z;
     this.lighting.trackPlayer(x, z);
@@ -246,15 +216,12 @@ export class SceneManager {
     this.water.update(delta, this.camera, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);
 
-    this.forest.update(delta);
-    this.desert.update(delta);
     this.effects.update(delta);
     this.lighting.updateCelestialDiscs(this.camera.position, this.camera);
     this.updateAdaptiveQuality(delta);
     this.updateDistanceShadowCasters(delta);
     this.updateLOD();
 
-    // Use post-processing composer if available, otherwise fall back to direct render
     if (this.composer) {
       this.composer.render();
     } else {

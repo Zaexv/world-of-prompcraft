@@ -16,3 +16,4 @@ export type { BuildContext, MeshCategory, MeshClass } from './core/Mesh';
 export { registerMesh, buildMesh, hasMesh, meshTypes } from './core/MeshRegistry';
 export { BIOME_BUILDINGS, selectBiomeBuildingType } from './buildings/biome/BiomeBuildings';
 export { BIOME_PROPS, selectBiomePropType } from './props/biome/BiomeProps';
+export { BIOME_VEGETATION, selectBiomeVegetationType } from './props/biome/BiomeVegetation';

@@ -29,3 +29,8 @@ import './biome/Signpost';
 import './biome/SandstoneBoulders';
 import './biome/Cactus';
 import './biome/BleachedBones';
+
+// Newly extracted generative props
+import './biome/DesertRock';
+import './biome/ForestGrass';
+import './biome/ForestOrb';

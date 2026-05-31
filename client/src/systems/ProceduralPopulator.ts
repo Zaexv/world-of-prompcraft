@@ -29,7 +29,7 @@ import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
-import { buildMesh, selectBiomeBuildingType, selectBiomePropType } from '../meshes';
+import { buildMesh, selectBiomeBuildingType, selectBiomePropType, selectBiomeVegetationType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
 import { getEncountersFor } from './EncounterRegistry';
 // Side-effect import: registers all built-in encounters
@@ -360,6 +360,32 @@ export class ProceduralPopulator {
           scale: def.scale,
         });
         npcIds.push(npcId);
+      }
+    }
+
+    // ── Vegetation / Clutter (High density, 10–30 items) ───────────────
+    if (rng.chance(0.95)) {
+      const vegCount = rng.nextInt(20) + 10;
+      for (let i = 0; i < vegCount; i++) {
+        const px = worldX + rng.nextRange(2, SIZE - 2);
+        const pz = worldZ + rng.nextRange(2, SIZE - 2);
+        if (this.isUnderwater(px, pz)) continue;
+        const py = this.terrain.getHeightAt(px, pz);
+        const pos = ProceduralPopulator._v.set(px, py, pz);
+        const scale = rng.nextRange(0.6, 1.5);
+
+        // BiomeRegistry doesn't currently specify a vegFn, so we rely on the internal selector
+        const type = selectBiomeVegetationType(biome, rng);
+        const veg = type ? buildMesh(type, { position: pos, scale, rng }) ?? null : null;
+
+        if (veg && this.scene) {
+          veg.rotation.y = rng.nextRange(0, Math.PI * 2);
+          this.scene.add(veg);
+          if (veg.userData.isCollider || veg.children.some(c => c.userData.isCollider)) {
+            void this.collisionSystem?.addCollidableFiltered(veg);
+          }
+          objs.push(veg);
+        }
       }
     }
 
