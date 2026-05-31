@@ -243,11 +243,14 @@ export class AudioSystem {
       synth.triggerAttackRelease(n.note, n.duration, now + n.time);
     }
     const totalDuration = Math.max(...notes.map(n => n.time + parseDuration(n.duration)));
-    Tone.Draw.schedule(() => {
+    // setTimeout, not Tone.Draw: Draw is rAF-driven and pauses when the tab is
+    // backgrounded, which would leak this synth and eventually choke the audio
+    // graph. setTimeout still fires in the background so the node is reclaimed.
+    setTimeout(() => {
       const idx = this.currentMusicNodes.indexOf(synth);
       if (idx >= 0) this.currentMusicNodes.splice(idx, 1);
       synth.dispose();
-    }, now + totalDuration + 0.5);
+    }, (totalDuration + 0.5) * 1000);
   }
 
   dispose(): void {
