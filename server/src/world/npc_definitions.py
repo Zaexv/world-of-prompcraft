@@ -26,7 +26,7 @@ def load_npc_definitions() -> dict[str, dict[str, Any]]:
         return {}
 
     try:
-        with open(DATA_FILE) as f:
+        with open(DATA_FILE, encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         logger.error(f"Failed to parse world manifest: {e}")
