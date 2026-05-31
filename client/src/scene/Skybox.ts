@@ -103,36 +103,4 @@ constructor(scene: THREE.Scene) {
       );
     }
   }
-
-  dispose(scene: THREE.Scene) {
-    if (this.skyDome) {
-      this.skyDome.geometry.dispose();
-      if (Array.isArray(this.skyDome.material)) {
-        this.skyDome.material.forEach(m => m.dispose());
-      } else {
-        this.skyDome.material.dispose();
-      }
-      scene.remove(this.skyDome);
-    }
-    if (this.cloudMesh) {
-      this.cloudMesh.geometry.dispose();
-      const mat = this.cloudMesh.material as THREE.MeshBasicMaterial;
-      if (mat.map) mat.map.dispose();
-      mat.dispose();
-      scene.remove(this.cloudMesh);
-    }
-    if (this.sunMesh) {
-      this.sunMesh.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            child.material.forEach(m => m.dispose());
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-      scene.remove(this.sunMesh);
-    }
-  }
 }

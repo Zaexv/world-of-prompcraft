@@ -1280,60 +1280,6 @@
             "visual": {}
           },
           {
-            "id": "malaka_house_n4",
-            "type": "malaka_house_reconstructed",
-            "transform": {
-              "position": [
-                -130,
-                0,
-                -280
-              ],
-              "scale": 1.1,
-              "rotation": [
-                0,
-                0.2,
-                0
-              ]
-            },
-            "visual": {}
-          },
-          {
-            "id": "malaka_house_n5",
-            "type": "malaka_house_reconstructed",
-            "transform": {
-              "position": [
-                -145,
-                0,
-                -295
-              ],
-              "scale": 1.1,
-              "rotation": [
-                0,
-                -0.1,
-                0
-              ]
-            },
-            "visual": {}
-          },
-          {
-            "id": "malaka_house_n6",
-            "type": "malaka_house_reconstructed",
-            "transform": {
-              "position": [
-                -130,
-                0,
-                -295
-              ],
-              "scale": 1.1,
-              "rotation": [
-                0,
-                0.15,
-                0
-              ]
-            },
-            "visual": {}
-          },
-          {
             "id": "malaka_cortijo_01",
             "type": "malaka_cortijo",
             "transform": {

@@ -406,8 +406,7 @@ export class ReactionSystem {
 
   /** Cap active effects to prevent memory/performance issues. */
   private capEffects(): void {
-    // Increased cap to 50 but we'll also cap particles per effect
-    while (this.activeEffects.length > 50) {
+    while (this.activeEffects.length > 20) {
       const oldest = this.activeEffects.shift();
       if (oldest) oldest.update(999); // Force cleanup
     }
@@ -420,8 +419,6 @@ export class ReactionSystem {
     position: THREE.Vector3,
   ): void {
     this.capEffects();
-    // Prevent massive strings
-    const safeText = text.substring(0, 32);
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 64;
@@ -433,10 +430,10 @@ export class ReactionSystem {
 
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.85)";
-    ctx.fillText(safeText, 129, 33);
+    ctx.fillText(text, 129, 33);
     // Main
     ctx.fillStyle = color;
-    ctx.fillText(safeText, 128, 32);
+    ctx.fillText(text, 128, 32);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;
@@ -479,18 +476,14 @@ export class ReactionSystem {
   ): void {
     this.capEffects();
 
-    // Bug 4: Cap particles per burst to prevent performance stalls
-    const MAX_PARTICLES = 150;
-    const finalCount = Math.min(Math.max(1, count), MAX_PARTICLES);
-
     const speed = preset.speed;
     const gravity = preset.gravity;
     const duration = preset.duration;
 
-    const positions = new Float32Array(finalCount * 3);
+    const positions = new Float32Array(count * 3);
     const velocities: THREE.Vector3[] = [];
 
-    for (let i = 0; i < finalCount; i++) {
+    for (let i = 0; i < count; i++) {
       positions[i * 3] = position.x;
       positions[i * 3 + 1] = position.y;
       positions[i * 3 + 2] = position.z;
@@ -531,7 +524,7 @@ export class ReactionSystem {
         const t = elapsed / duration;
 
         const posAttr = geometry.getAttribute("position") as THREE.BufferAttribute;
-        for (let i = 0; i < finalCount; i++) {
+        for (let i = 0; i < count; i++) {
           posAttr.setX(i, posAttr.getX(i) + velocities[i].x * dt);
           posAttr.setY(i, posAttr.getY(i) + velocities[i].y * dt);
           posAttr.setZ(i, posAttr.getZ(i) + velocities[i].z * dt);

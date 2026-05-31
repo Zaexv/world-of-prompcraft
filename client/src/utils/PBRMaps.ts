@@ -39,10 +39,10 @@ function diff(url: string, rx: number, ry: number): THREE.Texture {
   t.repeat.set(rx, ry);
   return t;
 }
-const malakaStuccoDiff = diff('/textures/stucco_diff.jpg', 8, 8);
-const malakaRoofDiff = diff('/textures/roof_diff.jpg', 12, 12);
-const malakaStoneDiff = diff('/textures/malaka_stone_diff.jpg', 10, 10);
-const malakaWoodDiff = diff('/textures/wood_diff.jpg', 4, 4);
+const malakaStuccoDiff = diff('/textures/stucco_diff.jpg', 3, 3);
+const malakaRoofDiff = diff('/textures/roof_diff.jpg', 5, 5);
+const malakaStoneDiff = diff('/textures/malaka_stone_diff.jpg', 4, 4);
+const malakaWoodDiff = diff('/textures/wood_diff.jpg', 2, 2);
 
 // Malaka normal maps (Poly Haven CC0), each from the SAME set as its albedo so
 // the relief lines up with the diffuse detail: stucco=painted_plaster_wall,
@@ -53,10 +53,10 @@ function nor(url: string, rx: number, ry: number): THREE.Texture {
   t.repeat.set(rx, ry);
   return t;
 }
-const malakaStuccoNor = nor('/textures/stucco_nor.jpg', 8, 8);
-const malakaRoofNor = nor('/textures/roof_nor.jpg', 12, 12);
-const malakaStoneNor = nor('/textures/malaka_stone_nor.jpg', 10, 10);
-const malakaWoodNor = nor('/textures/wood_nor.jpg', 4, 4);
+const malakaStuccoNor = nor('/textures/stucco_nor.jpg', 3, 3);
+const malakaRoofNor = nor('/textures/roof_nor.jpg', 5, 5);
+const malakaStoneNor = nor('/textures/malaka_stone_nor.jpg', 4, 4);
+const malakaWoodNor = nor('/textures/wood_nor.jpg', 2, 2);
 
 // Skin: procedural pore-noise normal map — tiled fine over the face
 const skinNor = makeSkinNor(256);
@@ -180,7 +180,7 @@ export function applyMalakaPBR(
     case 'stucco':
       m.map = malakaStuccoDiff;
       m.normalMap = malakaStuccoNor;
-      m.normalScale.set(0.7, 0.7);
+      m.normalScale.set(0.4, 0.4);
       m.roughness = 0.85; // Matte plaster
       break;
     case 'roof':

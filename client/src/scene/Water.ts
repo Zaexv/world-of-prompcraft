@@ -211,19 +211,6 @@ export class Water {
     }
   }
 
-  dispose(): void {
-    this.scene.remove(this.waterMesh);
-    this.scene.remove(this.foam);
-    this.scene.remove(this.cubeCamera);
-
-    this.waterMesh.geometry.dispose();
-    this.waterMat.dispose();
-    this.foam.geometry.dispose();
-    this.foamMat.dispose();
-    this.normalTexture.dispose();
-    this.cubeRenderTarget.dispose();
-  }
-
   private generateNormalMap(size: number): THREE.Texture {
     const canvas = document.createElement('canvas');
     canvas.width = size;

@@ -238,7 +238,7 @@ _VALID_SKINS = {"skin-1", "skin-2", "skin-3", "skin-4"}
 # Allowed fields from client player state (security whitelist)
 # We sync inventory and hp so the server can score attacks properly
 # and use_item can find items the player received from NPCs.
-_ALLOWED_PLAYER_FIELDS = {"position", "hp", "yaw"}
+_ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
 def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) -> None:
@@ -575,33 +575,11 @@ async def _handle_interaction(
 
     # Bug 6: Update player state under the world state lock
     if player_state_raw:
-        updates = {}
-        for key in _ALLOWED_PLAYER_FIELDS:
-            if key in player_state_raw and hasattr(player, key):
-                val = player_state_raw[key]
-                # Validate hp
-                if key == "hp":
-                    if not isinstance(val, (int, float)):
-                        continue
-                    val = max(0, min(int(val), player.max_hp))
-                # Validate position
-                elif key == "position":
-                    if not isinstance(val, list) or len(val) < 3:
-                        continue
-                    pos_limit = 5000.0
-                    val = [
-                        max(-pos_limit, min(pos_limit, float(val[0]))),
-                        max(-pos_limit, min(pos_limit, float(val[1]))),
-                        max(-pos_limit, min(pos_limit, float(val[2]))),
-                    ]
-                # Validate yaw
-                elif key == "yaw":
-                    if not isinstance(val, (int, float)):
-                        continue
-                    val = float(val)
-
-                updates[key] = val
-
+        updates = {
+            key: player_state_raw[key]
+            for key in _ALLOWED_PLAYER_FIELDS
+            if key in player_state_raw and hasattr(player, key)
+        }
         if updates:
             await _world_state.update_player(player_id, updates)
         # Re-fetch player after lock-protected update
