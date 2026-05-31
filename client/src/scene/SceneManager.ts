@@ -225,4 +225,32 @@ export class SceneManager {
     }
     return delta;
   }
+
+  dispose(): void {
+    window.removeEventListener('resize', this.onResize);
+    this.water.dispose();
+    this.skybox.dispose(this.scene);
+    // Lighting, Terrain, and Effects don't have dispose methods yet.
+    // They are primarily managed by the scene traversal below or are singletons.
+
+    if (this.composer) {
+      this.composer.passes.forEach(pass => {
+        if ('dispose' in pass) (pass as any).dispose();
+      });
+    }
+
+    this.renderer.dispose();
+    this.renderer.domElement.remove();
+
+    this.scene.traverse((object) => {
+      if (object instanceof THREE.Mesh) {
+        object.geometry.dispose();
+        if (Array.isArray(object.material)) {
+          object.material.forEach(mat => mat.dispose());
+        } else {
+          object.material.dispose();
+        }
+      }
+    });
+  }
 }

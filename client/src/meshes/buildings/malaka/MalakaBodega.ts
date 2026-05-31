@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createPergola, createArchedDoor } from './MalakaKit';
+import { getMaterials, createPergola, createDoor } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaBodega extends Mesh {
@@ -49,7 +49,7 @@ export class MalakaBodega extends Mesh {
     g.add(porch);
 
     // 4. Large Main Doors (End)
-    const door = createArchedDoor(3.5 * scale, 4.5 * scale, 0.6 * scale, mats);
+    const door = createDoor(3.5 * scale, 4.5 * scale, 0.6 * scale, mats);
     door.userData.noCollision = true;
     door.traverse(c => { c.userData.noCollision = true; });
     door.position.set(0, 0, length / 2 + 0.1 * scale);

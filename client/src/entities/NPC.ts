@@ -217,14 +217,8 @@ export class NPC {
       });
     }
 
-    this.nameplate.sprite.material.dispose();
-    if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
-      this.nameplate.sprite.material.map.dispose();
-    }
-    this.actionIcon.sprite.material.dispose();
-    if (this.actionIcon.sprite.material instanceof THREE.SpriteMaterial && this.actionIcon.sprite.material.map) {
-      this.actionIcon.sprite.material.map.dispose();
-    }
+    this.nameplate.dispose();
+    this.actionIcon.dispose();
   }
 
   setHighlight(on: boolean): void {

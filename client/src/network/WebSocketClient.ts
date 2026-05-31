@@ -7,6 +7,7 @@ export class WebSocketClient {
   private reconnectDelay = 1000;
   private readonly maxReconnectDelay = 30_000;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
   private shouldReconnect = true;
 
   /** Fired when a parsed JSON message arrives from the server. */
@@ -39,8 +40,16 @@ export class WebSocketClient {
   /** Cleanly shut down the connection. */
   disconnect(): void {
     this.shouldReconnect = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.stopHeartbeat();
     if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
       this.ws.close();
       this.ws = null;
     }
@@ -49,6 +58,15 @@ export class WebSocketClient {
   // ── Internals ──────────────────────────────────────────────────────────────
 
   private connect(): void {
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
+      return;
+    }
+
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     console.info(`WebSocketClient: Connecting to ${this.url}...`);
     this.ws = new WebSocket(this.url);
 
@@ -63,9 +81,12 @@ export class WebSocketClient {
       console.warn(`WebSocketClient: Closed (code=${event.code}, reason=${event.reason})`);
       this.stopHeartbeat();
       this.onConnectionChange?.(false);
+      this.ws = null;
+
       if (this.shouldReconnect) {
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
         console.info(`WebSocketClient: Reconnecting in ${this.reconnectDelay}ms...`);
-        setTimeout(() => this.connect(), this.reconnectDelay);
+        this.reconnectTimer = setTimeout(() => this.connect(), this.reconnectDelay);
         this.reconnectDelay = Math.min(
           this.reconnectDelay * 2,
           this.maxReconnectDelay,

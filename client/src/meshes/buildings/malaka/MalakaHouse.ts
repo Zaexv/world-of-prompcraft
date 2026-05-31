@@ -5,7 +5,7 @@ import {
   getMaterials,
   createRoofTile,
   createChimney,
-  createArchedDoor,
+  createDoor,
   createWindowWithGrille,
   createWoodenShutters,
   createFlowerPot,
@@ -86,7 +86,7 @@ export class MalakaHouse extends Mesh {
     }
 
     // 4. Arched Door
-    const door = createArchedDoor(1.0 * scale, 2.2 * scale, 0.2 * scale, mats);
+    const door = createDoor(1.0 * scale, 2.2 * scale, 0.2 * scale, mats);
     door.position.set(0, 0, depth / 2 + 0.05 * scale);
     g.add(door);
 

@@ -15,6 +15,9 @@ export interface MedMaterials {
   stone: THREE.MeshStandardMaterial;
   wood: THREE.MeshStandardMaterial;
   glass: THREE.MeshStandardMaterial;
+  terracotta: THREE.MeshStandardMaterial;
+  azulejo: THREE.MeshStandardMaterial;
+  foliage: THREE.MeshStandardMaterial;
 }
 
 let _materials: MedMaterials | null = null;
@@ -23,36 +26,57 @@ export function getMaterials(): MedMaterials {
   if (!_materials) {
     _materials = {
       stucco: (() => {
-        const m = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 1.0 });
         applyMalakaPBR(m, 'stucco');
-        // Whitewashed Andalusian plaster: drop the cream albedo (a colour tint
-        // can only darken it) and use a bright near-white base so the walls read
-        // white. The procedural normal map kept by applyMalakaPBR still gives the
-        // plaster its surface relief.
+        // Whitewashed Andalusian plaster (Cal): Pure brilliant white.
+        // Disable the diffuse map because it makes the building look grey;
+        // the normal map still provides the necessary surface relief.
         m.map = null;
-        m.color.set(0xf4f1eb);
+        m.color.set(0xffffff);
+        // Subtle emissive boost ensures the walls look white even in shadow
+        m.emissive.set(0x333333); 
         m.needsUpdate = true;
         return m;
       })(),
       roof: (() => {
-        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.1 });
         applyMalakaPBR(m, 'roof');
         return m;
       })(),
       stone: (() => {
-        const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.8, metalness: 0.05 });
         applyMalakaPBR(m, 'stone');
         return m;
       })(),
       wood: (() => {
-        const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.1 });
         applyMalakaPBR(m, 'wood');
         return m;
       })(),
+      terracotta: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+        applyMalakaPBR(m, 'stone'); 
+        m.color.set(0xc66542); // Slightly warmer terracotta
+        return m;
+      })(),
+      azulejo: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.05, metalness: 0.3 });
+        applyMalakaPBR(m, 'stucco'); 
+        m.color.set(0xdff5ff); // More vibrant ceramic white-blue
+        if (m.normalMap) m.normalMap.repeat.set(24, 24);
+        return m;
+      })(),
+      foliage: new THREE.MeshStandardMaterial({ 
+        color: 0x388e3c, 
+        roughness: 0.8, 
+        emissive: 0x051a05 
+      }),
       glass: new THREE.MeshStandardMaterial({
-        color: 0x111111,
-        roughness: 0.1,
-        metalness: 0.8,
+        color: 0x223344,
+        roughness: 0.05,
+        metalness: 0.9,
+        transparent: true,
+        opacity: 0.9,
       }),
     };
   }
@@ -61,33 +85,20 @@ export function getMaterials(): MedMaterials {
 
 // ─── Architectural Helpers ───────────────────────────────────────────────────
 
-export function createArchedDoor(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
+export function createDoor(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
   const group = new THREE.Group();
 
-  // Wooden door (bottom rectangular part)
-  const doorH = height - (width / 2);
-  const door = new THREE.Mesh(new THREE.BoxGeometry(width, doorH, depth), mats.wood);
-  door.position.y = doorH / 2;
+  // Stone frame
+  const frameW = 0.15;
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(width + frameW, height + frameW / 2, depth + 0.05), mats.stone);
+  frame.position.y = (height + frameW / 2) / 2;
+  group.add(frame);
+
+  // Wooden door
+  const door = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), mats.wood);
+  door.position.y = height / 2;
+  door.position.z = 0.01;
   group.add(door);
-
-  // Arched top
-  const arch = new THREE.Mesh(
-    new THREE.CylinderGeometry(width / 2, width / 2, depth, 16, 1, false, 0, Math.PI),
-    mats.wood
-  );
-  arch.rotation.x = Math.PI / 2;
-  arch.position.y = doorH;
-  group.add(arch);
-
-  // Stone border (architrave)
-  const borderSize = 0.15;
-  const stoneArch = new THREE.Mesh(
-    new THREE.CylinderGeometry(width / 2 + borderSize, width / 2, depth + 0.05, 16, 1, true, 0, Math.PI),
-    mats.stone
-  );
-  stoneArch.rotation.x = Math.PI / 2;
-  stoneArch.position.y = doorH;
-  group.add(stoneArch);
 
   // Door Handle / Knocker (Brass)
   const handleMat = new THREE.MeshStandardMaterial({ color: 0xaa8833, metalness: 0.9, roughness: 0.2 });
@@ -178,10 +189,10 @@ export function createWindowWithGrille(width: number, height: number, scale: num
 
 export function createFlowerPot(scale: number): THREE.Group {
   const g = new THREE.Group();
+  const mats = getMaterials();
 
   // Pot
-  const potMat = new THREE.MeshStandardMaterial({ color: 0x8b4513, roughness: 0.9 });
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.1 * scale, 0.2 * scale, 8), potMat);
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.1 * scale, 0.2 * scale, 8), mats.terracotta);
   g.add(pot);
 
   // Plant (green)
@@ -217,26 +228,70 @@ export function createWoodenShutters(width: number, height: number, scale: numbe
   return g;
 }
 
-export function createHorseshoeArch(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
+export function createArchedDoor(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
   const group = new THREE.Group();
-  const archLegH = height - width / 2;
-  const legGeo = new THREE.BoxGeometry(0.5 * width * 0.4, archLegH, depth);
+  const archR = width / 2;
+  const rectH = height - archR;
 
-  const leftLeg = new THREE.Mesh(legGeo, mats.stone);
-  leftLeg.position.set(-width / 2, archLegH / 2, 0);
-  group.add(leftLeg);
+  // 1. Wooden Door Arch
+  const doorShape = new THREE.Shape();
+  doorShape.moveTo(-width / 2, 0);
+  doorShape.lineTo(-width / 2, rectH);
+  doorShape.absarc(0, rectH, archR, Math.PI, 0, true);
+  doorShape.lineTo(width / 2, 0);
+  doorShape.closePath();
 
-  const rightLeg = new THREE.Mesh(legGeo, mats.stone);
-  rightLeg.position.set(width / 2, archLegH / 2, 0);
-  group.add(rightLeg);
+  const doorGeo = new THREE.ExtrudeGeometry(doorShape, { depth, bevelEnabled: false });
+  const door = new THREE.Mesh(doorGeo, mats.wood);
+  door.position.z = -depth / 2;
+  group.add(door);
 
-  const horseshoe = new THREE.Mesh(
-    new THREE.TorusGeometry(width / 2, 0.15 * width, 8, 16, Math.PI * 1.2),
-    mats.stone
-  );
-  horseshoe.position.y = archLegH;
-  horseshoe.rotation.z = -Math.PI * 0.1;
-  group.add(horseshoe);
+  // 2. Stone Frame Border
+  const bw = 0.25; // Border width
+  const frameShape = new THREE.Shape();
+  // Outer path
+  frameShape.moveTo(-width / 2 - bw, 0);
+  frameShape.lineTo(-width / 2 - bw, rectH);
+  frameShape.absarc(0, rectH, archR + bw, Math.PI, 0, true);
+  frameShape.lineTo(width / 2 + bw, 0);
+  frameShape.lineTo(width / 2 + bw, -0.05);
+  frameShape.lineTo(-width / 2 - bw, -0.05);
+  
+  // Inner hole (subtraction)
+  const hole = new THREE.Path();
+  hole.moveTo(-width / 2, 0);
+  hole.lineTo(width / 2, 0);
+  hole.lineTo(width / 2, rectH);
+  hole.absarc(0, rectH, archR, 0, Math.PI, false);
+  hole.lineTo(-width / 2, 0);
+  frameShape.holes.push(hole);
+
+  const frameGeo = new THREE.ExtrudeGeometry(frameShape, { depth: depth + 0.1, bevelEnabled: false });
+  const frame = new THREE.Mesh(frameGeo, mats.stone);
+  frame.position.z = -depth / 2 - 0.05;
+  group.add(frame);
+
+  // 3. Central Door Joint (Stripe)
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.04, height, 0.02), new THREE.MeshStandardMaterial({ color: 0x222222 }));
+  stripe.position.set(0, height / 2, depth / 2 + 0.01);
+  group.add(stripe);
+
+  return group;
+}
+
+export function createCastleGate(width: number, height: number, depth: number, mats: MedMaterials): THREE.Group {
+  const group = new THREE.Group();
+  
+  // Rectangular frame
+  const frameW = 0.2 * width;
+  const frame = new THREE.Mesh(new THREE.BoxGeometry(width + frameW, height, depth + 0.1), mats.stone);
+  frame.position.y = height / 2;
+  group.add(frame);
+
+  // Opening (empty space, but we'll put a darker stone or just leave it)
+  const opening = new THREE.Mesh(new THREE.BoxGeometry(width, height - frameW / 2, depth + 0.2), new THREE.MeshStandardMaterial({ color: 0x111111 }));
+  opening.position.y = (height - frameW / 2) / 2;
+  group.add(opening);
 
   return group;
 }
@@ -245,6 +300,74 @@ export function createArrowSlit(height: number, scale: number): THREE.Mesh {
   const mat = new THREE.MeshStandardMaterial({ color: 0x080808, roughness: 1.0 });
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(0.15 * scale, height, 0.05 * scale), mat);
   return mesh;
+}
+
+export function createWoodenBench(scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const legH = 0.4 * scale;
+  const seatW = 1.2 * scale;
+  const seatD = 0.4 * scale;
+
+  // Legs
+  for (const [x, z] of [[-0.5, -0.15], [0.5, -0.15], [-0.5, 0.15], [0.5, 0.15]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08 * scale, legH, 0.08 * scale), mats.wood);
+    leg.position.set(x * seatW * 0.8, legH / 2, z * seatD * 2);
+    g.add(leg);
+  }
+
+  // Seat
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(seatW, 0.08 * scale, seatD), mats.wood);
+  seat.position.y = legH + 0.04 * scale;
+  g.add(seat);
+
+  // Backrest
+  const back = new THREE.Mesh(new THREE.BoxGeometry(seatW, 0.4 * scale, 0.05 * scale), mats.wood);
+  back.position.set(0, legH + 0.3 * scale, -seatD / 2);
+  g.add(back);
+
+  return g;
+}
+
+export function createWoodenTable(scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const legH = 0.6 * scale;
+  const topSize = 0.8 * scale;
+
+  // Legs
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08 * scale, legH, 0.08 * scale), mats.wood);
+    leg.position.set(x * topSize * 0.4, legH / 2, z * topSize * 0.4);
+    g.add(leg);
+  }
+
+  // Top
+  const top = new THREE.Mesh(new THREE.BoxGeometry(topSize, 0.08 * scale, topSize), mats.wood);
+  top.position.y = legH + 0.04 * scale;
+  g.add(top);
+
+  return g;
+}
+
+export function createClimbingPlant(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const count = 25;
+  for (let i = 0; i < count; i++) {
+    const x = (Math.random() - 0.5) * width;
+    const y = Math.random() * height;
+    const s = (0.2 + Math.random() * 0.4) * scale;
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(s, 4, 4), mats.foliage);
+    leaf.position.set(x, y, (Math.random() * 0.1) * scale);
+    g.add(leaf);
+
+    // Occasional flowers
+    if (Math.random() > 0.7) {
+      const flMat = new THREE.MeshStandardMaterial({ color: 0xe91e63 }); // Bougainvillea pink
+      const fl = new THREE.Mesh(new THREE.SphereGeometry(s * 0.4, 4, 4), flMat);
+      fl.position.set(x + 0.05 * scale, y + 0.05 * scale, 0.1 * scale);
+      g.add(fl);
+    }
+  }
+  return g;
 }
 
 export function createMachicolations(width: number, depth: number, y: number, mats: MedMaterials, scale: number): THREE.Group {

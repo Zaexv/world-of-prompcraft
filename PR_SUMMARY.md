@@ -1,47 +1,37 @@
-# Pull Request: Zonal Hybrid World Engine & Scalable Population Sync
+# Pull Request: Fort Malaka High-Fidelity Architectural Overhaul & Ancient Sand Environment
 
 ## 🚀 Overview
-This PR represents a major architectural milestone for World of Promptcraft. It transforms the world from a hardcoded procedural prototype into a professional, **data-driven game engine**. The core of this update is the **Version 2.1.0 Zonal Hybrid Manifest system**, which provides a scalable, server-authoritative foundation for all future world expansion.
+This PR delivers a comprehensive visual and structural transformation of **Fort Malaka**, evolving it from a placeholder residential area into a high-fidelity, historically-inspired Mediterranean city. The overhaul focuses on architectural realism, authentic Andalusian aesthetics, and advanced procedural terrain integration.
 
-## 🏗️ Major Architectural Changes
+## 🏗️ Major Changes
 
-### 1. Zonal Hybrid Manifest (V2.1.0)
-- **Centralized Source of Truth**: Moved all world data (Biomes, Topology, Population, Architecture) into a single physical file: `shared/data/world_manifest.json`.
-- **Zonal Organization**: The world is now divided into logical **Zones** (e.g., `teldrassil_central`, `fort_malaka`). This allows for easy navigation and management as the generative world grows.
-- **Component-Based Data Model**: NPCs and landmarks now use a structured component schema (`identity`, `transform`, `stats`, `ai`), mirroring modern engine standards.
+### 1. High-Fidelity Andalusian Architectural Set
+Implemented a full suite of traditional Spanish building models based on historical references:
+- **Cathedral of Malaka ("La Manquita"):** A grand Renaissance landmark featuring a massive dome, flying buttresses, and its iconic single completed tower.
+- **Moorish Alcazaba (Castle):** Upgraded the fortress to a multi-tiered defensive structure with terraced levels, horseshoe arches, and inner courtyard gardens.
+- **Ermita de Pueblo (Village Hermitage):** Added a traditional chapel with a tall "Espadaña" bell-gable, a realistic lathe-curved brass bell, and a recessed oculus window.
+- **Casa de Patio Andaluz (Palacio):** A "Hero" residential model featuring a central open-air courtyard with a **functional fountain** and interior arched porticos.
+- **Cortijo & Bodega:** Added rural and industrial building types including L-shaped oil mills and long winery naves with high ventilation windows.
 
-### 2. Unified FE <> BE Synchronization
-- **Physical Sharing**: Created a root-level `shared/` directory mounted into both Client and Server containers. Both systems now point to the exact same physical manifest on disk.
-- **Synchronous Boot**: Refactored the frontend bootstrap to wait for the manifest import before engine initialization, eliminating race conditions.
-- **Hot-Reloading**: The server now refreshes its internal NPC registry and AI agents from the manifest on every player join, enabling real-time population changes without restarts.
+### 2. "Ancient Sand" Environmental Overhaul
+- **Procedural Sand Shader:** Replaced the generic ground with a realistic multi-layered sand floor featuring wind-swept ripples, mineral glints, and sun-bleached ochre tones.
+- **Grounded Realism:** Raised the entire city platform to **4.0 meters** and implemented a deep-foundation system for all buildings. This ensures all structures are firmly grounded into the terrain, eliminating the "flying building" effect on hills.
+- **Dune Undulations:** Added subtle, natural height variations to the city floor to simulate wind-blown coastal sand.
 
-### 3. Physics & Engine Overhaul
-- **BVH-Accelerated Collisions**: Fully implemented `three-mesh-bvh` for static landmarks. 
-- **Idempotent Spawning**: Objects are now correctly re-registered for physics when terrain chunks reload, ensuring permanent collisions.
-- **AI Navigation**: Implemented `isPositionBlocked()` using fast AABB broadphase queries, allowing NPCs to navigate intelligently around buildings.
-- **Distance Culling**: Implemented object distance culling at **180 units**, perfectly aligned with the exponential fog for optimal performance.
+### 3. High-Fidelity Material Palette
+- **Standardized Colors:** Synchronized all city assets to use pure **Andalusian White (#FFFFFF)** stucco, deep saturated **Terracotta Red (#A63D2D)** roofs, and sharp **Black Iron/Dark Wood (#1A1A1A)** detailing.
+- **3D Detailing:** Added actual 3D curved clay tiles (tejas) to all roof eaves, brass door hardware, and ornate iron "rejería" grilles to all windows.
 
-### 4. NPC & World Polish
-- **Tutorial-Man**: Added a friendly guide at spawn with a unique procedural "civilian" style.
-- **Dynamic Ground Snapping**: Implemented a robust `isGrounded` system that ensures all NPCs snap to the terrain surface the moment their chunk is loaded.
-- **Active AI Wandering**: Enhanced the `stroll` motion profile with reduced pause times and increased speeds for a more "alive" feel.
-- **Tabula Rasa Cleanup**: Removed thousands of lines of legacy hardcoded systems (Boats, Fort Malaka terrain, old procedural spawners) to ensure a clean, manifest-driven baseline.
-
-## 🛠️ New Developer Tools
-- **`agentic-world-designer` Skill**: Upgraded AI skill that allows the World Spirit to reshape biomes, build mountains, and place cities via the manifest.
-- **`npc-registry-manager` Skill**: A specialized skill for rapid dev-time population management (Add/Remove NPCs across zones).
+### 4. Urban Reorganization & Performance
+- **City Audit:** Completely redesigned the layout in `world_manifest.json` to resolve all building overlaps and create a proper, walkable urban plan with distinct districts.
+- **Physics Optimization:** Globally marked all high-density decorative meshes (roof tiles, grilles, flower pots) as **non-collidable** (`userData.noCollision = true`). This prevents the physics engine from hanging and ensures instant loading times.
 
 ## 🧪 Verification & Quality
-- **Pre-commit Checks**: Passed all ESLint, Ruff, and TypeScript static analysis.
-- **Client Tests**: 72/72 Vitest cases passing, including new physics integration and capsule math tests.
-- **Server Tests**: 50/50 Pytest cases passing, updated to reflect the new zonal population model.
-- **Sync Reliability**: Verified manifest synchronization across local dev (Vite) and Docker Compose environments.
+- **Loading Performance:** Verified that the city loads instantly without "preparing collisions" hangs.
+- **Visual Integrity:** Confirmed that all buildings sit flush on the raised sand plateau.
+- **Type Safety:** Ran `npm run typecheck` to ensure 0 TypeScript regressions across the client.
 
-## 🗂️ Project Structure Update
-```
-world-of-prompcraft/
-├── shared/data/world_manifest.json    # Master blueprint (The "Brain")
-├── client/src/state/WorldManifest.ts  # Manifest hydration & rendering
-├── server/src/world/npc_definitions.py# AI population registry
-└── ...
-```
+## 🔗 Final Action Required
+The branch `feat/malaka-architectural-overhaul` has been pushed to GitHub. Click the link below to finalize the submission:
+
+👉 **[CREATE PULL REQUEST ON GITHUB](https://github.com/Zaexv/world-of-prompcraft/pull/new/feat/malaka-architectural-overhaul)**
