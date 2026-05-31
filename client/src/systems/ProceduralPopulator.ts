@@ -411,6 +411,13 @@ export class ProceduralPopulator {
         if (prop && this.scene) {
           prop.rotation.y = rng.nextRange(0, Math.PI * 2);
           this.scene.add(prop);
+          // Register collision for props that declare solid geometry (fences,
+          // bonfires, runic stones, towers…). Purely decorative clutter has no
+          // isCollider tag and stays walk-through. Without this, ambient props
+          // were spawned with no collision at all — you could walk through them.
+          if (prop.userData.isCollider || prop.children.some(c => c.userData.isCollider)) {
+            void this.collisionSystem?.addCollidableFiltered(prop);
+          }
           objs.push(prop);
         }
       }

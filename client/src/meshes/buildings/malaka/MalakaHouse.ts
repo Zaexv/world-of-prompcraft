@@ -10,14 +10,16 @@ import {
   createWoodenShutters,
   createFlowerPot,
   createPergola,
+  withLOD,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaHouse extends Mesh {
   static readonly type = 'malaka_house';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -128,7 +130,10 @@ export class MalakaHouse extends Mesh {
       g.add(pergola);
     }
 
-    return g;
+    // Keep stone foundation/balcony masonry a constant scale (no stretching).
+    applyWorldTiling(g, mats.stone);
+
+    return withLOD(g);
   }
 }
 

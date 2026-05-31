@@ -137,7 +137,18 @@
       "Bash(git --no-pager diff HEAD -- client/src/scene/Forest.ts)",
       "Bash(type \".git\\\\MERGE_HEAD\")",
       "Bash(git rev-parse *)",
-      "Bash(type \".git\\\\MERGE_MSG\")"
+      "Bash(type \".git\\\\MERGE_MSG\")",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/worldTiled.ts\" \"src/meshes/props/fireParticles.ts\" \"src/meshes/props/Bonfire.ts\" \"src/meshes/props/Campfire.ts\" \"src/audio/effects.ts\" \"src/audio/AudioSystem.ts\" \"src/systems/ProceduralPopulator.ts\" \"src/meshes/buildings/malaka/MalakaChurch.ts\" \"src/meshes/buildings/malaka/MalakaCastle.ts\" \"src/meshes/buildings/structures/Ruins.ts\" \"src/meshes/buildings/structures/Altar.ts\" 2>&1 | Select-Object -First 40)",
+      "PowerShell(npx vitest run src/__tests__/AudioSystem.test.ts 2>&1 | Select-Object -Last 25)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/worldTiled.ts\" \"src/utils/PBRMaps.ts\" \"src/meshes/buildings/malaka/MalakaChurch.ts\" 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/worldTiled.ts\" \"src/utils/PBRMaps.ts\" \"src/meshes/buildings/malaka/MalakaKit.ts\" \"src/meshes/buildings/malaka/MalakaChurch.ts\" 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 40; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/worldTiled.ts\" 2>&1 | Select-Object -First 30)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 50; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/worldTiled.ts\" \"src/meshes/buildings/malaka/\" 2>&1 | Select-Object -First 40)",
+      "PowerShell(npx tsc --noEmit 2>&1 | Select-Object -First 50; Write-Output \"---LINT---\"; npx eslint \"src/meshes/buildings/malaka/MalakaKit.ts\" 2>&1 | Select-Object -First 30)",
+      "PowerShell(node -e \"const s=require\\('sharp'\\); s\\('public/textures/malaka_stone_diff.jpg'\\).stats\\(\\).then\\(r=>{const c=r.channels; console.log\\('avg rgb', Math.round\\(c[0].mean\\), Math.round\\(c[1].mean\\), Math.round\\(c[2].mean\\)\\); console.log\\('hex', '0x'+[c[0].mean,c[1].mean,c[2].mean].map\\(v=>Math.round\\(v\\).toString\\(16\\).padStart\\(2,'0'\\)\\).join\\(''\\)\\);}\\).catch\\(e=>console.log\\('ERR',e.message\\)\\)\")",
+      "PowerShell(node -e \"for\\(const m of ['jpeg-js','jimp','pngjs','canvas','@jimp/core']\\){try{require.resolve\\(m\\);console.log\\('FOUND',m\\)}catch{console.log\\('no',m\\)}}\")",
+      "PowerShell(Get-Content client/src/utils/asset/AssetLoader.ts -Raw; \"`n===SKYBOX===\"; Get-Content client/src/scene/Skybox.ts -Raw)",
+      "Bash(grep -nE 'const \\(baseW|baseD|width|depth|naveW|naveD|bodyW|bodyD|w |d |houseW|houseD|patioW|patioD|wallW|wallD|mainW|mainD|footprint\\)' __TRACKED_VAR__.ts)"
     ]
   },
   "hooks": {

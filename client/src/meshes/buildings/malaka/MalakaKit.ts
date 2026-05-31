@@ -31,22 +31,39 @@ export function getMaterials(): MedMaterials {
         // plaster its surface relief.
         m.map = null;
         m.color.set(0xf4f1eb);
+        m.userData.flatColor = 0xf4f1eb; // already flat — distance LOD matches exactly
         m.needsUpdate = true;
         return m;
       })(),
       roof: (() => {
         const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
         applyMalakaPBR(m, 'roof');
+        // The roof albedo (roof_diff.jpg) has a strong green-moss stain on one
+        // side fading to brown on the other — a directional, non-tileable tone.
+        // Tiled across a roof it produces obvious repeating green blotches. A warm
+        // terracotta multiply tint suppresses the green channel so every repeat
+        // reads as consistent Spanish clay instead of a patchy mossy grid.
+        m.color.set(0xe8a478);
+        m.userData.flatColor = 0x814e33; // avg lit terracotta for distance LOD
         return m;
       })(),
       stone: (() => {
         const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
         applyMalakaPBR(m, 'stone');
+        // Push the masonry relief harder: the block normal map was too subtle to
+        // read on walls. (applyMalakaPBR leaves it at 0.6.)
+        m.normalScale.set(1.0, 1.0);
+        // Match the average albedo of malaka_stone_diff.jpg — a warm sandy tan,
+        // not grey (the flat surface gets the same lighting as the texture).
+        // Nudged slightly darker than the raw average to stand in for the mortar/
+        // crevice shadowing the textured version has but a flat colour doesn't.
+        m.userData.flatColor = 0xb09773;
         return m;
       })(),
       wood: (() => {
         const m = new THREE.MeshStandardMaterial({ roughness: 0.8 });
         applyMalakaPBR(m, 'wood');
+        m.userData.flatColor = 0x47331f; // avg lit dark wood for distance LOD
         return m;
       })(),
       glass: new THREE.MeshStandardMaterial({
@@ -57,6 +74,83 @@ export function getMaterials(): MedMaterials {
     };
   }
   return _materials;
+}
+
+// ─── Distance LOD (simplified, flat-colour far levels) ────────────────────────
+// From a distance the tiled stone/roof textures read as an obvious repeating
+// grid (and cost texture bandwidth for little benefit), and the dozens of small
+// decorative meshes are sub-pixel. The far LOD levels are *simplified variants of
+// the same build*: a mid level swaps every textured material for a flat colour
+// that closely matches its average lit tone, and a far level additionally drops
+// the small decorative meshes (windows, grilles, flowers, individual roof tiles)
+// and the invisible collision proxies, leaving just the major massing. Materials
+// without a `userData.flatColor` (glass, iron, foliage…) keep their look.
+
+const _flatCache = new WeakMap<THREE.Material, THREE.Material>();
+
+// Far level drops any mesh whose largest world dimension is under this (metres) —
+// i.e. fine detail that isn't readable at distance. Big massing (walls, towers,
+// roofs, cornices) is well above it and survives.
+const SIMPLIFY_MIN_SIZE = 1.8;
+
+function flatVariant(mat: THREE.Material): THREE.Material | null {
+  const cached = _flatCache.get(mat);
+  if (cached) return cached;
+  const flatColor = mat.userData?.flatColor;
+  if (typeof flatColor !== 'number') return null;
+  const std = mat as THREE.MeshStandardMaterial;
+  const flat = new THREE.MeshStandardMaterial({
+    color: flatColor,
+    roughness: typeof std.roughness === 'number' ? std.roughness : 0.9,
+    metalness: 0,
+  });
+  _flatCache.set(mat, flat);
+  return flat;
+}
+
+/**
+ * Build a reduced LOD level by cloning the full group (geometry is shared, not
+ * duplicated): always flat-colours the materials and strips invisible proxies;
+ * when `simplify`, also removes small decorative meshes.
+ */
+function makeReducedLevel(full: THREE.Group, simplify: boolean): THREE.Group {
+  const level = full.clone(true);
+  level.position.set(0, 0, 0);
+  const toRemove: THREE.Object3D[] = [];
+  const box = new THREE.Box3();
+  const size = new THREE.Vector3();
+  level.traverse((o) => {
+    if (!(o instanceof THREE.Mesh)) return;
+    if (!o.visible) { toRemove.push(o); return; } // invisible collision proxies
+    if (simplify) {
+      box.setFromObject(o);
+      box.getSize(size);
+      if (Math.max(size.x, size.y, size.z) < SIMPLIFY_MIN_SIZE) { toRemove.push(o); return; }
+    }
+    if (!Array.isArray(o.material)) {
+      const flat = flatVariant(o.material);
+      if (flat) o.material = flat;
+    }
+  });
+  for (const o of toRemove) o.removeFromParent();
+  return level;
+}
+
+/**
+ * Wrap a finished building group in a THREE.LOD with three thresholds: the full
+ * textured build up close, a flat-coloured full-geometry level at `midDist`, and
+ * a flat-coloured *simplified* level (small detail removed) at `farDist`. Call as
+ * `return withLOD(g)` at the end of `build()`; the group keeps the world position
+ * it was built at, and collision still uses level 0 (the full build).
+ */
+export function withLOD(full: THREE.Group, midDist = 110, farDist = 240): THREE.LOD {
+  const lod = new THREE.LOD();
+  lod.position.copy(full.position);
+  full.position.set(0, 0, 0);
+  lod.addLevel(full, 0);
+  lod.addLevel(makeReducedLevel(full, false), midDist);
+  lod.addLevel(makeReducedLevel(full, true), farDist);
+  return lod;
 }
 
 // ─── Architectural Helpers ───────────────────────────────────────────────────

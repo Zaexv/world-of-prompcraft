@@ -3,6 +3,7 @@ import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createArrowSlit } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaWall extends Mesh {
   static readonly type = 'malaka_wall';
@@ -34,11 +35,16 @@ export class MalakaWall extends Mesh {
       g.add(slit);
     }
 
-    // Walkway
+    // Walkway. Rest it ON TOP of the wall (bottom flush with the wall top) rather
+    // than sunk into it: with the previous y the walkway's top face sat exactly at
+    // y=wallH, coplanar with the wall box's top face, and the two coincident faces
+    // z-fought across the walkway. Raising it by half its thickness hides the wall
+    // top inside the walkway box so only the walkway's top surface is visible.
+    const walkH = 0.2 * scale;
     const walkW = wallW;
     const walkT = wallT - 0.8 * scale;
-    const walk = new THREE.Mesh(new THREE.BoxGeometry(walkW, 0.2 * scale, walkT), mats.stone);
-    walk.position.y = wallH - 0.1 * scale;
+    const walk = new THREE.Mesh(new THREE.BoxGeometry(walkW, walkH, walkT), mats.stone);
+    walk.position.y = wallH + walkH / 2;
     g.add(walk);
 
     // Crenellations
@@ -49,6 +55,10 @@ export class MalakaWall extends Mesh {
       cren.position.set(x, wallH + crenH / 2, wallT / 2 - 0.3 * scale);
       g.add(cren);
     }
+
+    // World-tile the stone so the masonry keeps a constant block size instead of
+    // stretching across the wide wall faces.
+    applyWorldTiling(g, mats.stone);
 
     return g;
   }

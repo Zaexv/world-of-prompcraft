@@ -1,67 +1,24 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createArchedDoor, createWindowWithGrille } from './MalakaKit';
+import { getMaterials, createArchedDoor, createWindowWithGrille, withLOD } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
-import { applyMalakaPBR } from '../../../utils/PBRMaps';
-
-const STONE_UNITS_PER_TILE = 2.2; // ~one stone course every 2.2 world units
-
-/**
- * Rewrite a BoxGeometry's UVs so the stone texture tiles by world size. Each
- * face is scaled by its own world dimensions (rounded to whole tiles so edges
- * stay seam-free), which also fixes per-face anisotropy on slabs and towers.
- */
-function tileBoxUVsWorld(geo: THREE.BoxGeometry, w: number, h: number, d: number): void {
-  const uv = geo.attributes.uv as THREE.BufferAttribute;
-  // BoxGeometry face order: +X, -X, +Y, -Y, +Z, -Z (4 verts each). Each face's
-  // U/V axes span these world dimensions:
-  const faceSpan: [number, number][] = [[d, h], [d, h], [w, d], [w, d], [w, h], [w, h]];
-  for (let f = 0; f < 6; f++) {
-    const uTiles = Math.max(1, Math.round(faceSpan[f][0] / STONE_UNITS_PER_TILE));
-    const vTiles = Math.max(1, Math.round(faceSpan[f][1] / STONE_UNITS_PER_TILE));
-    for (let i = 0; i < 4; i++) {
-      const idx = f * 4 + i;
-      uv.setXY(idx, uv.getX(idx) * uTiles, uv.getY(idx) * vTiles);
-    }
-  }
-  uv.needsUpdate = true;
-}
-
+import { applyWorldTiling } from '../worldTiled';
 
 /** A stone box whose masonry tiles at a constant world scale (no stretching). */
-function stoneBox(w: number, h: number, d: number): THREE.Mesh {
-  const geo = new THREE.BoxGeometry(w, h, d);
-  tileBoxUVsWorld(geo, w, h, d);
-  return new THREE.Mesh(geo, getWorldStone());
-}
-
-// ─── World-scaled stone (fixes stretched masonry on large meshes) ─────────────
-// The shared `mats.stone` tiles its texture a fixed 4×4 per UV face, so a tiny
-// foundation and a 16 m cathedral base get the same number of stone courses —
-// huge meshes look stretched. `stoneBox` instead writes UVs in *world units*, so
-// the blocks stay a constant size whatever the mesh dimensions.
-
-let _worldStone: THREE.MeshStandardMaterial | null = null;
-function getWorldStone(): THREE.MeshStandardMaterial {
-  if (!_worldStone) {
-    const m = new THREE.MeshStandardMaterial({ roughness: 0.9 });
-    applyMalakaPBR(m, 'stone');
-    // Clone the maps so tiling lives in the geometry UVs (repeat 1×1 here),
-    // independent of the shared stone material used elsewhere.
-    if (m.map) { m.map = m.map.clone(); m.map.repeat.set(1, 1); m.map.needsUpdate = true; }
-    if (m.normalMap) { m.normalMap = m.normalMap.clone(); m.normalMap.repeat.set(1, 1); m.normalMap.needsUpdate = true; }
-    m.needsUpdate = true;
-    _worldStone = m;
-  }
-  return _worldStone;
+function stoneBox(mats: ReturnType<typeof getMaterials>, w: number, h: number, d: number): THREE.Mesh {
+  // Plain stone box; applyWorldTiling(g, mats.stone) at the end of build()
+  // rewrites the UVs to world scale and swaps in the 1×1-tiled material.
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.stone);
+  mesh.castShadow = mesh.receiveShadow = true;
+  return mesh;
 }
 
 export class MalakaChurch extends Mesh {
   static readonly type = 'malaka_church';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -71,7 +28,7 @@ export class MalakaChurch extends Mesh {
     const baseW = 16 * scale;
     const baseD = 24 * scale;
     const baseH = 0.8 * scale; // Keep main's lower base
-    const base = stoneBox(baseW, baseH, baseD);
+    const base = stoneBox(mats, baseW, baseH, baseD);
     base.position.y = baseH / 2;
     base.castShadow = base.receiveShadow = true;
     // We add explicit proxies at the end, but kept for visibility
@@ -80,10 +37,21 @@ export class MalakaChurch extends Mesh {
     // Steps leading to the entrance
     const stepsW = 6.0 * scale;
     const stepsD = 3.0 * scale;
+    const stepH = baseH / 3;
     for (let i = 0; i < 3; i++) {
-      const step = new THREE.Mesh(new THREE.BoxGeometry(stepsW, (baseH / 3), stepsD - (i * 0.8 * scale)), mats.stone);
-      step.position.set(0, (baseH / 3) / 2 + i * (baseH / 3), baseD / 2 + (stepsD / 2) - (i * 0.4 * scale));
+      const stepDepth = stepsD - (i * 0.8 * scale);
+      const stepY = stepH / 2 + i * stepH;
+      const stepZ = baseD / 2 + (stepsD / 2) - (i * 0.4 * scale);
+      const step = new THREE.Mesh(new THREE.BoxGeometry(stepsW, stepH, stepDepth), mats.stone);
+      step.position.set(0, stepY, stepZ);
       g.add(step);
+
+      // Matching collider — the church collides via explicit proxies, so these
+      // render steps would otherwise be ignored and the player couldn't climb
+      // onto the plinth (it would hit the base proxy's vertical front face).
+      const stepProxy = boxCollider(stepsW, stepH, stepDepth);
+      stepProxy.position.set(0, stepY, stepZ);
+      g.add(stepProxy);
     }
 
     // 2. Main Nave (High Cathedral)
@@ -110,7 +78,7 @@ export class MalakaChurch extends Mesh {
 
     // 3. Main Roof (Vaulted/Curved)
     const roofH = 4 * scale;
-    const naveRoof = new THREE.Mesh(new THREE.CylinderGeometry(0.1, naveW / 2 + 0.5 * scale, roofH, 8), mats.roof);
+    const naveRoof = new THREE.Mesh(new THREE.CylinderGeometry(0.1, naveW / 2 + 0.5 * scale, roofH, 24), mats.roof);
     naveRoof.rotation.z = Math.PI / 4;
     naveRoof.rotation.x = Math.PI / 2;
     naveRoof.scale.set(1, naveD / roofH, 1);
@@ -161,7 +129,7 @@ export class MalakaChurch extends Mesh {
     // being coplanar with them; the inner half still overlaps the nave (no seam).
     const towerX = -naveW / 2 + towerW / 2 - 0.3 * scale;
     const towerZ = naveD / 2 - towerW / 2 + 0.3 * scale;
-    const tower = stoneBox(towerW, towerH, towerW);
+    const tower = stoneBox(mats, towerW, towerH, towerW);
     tower.position.set(towerX, baseH + towerH / 2, towerZ);
     g.add(tower);
 
@@ -181,13 +149,13 @@ export class MalakaChurch extends Mesh {
     belfry.userData.noCollision = true;
     g.add(belfry);
 
-    const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.55, 8, 8, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
+    const belfryDome = new THREE.Mesh(new THREE.SphereGeometry(towerW * 0.55, 16, 16, 0, Math.PI*2, 0, Math.PI/2), mats.roof);
     belfryDome.position.set(towerX, baseH + towerH + belfryH + 0.3 * scale, towerZ);
     belfryDome.userData.noCollision = true;
     g.add(belfryDome);
 
     // Missing Right Tower Base — mirror the outward nudge of the main tower.
-    const missingTower = stoneBox(towerW, 8 * scale, towerW);
+    const missingTower = stoneBox(mats, towerW, 8 * scale, towerW);
     missingTower.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, baseH + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
     g.add(missingTower);
 
@@ -254,7 +222,16 @@ export class MalakaChurch extends Mesh {
       }
     }
 
-    return g;
+    // World-tile every stone surface (base, towers, steps, cornices, lantern,
+    // buttress pillars, rose frame…) so the masonry stays a constant block size
+    // instead of stretching across large faces. Stucco is untouched.
+    applyWorldTiling(g, mats.stone);
+    // Same for the clay roof: the nave vault is a cone scaled 5× along its axis,
+    // so without scale-aware tiling its tiles smear; this keeps them uniform
+    // across the vault, dome, lantern cap and belfry dome.
+    applyWorldTiling(g, mats.roof);
+
+    return withLOD(g);
   }
 }
 

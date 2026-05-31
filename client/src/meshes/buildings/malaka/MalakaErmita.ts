@@ -6,14 +6,16 @@ import {
   createRoofTile,
   createArchedDoor,
   createWindowWithGrille,
+  withLOD,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaErmita extends Mesh {
   static readonly type = 'malaka_ermita';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -143,7 +145,10 @@ export class MalakaErmita extends Mesh {
     rearWin.position.set(0, 3.0 * scale, -naveD/2 - 0.05 * scale);
     g.add(rearWin);
 
-    return g;
+    // World-tile the stone foundation/walkway so the masonry stays consistent.
+    applyWorldTiling(g, mats.stone);
+
+    return withLOD(g);
   }
 }
 

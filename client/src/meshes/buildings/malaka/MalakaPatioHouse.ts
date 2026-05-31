@@ -7,14 +7,16 @@ import {
   createRoofTile,
   createWindowWithGrille,
   createFlowerPot,
+  withLOD,
 } from './MalakaKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaPatioHouse extends Mesh {
   static readonly type = 'malaka_patio_house';
   static readonly category = 'building' as const;
 
-  build(ctx: BuildContext): THREE.Group {
+  build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
@@ -143,7 +145,10 @@ export class MalakaPatioHouse extends Mesh {
       g.add(pot);
     }
 
-    return g;
+    // World-tile the stone foundation so the masonry stays a constant scale.
+    applyWorldTiling(g, mats.stone);
+
+    return withLOD(g);
   }
 }
 
