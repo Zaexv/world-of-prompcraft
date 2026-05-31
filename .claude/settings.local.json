@@ -148,7 +148,11 @@
       "PowerShell(node -e \"const s=require\\('sharp'\\); s\\('public/textures/malaka_stone_diff.jpg'\\).stats\\(\\).then\\(r=>{const c=r.channels; console.log\\('avg rgb', Math.round\\(c[0].mean\\), Math.round\\(c[1].mean\\), Math.round\\(c[2].mean\\)\\); console.log\\('hex', '0x'+[c[0].mean,c[1].mean,c[2].mean].map\\(v=>Math.round\\(v\\).toString\\(16\\).padStart\\(2,'0'\\)\\).join\\(''\\)\\);}\\).catch\\(e=>console.log\\('ERR',e.message\\)\\)\")",
       "PowerShell(node -e \"for\\(const m of ['jpeg-js','jimp','pngjs','canvas','@jimp/core']\\){try{require.resolve\\(m\\);console.log\\('FOUND',m\\)}catch{console.log\\('no',m\\)}}\")",
       "PowerShell(Get-Content client/src/utils/asset/AssetLoader.ts -Raw; \"`n===SKYBOX===\"; Get-Content client/src/scene/Skybox.ts -Raw)",
-      "Bash(grep -nE 'const \\(baseW|baseD|width|depth|naveW|naveD|bodyW|bodyD|w |d |houseW|houseD|patioW|patioD|wallW|wallD|mainW|mainD|footprint\\)' __TRACKED_VAR__.ts)"
+      "Bash(grep -nE 'const \\(baseW|baseD|width|depth|naveW|naveD|bodyW|bodyD|w |d |houseW|houseD|patioW|patioD|wallW|wallD|mainW|mainD|footprint\\)' __TRACKED_VAR__.ts)",
+      "Bash(where rtk *)",
+      "Bash(rtk --version)",
+      "Bash(diff .claude/skills/mesh-quality-reviewer/SKILL.md .agents/skills/mesh-quality-reviewer/SKILL.md)",
+      "Bash(diff .claude/skills/mesh-from-picture/SKILL.md .agents/skills/mesh-from-picture/SKILL.md)"
     ]
   },
   "hooks": {
