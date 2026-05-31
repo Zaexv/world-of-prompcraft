@@ -38,10 +38,13 @@ export class MalakaHouse extends Mesh {
 
     // 1. Stone Foundation
     const foundH = 0.6 * scale;
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1, foundH, depth + 0.1), mats.stone);
+    const foundation = new THREE.Mesh(new THREE.BoxGeometry(width + 0.1 * scale, foundH, depth + 0.1 * scale), mats.stone);
     foundation.position.y = foundH / 2;
     foundation.castShadow = foundation.receiveShadow = true;
     g.add(foundation);
+    const foundProxy = boxCollider(width + 0.1 * scale, foundH, depth + 0.1 * scale);
+    foundProxy.position.y = foundH / 2;
+    g.add(foundProxy);
 
     // 2. Main Stucco Body
     const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight - foundH, depth), mats.stucco);

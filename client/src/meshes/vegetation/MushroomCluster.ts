@@ -21,7 +21,7 @@ function buildMushroomGroup(scale: number, stems: StemData[], stemSegs: number, 
     g.add(stem);
 
     const cap = new THREE.Mesh(new THREE.CylinderGeometry(r, r * 0.3, 0.4 * scale, capSegs), capMat);
-    cap.position.set(ox, h + 0.2 * scale, oz);
+    cap.position.set(ox, h + 0.3 * scale, oz);
     cap.userData.noCollision = true;
     g.add(cap);
   }
@@ -45,9 +45,9 @@ export class MushroomCluster extends Mesh {
       oz: (Math.random() - 0.5) * 3 * scale,
     }));
 
-    lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);   // Full (0–80)
-    lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 80);  // Mid (80–220)
-    lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 220); // Low (220+)
+    lod.addLevel(buildMushroomGroup(scale, stems, 6, 8), 0);    // Full (0–130)
+    lod.addLevel(buildMushroomGroup(scale, stems, 5, 6), 130); // Mid (130–340)
+    lod.addLevel(buildMushroomGroup(scale, stems, 4, 5), 340); // Low (340+)
 
     return lod;
   }

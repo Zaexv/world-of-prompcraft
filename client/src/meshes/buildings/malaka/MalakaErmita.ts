@@ -90,7 +90,7 @@ export class MalakaErmita extends Mesh {
     g.add(crown);
 
     // Bell Opening
-    const bellOpening = createArchedDoor(1.8 * scale, 3.0 * scale, facadeT + 0.2, mats);
+    const bellOpening = createArchedDoor(1.8 * scale, 3.0 * scale, facadeT + 0.2 * scale, mats);
     const voidMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1.0 });
     bellOpening.traverse(c => { if(c instanceof THREE.Mesh) c.material = voidMat; });
     bellOpening.position.set(0, facadeH - 1.2 * scale, naveD / 2 + facadeT / 2);

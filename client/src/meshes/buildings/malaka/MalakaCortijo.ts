@@ -65,7 +65,7 @@ export class MalakaCortijo extends Mesh {
 
     // 5. Exterior Windows & Details
     for (let x = -4 * scale; x <= 4 * scale; x += 4 * scale) {
-      if (Math.abs(x - 2 * scale) < 1) continue; // Skip if gate is here
+      if (Math.abs(x - 2 * scale) < 1 * scale) continue; // Skip if gate is here
       const win = createWindowWithGrille(0.8 * scale, 1.2 * scale, scale, mats);
       win.position.set(x, 2.2 * scale, 2.05 * scale);
       win.userData.noCollision = true;

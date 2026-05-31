@@ -11,6 +11,51 @@ import {
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
+/**
+ * Helper to create a proper Mediterranean hip roof.
+ */
+function createHipRoof(width: number, depth: number, height: number, mat: THREE.Material): THREE.Mesh {
+    const geo = new THREE.BufferGeometry();
+    const ridgeLen = Math.max(0.1, Math.abs(width - depth));
+    const isWide = width > depth;
+    const rx = isWide ? ridgeLen / 2 : 0;
+    const rz = isWide ? 0 : ridgeLen / 2;
+
+    const vertices = new Float32Array([
+        -width / 2, 0, -depth / 2, // 0: BL
+         width / 2, 0, -depth / 2, // 1: BR
+         width / 2, 0,  depth / 2, // 2: FR
+        -width / 2, 0,  depth / 2, // 3: FL
+        -rx, height, -rz,          // 4: Ridge L
+         rx, height,  rz           // 5: Ridge R
+    ]);
+
+    const indices = [
+        0, 1, 5,  0, 5, 4, // Front/Back
+        1, 2, 5,           
+        2, 3, 4,  2, 4, 5, 
+        3, 0, 4            
+    ];
+
+    const uvs = new Float32Array([
+        -width / 2, -depth / 2,
+         width / 2, -depth / 2,
+         width / 2,  depth / 2,
+        -width / 2,  depth / 2,
+        -rx, -rz,
+         rx,  rz
+    ]);
+
+    geo.setIndex(indices);
+    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+    geo.computeVertexNormals();
+    
+    const mesh = new THREE.Mesh(geo, mat);
+    mesh.castShadow = true;
+    return mesh;
+}
+
 export class MalakaBrokenErmita extends Mesh {
   static readonly type = 'malaka_broken_ermita';
   static readonly category = 'building' as const;
@@ -20,6 +65,7 @@ export class MalakaBrokenErmita extends Mesh {
     const g = new THREE.Group();
     g.position.copy(pos);
     const mats = getMaterials();
+    const voidMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1.0 });
 
     const naveW = 5 * scale;
     const naveD = 8 * scale;
@@ -51,7 +97,20 @@ export class MalakaBrokenErmita extends Mesh {
     const roofH = 2.8 * scale;
     const roofOverhang = 0.8 * scale;
     const roofGeo = new THREE.CylinderGeometry(0.01, Math.sqrt(Math.pow((naveW + roofOverhang)/2, 2) * 2), roofH, 4);
-    const roof = new THREE.Mesh(roofGeo, mats.roof);
+    
+    const uvAttribute = roofGeo.attributes.uv;
+    if (uvAttribute) {
+        for (let i = 0; i < uvAttribute.count; i++) {
+            const x = roofGeo.attributes.position.getX(i);
+            const z = roofGeo.attributes.position.getZ(i);
+            uvAttribute.setXY(i, x / scale, z / scale);
+        }
+    }
+    
+    const roofMat = mats.roof.clone();
+    roofMat.side = THREE.DoubleSide;
+    
+    const roof = new THREE.Mesh(roofGeo, roofMat);
     roof.rotation.y = Math.PI / 4;
     roof.position.y = naveH + roofH / 2 + 0.1 * scale;
     g.add(roof);
@@ -77,23 +136,35 @@ export class MalakaBrokenErmita extends Mesh {
     facade.castShadow = true;
     g.add(facade);
 
-    // Front facade wall was previously non-colliding (player clipped through it).
     const facadeProxy = boxCollider(facadeW, facadeH, facadeT);
     facadeProxy.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
     g.add(facadeProxy);
 
-
-    const crownH = 2.5 * scale;
-    const crown = new THREE.Mesh(new THREE.ConeGeometry(facadeW / 2, crownH, 4), mats.stucco);
-    crown.rotation.y = Math.PI / 4;
-    crown.position.set(0, facadeH + crownH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
+    // 4c. Espadaña Crown (Hip Roof)
+    const crownH = 0.8 * scale;
+    const crownMat = mats.roof.clone();
+    crownMat.side = THREE.DoubleSide;
+    
+    // Resize to 1.05 * scale
+    const crown = createHipRoof(facadeW * 1.05, facadeT * 1.05, crownH, crownMat);
+    crown.rotation.y = 0;
+    crown.position.set(0, facadeH, naveD / 2 + facadeT / 2);
+    crown.castShadow = true;
     g.add(crown);
 
-    // Bell Opening
-    const bellOpening = createArchedDoor(1.8 * scale, 3.0 * scale, facadeT + 0.2, mats);
-    const voidMat = new THREE.MeshStandardMaterial({ color: 0x000000, roughness: 1.0 });
-    bellOpening.traverse(c => { if(c instanceof THREE.Mesh) c.material = voidMat; });
-    bellOpening.position.set(0, facadeH - 1.2 * scale, naveD / 2 + facadeT / 2);
+    const crownTileCount = 4;
+    for (let j = 0; j < crownTileCount; j++) {
+      const tile = createRoofTile(scale * 0.8, mats);
+      tile.userData.noCollision = true;
+      const tx = (j / (crownTileCount - 1) - 0.5) * (facadeW * 0.8);
+      tile.position.set(tx, facadeH + crownH + 0.2 * scale, naveD / 2 + facadeT / 2);
+      g.add(tile);
+    }
+
+    // Bell Opening (Void only, no door)
+    const bellOpeningGeo = new THREE.BoxGeometry(1.8 * scale, 2.5 * scale, facadeT + 0.2);
+    const bellOpening = new THREE.Mesh(bellOpeningGeo, voidMat);
+    bellOpening.position.set(0, facadeH - 1.5 * scale, naveD / 2 + facadeT / 2);
     g.add(bellOpening);
 
     // 4b. Realistic Bell Shape (Lathe-like curve)
@@ -124,7 +195,7 @@ export class MalakaBrokenErmita extends Mesh {
     g.add(oculusFrame);
 
     const oculusGlass = new THREE.Mesh(new THREE.CircleGeometry(0.55 * scale, 24), voidMat);
-    oculusGlass.position.set(0, facadeH - 4.5 * scale, naveD / 2 + facadeT + 0.05 * scale);
+    oculusGlass.position.set(0, facadeH - 4.5 * scale, naveD / 2 + facadeT + 0.102 * scale);
     g.add(oculusGlass);
 
     // 7. More Windows (Side and Rear)
@@ -145,8 +216,27 @@ export class MalakaBrokenErmita extends Mesh {
     rearWin.position.set(0, 3.0 * scale, -naveD/2 - 0.05 * scale);
     g.add(rearWin);
 
-    // World-tile the stone foundation/walkway so the masonry stays consistent.
+    // Roof Colliders
+    const addGableColliders = (w: number, l: number, h: number, y: number, z: number) => {
+        const over = 0.8 * scale;
+        const sw = Math.sqrt(Math.pow(w / 2 + over, 2) + Math.pow(h, 2));
+        const ang = Math.atan2(h, w / 2 + over);
+        for (const s of [-1, 1]) {
+            const rColl = boxCollider(sw, 0.4 * scale, l);
+            const rg = new THREE.Group();
+            rColl.position.set(s * (w / 4 + over / 2), h / 2, 0);
+            rColl.rotation.z = -s * ang;
+            rg.add(rColl);
+            rg.position.set(0, y, z);
+            g.add(rg);
+        }
+    };
+    addGableColliders(naveW, naveD, roofH, naveH + 0.1 * scale, 0);
+
+    // World-tile the materials so the masonry and patterns stay consistent.
     applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.roof);
 
     return withLOD(g);
   }

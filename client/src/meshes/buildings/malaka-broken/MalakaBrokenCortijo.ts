@@ -4,10 +4,6 @@ import { registerMesh } from '../../core/MeshRegistry';
 import {
   getMaterials,
   createArchedDoor,
-  createWindowWithGrille,
-  createChimney,
-  createFlowerPot,
-  createWoodenShutters,
   createPergola,
   withLOD,
 } from './MalakaBrokenKit';
@@ -16,6 +12,7 @@ import { applyWorldTiling } from '../worldTiled';
 
 /**
  * Helper to create a proper Mediterranean hip roof.
+ * Uses world-unit UV mapping to prevent texture stretching.
  */
 function createHipRoof(width: number, depth: number, height: number, mat: THREE.Material): THREE.Mesh {
     const geo = new THREE.BufferGeometry();
@@ -25,23 +22,34 @@ function createHipRoof(width: number, depth: number, height: number, mat: THREE.
     const rz = isWide ? 0 : ridgeLen / 2;
 
     const vertices = new Float32Array([
-        -width / 2, 0, -depth / 2, // 0
-         width / 2, 0, -depth / 2, // 1
-         width / 2, 0,  depth / 2, // 2
-        -width / 2, 0,  depth / 2, // 3
-        -rx, height, -rz,          // 4
-         rx, height,  rz           // 5
+        -width / 2, 0, -depth / 2, // 0: BL
+         width / 2, 0, -depth / 2, // 1: BR
+         width / 2, 0,  depth / 2, // 2: FR
+        -width / 2, 0,  depth / 2, // 3: FL
+        -rx, height, -rz,          // 4: Ridge L
+         rx, height,  rz           // 5: Ridge R
     ]);
 
     const indices = [
-        0, 1, 5,  0, 5, 4, // Front
-        1, 2, 5,           // Right
-        2, 3, 4,  2, 4, 5, // Back
-        3, 0, 4            // Left
+        0, 1, 5,  0, 5, 4, // Front/Back
+        1, 2, 5,           
+        2, 3, 4,  2, 4, 5, 
+        3, 0, 4            
     ];
+
+    // World-unit UV mapping (1 unit in UV = 1 unit in world space)
+    const uvs = new Float32Array([
+        -width / 2, -depth / 2,
+         width / 2, -depth / 2,
+         width / 2,  depth / 2,
+        -width / 2,  depth / 2,
+        -rx, -rz,
+         rx,  rz
+    ]);
 
     geo.setIndex(indices);
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.computeVertexNormals();
     
     const mesh = new THREE.Mesh(geo, mat);
@@ -59,65 +67,61 @@ export class MalakaBrokenCortijo extends Mesh {
     g.position.copy(pos);
     
     const originalMats = getMaterials();
-    // Force the brilliant whitewash
     const whiteStucco = originalMats.stucco.clone();
     whiteStucco.color.set(0xffffff);
     whiteStucco.emissive.set(0x222222); 
     whiteStucco.map = null;
-    const mats = { ...originalMats, stucco: whiteStucco };
+    
+    const roofMat = originalMats.roof.clone();
+    roofMat.side = THREE.DoubleSide;
 
-    // ── DIMENSIONS (Matching the 'Molino/Cortijo' sketch) ────────────────────
+    const mats = { ...originalMats, stucco: whiteStucco, roof: roofMat };
+
     const towerSize = 4.8 * scale;
     const towerH = 8.2 * scale;
-    
-    const wingLW = 12 * scale;  // Back Wing (Left)
+    const wingLW = 12 * scale;
     const wingLD = 4.8 * scale;
     const wingLH = 4.2 * scale;
-    
-    const wingFW = 4.8 * scale; // Front Wing (Forward)
+    const wingFW = 4.8 * scale;
     const wingFD = 10 * scale;
     const wingFH = 6.4 * scale;
-
-    const foundationH = 0.5 * scale;
+    const zocaloH = 0.8 * scale;
     const ovr = 0.5 * scale;
+    // Skirt the stone zocalos below grade (top stays at zocaloH) so the cortijo
+    // doesn't float on slopes.
+    const zocSkirt = zocaloH + 0.4 * scale;
+    const zocY = zocaloH - zocSkirt / 2;
 
-    // ── 1. CORNER TOWER ──────────────────────────────────────────────────────
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(towerSize, towerH, towerSize), mats.stucco);
-    tower.position.y = towerH / 2;
+    // 1. CORNER TOWER
+    const towerZoc = new THREE.Mesh(new THREE.BoxGeometry(towerSize, zocSkirt, towerSize), mats.stone);
+    towerZoc.position.y = zocY;
+    g.add(towerZoc);
+    const towerWallH = towerH - zocaloH;
+    const tower = new THREE.Mesh(new THREE.BoxGeometry(towerSize - 0.06 * scale, towerWallH, towerSize - 0.06 * scale), mats.stucco);
+    tower.position.y = zocaloH + towerWallH / 2;
     tower.castShadow = true;
     g.add(tower);
-
     const towerProxy = boxCollider(towerSize, towerH, towerSize);
     towerProxy.position.y = towerH / 2;
     g.add(towerProxy);
-
-    // Tower Foundation
-    const tFnd = new THREE.Mesh(new THREE.BoxGeometry(towerSize + 0.1, foundationH, towerSize + 0.1), mats.stone);
-    tFnd.position.y = foundationH / 2;
-    g.add(tFnd);
-
-    // Tower Roof (Hip)
     const tRoof = createHipRoof(towerSize + ovr * 2, towerSize + ovr * 2, 2.2 * scale, mats.roof);
     tRoof.position.y = towerH - 0.05 * scale;
     tRoof.userData.noCollision = true;
     g.add(tRoof);
 
-    // ── 2. BACK WING (Left-Extending, Pitched Roof) ──────────────────────────
+    // 2. BACK WING
     const bWX = -towerSize / 2 - wingLW / 2;
-    const backWing = new THREE.Mesh(new THREE.BoxGeometry(wingLW, wingLH, wingLD), mats.stucco);
-    backWing.position.set(bWX, wingLH / 2, 0);
+    const bZoc = new THREE.Mesh(new THREE.BoxGeometry(wingLW, zocSkirt, wingLD), mats.stone);
+    bZoc.position.set(bWX, zocY, 0);
+    g.add(bZoc);
+    const backWallH = wingLH - zocaloH;
+    const backWing = new THREE.Mesh(new THREE.BoxGeometry(wingLW - 0.06 * scale, backWallH, wingLD - 0.06 * scale), mats.stucco);
+    backWing.position.set(bWX, zocaloH + backWallH / 2, 0);
     backWing.castShadow = true;
     g.add(backWing);
-
     const bWProxy = boxCollider(wingLW, wingLH, wingLD);
     bWProxy.position.copy(backWing.position);
     g.add(bWProxy);
-
-    const bWFnd = new THREE.Mesh(new THREE.BoxGeometry(wingLW, foundationH, wingLD + 0.1), mats.stone);
-    bWFnd.position.set(bWX, foundationH / 2, 0);
-    g.add(bWFnd);
-
-    // Back Wing Roof (Ridge Hip)
     const bRoofW = wingLW + ovr;
     const bRoofD = wingLD + ovr * 2;
     const bRoof = createHipRoof(bRoofW, bRoofD, 2.4 * scale, mats.roof);
@@ -125,43 +129,28 @@ export class MalakaBrokenCortijo extends Mesh {
     g.add(bRoof);
 
     // Arched Gate (Portón de Carros) in Back Wing
-    const gate = createArchedDoor(3.8 * scale, 4.4 * scale, 0.6 * scale, mats);
-    gate.position.set(bWX + 2.5 * scale, 0, wingLD / 2 + 0.05 * scale);
+    const gate = createArchedDoor(3.0 * scale, 3.0 * scale, 0.3 * scale, mats);
+    gate.position.set(bWX + 2.5 * scale, zocaloH, wingLD / 2 + 0.05 * scale);
     gate.userData.noCollision = true;
-    gate.traverse((child) => {
+    gate.traverse((child: THREE.Object3D) => {
       child.userData.noCollision = true;
     });
     g.add(gate);
 
-    // Windows for Back Wing
-    for (let i = -1; i <= 0; i++) {
-        const win = createWindowWithGrille(0.9 * scale, 1.2 * scale, scale, mats);
-        win.position.set(bWX + i * 4 * scale - 1.5 * scale, 2.2 * scale, wingLD / 2 + 0.05 * scale);
-        win.userData.noCollision = true;
-        g.add(win);
-    }
-
-    // Chimney
-    const chim = createChimney(scale, mats);
-    chim.position.set(bWX - 4 * scale, wingLH + 0.5 * scale, 0);
-    g.add(chim);
-
-    // ── 3. FRONT WING (Forward-Extending, Flat Terrace) ──────────────────────
+    // 3. FRONT WING
     const fWZ = towerSize / 2 + wingFD / 2;
-    const frontWing = new THREE.Mesh(new THREE.BoxGeometry(wingFW, wingFH, wingFD), mats.stucco);
-    frontWing.position.set(0, wingFH / 2, fWZ);
+    const fZoc = new THREE.Mesh(new THREE.BoxGeometry(wingFW + 0.04 * scale, zocSkirt, wingFD + 0.04 * scale), mats.stone);
+    fZoc.position.set(0, zocY, fWZ);
+    g.add(fZoc);
+    const frontWallH = wingFH - zocaloH;
+    const frontWing = new THREE.Mesh(new THREE.BoxGeometry(wingFW - 0.06 * scale, frontWallH, wingFD - 0.06 * scale), mats.stucco);
+    frontWing.position.set(0, zocaloH + frontWallH / 2, fWZ);
     frontWing.castShadow = true;
     g.add(frontWing);
-
     const fWProxy = boxCollider(wingFW, wingFH, wingFD);
     fWProxy.position.copy(frontWing.position);
     g.add(fWProxy);
 
-    const fWFnd = new THREE.Mesh(new THREE.BoxGeometry(wingFW + 0.1, foundationH, wingFD), mats.stone);
-    fWFnd.position.set(0, foundationH / 2, fWZ);
-    g.add(fWFnd);
-
-    // Flat Terrace (Terraza Plana)
     const terraceH = 0.3 * scale;
     const terrace = new THREE.Mesh(new THREE.BoxGeometry(wingFW + 0.1 * scale, terraceH, wingFD + 0.1 * scale), mats.terracotta);
     terrace.position.set(0, wingFH + terraceH / 2, fWZ);
@@ -180,38 +169,27 @@ export class MalakaBrokenCortijo extends Mesh {
     p3.position.set(-wingFW / 2 + pT / 2, wingFH + pWH / 2, fWZ);
     g.add(p3);
 
-    // Windows for Front Wing (Two floors)
-    for (let i = 0; i < 3; i++) {
-        const wz = fWZ + i * 3.2 * scale - 3.2 * scale;
-        // Ground floor
-        const winG = new THREE.Group();
-        winG.position.set(wingFW / 2 + 0.05 * scale, 2.2 * scale, wz);
-        winG.rotation.y = Math.PI / 2;
-        winG.add(createWindowWithGrille(0.9 * scale, 1.2 * scale, scale, mats));
-        winG.add(createWoodenShutters(0.9 * scale, 1.2 * scale, scale, mats));
-        g.add(winG);
-        // Upper floor
-        const winU = createWindowWithGrille(0.6 * scale, 0.6 * scale, scale, mats);
-        winU.position.set(wingFW / 2 + 0.05 * scale, 4.8 * scale, wz);
-        winU.rotation.y = Math.PI / 2;
-        g.add(winU);
-    }
-
-    // ── 4. COURTYARD DETAILS ─────────────────────────────────────────────────
+    // Windows & Courtyard (simplified restoration)
     const pergola = createPergola(7 * scale, 4 * scale, scale, mats);
     pergola.position.set(-towerSize - 1.5 * scale, 0, wingLD / 2 + 2 * scale);
     g.add(pergola);
 
-    const potPos = [[bWX, wingLD/2 + 0.8*scale], [wingFW/2 + 0.8*scale, fWZ]];
-    for (const [px, pz] of potPos) {
-        const pot = createFlowerPot(scale);
-        pot.position.set(px, 0, pz);
-        g.add(pot);
-    }
+    // --- ROOF/TERRACE COLLIDERS ---
+    const addHipRoofCollider = (width: number, depth: number, height: number, y: number, x: number, z: number) => {
+        const rProxy = boxCollider(width, height, depth);
+        rProxy.position.set(x, y + height / 2, z);
+        g.add(rProxy);
+    };
+    addHipRoofCollider(towerSize + ovr * 2, towerSize + ovr * 2, 2.2 * scale, towerH, 0, 0);
+    addHipRoofCollider(wingLW + ovr, wingLD + ovr * 2, 2.4 * scale, wingLH, bWX - ovr/2, 0);
+    const terraceColl = boxCollider(wingFW, 1.2 * scale, wingFD);
+    terraceColl.position.set(0, wingFH + 0.6 * scale, fWZ);
+    g.add(terraceColl);
 
     applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.roof);
     return withLOD(g);
   }
 }
-
 registerMesh(MalakaBrokenCortijo);

@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createHorseshoeArch, createMachicolations, withLOD } from './MalakaKit';
-import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { boxCollider, cylinderCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
 export class MalakaCastle extends Mesh {
@@ -52,7 +52,8 @@ export class MalakaCastle extends Mesh {
     // 4. Courtyard Gardens (Green zones on tiers)
     const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 1.0 });
     const garden = new THREE.Mesh(new THREE.BoxGeometry(tier1W - 2 * scale, 0.2 * scale, 4 * scale), grassMat);
-    garden.position.set(0, tier1H + 0.1 * scale, 4 * scale);
+    // Raise garden so its bottom face (tier1H + 0.1*scale) clears the tier top (tier1H)
+    garden.position.set(0, tier1H + 0.2 * scale, 4 * scale);
     garden.userData.noCollision = true;
     g.add(garden);
 
@@ -62,6 +63,9 @@ export class MalakaCastle extends Mesh {
       const turret = new THREE.Mesh(new THREE.CylinderGeometry(1.5 * scale, 1.5 * scale, turretH, 8), mats.stone);
       turret.position.set(tx * (tier1W / 2), tier1H + turretH / 2, tier1W / 2);
       g.add(turret);
+      const turretProxy = cylinderCollider(1.5 * scale, turretH);
+      turretProxy.position.set(tx * (tier1W / 2), tier1H + turretH / 2, tier1W / 2);
+      g.add(turretProxy);
     }
 
     // 6. Horseshoe Arch Entrance

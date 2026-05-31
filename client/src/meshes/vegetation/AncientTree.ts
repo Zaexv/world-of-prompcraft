@@ -68,14 +68,14 @@ export class AncientTree extends Mesh {
     const lod = new THREE.LOD();
     lod.position.copy(pos);
 
-    // Level 0: Full (0–120) — 8-seg, PBR textures, shadows
+    // Level 0: Full (0–180) — 8-seg, PBR textures, shadows
     lod.addLevel(buildTreeGroup(scale, 8, true), 0);
-    // Level 1: Mid (120–240) — 6-seg, PBR textures, shadows
-    lod.addLevel(buildTreeGroup(scale, 6, true), 120);
-    // Level 2: Low (240–400) — 5-seg, PBR textures, NO shadows
-    lod.addLevel(buildTreeGroup(scale, 5, false), 240);
-    // Level 3: Silhouette (400+) — 4-seg, PBR textures, NO shadows
-    lod.addLevel(buildTreeGroup(scale, 4, false), 400);
+    // Level 1: Mid (180–360) — 6-seg, PBR textures, shadows
+    lod.addLevel(buildTreeGroup(scale, 6, true), 180);
+    // Level 2: Low (360–600) — 5-seg, PBR textures, NO shadows
+    lod.addLevel(buildTreeGroup(scale, 5, false), 360);
+    // Level 3: Silhouette (600+) — 4-seg, PBR textures, NO shadows
+    lod.addLevel(buildTreeGroup(scale, 4, false), 600);
 
     return lod;
   }

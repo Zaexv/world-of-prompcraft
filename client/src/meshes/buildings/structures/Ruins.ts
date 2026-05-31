@@ -59,8 +59,8 @@ export class Ruins extends Mesh {
       ry: Math.random() * Math.PI,
     }));
 
-    lod.addLevel(buildRuinsGroup(scale, walls, debris, true), 0);    // Full (0–100)
-    lod.addLevel(buildRuinsGroup(scale, walls, debris, false), 100); // Mid (100+) — walls only
+    lod.addLevel(buildRuinsGroup(scale, walls, debris, true), 0);    // Full (0–160)
+    lod.addLevel(buildRuinsGroup(scale, walls, debris, false), 160); // Mid (160+) — walls only
     return lod;
   }
 }

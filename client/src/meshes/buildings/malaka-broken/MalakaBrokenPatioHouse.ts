@@ -40,9 +40,10 @@ export class MalakaBrokenPatioHouse extends Mesh {
     const wingT = (outerW - patioW) / 2; 
     const zocaloH = 0.8 * scale;
 
-    // 2. Foundation
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.8, 0.5 * scale, outerD + 0.8), mats.stone);
-    foundation.position.y = 0.24 * scale; 
+    // 2. Foundation — scale-aware step, skirt buried below grade (top stays at 0.49).
+    const foundSkirt = 0.7 * scale;
+    const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.8 * scale, foundSkirt, outerD + 0.8 * scale), mats.stone);
+    foundation.position.y = 0.49 * scale - foundSkirt / 2;
     g.add(foundation);
 
     // 3. Wings
@@ -60,23 +61,19 @@ export class MalakaBrokenPatioHouse extends Mesh {
       wingGroup.position.set(w.x, 0.5 * scale, w.z);
 
       // --- Ground Floor ---
-      // Zocalo
-      const zw = isFrontBack ? w.w + 0.1 * scale : w.w;
+      // Zocalo — single proud stone band (a separate slightly-wider "cap" box on
+      // top created the same coplanar stone-on-stone flicker as the inter-floor
+      // cornice did). The stucco wall is narrower, so it cleanly steps in on top.
+      const zw = isFrontBack ? w.w + 0.1 * scale : w.w + 0.04 * scale;
       const zd = isFrontBack ? w.d + 0.05 * scale : w.d + 0.04 * scale;
       const zocalo = new THREE.Mesh(new THREE.BoxGeometry(zw, zocaloH, zd), mats.stone);
       zocalo.position.y = zocaloH / 2;
       wingGroup.add(zocalo);
 
-      // Light-catching Zocalo Cap
-      const zCapH = 0.05 * scale;
-      const zCap = new THREE.Mesh(new THREE.BoxGeometry(zw + 0.04 * scale, zCapH, zd + 0.04 * scale), mats.stone);
-      zCap.position.y = zocaloH + zCapH / 2;
-      wingGroup.add(zCap);
-
-      // Main Wall (Stucco)
-      const wallH = groundH - zocaloH - zCapH;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w.w, wallH, w.d), mats.stucco);
-      wall.position.y = zocaloH + zCapH + wallH / 2;
+      // Main Wall (Stucco) — narrower than the zócalo so it steps in cleanly.
+      const wallH = groundH - zocaloH;
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(w.w - 0.08 * scale, wallH, w.d - 0.08 * scale), mats.stucco);
+      wall.position.y = zocaloH + wallH / 2;
       wall.castShadow = wall.receiveShadow = true;
       wingGroup.add(wall);
 
@@ -87,7 +84,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
           (i <= 1) ? new THREE.BoxGeometry(w.w, azH, azD) : new THREE.BoxGeometry(azD, azH, w.d),
           mats.azulejo
       );
-      azMesh.position.y = zocaloH + zCapH + azH/2;
+      azMesh.position.y = zocaloH + azH/2;
       if (i === 0) azMesh.position.z = -w.d/2 + azD/2;
       if (i === 1) azMesh.position.z = w.d/2 - azD/2;
       if (i === 2) azMesh.position.x = -w.w/2 + azD/2;
@@ -95,72 +92,76 @@ export class MalakaBrokenPatioHouse extends Mesh {
       wingGroup.add(azMesh);
 
       // --- Exposed Ceiling Beams ---
+      // Sunk so their TOP face is well below groundH; at groundH the beam tops were
+      // coplanar with the ground-wall top (full-width, wood vs stucco) → flicker.
       const beamCount = 6;
       for (let j = 0; j < beamCount; j++) {
           const beam = new THREE.Mesh(new THREE.BoxGeometry(w.w * 0.9, 0.1 * scale, 0.15 * scale), mats.wood);
           if (i <= 1) {
-              beam.position.set(0, groundH - 0.05 * scale, (j / (beamCount-1) - 0.5) * w.d * 0.8);
+              beam.position.set(0, groundH - 0.12 * scale, (j / (beamCount-1) - 0.5) * w.d * 0.8);
           } else {
               beam.rotation.y = Math.PI / 2;
-              beam.position.set((j / (beamCount-1) - 0.5) * w.w * 0.8, groundH - 0.05 * scale, 0);
+              beam.position.set((j / (beamCount-1) - 0.5) * w.w * 0.8, groundH - 0.12 * scale, 0);
           }
           wingGroup.add(beam);
       }
 
-      // --- Cornice (Stone band with cap) ---
-      const cw = isFrontBack ? w.w + 0.12 * scale : w.w;
-      const cd = isFrontBack ? w.d + 0.08 * scale : w.d + 0.06 * scale;
-      const corniceH = 0.15 * scale;
+      // --- Cornice (single proud stone band) ---
+      // One box, clearly proud of both walls. A separate slightly-wider "cap" box
+      // stacked on it produced near-coplanar parallel stone faces that z-fought as
+      // a flickering line right between the two floors (visible in blue_reflection.png).
+      const cw = isFrontBack ? w.w + 0.12 * scale : w.w + 0.04 * scale;
+      const cd = isFrontBack ? w.d + 0.12 * scale : w.d + 0.1 * scale;
+      const corniceH = 0.22 * scale;
       const cornice = new THREE.Mesh(new THREE.BoxGeometry(cw, corniceH, cd), mats.stone);
       cornice.position.y = groundH;
       wingGroup.add(cornice);
-
-      const cCapH = 0.06 * scale;
-      const cCap = new THREE.Mesh(new THREE.BoxGeometry(cw + 0.05 * scale, cCapH, cd + 0.05 * scale), mats.stone);
-      cCap.position.y = groundH + corniceH / 2 + cCapH / 2;
-      wingGroup.add(cCap);
 
       // --- Upper Floor ---
       const uWallH = upperH;
       const isBackWing = (i === 1); 
       
       if (isBackWing) {
-        // Receded Central Balcony
+        // Receded Central Balcony — the back wall stays full width, but the slab,
+        // railing, pillars and pots span only the central opening between the side
+        // wings (≈ patio width). At full façade width the terracotta floor clips
+        // out past the side-wing walls.
         const balconyDepth = wingT * 0.7;
         const mainWallD = wingT - balconyDepth;
-        
+        const balconyW = patioW - 0.2 * scale;
+
         const uWall = new THREE.Mesh(new THREE.BoxGeometry(w.w, uWallH, mainWallD), mats.stucco);
         uWall.position.y = groundH + uWallH / 2;
         uWall.position.z = -balconyDepth / 2;
         wingGroup.add(uWall);
 
-        const bFloor = new THREE.Mesh(new THREE.BoxGeometry(w.w, 0.2 * scale, balconyDepth), mats.terracotta);
-        bFloor.position.y = groundH + 0.12 * scale; 
+        const bFloor = new THREE.Mesh(new THREE.BoxGeometry(balconyW, 0.2 * scale, balconyDepth), mats.terracotta);
+        bFloor.position.y = groundH + 0.12 * scale;
         bFloor.position.z = mainWallD / 2 + balconyDepth / 2;
         wingGroup.add(bFloor);
 
         const railH = 0.9 * scale;
-        const railGroup = this.createRailing(w.w, railH, scale, mats);
+        const railGroup = this.createRailing(balconyW, railH, scale, mats);
         railGroup.position.y = groundH + 0.22 * scale;
         railGroup.position.z = w.d / 2;
         wingGroup.add(railGroup);
 
         for (let j = -1; j <= 1; j++) {
           const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, uWallH, 0.18 * scale), mats.wood);
-          pillar.position.set(j * (w.w / 2 - 0.2 * scale), groundH + uWallH / 2, w.d / 2 - 0.12 * scale);
+          pillar.position.set(j * (balconyW / 2 - 0.2 * scale), groundH + uWallH / 2, w.d / 2 - 0.12 * scale);
           wingGroup.add(pillar);
         }
 
         for (let j = -3; j <= 3; j++) {
             if (j === 0) continue;
             const pot = createFlowerPot(scale * 0.8);
-            pot.position.set(j * (w.w / 8), groundH + railH + 0.13 * scale, w.d / 2);
+            pot.position.set(j * (balconyW / 8), groundH + railH + 0.13 * scale, w.d / 2);
             wingGroup.add(pot);
         }
 
         // Climbing plant
-        const climber = createClimbingPlant(w.w * 0.4, groundH * 0.7, scale, mats);
-        climber.position.set(w.w * 0.3, zocaloH + zCapH + 0.1 * scale, w.d / 2 - 0.05 * scale);
+        const climber = createClimbingPlant(balconyW * 0.4, groundH * 0.7, scale, mats);
+        climber.position.set(balconyW * 0.3, zocaloH + 0.1 * scale, w.d / 2 - 0.05 * scale);
         wingGroup.add(climber);
 
       } else {
@@ -193,7 +194,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
     }
     const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioW, patioD), patioFloorMat);
     patioFloor.rotation.x = -Math.PI / 2;
-    patioFloor.position.y = 0.51 * scale; 
+    patioFloor.position.y = 0.515 * scale; // clear the stone border plane (0.505) — flat coplanar planes z-fight at distance
     g.add(patioFloor);
 
     const fountainGroup = this.createFountain(scale, mats);
@@ -209,6 +210,11 @@ export class MalakaBrokenPatioHouse extends Mesh {
     const table = createWoodenTable(scale, mats);
     table.position.set(patioW / 2 - 1.6 * scale, 0.515 * scale, 0);
     g.add(table);
+
+    // Patio/Fountain Collider
+    const fountainColl = boxCollider(patioW, 1.5 * scale, patioD);
+    fountainColl.position.set(0, 0.51 * scale + 0.75 * scale, 0);
+    g.add(fountainColl);
 
     // 5. Arched Portico (With Stone Trim)
     for (let i = 0; i < 4; i++) {
@@ -280,6 +286,16 @@ export class MalakaBrokenPatioHouse extends Mesh {
         );
         roofPart.rotation.y = -angle + Math.PI / 2;
         g.add(roofPart);
+
+        // Roof Collider Segment
+        const rProxy = boxCollider(w + roofOverhang * 2, roofH, wingT + roofOverhang);
+        rProxy.position.set(
+            Math.cos(angle) * (outerD - wingT) / 2,
+            totalH + 0.51 * scale + roofH / 2,
+            Math.sin(angle) * (outerD - wingT) / 2
+        );
+        rProxy.rotation.y = -angle + Math.PI / 2;
+        g.add(rProxy);
 
         // 3D Tiles
         const tileCount = 20;
@@ -358,6 +374,10 @@ export class MalakaBrokenPatioHouse extends Mesh {
             const x = side * (outerW / 2 + 0.06 * scale);
             const zPositions = [-outerD / 3, 0, outerD / 3];
             zPositions.forEach((z, idx) => {
+                // Back wing's upper floor is recessed for the central balcony, so
+                // there is no flush side wall at z=-outerD/3 up there — an upper
+                // window placed there floats. Skip it.
+                if (yOff === 1 && idx === 0) return;
                 const hVar = (yOff === 1 && idx === 1) ? 0.6 : 1.0;
                 const winGroup = new THREE.Group();
                 const win = createWindowWithGrille(winW, winH * hVar, scale, mats);
@@ -376,7 +396,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
                     opacity: 0.3
                 });
                 const glow = new THREE.Mesh(new THREE.PlaneGeometry(winW * 0.9, winH * hVar * 0.9), glowMat);
-                glow.position.z = -0.05 * scale;
+                glow.position.z = -0.08 * scale; // behind glass back face (glass spans ±0.05) — no coplanar z-fight
                 winGroup.add(glow);
 
                 winGroup.rotation.y = side * Math.PI / 2;
@@ -387,6 +407,8 @@ export class MalakaBrokenPatioHouse extends Mesh {
     }
 
     applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.roof);
     return withLOD(g);
   }
 
@@ -451,7 +473,17 @@ export class MalakaBrokenPatioHouse extends Mesh {
       w2, 0, -d2,  -w2, 0, -d2,  -w2+d2, h, 0,
       w2, 0, -d2,  -w2+d2, h, 0,  w2-d2, h, 0,
     ]);
+    // World-unit UVs (1 UV = 1 world unit), same as the sibling createHipRoof
+    // helpers — raw BufferGeometry is skipped by applyWorldTiling, so without
+    // this the roof maps sample at (0,0) and render untextured.
+    const uvs = new Float32Array([
+      -w2, d2,   w2, d2,   w2-d2, 0,
+      -w2, d2,   w2-d2, 0, -w2+d2, 0,
+      w2, -d2,  -w2, -d2, -w2+d2, 0,
+      w2, -d2,  -w2+d2, 0,  w2-d2, 0,
+    ]);
     geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
     geo.computeVertexNormals();
     return new THREE.Mesh(geo, mats.roof);
   }

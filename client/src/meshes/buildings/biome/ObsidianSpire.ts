@@ -16,19 +16,20 @@ export class ObsidianSpire extends Mesh {
     const dark = m(0x222233, 0.4, 0.5);
     // Main spire — tall hexagonal shaft
     solid(g, G.cylinder(0.8, 1.4, 9, 6), obs, 0, 4.5);
-    // Base buttresses (3)
+    // Base buttresses (3) — radius 1.7 so inner edge (1.45) clears shaft base radius (1.4)
     for (let i = 0; i < 3; i++) {
       const a = (i / 3) * Math.PI * 2;
-      solid(g, G.box(0.5, 3.0, 0.5), dark, Math.cos(a) * 1.5, 1.5, Math.sin(a) * 1.5);
+      solid(g, G.box(0.5, 3.0, 0.5), dark, Math.cos(a) * 1.7, 1.5, Math.sin(a) * 1.7);
     }
     // Battlements
     for (let i = 0; i < 6; i++) {
       const a = (i / 6) * Math.PI * 2;
       solid(g, G.box(0.35, 0.7, 0.35), obs, Math.cos(a) * 0.75, 9.35, Math.sin(a) * 0.75);
     }
-    // Lava runes — emissive stripes up the shaft
+    // Lava runes — torus radius tracks shaft surface at each height to avoid intersection
     for (let y = 1; y < 9; y += 2.5) {
-      deco(g, G.torus(0.82, 0.04, 5, 12), lava, 0, y, 0, Math.PI / 2);
+      const shaftR = 1.4 - (y / 9) * 0.6;
+      deco(g, G.torus(shaftR, 0.04, 5, 12), lava, 0, y, 0, Math.PI / 2);
     }
     return g;
   }

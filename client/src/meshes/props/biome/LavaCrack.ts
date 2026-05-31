@@ -14,8 +14,8 @@ export class LavaCrack extends Mesh {
     const s = ctx.scale;
     const basalt = m(0x1a0800, 0.92);
     const lava = m(0xff5500, 0.04, 0, 0xff2200, 3.0);
-    solid(g, G.box(2.4 * s, 0.28, 0.4 * s), basalt, 0, 0.14);
-    deco(g, G.box(2.0 * s, 0.08, 0.24 * s), lava, 0, 0.08);
+    solid(g, G.box(2.4 * s, 0.28 * s, 0.4 * s), basalt, 0, 0.14 * s);
+    deco(g, G.box(2.0 * s, 0.08 * s, 0.24 * s), lava, 0, 0.08 * s);
     return g;
   }
 }

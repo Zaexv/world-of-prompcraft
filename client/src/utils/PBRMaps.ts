@@ -5,7 +5,7 @@ const loader = new THREE.TextureLoader();
 // 4× anisotropic filtering keeps tiled detail (terrain, stone, bark, roof tiles)
 // crisp at the grazing angles the third-person camera constantly looks across,
 // where plain trilinear mipmapping would otherwise smear it into a blur.
-const ANISOTROPY = 4;
+const ANISOTROPY = 8;
 
 function rep(url: string): THREE.Texture {
   const t = loader.load(url);

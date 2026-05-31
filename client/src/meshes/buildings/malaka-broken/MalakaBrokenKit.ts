@@ -165,7 +165,7 @@ function makeReducedLevel(full: THREE.Group, simplify: boolean): THREE.Group {
  * `return withLOD(g)` at the end of `build()`; the group keeps the world position
  * it was built at, and collision still uses level 0 (the full build).
  */
-export function withLOD(full: THREE.Group, midDist = 110, farDist = 240): THREE.LOD {
+export function withLOD(full: THREE.Group, midDist = 180, farDist = 380): THREE.LOD {
   const lod = new THREE.LOD();
   lod.position.copy(full.position);
   full.position.set(0, 0, 0);
