@@ -15,6 +15,7 @@ import './malaka/MalakaWall';
 import './malaka/MalakaCortijo';
 import './malaka/MalakaBodega';
 import './malaka/RomanAmphitheatre';
+import './malaka-broken';
 
 // Generic structures
 import './structures/Moonwell';
