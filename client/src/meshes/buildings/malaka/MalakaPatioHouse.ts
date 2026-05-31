@@ -8,6 +8,7 @@ import {
   createWindowWithGrille,
   createFlowerPot,
 } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaPatioHouse extends Mesh {
   static readonly type = 'malaka_patio_house';
@@ -44,8 +45,11 @@ export class MalakaPatioHouse extends Mesh {
       const mesh = new THREE.Mesh(new THREE.BoxGeometry(w.w, w.h, w.d), mats.stucco);
       mesh.position.set(w.x, 0.5 * scale + w.h / 2, w.z);
       mesh.castShadow = mesh.receiveShadow = true;
-      mesh.userData.isCollider = true;
       g.add(mesh);
+      
+      const proxy = boxCollider(w.w, w.h, w.d);
+      proxy.position.set(w.x, 0.5 * scale + w.h / 2, w.z);
+      g.add(proxy);
     }
 
     // 3. Central Patio Floor & Fountain

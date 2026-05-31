@@ -7,6 +7,7 @@ import {
   createArchedDoor,
   createWindowWithGrille,
 } from './MalakaKit';
+import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 
 export class MalakaErmita extends Mesh {
   static readonly type = 'malaka_ermita';
@@ -38,8 +39,11 @@ export class MalakaErmita extends Mesh {
     const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
     nave.position.y = naveH / 2 + 0.1 * scale;
     nave.castShadow = nave.receiveShadow = true;
-    nave.userData.isCollider = true;
     g.add(nave);
+
+    const naveProxy = boxCollider(naveW, naveH, naveD);
+    naveProxy.position.y = naveH / 2 + 0.1 * scale;
+    g.add(naveProxy);
 
     // 3. Gabled Roof (Vibrant Red)
     const roofH = 2.8 * scale;
@@ -70,6 +74,12 @@ export class MalakaErmita extends Mesh {
     facade.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
     facade.castShadow = true;
     g.add(facade);
+
+    // Front facade wall was previously non-colliding (player clipped through it).
+    const facadeProxy = boxCollider(facadeW, facadeH, facadeT);
+    facadeProxy.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
+    g.add(facadeProxy);
+
 
     const crownH = 2.5 * scale;
     const crown = new THREE.Mesh(new THREE.ConeGeometry(facadeW / 2, crownH, 4), mats.stucco);

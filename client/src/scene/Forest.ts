@@ -270,19 +270,20 @@ export class StartingForest {
   }
 
   private buildTrees(): void {
-    // Trees within this radius from origin get PBR textures; beyond → flat color.
+    // The near/far split below only governs shadow-casting (a real per-frame cost):
+    // near trees cast shadows, far ones don't. Both batches share the SAME PBR
+    // materials, so every tree is textured. (Previously the far batch used flat
+    // colour, but the split is fixed from world origin — not the camera — so edge
+    // trees you can walk right up to stayed permanently textureless.)
     const NEAR_THRESHOLD = 160;
 
     const trunkGeo = new THREE.CylinderGeometry(0.34, 0.48, 5.8, 7);
     const canopyGeo = new THREE.ConeGeometry(2.9, 6.2, 8, 1);
 
-    const trunkMatNear = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
-    applyBarkPBR(trunkMatNear);
-    const canopyMatNear = new THREE.MeshStandardMaterial({ color: 0x234d2e, roughness: 0.85 });
-    applyCanopyPBR(canopyMatNear);
-
-    const trunkMatFar = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
-    const canopyMatFar = new THREE.MeshStandardMaterial({ color: 0x234d2e, roughness: 0.85 });
+    const trunkMat = new THREE.MeshStandardMaterial({ color: 0x3b2411, roughness: 0.95 });
+    applyBarkPBR(trunkMat);
+    const canopyMat = new THREE.MeshStandardMaterial({ color: 0x234d2e, roughness: 0.85 });
+    applyCanopyPBR(canopyMat);
 
     const trees: Array<{ x: number; z: number; scale: number; tilt: number }> = [];
     const pushTree = (x: number, z: number, scale: number, tilt: number): void => {
@@ -392,8 +393,8 @@ export class StartingForest {
       this.root.add(canopyMesh);
     };
 
-    buildBatch(nearBatch, trunkMatNear, canopyMatNear, true);
-    buildBatch(farBatch,  trunkMatFar,  canopyMatFar,  false);
+    buildBatch(nearBatch, trunkMat, canopyMat, true);
+    buildBatch(farBatch,  trunkMat, canopyMat, false);
 
     const colliderGroup = new THREE.Group();
     colliderGroup.name = 'starting-forest-colliders';
