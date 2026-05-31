@@ -102,6 +102,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
 
     try:
         import time
+
         while True:
             try:
                 data: dict[str, Any] = await websocket.receive_json()
