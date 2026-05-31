@@ -22,7 +22,7 @@ flowchart TD
         AN["act node"]
         RSP["respond node"]
         RF["reflect node"]
-        SUM["summarize node (compiled, not currently routed)"]
+        SUM["summarize node"]
     end
 
     subgraph World["World Layer"]
@@ -54,6 +54,7 @@ flowchart TD
     REG --> TOOLS
     TOOLS --> C & D & E & Q & T & WQ & M
     G --> RN --> AN --> RSP --> RF
+    RF -->|conditional| SUM
     RN --> RAG --> KB
     RN --> LLM
     TOOLS --> WSTATE
@@ -122,19 +123,20 @@ flowchart LR
     ACT --> REASON
     REASON -->|no tool_calls| RESPOND["respond"]
     RESPOND --> REFLECT["reflect"]
-    REFLECT --> END([END])
-    SUM["summarize node exists\nbut no edge routes to it"]
+    REFLECT -->|memory compaction needed| SUM["summarize"]
+    REFLECT -->|otherwise| END([END])
+    SUM --> END
 
     style REASON fill:#4a90d9,color:#fff,stroke:#2c6fad
     style ACT fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ### Node responsibilities
-- **reason**: builds compact/full system prompt, injects world context + player state + memory fields, retrieves lore (RAG), binds tools (except short-social path), handles inline tool-call fallback.
+- **reason**: builds compact/full system prompt, injects world context + player state + memory fields, retrieves lore (RAG), binds tools (except short-social path), handles inline tool-call fallback, and keeps the active prompt bounded to a small recent window.
 - **act**: executes tool calls and harvests shared `pending_actions`.
 - **respond**: extracts dialogue text.
 - **reflect**: heuristic mood/relationship/personality-notes update (no LLM call).
-- **summarize**: implemented but currently not connected in graph routing.
+- **summarize**: conditional memory compaction node; preserves stable player facts and keeps rolling summaries bounded.
 
 ---
 
@@ -152,6 +154,8 @@ flowchart LR
 | `mood` | `str` | current emotional state |
 | `relationship_score` | `int` | player relationship score |
 | `personality_notes` | `str` | compact persistent observations |
+
+Registry note: per-turn inputs are assembled separately from checkpointed memory so persisted fields survive across prompts instead of being reset to defaults.
 
 ---
 
