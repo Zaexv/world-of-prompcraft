@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { applyMalakaPBR } from '../../../utils/PBRMaps';
+import { boxCollider, cylinderCollider } from '../colliderProxy';
 
 // ─── Material Cache (Singleton) ───────────────────────────────────────────────
 
@@ -291,8 +292,11 @@ export function buildMalakaHouse(pos: THREE.Vector3, scale: number): THREE.Group
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight - foundH, depth), mats.stucco);
   body.position.y = foundH + (totalHeight - foundH) / 2;
   body.castShadow = body.receiveShadow = true;
-  body.userData.isCollider = true;
   g.add(body);
+
+  const bodyProxy = boxCollider(width, totalHeight - foundH, depth);
+  bodyProxy.position.y = foundH + (totalHeight - foundH) / 2;
+  g.add(bodyProxy);
 
   // 3. Roof with 3D Overhang Beams
   const roofOverhang = 0.5 * scale;
@@ -404,8 +408,11 @@ export function buildMalakaPatioHouse(pos: THREE.Vector3, scale: number): THREE.
     const mesh = new THREE.Mesh(new THREE.BoxGeometry(w.w, w.h, w.d), mats.stucco);
     mesh.position.set(w.x, 0.5 * scale + w.h / 2, w.z);
     mesh.castShadow = mesh.receiveShadow = true;
-    mesh.userData.isCollider = true;
     g.add(mesh);
+
+    const proxy = boxCollider(w.w, w.h, w.d);
+    proxy.position.set(w.x, 0.5 * scale + w.h / 2, w.z);
+    g.add(proxy);
   }
 
   // 3. Central Patio Floor & Fountain
@@ -527,8 +534,11 @@ export function buildMalakaErmita(pos: THREE.Vector3, scale: number): THREE.Grou
   const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH, naveD), mats.stucco);
   nave.position.y = naveH / 2 + 0.1 * scale;
   nave.castShadow = nave.receiveShadow = true;
-  nave.userData.isCollider = true;
   g.add(nave);
+
+  const naveProxy = boxCollider(naveW, naveH, naveD);
+  naveProxy.position.y = naveH / 2 + 0.1 * scale;
+  g.add(naveProxy);
 
   // 3. Gabled Roof (Vibrant Red)
   const roofH = 2.8 * scale;
@@ -559,6 +569,11 @@ export function buildMalakaErmita(pos: THREE.Vector3, scale: number): THREE.Grou
   facade.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
   facade.castShadow = true;
   g.add(facade);
+
+  // Front facade wall was previously non-colliding (player clipped through it).
+  const facadeProxy = boxCollider(facadeW, facadeH, facadeT);
+  facadeProxy.position.set(0, facadeH / 2 + 0.1 * scale, naveD / 2 + facadeT / 2);
+  g.add(facadeProxy);
 
   const crownH = 2.5 * scale;
   const crown = new THREE.Mesh(new THREE.ConeGeometry(facadeW / 2, crownH, 4), mats.stucco);
@@ -636,7 +651,6 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   const base = stoneBox(baseW, 0.8 * scale, baseD);
   base.position.y = 0.4 * scale;
   base.castShadow = base.receiveShadow = true;
-  base.userData.isCollider = true;
   g.add(base);
 
   // 2. Main Nave (High Cathedral)
@@ -649,7 +663,6 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   const nave = new THREE.Mesh(new THREE.BoxGeometry(naveW, naveH + naveSink, naveD), mats.stucco);
   nave.position.y = 0.8 * scale + naveH / 2 - naveSink / 2;
   nave.castShadow = nave.receiveShadow = true;
-  nave.userData.isCollider = true;
   g.add(nave);
 
   // 3. Main Roof (Vaulted/Curved)
@@ -685,7 +698,6 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   const towerZ = naveD / 2 - towerW / 2 + 0.3 * scale;
   const tower = stoneBox(towerW, towerH, towerW);
   tower.position.set(towerX, 0.8 * scale + towerH / 2, towerZ);
-  tower.userData.isCollider = true;
   g.add(tower);
 
   // Tower Belfry (Open Arches)
@@ -703,7 +715,6 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   // Missing Right Tower Base — mirror the outward nudge of the main tower.
   const missingTower = stoneBox(towerW, 8 * scale, towerW);
   missingTower.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, 0.8 * scale + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
-  missingTower.userData.isCollider = true;
   g.add(missingTower);
 
   // 6. Flying Buttresses (Contrafuertes)
@@ -723,6 +734,35 @@ export function buildMalakaChurch(pos: THREE.Vector3, scale: number): THREE.Grou
   entrance.traverse(c => { c.userData.noCollision = true; });
   entrance.position.set(0, 0.8 * scale, naveD / 2 + 0.4 * scale);
   g.add(entrance);
+
+  // ── Collision proxies (option 2: explicit invisible hitboxes) ──────────
+  // The capsule collides against these clean convex boxes instead of the
+  // decorated stone/stucco render meshes above. They mirror the visible solid
+  // masonry — including the buttresses, which previously had no collision so the
+  // player clipped straight through them.
+  const naveProxy = boxCollider(naveW, naveH, naveD);
+  naveProxy.position.y = 0.8 * scale + naveH / 2;
+  g.add(naveProxy);
+
+  const baseProxy = boxCollider(baseW, 0.8 * scale, baseD);
+  baseProxy.position.y = 0.4 * scale;
+  g.add(baseProxy);
+
+  const towerProxy = boxCollider(towerW, towerH, towerW);
+  towerProxy.position.set(towerX, 0.8 * scale + towerH / 2, towerZ);
+  g.add(towerProxy);
+
+  const missingTowerProxy = boxCollider(towerW, 8 * scale, towerW);
+  missingTowerProxy.position.set(naveW / 2 - towerW / 2 + 0.3 * scale, 0.8 * scale + 4 * scale, naveD / 2 - towerW / 2 + 0.3 * scale);
+  g.add(missingTowerProxy);
+
+  for (let z = -naveD / 2 + 4 * scale; z <= naveD / 2 - 6 * scale; z += 4 * scale) {
+    for (const side of [-1, 1]) {
+      const buttressProxy = boxCollider(3 * scale, 10 * scale, 1.5 * scale);
+      buttressProxy.position.set(side * (naveW / 2 + 1.1 * scale), 0.8 * scale + 5 * scale, z);
+      g.add(buttressProxy);
+    }
+  }
 
   return g;
 }
@@ -781,24 +821,33 @@ export function buildMalakaCastle(pos: THREE.Vector3, scale: number): THREE.Grou
   const tier1H = 6 * scale;
   const base1 = new THREE.Mesh(new THREE.BoxGeometry(tier1W, tier1H, tier1W), mats.stone);
   base1.position.y = tier1H / 2;
-  base1.userData.isCollider = true;
   g.add(base1);
+
+  const base1Proxy = boxCollider(tier1W, tier1H, tier1W);
+  base1Proxy.position.y = tier1H / 2;
+  g.add(base1Proxy);
 
   // 2. Middle Palace Tier (with Horseshoe Arches)
   const tier2W = 10 * scale;
   const tier2H = 5 * scale;
   const base2 = new THREE.Mesh(new THREE.BoxGeometry(tier2W, tier2H, tier2W), mats.stone);
   base2.position.set(0, tier1H + tier2H / 2, -2 * scale);
-  base2.userData.isCollider = true;
   g.add(base2);
+
+  const base2Proxy = boxCollider(tier2W, tier2H, tier2W);
+  base2Proxy.position.set(0, tier1H + tier2H / 2, -2 * scale);
+  g.add(base2Proxy);
 
   // 3. Upper Keep (Torre del Homenaje)
   const keepW = 6 * scale;
   const keepH = 8 * scale;
   const keep = new THREE.Mesh(new THREE.BoxGeometry(keepW, keepH, keepW), mats.stone);
   keep.position.set(0, tier1H + tier2H + keepH / 2, -4 * scale);
-  keep.userData.isCollider = true;
   g.add(keep);
+
+  const keepProxy = boxCollider(keepW, keepH, keepW);
+  keepProxy.position.set(0, tier1H + tier2H + keepH / 2, -4 * scale);
+  g.add(keepProxy);
 
   // 4. Courtyard Gardens (Green zones on tiers)
   const grassMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 1.0 });
@@ -838,8 +887,11 @@ export function buildMalakaTower(pos: THREE.Vector3, scale: number): THREE.Group
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, width), mats.stone);
   body.position.y = height / 2;
   body.castShadow = true;
-  body.userData.isCollider = true;
   g.add(body);
+
+  const bodyProxy = boxCollider(width, height, width);
+  bodyProxy.position.y = height / 2;
+  g.add(bodyProxy);
   
   // High Arrow Slits
   for (let y = 0.3; y < 0.9; y += 0.2) {
@@ -873,8 +925,11 @@ export function buildMalakaWall(pos: THREE.Vector3, scale: number): THREE.Group 
   const wall = new THREE.Mesh(new THREE.BoxGeometry(wallW, wallH, wallT), mats.stone);
   wall.position.y = wallH / 2;
   wall.castShadow = wall.receiveShadow = true;
-  wall.userData.isCollider = true;
   g.add(wall);
+
+  const wallProxy = boxCollider(wallW, wallH, wallT);
+  wallProxy.position.y = wallH / 2;
+  g.add(wallProxy);
 
   // Arrow Slits in the wall
   for (let x = -3 * scale; x <= 3 * scale; x += 3 * scale) {
@@ -909,8 +964,13 @@ export function buildRomanAmphitheatre(pos: THREE.Vector3, scale: number): THREE
   const innerR = 4.0 * scale;
   const orch = new THREE.Mesh(new THREE.CylinderGeometry(innerR, innerR, 0.3 * scale, 48, 1, false, Math.PI, Math.PI), mats.stone);
   orch.position.y = 0.15 * scale;
-  orch.userData.isCollider = true;
   g.add(orch);
+
+  // The orchestra floor renders as a half-disc; the collider is a clean full
+  // low cylinder so the capsule never snags on the open arc edges.
+  const orchProxy = cylinderCollider(innerR, 0.3 * scale);
+  orchProxy.position.y = 0.15 * scale;
+  g.add(orchProxy);
   return g;
 }
 
@@ -923,8 +983,11 @@ export function buildMalakaHouseReconstructed(pos: THREE.Vector3, scale: number)
   const totalHeight = 5 * scale;
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, totalHeight, depth), mats.stucco);
   body.position.y = totalHeight / 2;
-  body.userData.isCollider = true;
   g.add(body);
+
+  const bodyProxy = boxCollider(width, totalHeight, depth);
+  bodyProxy.position.y = totalHeight / 2;
+  g.add(bodyProxy);
   return g;
 }
 
@@ -940,14 +1003,20 @@ export function buildMalakaCortijo(pos: THREE.Vector3, scale: number): THREE.Gro
   const wing1 = new THREE.Mesh(new THREE.BoxGeometry(mainW, mainH, 4 * scale), mats.stucco);
   wing1.position.set(0, mainH / 2, 0);
   wing1.castShadow = true;
-  wing1.userData.isCollider = true;
   g.add(wing1);
+
+  const wing1Proxy = boxCollider(mainW, mainH, 4 * scale);
+  wing1Proxy.position.set(0, mainH / 2, 0);
+  g.add(wing1Proxy);
 
   const wing2 = new THREE.Mesh(new THREE.BoxGeometry(4 * scale, mainH, 6 * scale), mats.stucco);
   wing2.position.set(-mainW / 2 + 2 * scale, mainH / 2, 5 * scale);
   wing2.castShadow = true;
-  wing2.userData.isCollider = true;
   g.add(wing2);
+
+  const wing2Proxy = boxCollider(4 * scale, mainH, 6 * scale);
+  wing2Proxy.position.set(-mainW / 2 + 2 * scale, mainH / 2, 5 * scale);
+  g.add(wing2Proxy);
 
   // 2. Flat Terrace (Terraza Plana)
   const terrace = new THREE.Mesh(new THREE.BoxGeometry(mainW - 0.2 * scale, 0.4 * scale, 4 * scale - 0.2 * scale), mats.stone);
@@ -1000,8 +1069,11 @@ export function buildMalakaBodega(pos: THREE.Vector3, scale: number): THREE.Grou
   const body = new THREE.Mesh(new THREE.BoxGeometry(width, height, length), mats.stucco);
   body.position.y = height / 2;
   body.castShadow = true;
-  body.userData.isCollider = true;
   g.add(body);
+
+  const bodyProxy = boxCollider(width, height, length);
+  bodyProxy.position.y = height / 2;
+  g.add(bodyProxy);
 
   // 2. High Ventilation Windows (Ventanas Altas)
   const winW = 0.6 * scale;
