@@ -32,8 +32,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if settings.llm_provider == "openai" and not settings.openai_api_key:
         logger.error("OPENAI_API_KEY is missing but openai provider is selected.")
         raise RuntimeError("Missing OPENAI_API_KEY")
-    if settings.llm_provider == "anthropic" and not settings.anthropic_api_key:
-        logger.error("ANTHROPIC_API_KEY is missing but anthropic provider is selected.")
+    if settings.llm_provider == "claude" and not settings.anthropic_api_key:
+        logger.error("ANTHROPIC_API_KEY is missing but claude provider is selected.")
         raise RuntimeError("Missing ANTHROPIC_API_KEY")
 
     llm = get_llm(settings)
