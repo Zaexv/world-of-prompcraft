@@ -35,6 +35,21 @@ def _make_tag_pattern(names: set[str]) -> re.Pattern[str]:
     return re.compile(rf"<({alternation})>([\s\S]*?)</\1>", re.IGNORECASE | re.DOTALL)
 
 
+def _make_paren_colon_pattern(names: set[str]) -> re.Pattern[str]:
+    # Paren-colon form: ``(offer_item: "Plato de Jamón Ibérico")``.
+    # Some models write the call name *inside* the parens followed by a colon.
+    alternation = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    return re.compile(rf"\(\s*({alternation})\s*:\s*([^()]*)\)", re.IGNORECASE)
+
+
+def _make_star_pattern(names: set[str]) -> re.Pattern[str]:
+    # Star form: ``*deal_damage target=player amount=20 damage_type=physical*``.
+    # Requires at least one whitespace after the name so bare ``*word*`` action
+    # markers (not tool calls) are left untouched.
+    alternation = "|".join(re.escape(n) for n in sorted(names, key=len, reverse=True))
+    return re.compile(rf"\*\s*({alternation})\s+(.*?)\s*\*", re.IGNORECASE | re.DOTALL)
+
+
 def _json_type(value: Any) -> str:
     if isinstance(value, bool):
         return "boolean"
@@ -158,19 +173,24 @@ def extract_inline_tool_calls(
         calls.append({"name": name, "args": _assign_args(params_by_tool[name], tokens)})
         return " "
 
-    def _consume_tag(match: re.Match[str]) -> str:
+    def _consume_body(match: re.Match[str]) -> str:
+        """Shared handler for XML-tag, paren-colon, and star forms (all use
+        space-separated ``key=value`` bodies or a single positional value)."""
         name = canonical.get(match.group(1).lower())
         if name is None:  # pragma: no cover - pattern is built from known names
             return match.group(0)
         body = match.group(2).strip()
-        # A body with ``=`` is space-separated ``key=value`` pairs; otherwise the
-        # whole body is a single positional value (e.g. ``<emote>threaten</emote>``).
         tokens = _split_on(body, " ") if "=" in body else ([body] if body else [])
         calls.append({"name": name, "args": _assign_args(params_by_tool[name], tokens)})
         return " "
 
-    cleaned = _make_tag_pattern(names).sub(_consume_tag, text)
+    cleaned = _make_tag_pattern(names).sub(_consume_body, text)
     cleaned = _make_call_pattern(names).sub(_consume_call, cleaned)
+    cleaned = _make_paren_colon_pattern(names).sub(_consume_body, cleaned)
+    cleaned = _make_star_pattern(names).sub(_consume_body, cleaned)
+    # Strip <em> tags — keep inner text, discard markup.
+    cleaned = re.sub(r"<em>\s*</em>", " ", cleaned, flags=re.DOTALL)
+    cleaned = re.sub(r"<em>(.*?)</em>", r"\1", cleaned, flags=re.DOTALL)
     # Collapse whitespace left behind and trim stray wrapping quotes/space.
     cleaned = re.sub(r"\s+", " ", cleaned).strip().strip("\"'").strip()
     return cleaned, calls

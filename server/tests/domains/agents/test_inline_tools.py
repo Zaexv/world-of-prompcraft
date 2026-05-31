@@ -12,6 +12,7 @@ from src.agents.nodes.inline_tools import extract_inline_tool_calls
 
 PARAMS = {
     "emote": [("animation", "string")],
+    "offer_item": [("item_name", "string")],
     "spawn_effect": [("effect_type", "string"), ("duration", "number")],
     "deal_damage": [
         ("target", "string"),
@@ -82,3 +83,78 @@ def test_unknown_tool_left_untouched() -> None:
     assert calls == []
     assert "unknown_tool" in cleaned
     assert "cast_spell" in cleaned
+
+
+def test_paren_colon_form_single_positional() -> None:
+    text = '(offer_item: "Plato de Jamón Ibérico")'
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert cleaned == ""
+    assert calls == [{"name": "offer_item", "args": {"item_name": "Plato de Jamón Ibérico"}}]
+
+
+def test_paren_colon_form_key_value() -> None:
+    text = "(deal_damage: target=player amount=20 damage_type=physical) Stand back!"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert cleaned == "Stand back!"
+    assert calls == [
+        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}}
+    ]
+
+
+def test_star_form_key_value() -> None:
+    text = 'I am Captain Aldric! *deal_damage target="player" amount=20 damage_type="physical"*'
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert cleaned == "I am Captain Aldric!"
+    assert calls == [
+        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}}
+    ]
+
+
+def test_star_bare_word_not_a_tool_is_left_untouched() -> None:
+    # *threatens* has no args so the star pattern (which requires whitespace
+    # after the name) must NOT fire, and the word is not a tool name anyway.
+    text = "*threatens* You dare face me?"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "*threatens*" in cleaned
+
+
+def test_em_tags_stripped_content_kept() -> None:
+    text = "<em>gurgles softly</em> I... have... nothing... <em>splashes water</em>"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "gurgles softly" in cleaned
+    assert "splashes water" in cleaned
+    assert "<em>" not in cleaned
+
+
+def test_em_tags_empty_stripped() -> None:
+    text = "<em> </em> Hello traveller. <em></em>"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "<em>" not in cleaned
+    assert "Hello traveller." in cleaned
+
+
+def test_full_mixed_input() -> None:
+    text = (
+        '(offer_item: "Plato de Jamón Ibérico") '
+        "<em> </em> "
+        "<em>gurgles softly, eyes darting beneath the murky water</em> "
+        "I... have... nothing... to... trade... stranger... "
+        "<em>spawns a small splash of smoke</em> "
+        "<em> </em> "
+        "*threatens* "
+        "You speak with the arrogance of fools! "
+        '*deal_damage target="player" amount=20 damage_type="physical"*'
+    )
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == [
+        {"name": "offer_item", "args": {"item_name": "Plato de Jamón Ibérico"}},
+        {"name": "deal_damage", "args": {"target": "player", "amount": 20, "damage_type": "physical"}},
+    ]
+    assert "gurgles softly" in cleaned
+    assert "spawns a small splash of smoke" in cleaned
+    assert "I... have... nothing... to... trade... stranger..." in cleaned
+    assert "You speak with the arrogance of fools!" in cleaned
+    assert "<em>" not in cleaned
