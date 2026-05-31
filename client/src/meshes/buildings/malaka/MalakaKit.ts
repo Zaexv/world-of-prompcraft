@@ -14,6 +14,9 @@ export interface MedMaterials {
   roof: THREE.MeshStandardMaterial;
   stone: THREE.MeshStandardMaterial;
   wood: THREE.MeshStandardMaterial;
+  terracotta: THREE.MeshStandardMaterial;
+  azulejo: THREE.MeshStandardMaterial;
+  foliage: THREE.MeshStandardMaterial;
   glass: THREE.MeshStandardMaterial;
 }
 
@@ -66,6 +69,25 @@ export function getMaterials(): MedMaterials {
         m.userData.flatColor = 0x47331f; // avg lit dark wood for distance LOD
         return m;
       })(),
+      terracotta: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.85 });
+        applyMalakaPBR(m, 'stone');
+        m.color.set(0xc66542);
+        m.userData.flatColor = 0x9d5a3b;
+        return m;
+      })(),
+      azulejo: (() => {
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.08, metalness: 0.2 });
+        applyMalakaPBR(m, 'stucco');
+        m.color.set(0xdff5ff);
+        m.userData.flatColor = 0xcde1ea;
+        return m;
+      })(),
+      foliage: new THREE.MeshStandardMaterial({
+        color: 0x388e3c,
+        roughness: 0.85,
+        emissive: 0x051a05,
+      }),
       glass: new THREE.MeshStandardMaterial({
         color: 0x111111,
         roughness: 0.1,
@@ -335,6 +357,68 @@ export function createWoodenShutters(width: number, height: number, scale: numbe
   right.position.set(width / 2 + shutterW / 2, 0, 0);
   g.add(right);
 
+  return g;
+}
+
+export function createWoodenBench(scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const legH = 0.4 * scale;
+  const seatW = 1.2 * scale;
+  const seatD = 0.4 * scale;
+
+  for (const [x, z] of [[-0.5, -0.15], [0.5, -0.15], [-0.5, 0.15], [0.5, 0.15]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08 * scale, legH, 0.08 * scale), mats.wood);
+    leg.position.set(x * seatW * 0.8, legH / 2, z * seatD * 2);
+    g.add(leg);
+  }
+
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(seatW, 0.08 * scale, seatD), mats.wood);
+  seat.position.y = legH + 0.04 * scale;
+  g.add(seat);
+
+  const back = new THREE.Mesh(new THREE.BoxGeometry(seatW, 0.4 * scale, 0.05 * scale), mats.wood);
+  back.position.set(0, legH + 0.3 * scale, -seatD / 2);
+  g.add(back);
+
+  return g;
+}
+
+export function createWoodenTable(scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const legH = 0.6 * scale;
+  const topSize = 0.8 * scale;
+
+  for (const [x, z] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08 * scale, legH, 0.08 * scale), mats.wood);
+    leg.position.set(x * topSize * 0.4, legH / 2, z * topSize * 0.4);
+    g.add(leg);
+  }
+
+  const top = new THREE.Mesh(new THREE.BoxGeometry(topSize, 0.08 * scale, topSize), mats.wood);
+  top.position.y = legH + 0.04 * scale;
+  g.add(top);
+
+  return g;
+}
+
+export function createClimbingPlant(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
+  const g = new THREE.Group();
+  const count = 25;
+  for (let i = 0; i < count; i++) {
+    const x = (Math.random() - 0.5) * width;
+    const y = Math.random() * height;
+    const s = (0.2 + Math.random() * 0.4) * scale;
+    const leaf = new THREE.Mesh(new THREE.SphereGeometry(s, 4, 4), mats.foliage);
+    leaf.position.set(x, y, Math.random() * 0.1 * scale);
+    g.add(leaf);
+
+    if (Math.random() > 0.7) {
+      const flMat = new THREE.MeshStandardMaterial({ color: 0xe91e63 });
+      const fl = new THREE.Mesh(new THREE.SphereGeometry(s * 0.4, 4, 4), flMat);
+      fl.position.set(x + 0.05 * scale, y + 0.05 * scale, 0.1 * scale);
+      g.add(fl);
+    }
+  }
   return g;
 }
 
