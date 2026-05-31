@@ -235,7 +235,10 @@ export class SceneManager {
 
     if (this.composer) {
       this.composer.passes.forEach(pass => {
-        if ('dispose' in pass) (pass as any).dispose();
+        const disposable = pass as unknown as { dispose?: () => void };
+        if (typeof disposable.dispose === 'function') {
+          disposable.dispose();
+        }
       });
     }
 
