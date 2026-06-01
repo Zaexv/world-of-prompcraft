@@ -43,6 +43,11 @@ export class EntityManager {
       this.removeNPC(config.id);
     }
     const npc = NPC.create(config, this.assetLoader);
+    
+    // Tag for editor selection
+    npc.mesh.userData.editorId = npc.id;
+    npc.mesh.userData.editorType = 'npc';
+    
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     this.npcList = Array.from(this.npcs.values());

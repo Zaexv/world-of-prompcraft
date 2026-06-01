@@ -470,47 +470,6 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
     _colorResult.b += _colorTemp.b * w;
   }
 
-  // --- Fort Malaka Mediterranean Plaza ---
-  // Apply a specialized "Ancient Sand" floor to the city area
-  const fx = x + 160;
-  const fz = z + 220;
-  const fDist = Math.sqrt(fx * fx + fz * fz);
-  const CITY_INNER = 85; // Wide central plaza of sand
-  const CITY_OUTER = 140; 
-
-  if (fDist < CITY_OUTER) {
-    const cityBlend = 1.0 - smoothstep(CITY_INNER, CITY_OUTER, fDist);
-    
-    // Ancient Sand Palette: Sophisticated mix of desert sands and coastal silt
-    const sandBase  = new THREE.Color(0xd9c5b2); // Warm Silt
-    const sandHighlight = new THREE.Color(0xf2e8d5); // Sun-bleached sand
-    const sandShadow = new THREE.Color(0xbfa68a); // Damp/Shadow sand
-
-    // High-frequency wind streaks (simulating aeolian processes)
-    const streaks = Math.sin(x * 0.8 - z * 0.5) * Math.cos(z * 0.1);
-    const microRipple = Math.sin(x * 5.0 + z * 5.0) * 0.02;
-
-    // Layered noise for mineral variation
-    const mineralNoise = (Math.sin(x * 0.05) * Math.cos(z * 0.04)) * 0.5 + 0.5;
-    
-    _colorTemp.copy(sandBase).lerp(sandHighlight, mineralNoise);
-    _colorTemp.lerp(sandShadow, streaks * 0.3 + 0.2);
-
-    // Apply micro-details and glints (sand crystals)
-    const glint = (Math.sin(x * 20.0) * Math.cos(z * 18.0)) > 0.98 ? 0.1 : 0;
-    _colorTemp.r += microRipple + glint;
-    _colorTemp.g += microRipple + glint;
-    _colorTemp.b += microRipple;
-
-    // "Ancient" dampness/footprints simulation (low frequency patches)
-    const history = (Math.sin(x * 0.15) + Math.cos(z * 0.12)) * 0.5 + 0.5;
-    if (history > 0.8) {
-      _colorTemp.lerp(new THREE.Color(0x8c7a65), (history - 0.8) * 2.0);
-    }
-
-    _colorResult.lerp(_colorTemp, cityBlend * 0.995);
-  }
-
   // --- Manifest-driven Grass Patches ---
   let grassBlend = 0;
   for (const p of _manifestGrassPatches) {

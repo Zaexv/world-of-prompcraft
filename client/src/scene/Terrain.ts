@@ -11,28 +11,6 @@ import {
 } from './Biomes';
 import { getVerticalLiftAt, hasLiftInBounds } from './VerticalTerrain';
 
-// ── Fort Malaka city platform ────────────────────────────────────────────────
-// `cityPlatformFlatness` returns how strongly the Fort Malaka platform overrides
-// the base terrain noise at (x, z): 1 = flat plaza interior, 0 = wilderness
-// beyond it, smoothstep-blended in the ring between. Used by computeHeight to
-// level the rolling-hills noise so the city reads as a coherent plain — while
-// the authored topology features (castle hill, suarezlands mountain) are left
-// to rise on top of it.
-const CITY_CENTER_X = -160;
-const CITY_CENTER_Z = -220;
-const CITY_INNER = 95;  // radius held perfectly flat (covers every landmark)
-const CITY_OUTER = 150; // radius where the platform blends back to wilderness
-const CITY_HEIGHT = 4.0;
-
-function cityPlatformFlatness(x: number, z: number): number {
-  const fx = x - CITY_CENTER_X;
-  const fz = z - CITY_CENTER_Z;
-  const fDist = Math.sqrt(fx * fx + fz * fz);
-  if (fDist >= CITY_OUTER) return 0;
-  const raw = Math.max(0, Math.min(1, (fDist - CITY_INNER) / (CITY_OUTER - CITY_INNER)));
-  return 1 - raw * raw * (3 - 2 * raw); // smoothstep
-}
-
 // ── Flat building pads ───────────────────────────────────────────────────────
 // A building placed at a single `getHeightAt(center)` floats/tilts when the
 // authored hills/mountain slope the ground across its footprint. Rather than
@@ -332,6 +310,29 @@ export class Terrain {
     return applyBuildingPads(x, z, h);
   }
 
+  /**
+   * Refreshes all chunks within a radius of the given world position.
+   * Useful when terrain features or pads are updated.
+   */
+  public refreshAt(x: number, z: number, radius: number): void {
+    const minCX = Math.floor((x - radius) / CHUNK_SIZE);
+    const maxCX = Math.floor((x + radius) / CHUNK_SIZE);
+    const minCZ = Math.floor((z - radius) / CHUNK_SIZE);
+    const maxCZ = Math.floor((z + radius) / CHUNK_SIZE);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const key = `${cx},${cz}`;
+        const chunk = this.chunks.get(key);
+        if (chunk) {
+          // Dispose and reload
+          this.unloadChunk(key, chunk);
+          this.loadChunk(cx, cz);
+        }
+      }
+    }
+  }
+
   setManifest(data: any): void {
     _manifestPads = [];
 
@@ -541,20 +542,6 @@ export class Terrain {
     // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
     h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
-    // Fort Malaka city platform — smoothly flatten terrain so buildings sit flush.
-    // (Vertical-lift suppression that completes the flattening lives in liftAt,
-    // applied alongside this by getHeightAt and the chunk mesher.)
-    {
-      const flatness = cityPlatformFlatness(x, z);
-      if (flatness > 0) {
-        // Subtle "Ancient Sand Dunes" undulation, only in the fully-flat
-        // interior, so the plaza sand still reads natural.
-        const dune = flatness >= 1 ? Math.sin(x * 0.15) * Math.cos(z * 0.12) * 0.15 : 0;
-        const cityH = CITY_HEIGHT + dune;
-        h = h * (1 - flatness) + cityH * flatness;
-      }
-    }
-
     // Blend in biome-specific height modifications.
     // Accept pre-computed weights from the caller to avoid a redundant getBiomeWeights call.
     const weights = precomputedWeights ?? getBiomeWeights(x, z);
@@ -578,7 +565,7 @@ export class Terrain {
   //  Chunk lifecycle
   // ────────────────────────────────────────────────────────────────────────────
 
-  private loadChunk(cx: number, cz: number): void {
+  public loadChunk(cx: number, cz: number): void {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
     const segments = CHUNK_SEGMENTS;
@@ -740,7 +727,7 @@ export class Terrain {
     }
   }
 
-  private unloadChunk(key: string, chunk: ChunkData): void {
+  public unloadChunk(key: string, chunk: ChunkData): void {
     this.scene.remove(chunk.mesh);
     chunk.mesh.geometry.dispose();
     // Material is shared — do NOT dispose it here.

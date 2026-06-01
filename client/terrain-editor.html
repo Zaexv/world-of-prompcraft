@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Terrain Editor - World of Promptcraft</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body { background: #000; overflow: hidden; font-family: 'Cinzel', 'Times New Roman', serif; }
+      #app { position: fixed; inset: 0; }
+      
+      #editor-hud {
+        position: fixed;
+        bottom: 20px;
+        left: 20px;
+        z-index: 1000;
+        display: flex;
+        gap: 10px;
+      }
+
+      .hud-button {
+        background: rgba(10, 8, 20, 0.85);
+        border: 1px solid rgba(197, 165, 90, 0.4);
+        border-radius: 4px;
+        color: #c5a55a;
+        padding: 8px 16px;
+        cursor: pointer;
+        font-family: inherit;
+        font-size: 12px;
+        backdrop-filter: blur(4px);
+        transition: all 0.2s;
+      }
+
+      .hud-button:hover {
+        background: rgba(197, 165, 90, 0.15);
+        border-color: #c5a55a;
+      }
+    </style>
+    <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="app"></div>
+    
+    <div id="editor-hud">
+      <a href="/" class="hud-button" style="text-decoration: none;">Return to Game</a>
+      <div class="hud-button" id="gen-info" style="color: #88d0ff; font-weight: normal;">Procedural Layer: Active</div>
+      <div class="hud-button" id="toggle-fly">Fly Mode: OFF (V)</div>
+      <div class="hud-button" id="toggle-ui">Toggle Panel (T)</div>
+    </div>
+
+    <script type="module" src="/src/terrain-editor.ts"></script>
+  </body>
+</html>

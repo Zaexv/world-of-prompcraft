@@ -53,6 +53,7 @@ export interface NPCDefinition {
   transform: {
     position: [number, number, number];
     rotation: [number, number, number];
+    scale?: number;
   };
   stats: {
     max_hp: number;
@@ -61,6 +62,7 @@ export interface NPCDefinition {
   ai: {
     personality_key: string;
     wander_radius: number;
+    style?: string;
   };
 }
 
@@ -110,6 +112,21 @@ export class WorldManifest {
 
   constructor() {
     this.hydrate(manifestData as unknown as WorldManifestData);
+  }
+
+  /**
+   * Fetches the latest manifest from the server and hydrates local state.
+   */
+  public async fetchAsync(): Promise<void> {
+    try {
+      const response = await fetch('/world/manifest');
+      if (response.ok) {
+        const data = await response.json();
+        this.hydrate(data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch latest manifest from server, using local import:', err);
+    }
   }
 
   /**

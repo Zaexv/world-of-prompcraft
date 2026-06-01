@@ -102,6 +102,11 @@ export class WorldBuilder {
       const builtGroup = buildObject(params.objectType, pos, scale, label);
       if (!builtGroup) return undefined;
       group = builtGroup;
+      
+      // Tag for editor selection
+      group.userData.editorId = params.objectId;
+      group.userData.editorType = 'building';
+      
       tagDebugInfo(group, { type: params.objectType, category: 'building', label: params.label });
 
       if (params.rotation) {
