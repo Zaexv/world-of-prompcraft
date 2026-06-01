@@ -72,6 +72,7 @@ export class MalakaBrokenCastle extends Mesh {
     const foundationH = 1.5 * scale;
     const foundation = stoneBox(tier1W + 0.8 * scale, foundationH, tier1W + 0.8 * scale, stoneMat);
     foundation.position.y = foundationH / 2 - 0.4 * scale;
+    foundation.userData.noCollision = true;
     g.add(foundation);
 
     const foundationProxy = boxCollider(tier1W + 0.8 * scale, foundationH, tier1W + 0.8 * scale);
@@ -83,6 +84,7 @@ export class MalakaBrokenCastle extends Mesh {
     const base1 = stoneBox(tier1W, tier1H, tier1W, stoneMat);
     base1.position.y = foundationH + tier1H / 2 - 0.4 * scale;
     base1.castShadow = base1.receiveShadow = true;
+    base1.userData.noCollision = true;
     g.add(base1);
 
     const base1Proxy = boxCollider(tier1W, tier1H, tier1W);
@@ -92,11 +94,14 @@ export class MalakaBrokenCastle extends Mesh {
     const tier1BattlementG = new THREE.Group();
     tier1BattlementG.position.y = foundationH - 0.4 * scale;
     addCrenellations(tier1BattlementG, tier1W, tier1W, tier1H);
+    tier1BattlementG.userData.noCollision = true;
+    tier1BattlementG.traverse(c => { c.userData.noCollision = true; });
     g.add(tier1BattlementG);
 
     // Stone Cornice (Trim) - nudged to avoid overlapping base1 top face
     const cornice1 = stoneBox(tier1W + 0.4 * scale, 0.38 * scale, tier1W + 0.4 * scale, stoneMat);
     cornice1.position.y = foundationH + tier1H - 0.62 * scale;
+    cornice1.userData.noCollision = true;
     g.add(cornice1);
 
     // 2. Middle Palace Tier
@@ -106,6 +111,7 @@ export class MalakaBrokenCastle extends Mesh {
     const base2 = stoneBox(tier2W, tier2H, tier2W, stoneMat);
     base2.position.set(0, foundationH + tier1H + tier2H / 2 - 0.4 * scale, tier2Z);
     base2.castShadow = base2.receiveShadow = true;
+    base2.userData.noCollision = true;
     g.add(base2);
 
     const base2Proxy = boxCollider(tier2W, tier2H, tier2W);
@@ -115,6 +121,8 @@ export class MalakaBrokenCastle extends Mesh {
     const tier2G = new THREE.Group();
     tier2G.position.set(0, foundationH + tier1H - 0.4 * scale, tier2Z);
     addCrenellations(tier2G, tier2W, tier2W, tier2H);
+    tier2G.userData.noCollision = true;
+    tier2G.traverse(c => { c.userData.noCollision = true; });
     g.add(tier2G);
 
     // 3. Upper Keep (Torre del Homenaje)
@@ -124,6 +132,7 @@ export class MalakaBrokenCastle extends Mesh {
     const keep = stoneBox(keepW, keepH, keepW, stoneMat);
     keep.position.set(0, foundationH + tier1H + tier2H + keepH / 2 - 0.4 * scale, keepZ);
     keep.castShadow = keep.receiveShadow = true;
+    keep.userData.noCollision = true;
     g.add(keep);
 
     const keepProxy = boxCollider(keepW, keepH, keepW);
@@ -139,6 +148,8 @@ export class MalakaBrokenCastle extends Mesh {
       const angle = (Math.PI / 2) * i;
       addArrowSlit(keepG, Math.sin(angle) * (keepW / 2 + 0.05 * scale), keepH * 0.6, Math.cos(angle) * (keepW / 2 + 0.05 * scale), angle);
     }
+    keepG.userData.noCollision = true;
+    keepG.traverse(c => { c.userData.noCollision = true; });
     g.add(keepG);
 
     // 5. Advanced Corner Turrets
@@ -151,6 +162,7 @@ export class MalakaBrokenCastle extends Mesh {
       const body = new THREE.Mesh(new THREE.CylinderGeometry(turretR, turretR, turretH, 12), stoneMat);
       body.position.y = turretH / 2;
       body.castShadow = true;
+      body.userData.noCollision = true;
       turret.add(body);
 
       const turretColl = cylinderCollider(turretR, turretH);
@@ -162,6 +174,7 @@ export class MalakaBrokenCastle extends Mesh {
       const topH = 1.0 * scale;
       const battlement = new THREE.Mesh(new THREE.CylinderGeometry(topR, turretR, topH, 12), stoneMat);
       battlement.position.y = turretH + topH / 2;
+      battlement.userData.noCollision = true;
       turret.add(battlement);
 
       const battlementColl = cylinderCollider(topR, topH);
@@ -175,6 +188,7 @@ export class MalakaBrokenCastle extends Mesh {
         const merlon = stoneBox(0.6 * scale, 0.8 * scale, 0.4 * scale, stoneMat);
         merlon.position.set(Math.cos(angle) * topR, turretH + topH + 0.4 * scale, Math.sin(angle) * topR);
         merlon.rotation.y = -angle + Math.PI / 2;
+        merlon.userData.noCollision = true;
         turret.add(merlon);
       }
 
@@ -183,7 +197,8 @@ export class MalakaBrokenCastle extends Mesh {
         const angle = (i / 3) * Math.PI + (tx > 0 ? 0 : Math.PI);
         addArrowSlit(turret, Math.cos(angle) * (turretR + 0.05 * scale), turretH * 0.5, Math.sin(angle) * (turretR + 0.05 * scale), -angle + Math.PI / 2);
       }
-
+      turret.userData.noCollision = true;
+      turret.traverse(c => { if (!c.userData.isCollider) c.userData.noCollision = true; });
       g.add(turret);
     }
 
