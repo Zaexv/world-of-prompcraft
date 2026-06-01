@@ -904,7 +904,7 @@
         "landmarks": [
           {
             "id": "malaka_church_01",
-            "type": "malaka_broken_church",
+            "type": "malaka_church",
             "transform": {
               "position": [
                 -160,

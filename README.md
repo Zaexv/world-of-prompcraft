@@ -41,7 +41,7 @@ Most games give you buttons: *Attack*, *Trade*, *Talk*. Promptcraft gives you a 
 >
 > *(Ignathar performs a bow emote, accepts the emerald, and changes the weather to clear)*
 
-Every NPC is a **fully autonomous AI agent** with its own personality, memory, inventory, and decision-making graph. They don't follow scripts — they *think*.
+Every NPC is a **fully autonomous AI agent** with its own personality, checkpointed memory, inventory, and decision-making graph. They don't follow scripts — they *think*.
 
 ---
 
@@ -60,6 +60,7 @@ graph TB
         WS["WebSocket Layer<br/><small>Connection Manager · Protocol</small>"]
         Agents["Agent Registry<br/><small>Per-NPC StateGraph instances</small>"]
         World["World State<br/><small>Authoritative game state</small>"]
+        Memory["Checkpointed Memory<br/><small>Per-NPC / per-player state</small>"]
         RAG["Knowledge Base<br/><small>Lore retrieval (RAG)</small>"]
     end
 
@@ -70,6 +71,7 @@ graph TB
 
     Client <-->|"WebSocket<br/>JSON messages"| Server
     Agents -->|"Tool calls"| World
+    Agents <-->|"Checkpoint state"| Memory
     Agents -->|"Lore queries"| RAG
     Agents <-->|"Reasoning"| LLM
 ```
@@ -81,7 +83,8 @@ graph TB
 | **Prompt is the interface** | No action buttons — free-form text drives all gameplay |
 | **Server-authoritative** | `WorldState` lives on the server; client is a render mirror |
 | **Shared Manifest** | Global world map and population defined in a single, shared `world_manifest.json` |
-| **Per-NPC autonomy** | Each NPC runs its own LangGraph `StateGraph` with independent memory |
+| **Per-NPC autonomy** | Each NPC runs its own LangGraph `StateGraph` with independent, checkpointed memory |
+| **Memory compaction** | `reflect` stays cheap and `summarize` runs only when the conversation needs trimming |
 | **Tool-driven mechanics** | LLM calls typed tools (`deal_damage`, `heal_target`, `offer_item`) that produce structured game actions |
 | **Generative World** | Infinite chunk-based terrain (64×64) with manifest-driven landmarks and NPCs |
 
@@ -99,14 +102,14 @@ Explore a fantasy world with distinct zones, each with its own atmosphere and in
 
 ---
 
-Each interaction flows through a three-stage LangGraph pipeline:
+Each interaction flows through a five-stage LangGraph pipeline:
 
 ```
-Player Prompt ──► [ Reason ] ──► [ Act ] ──► [ Respond ]
-                      │              │             │
-                 Retrieve lore   Call tools    Generate
-                 Assess intent   (combat,      dialogue +
-                 Check memory    trade, env)   emotes
+Player Prompt ──► [ Reason ] ──► [ Act ] ──► [ Respond ] ──► [ Reflect ] ──► [ Summarize? ]
+                      │              │             │               │               │
+                 Retrieve lore   Call tools    Generate        Update mood   Compact memory
+                 Assess intent   (combat,      dialogue +       relationship   when needed
+                 Check memory    trade, env)   emotes           notes
 ```
 
 ---

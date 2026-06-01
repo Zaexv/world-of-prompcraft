@@ -213,27 +213,54 @@ export class ReactionSystem {
 
     switch (action.kind) {
       case "damage": {
-        const { amount = 10, target = "player", damageType } = action.params;
+        const {
+          amount = 10,
+          target = "player",
+          damageType,
+          outcome,
+          isCrit,
+          combatText,
+        } = action.params as {
+          amount?: number;
+          target?: string;
+          damageType?: string;
+          outcome?: string;
+          isCrit?: boolean;
+          combatText?: string;
+        };
         this.audio?.playSfx("hit");
         if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
-        if (amount < 0) {
-          const healAmt = Math.abs(amount);
+
+        if ((amount as number) < 0) {
+          const healAmt = Math.abs(amount as number);
           this.playerState.heal(healAmt);
           this.createFloatingText(`+${healAmt}`, "#33ff66", this.playerWorldPos());
           this.flashScreen("#2d5016");
         } else if (target === "player") {
-          this.playerState.takeDamage(amount);
+          this.playerState.takeDamage(amount as number);
           this.createFloatingText(`-${amount}`, "#ff3333", this.playerWorldPos());
           this.flashScreen("#8b0000");
         } else {
-          const targetNpc = this.entityManager.getNPC(target);
+          const targetNpc = this.entityManager.getNPC(target as string);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;
-            this.createFloatingText(`-${amount}`, "#ff6633", npcPos);
+            const popupColor = this._damageTypeColor(damageType as string | undefined);
+            this.createFloatingText(`-${amount}`, popupColor, npcPos, !!(isCrit as boolean | undefined));
             if (targetNpc.nameplate) {
-              const state = this.npcStateStore.getState(target);
+              const state = this.npcStateStore.getState(target as string);
               if (state) targetNpc.nameplate.updateHP(state.hp, state.maxHp);
+            }
+            if (targetNpc.playEmote) targetNpc.playEmote("hit");
+            if (combatText) {
+              this._logCombatText(combatText as string, outcome as string | undefined);
+            }
+            if (isCrit) {
+              this._flashNpcPortrait();
+              this.flashScreen(this._damageTypeFlash(damageType as string | undefined));
+            }
+            if (outcome === "defeated") {
+              this._spawnFinisher("DEFEATED!");
             }
           }
         }
@@ -412,28 +439,85 @@ export class ReactionSystem {
     }
   }
 
+  /** Map damage type to a popup color. */
+  private _damageTypeColor(damageType: string | undefined): string {
+    switch (damageType) {
+      case "fire": return "#ff6600";
+      case "ice": return "#66ccff";
+      case "lightning": return "#aaeeff";
+      case "holy": return "#ffffaa";
+      case "dark": return "#cc44ff";
+      case "arcane": return "#aa44ff";
+      default: return "#ff6633";
+    }
+  }
+
+  /** Map damage type to a subtle screen flash color for crits. */
+  private _damageTypeFlash(damageType: string | undefined): string {
+    switch (damageType) {
+      case "fire": return "#8b2200";
+      case "ice": return "#003366";
+      case "lightning": return "#334466";
+      case "holy": return "#2d5016";
+      case "dark": return "#330044";
+      case "arcane": return "#220044";
+      default: return "#662200";
+    }
+  }
+
+  /** Log a combat outcome text to the CombatHUD if available. */
+  private _logCombatText(text: string, outcome: string | undefined): void {
+    const hud = (window as unknown as Record<string, unknown>)["combatHUD"] as {
+      addLogEntry?: (text: string, color?: string) => void;
+    } | undefined;
+    if (!hud?.addLogEntry) return;
+    let color = "#e8dcc8";
+    if (outcome === "devastating_hit" || outcome === "defeated") color = "#ff4400";
+    else if (outcome === "critical_hit") color = "#ffd700";
+    else if (outcome === "clean_hit") color = "#aaffaa";
+    hud.addLogEntry(text, color);
+  }
+
+  private _flashNpcPortrait(): void {
+    const hud = (window as unknown as Record<string, unknown>)["combatHUD"] as {
+      flashNpcPortrait?: () => void;
+    } | undefined;
+    hud?.flashNpcPortrait?.();
+  }
+
+  private _spawnFinisher(text: string): void {
+    const damagePopup = (window as unknown as Record<string, unknown>)["damagePopup"] as {
+      spawnFinisher?: (popupText: string) => void;
+    } | undefined;
+    damagePopup?.spawnFinisher?.(text);
+  }
+
   /** Creates a text sprite that floats up and fades over ~2 s. */
   createFloatingText(
     text: string,
     color: string,
     position: THREE.Vector3,
+    isCrit = false,
   ): void {
     this.capEffects();
     const canvas = document.createElement("canvas");
     canvas.width = 256;
     canvas.height = 64;
     const ctx = canvas.getContext("2d")!;
+    const displayText = isCrit ? `${text}!` : text;
+    const displayColor = isCrit ? "#ffd700" : color;
+    const fontSize = isCrit ? 52 : 36;
 
-    ctx.font = "bold 36px serif";
+    ctx.font = `bold ${fontSize}px serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     // Shadow
     ctx.fillStyle = "rgba(0,0,0,0.85)";
-    ctx.fillText(text, 129, 33);
+    ctx.fillText(displayText, 129, 33);
     // Main
-    ctx.fillStyle = color;
-    ctx.fillText(text, 128, 32);
+    ctx.fillStyle = displayColor;
+    ctx.fillText(displayText, 128, 32);
 
     const tex = new THREE.CanvasTexture(canvas);
     tex.minFilter = THREE.LinearFilter;

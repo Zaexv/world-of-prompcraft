@@ -1,6 +1,6 @@
 # Server Architecture — World of Promptcraft
 
-FastAPI + LangGraph + Python 3.11+ backend. **Server-authoritative**: `WorldState` is the single source of truth; every HP change, weather event, and inventory mutation happens here before being reflected to clients. The world itself uses a **Version 2.1.0 Zonal Hybrid Manifest system** sourced from `shared/data/world_manifest.json`.
+FastAPI + LangGraph backend with server-authoritative `WorldState`. NPC reasoning is per-NPC/per-player through compiled LangGraph agents managed by `AgentRegistry`.
 
 ---
 
@@ -8,49 +8,61 @@ FastAPI + LangGraph + Python 3.11+ backend. **Server-authoritative**: `WorldStat
 
 ```mermaid
 flowchart TD
-    subgraph Transport["🌐 Transport Layer"]
-        WS["FastAPI /ws\nWebSocket endpoint"]
-        CM["ConnectionManager\ndict[playerId, WebSocket]\nbroadcast_nearby by XZ distance"]
-        H["handler.py\nmessage routing + attack scoring"]
+    subgraph Transport["Transport Layer"]
+        API["FastAPI main.py"]
+        WS["/ws endpoint"]
+        CM["ConnectionManager"]
+        H["ws/handler.py"]
     end
 
-    subgraph AgentSystem["🤖 Agent System"]
-        AR["AgentRegistry\nnpcId → CompiledGraph\n(one per NPC)"]
-        AG["NPCAgent (LangGraph)\nStateGraph: reason→act→respond\n→reflect→[summarize]"]
-        MS["MemorySaver\nthread_id = npcId_playerId\npersistent mood/relationship/summary"]
+    subgraph Agent["Agent Layer"]
+        REG["AgentRegistry"]
+        G["npc_agent StateGraph"]
+        RN["reason node"]
+        AN["act node"]
+        RSP["respond node"]
+        RF["reflect node"]
+        SUM["summarize node"]
     end
 
-    subgraph Tools["🔧 Tool System"]
-        TC["closure: get_all_tools(\n  pending_actions, world_state\n)"]
-        TK["17 @tool functions:\ncombat · dialogue · trade\nenvironment · world_query · quest"]
+    subgraph World["World Layer"]
+        WSTATE["WorldState singleton + asyncio.Lock"]
+        PDATA["PlayerData"]
+        NDATA["NPCData"]
+        NDEF["npc_definitions from world_manifest.json"]
     end
 
-    subgraph World["🌍 World Layer"]
-        WS2["WorldState (singleton)\nasyncio.Lock\nNPCData · PlayerData\nweather · time_of_day · zones"]
-        PD["PlayerData (dataclass)\nhp · mana · level · inventory\nposition · race/faction/skin\nquests · yaw"]
-        ND["NPCData (dataclass)\nhp · position · personality\nmood"]
-        WM["Manifest Integration\nshared/data/world_manifest.json\nLoads NPC Definitions"]
+    subgraph Tooling["Tool Layer"]
+        TOOLS["get_all_tools(...)"]
+        C["combat"]
+        D["dialogue"]
+        E["environment"]
+        Q["quest"]
+        T["trade"]
+        WQ["world_query"]
+        M["music"]
     end
 
-    subgraph Knowledge["📚 Knowledge Layer"]
-        RAG["LoreRetriever\nkeyword scoring over 47 entries\ntop-3 inject into system prompt"]
-        KB["knowledge_base.py\n47 WoW lore entries\n(races, locations, characters)"]
+    subgraph Knowledge["Knowledge & LLM"]
+        RAG["LoreRetriever"]
+        KB["knowledge_base.py"]
+        LLM["llm/provider.py"]
     end
 
-    subgraph LLM["🤖 LLM Provider"]
-        LP["llm/provider.py\nPydantic Settings\nOpenAI GPT-4o or Anthropic Claude"]
-    end
+    API --> WS --> H --> REG --> G
+    H --> WSTATE
+    REG --> TOOLS
+    TOOLS --> C & D & E & Q & T & WQ & M
+    G --> RN --> AN --> RSP --> RF
+    RF -->|conditional| SUM
+    RN --> RAG --> KB
+    RN --> LLM
+    TOOLS --> WSTATE
+    NDEF --> WSTATE
 
-    WS --> CM --> H
-    H --> AR
-    AR --> AG
-    AG --> TC --> TK
-    AG --> RAG --> KB
-    AG --> LLM --> LP
-    TK --> World
-    H --> World
-    AG --> World
-    WM --> World
+    style H fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style REG fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style WSTATE fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ---
@@ -59,210 +71,156 @@ flowchart TD
 
 ```mermaid
 sequenceDiagram
-    participant UV as uvicorn
-    participant MA as main.py lifespan
-    participant WS as WorldState
-    participant AR as AgentRegistry
+    participant U as uvicorn
+    participant M as main.py lifespan
+    participant W as WorldState
+    participant R as AgentRegistry
+    participant H as ws.handler
+
+    U->>M: startup
+    M->>W: WorldState() + refresh_npcs()
+    M->>R: AgentRegistry(llm, world_state)
+    M->>H: init_handler(registry, world_state, manager, world_builder_agent)
+    M-->>U: app ready
+```
+
+---
+
+## WebSocket Message Flow
+
+```mermaid
+sequenceDiagram
+    participant C as Client
+    participant WS as /ws endpoint
+    participant H as handle_message
     participant CM as ConnectionManager
+    participant AR as AgentRegistry
+    participant W as WorldState
 
-    UV->>MA: startup
-    MA->>WS: WorldState() — load NPC definitions (from world_manifest.json)
-    MA->>AR: AgentRegistry(world_state) — compile one StateGraph per NPC
-    Note over AR: For each NPC:<br/>1. pending_actions = []<br/>2. world_snapshot = {}<br/>3. build 17 tools (closed over above)<br/>4. compile LangGraph with MemorySaver
-    MA->>CM: ConnectionManager()
-    MA-->>UV: app ready — /health + /ws active
-
-    UV->>MA: shutdown
-    MA-->>UV: cleanup
+    C->>WS: JSON frame
+    WS->>H: asyncio task per message
+    H->>CM: registration / send / broadcast_nearby
+    H->>W: update player/world state
+    H->>AR: invoke(...) for interaction
+    AR->>W: apply_actions(...)
+    H-->>C: direct response (agent_response, pong, etc.)
+    H-->>CM: nearby broadcasts (npc_dialogue, npc_actions, world_update)
 ```
 
----
-
-## WebSocket Layer
-
-```mermaid
-flowchart TD
-    subgraph ConnectionManager["ConnectionManager"]
-        AC["active_connections: dict[str, WebSocket]\nkey = player_id"]
-        WP["_ws_to_player: dict[int, str]\nkey = id(websocket) — reverse lookup for disconnect"]
-        BN["broadcast_nearby(msg, pos, radius)\nfilter by XZ distance ≤ radius\nsend to all players in range"]
-    end
-
-    subgraph Handler["handler.py — message routing"]
-        JOIN["join\n→ assign player_id\n→ register in WorldState\n→ send join_ok with all NPC data"]
-        INTER["player_interaction\n→ _score_attack_quality(prompt)\n→ apply pre-emptive damage to NPC\n→ registry.invoke() → AgentResponse\n→ apply_actions(pending_actions)\n→ broadcast dialogue (r=100)\n→ broadcast actions (r=200)"]
-        MOV["player_movement\n→ update WorldState player position\n→ broadcast player_moved to nearby"]
-        CHAT["chat_message\n→ broadcast chat_broadcast to nearby"]
-        ATK["player_attack\n→ deal direct damage to NPC\n→ broadcast npc_actions"]
-        DISC["disconnect\n→ remove from ConnectionManager\n→ broadcast player_left\n→ cleanup_player_equipment()"]
-    end
-
-    ConnectionManager --> Handler
-```
+**Concurrency controls currently in place**
+1. Per-message task spawning in websocket receive loop (slow interactions don't block reads).
+2. Per-player interaction lock (`_interaction_locks`) in interaction handler.
+3. Global semaphore (`_agent_semaphore`) for capped concurrent LLM calls.
 
 ---
 
-## Agent System — LangGraph StateGraph
-
-Each NPC runs an independent compiled `StateGraph`. The graph is invoked once per player interaction.
-
-```mermaid
-flowchart TD
-    START([START]) --> reason
-
-    reason["🧠 reason\n────────────\nLLM call\nBuild system prompt:\n• NPC personality\n• world context + player state\n• conversation summary + mood\n• top-3 RAG lore entries\nInvoke llm_with_tools"]
-
-    act["⚙️ act\n────────────\nNo LLM\nExecute each tool_call\nAppend to pending_actions\nReturn ToolMessages"]
-
-    respond["💬 respond\n────────────\nNo LLM\nExtract AIMessage.content\n→ response_text"]
-
-    reflect["🪞 reflect\n────────────\nNo LLM — heuristic\nKeyword token sets:\n• mood update\n• relationship delta [-20,+15]\n• personality_notes (≤300 chars)"]
-
-    summarize["📝 summarize\n────────────\nLLM call — conditional\n2–3 sentence rolling summary\nof last 12 messages\n≤ 500 chars output"]
-
-    END([END])
-
-    reason -->|"tool_calls present"| act
-    act -->|"ToolMessages → loop back"| reason
-    reason -->|"no tool_calls"| respond
-    respond --> reflect
-    reflect -->|"human_count < 10\nor count % 3 ≠ 0"| END
-    reflect -->|"human_count ≥ 10\nAND count % 3 = 0"| summarize
-    summarize --> END
-```
-
----
-
-## Agent State Schema
-
-All data flowing through the graph lives in a single `TypedDict` (`NPCAgentState`):
-
-| Field | Type | Scope | Description |
-|-------|------|-------|-------------|
-| `messages` | `list` (accumulated) | Conversation | Full history — HumanMessage, AIMessage, ToolMessage |
-| `npc_id` | `str` | Static | NPC identifier |
-| `npc_name` | `str` | Static | Display name |
-| `npc_personality` | `str` | Static | Full personality system prompt |
-| `player_state` | `dict[str, Any]` | Per-call | HP, mana, inventory, level |
-| `world_context` | `dict[str, Any]` | Per-call | Zone, weather, nearby entities |
-| `pending_actions` | `list[dict[str, Any]]` | Accumulated | Tool-queued game actions |
-| `response_text` | `str` | Output | Final dialogue string |
-| `conversation_summary` | `str` | **Persistent** | Rolling LLM-generated memory |
-| `mood` | `str` | **Persistent** | neutral / happy / angry / sad / fearful |
-| `relationship_score` | `int` | **Persistent** | -100 (enemy) to +100 (trusted ally) |
-| `personality_notes` | `str` | **Persistent** | NPC observations about this player |
-
----
-
-## Tool System
-
-Tools use a **closure pattern** — `get_all_tools(pending_actions, world_state)` returns `@tool`-decorated functions that share a mutable `pending_actions` list.
+## Agent Pipeline (LangGraph)
 
 ```mermaid
 flowchart LR
-    LLM["🤖 LLM"]
+    START([START]) --> REASON["reason"]
+    REASON -->|tool_calls| ACT["act"]
+    ACT --> REASON
+    REASON -->|no tool_calls| RESPOND["respond"]
+    RESPOND --> REFLECT["reflect"]
+    REFLECT -->|memory compaction needed| SUM["summarize"]
+    REFLECT -->|otherwise| END([END])
+    SUM --> END
 
-    subgraph closure["Tool Closure — per NPC at startup"]
-        direction TB
-        combat["combat\ndeal_damage · heal_target\ndefend · flee"]
-        dialogue["dialogue\nemote · give_quest\ncomplete_quest"]
-        trade["trade\noffer_item · take_item"]
-        env["environment\nchange_weather · spawn_effect\nmove_npc"]
-        query["world_query\nget_nearby_entities\ncheck_player_state"]
-        quest["quest\nstart_quest · advance_objective\ncheck_player_quests"]
-    end
-
-    pending["pending_actions[ ]"]
-    worldstate["WorldState"]
-    client["🎮 Client\nReactionSystem → 3D effects"]
-
-    LLM -->|"tool_calls"| closure
-    closure -->|"append action dict"| pending
-    closure -->|"read / write snapshot"| worldstate
-    pending -->|"apply_actions after graph"| worldstate
-    pending -->|"actions in AgentResponse"| client
+    style REASON fill:#4a90d9,color:#fff,stroke:#2c6fad
+    style ACT fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
+
+### Node responsibilities
+- **reason**: builds compact/full system prompt, injects world context + player state + memory fields, retrieves lore (RAG), binds tools (except short-social path), handles inline tool-call fallback, and keeps the active prompt bounded to a small recent window.
+- **act**: executes tool calls and harvests shared `pending_actions`.
+- **respond**: extracts dialogue text.
+- **reflect**: heuristic mood/relationship/personality-notes update (no LLM call).
+- **summarize**: conditional memory compaction node; preserves stable player facts and keeps rolling summaries bounded.
 
 ---
 
-## RAG Lore System
+## Agent State Schema (`NPCAgentState`)
+
+| Field | Type | Purpose |
+|---|---|---|
+| `messages` | `list[Any]` | Conversation history for LangGraph |
+| `npc_id` / `npc_name` / `npc_personality` | `str` | NPC identity and persona |
+| `player_state` | `dict[str, Any]` | HP/inventory/etc for current interaction |
+| `world_context` | `dict[str, Any]` | zone/weather/nearby/chat/events |
+| `pending_actions` | `list[dict[str, Any]]` | queued gameplay actions |
+| `response_text` | `str` | final dialogue |
+| `conversation_summary` | `str` | rolling memory summary |
+| `mood` | `str` | current emotional state |
+| `relationship_score` | `int` | player relationship score |
+| `personality_notes` | `str` | compact persistent observations |
+
+Registry note: per-turn inputs are assembled separately from checkpointed memory so persisted fields survive across prompts instead of being reset to defaults.
+
+---
+
+## Tool Closure Pattern
 
 ```mermaid
 flowchart LR
-    prompt["Player prompt"]
-    tokenize["Keyword tokenization\nlowercase alphanum tokens"]
-    score["Score all 47 lore entries\noverlap + 3× topic boost\n+ 1 category bonus"]
-    top3["Top-3 entries"]
-    inject["Inject as\n'## World Lore'\ninto system prompt"]
+    LLM["LLM tool calls"]
+    FACT["get_all_tools(pending_actions, world_snapshot)"]
+    SNAP["world_snapshot dict"]
+    ACTS["pending_actions list"]
+    APPLY["WorldState.apply_actions"]
 
-    prompt --> tokenize --> score --> top3 --> inject
+    LLM --> FACT
+    FACT --> SNAP
+    FACT --> ACTS
+    ACTS --> APPLY
 ```
+
+Tool groups currently loaded: `combat`, `dialogue`, `environment`, `quest`, `trade`, `world_query`, `music`.
 
 ---
 
-## World State & Manifest Integration
+## RAG & LLM Path
 
-The server's WorldState operates on a single truth, heavily influenced by the `shared/data/world_manifest.json`.
+```mermaid
+flowchart LR
+    P["player prompt"] --> R["LoreRetriever.retrieve(top_k=3)"]
+    R --> K["knowledge_base entries"]
+    K --> S["reason system prompt"]
+    S --> L["provider-selected chat model"]
+```
+
+`llm/provider.py` supports `claude`, `openai`, and `ollama`, each with provider-specific timeout/retry settings.
+
+---
+
+## World State Model
 
 ```mermaid
 flowchart TD
-    subgraph WorldState["WorldState (asyncio.Lock protected)"]
-        PD["players: dict[str, PlayerData]\nhp · mana · level · position\ninventory · active_quests"]
-        ND["npcs: dict[str, NPCData]\nhp · position · personality\nmood"]
-        WE["weather: str\nclear, rain, storm, fog, snow"]
-    end
+    W["WorldState"]
+    P["players: dict[str, PlayerData]"]
+    N["npcs: dict[str, NPCData]"]
+    E["environment: weather/time_of_day"]
+    C["chat_history deque"]
+    EV["recent_events deque"]
+    A["apply_actions() under lock"]
+    CTX["get_context_for_npc()"]
 
-    subgraph ManifestSource["world_manifest.json (Version 2.1.0)"]
-        ZN["Zones\nbounds · npcs"]
-    end
+    W --> P
+    W --> N
+    W --> E
+    W --> C
+    W --> EV
+    W --> A
+    W --> CTX
 
-    subgraph Ops["Key Operations"]
-        GA["apply_actions(actions)\nsequential — one action at a time\nunder asyncio.Lock"]
-        GC["get_context_for_npc(npc_id, player_id)\nbuilds world_context dict\nfor agent system prompt"]
-        UP["update_player(player_id, updates)\npartial field update"]
-    end
-
-    subgraph Definitions["Data Bridges"]
-        NDF["npc_definitions.py\nParses JSON → dict[str, Any]"]
-        ZDF["zones.py\nRuntime boundary resolution"]
-    end
-
-    WorldState --> Ops
-    ManifestSource --> NDF
-    NDF -->|"loaded at startup"| WorldState
-    ZDF --> GC
+    style W fill:#4a90d9,color:#fff,stroke:#2c6fad
 ```
 
 ---
 
-## Cost & Latency Strategy
+## Extension Guides
 
-| Decision | Rationale |
-|----------|-----------|
-| `reflect` is heuristic (no LLM) | Zero cost per turn — mood/relationship from keyword matching |
-| `summarize` conditional (≥10 turns, every 3rd) | Minimises LLM calls while keeping memory bounded |
-| RAG is keyword-based (no embeddings) | Sub-millisecond — no vector DB dependency |
-| Tools synchronous within one turn | Predictable cost; no parallel LLM calls |
-| 30s LLM timeout | Prevents runaway agent calls blocking WebSocket connections |
-
----
-
-## LLM Provider
-
-```mermaid
-flowchart LR
-    CFG["config.py\nPydantic Settings\nfrom env/.env"]
-
-    subgraph Providers["Configured Provider"]
-        OA["OpenAI\ngpt-4o · gpt-4o-mini"]
-        AN["Anthropic\nclaude-sonnet-4-6\nclaude-haiku-4-5"]
-    end
-
-    subgraph Binding["llm_with_tools"]
-        BT["llm.bind_tools(tools)\nall 17 tools attached"]
-    end
-
-    CFG -->|"LLM_PROVIDER env var"| Providers
-    Providers --> Binding
-    Binding -->|"used in reason node"| RN["reason.py"]
-```
+1. **Add a tool**: implement in `server/src/agents/tools/*.py`, include in `get_all_tools`, ensure action shape is handled client-side in `ReactionSystem`.
+2. **Add NPC behavior/personality**: update manifest NPC entry and personality templates; refresh/register agents.
+3. **Adjust latency behavior**: tune `settings.agent_invoke_timeout_seconds`, `_agent_semaphore`, short-social routing in `reason`, and interaction/chat radii in `handler`.

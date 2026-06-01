@@ -76,6 +76,10 @@ export class UIManager {
     this.damagePopup = new DamagePopup(this.container);
     this.itemUseEffect = new ItemUseEffect(this.container);
 
+    const globalUi = window as unknown as Record<string, unknown>;
+    globalUi["combatHUD"] = this.combatHUD;
+    globalUi["damagePopup"] = this.damagePopup;
+
     this.deathScreen = new DeathScreen();
     this.container.appendChild(this.deathScreen.element);
 
