@@ -111,6 +111,9 @@ export interface DamageParams {
   target: "player" | "npc";
   damageType?: "physical" | "fire" | "ice" | "lightning" | "holy" | "dark" | "arcane";
   effectType?: string;
+  outcome?: string;
+  isCrit?: boolean;
+  combatText?: string;
 }
 
 export interface HealParams {

@@ -9,11 +9,27 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     llm_provider: Literal["claude", "openai", "ollama"] = "ollama"
+
+    # ── Anthropic / Claude ────────────────────────────────────────────────────
     anthropic_api_key: str = ""
-    openai_api_key: str = ""
-    openai_api_base: str = "https://api.openai.com/v1"
     anthropic_model: str = "claude-sonnet-4-20250514"
+    # OpenAI-compatible endpoint exposed by Anthropic (same interface as Ollama)
+    anthropic_base_url: str = "https://api.anthropic.com/v1"
+    anthropic_request_timeout_seconds: float = 35.0
+    anthropic_max_retries: int = 2
+    # Set to "low"/"medium"/"high" to enable extended thinking; empty = disabled
+    anthropic_reasoning_effort: str = ""
+
+    # ── OpenAI ────────────────────────────────────────────────────────────────
+    openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
+    openai_api_base: str = "https://api.openai.com/v1"
+    openai_request_timeout_seconds: float = 35.0
+    openai_max_retries: int = 2
+    # Set to "low"/"medium"/"high" to enable reasoning (o-series models); empty = disabled
+    openai_reasoning_effort: str = ""
+
+    # ── Ollama (local, OpenAI-compatible) ─────────────────────────────────────
     ollama_base_url: str = "http://localhost:11434/v1"
     ollama_model: str = "qwen3.5:9b"
     # Local models must be loaded into memory on the first request (cold start),
@@ -28,10 +44,11 @@ class Settings(BaseSettings):
     # nothing. "none" disables thinking for fast, in-character replies; set to
     # "low"/"medium"/"high" (or "" to omit the param) to re-enable it.
     ollama_reasoning_effort: str = "none"
+
+    # ── Shared ────────────────────────────────────────────────────────────────
     llm_temperature: float = 0.1
     max_tokens: int = 4096
     response_max_tokens: int = 180
-    openai_request_timeout_seconds: float = 35.0
     max_concurrent_llm_calls: int = 24
     reflect_every_n_human_turns: int = 5
     # Covers a single cold-start request plus the warm reason → act → respond

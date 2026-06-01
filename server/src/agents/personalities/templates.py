@@ -7,7 +7,7 @@ from typing import Any
 # ── Shared tool-usage preamble injected into every NPC prompt ─────────────
 _TOOL_RULES_PREAMBLE = (
     "TOOL USAGE RULES (CRITICAL -- follow these exactly):\n"
-    "- You MUST use at least one tool in every response.\n"
+    "- Use tools only when changing game state (combat, trading, moving). NEVER use tools just to greet or chat.\n"
     "- When attacking: ALWAYS call deal_damage with specific amount and type.\n"
     "- When healing: ALWAYS call heal_target with amount.\n"
     "- When greeting: use emote('wave') or emote('bow').\n"
@@ -20,6 +20,19 @@ _TOOL_RULES_PREAMBLE = (
     "- Pair ONE short spoken line with your action(s). Let the action do the talking.\n"
     "- Do NOT narrate your tool calls or describe what you are about to do.\n"
     "- Obey the LENGTH limit in the instructions exactly.\n"
+)
+
+# ── Combat narration context injected when NPC is narrating a combat outcome ──
+_COMBAT_NARRATION_RULES = (
+    "COMBAT NARRATION RULES:\n"
+    "- When narrating combat, react specifically to what just happened.\n"
+    "- glancing_hit: mock or dismiss the weak attack.\n"
+    "- clean_hit: acknowledge the pain but remain defiant.\n"
+    "- critical_hit: express significant pain, shock, or rage.\n"
+    "- devastating_hit: stagger, show fear or fury, HP feels low.\n"
+    "- defeated: deliver a final dramatic line — last words, a curse, or a cry.\n"
+    "- Match the NPC's personality when reacting. A proud dragon reacts differently than a merchant.\n"
+    "- Keep responses to 1-3 sentences max.\n"
 )
 
 NPC_PERSONALITIES: dict[str, dict[str, Any]] = {

@@ -6,6 +6,7 @@ import random
 import re
 from typing import TYPE_CHECKING, Any
 
+from ..combat.combat_resolution import CombatResolution, is_attack_prompt, resolve_combat
 from ..config import settings
 
 if TYPE_CHECKING:
@@ -667,6 +668,176 @@ async def _npc_react_to_chat(
     )
 
 
+_COMBAT_FALLBACKS = [
+    "You dare strike me?!",
+    "I'll make you pay for that!",
+    "You'll regret this, fool!",
+    "Feel my wrath!",
+    "Is that all you've got?!",
+]
+
+
+async def _fast_combat_reaction(
+    player_id: str,
+    npc_id: str,
+    npc_name: str,
+    npc_personality: str,
+    resolution: CombatResolution,
+    prompt: str,
+    manager: ConnectionManager,
+) -> None:
+    """Send a fast NPC reaction using a single direct LLM call — no full pipeline.
+
+    - NPC dialogue: one direct LLM call with a minimal prompt (≈1-2 s).
+    - Counter-attack: computed deterministically from NPC max HP (no LLM needed).
+
+    The player already received the damage action instantly. This follow-up
+    delivers the NPC's voice and retaliation damage with minimum extra latency.
+    """
+    if _registry is None or _world_state is None:
+        return
+
+    npc_data = _world_state.get_npc(npc_id)
+    if npc_data is None or npc_data.hp <= 0:
+        return
+
+    # Deterministic counter-attack: scales with NPC max HP so bosses hit harder
+    counter_damage = max(3, random.randint(npc_data.max_hp // 15, npc_data.max_hp // 8))
+
+    # Single direct LLM call — no tools, no pipeline, minimal prompt
+    llm = _registry._llm
+    from langchain_core.messages import HumanMessage as _HumanMessage
+    from langchain_core.messages import SystemMessage as _SystemMessage
+
+    short_personality = npc_personality[:300].strip()
+    system_text = (
+        f"You are {npc_name}.\n{short_personality}\n\n"
+        "The player just attacked you. React in ONE short, dramatic, in-character sentence. "
+        "Do NOT break character. Do NOT explain or add commentary."
+    )
+    user_text = f'Player did: "{prompt}". Combat result: {resolution.combat_text}'
+
+    try:
+        response = await asyncio.wait_for(
+            llm.ainvoke([_SystemMessage(content=system_text), _HumanMessage(content=user_text)]),
+            timeout=12.0,
+        )
+        raw = response.content if isinstance(response.content, str) else ""
+        dialogue = raw.strip() or random.choice(_COMBAT_FALLBACKS)
+    except Exception:
+        logger.warning("Fast combat reaction failed for NPC %s — using fallback", npc_id)
+        dialogue = random.choice(_COMBAT_FALLBACKS)
+
+    # Apply counter-attack to world state
+    counter_actions: list[dict[str, Any]] = []
+    if npc_data.hp > 0:
+        counter_action: dict[str, Any] = {
+            "kind": "damage",
+            "params": {
+                "target": "player",
+                "amount": counter_damage,
+                "damageType": "physical",
+                "combatText": f"{npc_name} retaliates for {counter_damage} damage!",
+            },
+        }
+        await _world_state.apply_actions([counter_action])
+        counter_actions.append(counter_action)
+
+    # Re-fetch updated state
+    npc_after = _world_state.get_npc(npc_id)
+    npc_state: dict[str, Any] = {}
+    if npc_after is not None:
+        npc_state = {"hp": npc_after.hp, "maxHp": npc_after.max_hp}
+
+    player = _world_state.get_player(player_id)
+    player_update = player.to_dict() if player else None
+
+    await manager.send_to(
+        player_id,
+        {
+            "type": "agent_response",
+            "npcId": npc_id,
+            "dialogue": dialogue,
+            "actions": counter_actions,
+            "playerStateUpdate": player_update,
+            "npcStateUpdate": npc_state,
+        },
+    )
+
+    # Broadcast to nearby players
+    if npc_after is not None:
+        if dialogue:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_dialogue",
+                    "npcId": npc_id,
+                    "npcName": npc_name,
+                    "dialogue": dialogue,
+                },
+                origin=npc_after.position,
+                radius=100.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+        bcast = [a for a in counter_actions if a.get("params", {}).get("target") != "player"]
+        if bcast or npc_state:
+            await manager.broadcast_nearby(
+                {
+                    "type": "npc_actions",
+                    "npcId": npc_id,
+                    "actions": bcast,
+                    "npcStateUpdate": npc_state,
+                },
+                origin=npc_after.position,
+                radius=200.0,
+                world_state=_world_state,
+                exclude=player_id,
+            )
+
+
+async def _update_combat_memory_async(
+    player_id: str,
+    npc_id: str,
+    resolution: CombatResolution,
+    prompt: str,
+) -> None:
+    """Run the full agent pipeline silently to update NPC memory and relationship score.
+
+    The player already received their combat response from _fast_combat_reaction.
+    This function persists the relationship penalty and mood change so future
+    interactions reflect that the NPC was attacked — no further client message sent.
+    """
+    if _registry is None or _world_state is None:
+        return
+
+    player = _world_state.get_player(player_id)
+    player_dict = player.to_dict()
+    player_dict["active_quests"] = player.active_quests
+    player_dict["completed_quests"] = list(player.completed_quests)
+    player_dict["kill_count"] = player.kill_count
+
+    combat_prompt = (
+        f"[COMBAT: {resolution.outcome} — "
+        f"{resolution.final_damage} {resolution.damage_type} damage] "
+        f"{prompt}"
+    )
+
+    lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
+    try:
+        async with lock, _agent_semaphore:
+            await asyncio.wait_for(
+                _registry.invoke(
+                    npc_id=npc_id,
+                    player_id=player_id,
+                    prompt=combat_prompt,
+                    player_state=player_dict,
+                ),
+                timeout=settings.agent_invoke_timeout_seconds,
+            )
+    except Exception:
+        logger.debug("Background memory update timed out/failed for NPC %s", npc_id)
+
+
 async def _handle_interaction(
     data: dict[str, Any], websocket: WebSocket, manager: ConnectionManager
 ) -> dict[str, Any]:
@@ -721,20 +892,14 @@ async def _handle_interaction(
         # Re-fetch player after lock-protected update
         player = _world_state.get_player(player_id)
 
-    # ── Apply player attack damage before agent invocation ──────────────
+    # ── Resolve player attack (fast path — no LLM wait) ─────────────────
     player_damage_actions: list[dict[str, Any]] = []
-    if _is_attack_prompt(prompt):
-        # Use the client-sent inventory and equipped items for scoring
+    _combat_resolution: CombatResolution | None = None
+
+    if is_attack_prompt(prompt):
         client_inventory = player_state_raw.get("inventory", []) if player_state_raw else []
         scoring_inventory = client_inventory if client_inventory else player.inventory
         client_equipped = player_state_raw.get("equipped", None) if player_state_raw else None
-        quality, dmg_type, effect_type = _score_attack_quality(
-            prompt,
-            scoring_inventory,
-            client_equipped,
-        )
-        base_damage = 15 + (player.level * 2)
-        final_damage = int(base_damage * quality)
 
         npc = _world_state.get_npc(npc_id)
         if npc:
@@ -749,33 +914,53 @@ async def _handle_interaction(
                     "npcStateUpdate": {"hp": 0, "maxHp": npc.max_hp},
                 }
 
-            # Bug 3 & 7: Don't mutate NPC HP directly — let apply_actions
-            # handle it under the world state lock. We apply the damage action
-            # server-side here so it's applied exactly once.
-            damage_action = {
+            _combat_resolution = resolve_combat(
+                prompt=prompt,
+                player_level=player.level,
+                player_inventory=scoring_inventory,
+                player_equipped=client_equipped,
+                npc_hp=npc.hp,
+                npc_max_hp=npc.max_hp,
+            )
+
+            damage_action: dict[str, Any] = {
                 "kind": "damage",
                 "params": {
                     "target": npc_id,
-                    "amount": final_damage,
-                    "damageType": dmg_type,
+                    "amount": _combat_resolution.final_damage,
+                    "damageType": _combat_resolution.damage_type,
+                    "outcome": _combat_resolution.outcome,
+                    "isCrit": _combat_resolution.is_crit,
+                    "combatText": _combat_resolution.combat_text,
                 },
             }
             await _world_state.apply_actions([damage_action])
             player_damage_actions.append(damage_action)
-            # Spawn visual effect for quality attacks
-            if quality >= 1.5:
+
+            # Visual effects from outcome
+            for tag in _combat_resolution.visual_tags:
                 player_damage_actions.append(
                     {
                         "kind": "spawn_effect",
-                        "params": {"effectType": effect_type, "color": "#ffaa00", "count": 20},
+                        "params": {
+                            "effectType": tag,
+                            "count": 40 if _combat_resolution.is_crit else 20,
+                        },
                     }
                 )
-            # Critical hit notification for great prompts
-            if quality >= 2.0:
+
+    # ── Fast-path: return immediately for combat, fire LLM narration async ──
+    if _combat_resolution is not None:
+        # Re-fetch NPC to get updated HP after apply_actions
+        npc_after = _world_state.get_npc(npc_id)
+        npc_state: dict[str, Any] = {}
+        if npc_after is not None:
+            npc_state = {"hp": npc_after.hp, "maxHp": npc_after.max_hp}
+            if npc_after.hp <= 0:
                 player_damage_actions.append(
                     {
                         "kind": "spawn_effect",
-                        "params": {"effectType": "sparkle", "color": "#ffff00", "count": 40},
+                        "params": {"color": "#ff4400", "count": 50},
                     }
                 )
 

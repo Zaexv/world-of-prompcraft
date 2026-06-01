@@ -76,6 +76,34 @@ export class DamagePopup extends UIComponent {
   }
 
   /**
+   * Spawn a large dramatic finisher popup (DEFEATED / FINISH!) centered on screen.
+   * @param text  e.g. "DEFEATED!" or "FINISH!"
+   */
+  spawnFinisher(text: string): void {
+    const el = document.createElement("div");
+    Object.assign(el.style, {
+      position: "fixed",
+      top: "40%",
+      left: "50%",
+      transform: "translateX(-50%) scale(0.5)",
+      color: "#ff4400",
+      fontSize: "52px",
+      fontWeight: "900",
+      fontFamily: "'Cinzel', 'Times New Roman', serif",
+      textShadow: "0 0 20px #ff6600, 0 2px 6px rgba(0,0,0,0.9)",
+      pointerEvents: "none",
+      zIndex: "60",
+      whiteSpace: "nowrap",
+      animation: "dmg-popup-finisher 1.8s ease-out forwards",
+      willChange: "transform, opacity",
+    } as CSSStyleDeclaration);
+    el.textContent = text;
+    this.externalContainer.appendChild(el);
+    el.addEventListener("animationend", () => el.remove());
+    setTimeout(() => { if (el.parentNode) el.remove(); }, 2000);
+  }
+
+  /**
    * Project a 3D world position to 2D screen coordinates.
    * Returns null if the position is behind the camera.
    */
@@ -151,6 +179,14 @@ export class DamagePopup extends UIComponent {
           transform: translateY(-120px) scale(1);
           opacity: 0;
         }
+      }
+
+      @keyframes dmg-popup-finisher {
+        0%   { transform: translateX(-50%) scale(0.3); opacity: 0; }
+        15%  { transform: translateX(-50%) scale(1.3); opacity: 1; }
+        30%  { transform: translateX(-50%) scale(1.0); opacity: 1; }
+        70%  { transform: translateX(-50%) scale(1.0); opacity: 1; }
+        100% { transform: translateX(-50%) scale(0.8); opacity: 0; }
       }
     `;
     document.head.appendChild(style);
