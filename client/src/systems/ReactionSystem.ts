@@ -215,10 +215,9 @@ export class ReactionSystem {
     switch (action.kind) {
       case "damage": {
         const { amount = 10, target = "player", damageType } = action.params;
-        // Combat must stay instant: apply HP / popup / flash with no animation
-        // gating. (No attack-lunge here on purpose — it made hits feel delayed.)
         this.audio?.playSfx("hit");
         if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
+        actingNpc?.playGesture?.("attack");
         if (amount < 0) {
           const healAmt = Math.abs(amount);
           this.playerState.heal(healAmt);

@@ -66,7 +66,7 @@ All three highlighting modes layer together. Reuse the existing palette in `Inte
 
 ### 3b. Map core actions → body animations (not just icons)
 `client/src/systems/ReactionSystem.ts` currently calls `showAction(...)` (icon only) for most kinds. Add a body animation alongside the icon:
-- `damage` → **no body animation**. Combat must stay instant: HP/popup/flash apply synchronously with no animation gating (the attack lunge made hits feel delayed and was removed).
+- `damage` → attacker NPC plays `attack` (existing lunge in `animateAttack`).
 - `heal` / `spawn_effect: holy_light` → a "cast" emote variant (arms raised, sparkle already spawns).
 - `emote` → keep `playEmote`, now routing to the specific motion from 3a.
 - `start_quest`/`complete_quest` → a gesture (e.g. present/bow) so quest-givers feel reactive.

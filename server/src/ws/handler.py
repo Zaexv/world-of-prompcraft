@@ -21,6 +21,9 @@ logger = logging.getLogger(__name__)
 # Background tasks for NPC chat reactions (prevent garbage collection)
 _background_tasks: set[asyncio.Task[None]] = set()
 
+# Action kinds that nearby players need to see for combat/world sync.
+_BROADCAST_KINDS = {"damage", "move_npc", "emote", "spawn_effect"}
+
 # ── Attack detection & quality scoring ──────────────────────────────────────
 _ATTACK_KEYWORDS = {
     "attack",
@@ -643,6 +646,50 @@ async def _handle_interaction(
                     }
                 )
 
+    # ── Deliver the player's hit to the client immediately ──────────────
+    # Combat must feel instant: the attack resolves and is sent right away,
+    # then the agent's dialogue follows in the final response once the LLM
+    # returns. The actions are cleared afterwards so the final response (and
+    # nearby broadcast) don't apply them a second time.
+    if player_damage_actions:
+        attacked_npc = _world_state.get_npc(npc_id)
+        immediate_npc_state: dict[str, Any] | None = (
+            {"hp": attacked_npc.hp, "maxHp": attacked_npc.max_hp} if attacked_npc else None
+        )
+        # Use `npc_actions` (not `agent_response`): the client applies the hit —
+        # damage, HP, effects, attack animation — without clearing the "thinking"
+        # indicator or adding an empty dialogue bubble. The dialogue arrives next.
+        await websocket.send_json(
+            {
+                "type": "npc_actions",
+                "npcId": npc_id,
+                "actions": player_damage_actions,
+                "npcStateUpdate": immediate_npc_state,
+            }
+        )
+        # Let nearby players see the hit at the same time.
+        if attacked_npc is not None:
+            nearby_hit = [
+                a
+                for a in player_damage_actions
+                if a.get("kind") in _BROADCAST_KINDS
+                and a.get("params", {}).get("target") != "player"
+            ]
+            if nearby_hit:
+                await manager.broadcast_nearby(
+                    {
+                        "type": "npc_actions",
+                        "npcId": npc_id,
+                        "actions": nearby_hit,
+                        "npcStateUpdate": immediate_npc_state,
+                    },
+                    origin=list(attacked_npc.position),
+                    radius=200.0,
+                    world_state=_world_state,
+                    exclude=player_id,
+                )
+        player_damage_actions = []
+
     # Build player state dict with quest data so agents can see quest progress
     player_dict = player.to_dict()
     player_dict["active_quests"] = player.active_quests
@@ -762,7 +809,6 @@ async def _handle_interaction(
 
     # ── Broadcast NPC actions to nearby players (combat sync) ─────────────
     # Other players need to see NPC damage, movement, emotes, and HP changes.
-    _BROADCAST_KINDS = {"damage", "move_npc", "emote", "spawn_effect"}  # noqa: N806
     if npc_for_broadcast is not None:
         broadcast_actions = [
             a
