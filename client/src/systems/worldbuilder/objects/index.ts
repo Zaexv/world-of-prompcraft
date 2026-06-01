@@ -3,7 +3,7 @@ import { buildMesh } from '../../../meshes';
 
 export type ObjectType =
   | 'moonwell' | 'tower' | 'ruins' | 'altar' | 'runic_stone' | 'wooden_fence' | 'pavilion' | 'portal_arch'
-  | 'malaka_house' | 'malaka_house_reconstructed' | 'malaka_ermita' | 'malaka_patio_house' | 'malaka_cortijo' | 'malaka_bodega' | 'malaka_church' | 'malaka_castle' | 'malaka_wall' | 'malaka_tower' | 'roman_amphitheatre' | 'road'
+  | 'malaka_house' | 'malaka_house_reconstructed' | 'malaka_ermita' | 'malaka_patio_house' | 'malaka_cortijo' | 'malaka_farm' | 'malaka_bodega' | 'malaka_church' | 'malaka_castle' | 'malaka_wall' | 'malaka_tower' | 'roman_amphitheatre' | 'road'
   | 'mushroom_cluster' | 'ancient_tree' | 'crystal_cluster'
   | 'campfire' | 'bonfire' | 'lantern';
 

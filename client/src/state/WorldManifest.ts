@@ -21,9 +21,13 @@ export interface EnvironmentConfig {
 
 export interface VerticalPlace {
   id: string;
-  transform: { x: number; z: number };
+  type?: string;
+  transform: { x: number; z: number; rotation?: number };
   radii: { inner: number; outer: number };
   height: number;
+  shape?: 'circle' | 'rect';
+  width?: number;
+  depth?: number;
 }
 
 export interface LandmarkDefinition {

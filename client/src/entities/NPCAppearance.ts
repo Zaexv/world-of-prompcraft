@@ -61,14 +61,27 @@ export function buildProceduralMesh(
   appearance: AppearanceData,
   style: NPCPlaceholderStyle,
 ): THREE.MeshStandardMaterial[] {
+  if (style === 'spider') return buildSpiderMesh(group, appearance);
+  if (style === 'wasp') return buildWaspMesh(group, appearance);
+  if (style === 'wolf' || style === 'boar') return buildQuadrupedMesh(group, appearance, style);
+  if (style === 'golem') return buildGolemMesh(group, appearance);
+
   const a = appearance;
+  
+  // Seed-based variation for humans/humanoids if we have an ID
+  const seed = group.name ? hashString(group.name) : 0;
+  const skinColor = style === 'civilian' || style === 'merchant' || style === 'guard' || style === 'healer' 
+    ? varyColor(a.headColor, seed, 0.1) 
+    : a.headColor;
+  const clothColor = varyColor(a.bodyColor, seed, 0.15);
+
   const materials: THREE.MeshStandardMaterial[] = [];
   const ARM_X = a.bodyWidth / 2 + a.armRadius + 0.02;
   const LEG_X = a.bodyWidth / 4;
 
   // ── Torso ──
   const bodyGeo = getSharedGeo(`${style}_body`, () => new THREE.BoxGeometry(a.bodyWidth, 0.88, a.bodyDepth));
-  const bodyMat = getSharedMat(`${style}_body`, () => npcMat(a.bodyColor));
+  const bodyMat = getSharedMat(`${style}_body_${seed}`, () => npcMat(clothColor));
   const body = new THREE.Mesh(bodyGeo, bodyMat);
   body.name = 'body';
   body.position.y = NPC_Y_TORSO;
@@ -88,7 +101,7 @@ export function buildProceduralMesh(
 
   // ── Head ──
   const headGeo = getSharedGeo(`${style}_head`, () => new THREE.BoxGeometry(a.headWidth, 0.52, a.headDepth));
-  const headMat = getSharedMat(`${style}_head`, () => npcMat(a.headColor, 0.88));
+  const headMat = getSharedMat(`${style}_head_${seed}`, () => npcMat(skinColor, 0.88));
   const head = new THREE.Mesh(headGeo, headMat);
   head.name = 'head';
   head.position.y = NPC_Y_HEAD;
@@ -225,6 +238,221 @@ export function darken(hex: number, amount: number): number {
   );
 }
 
+export function varyColor(hex: number, seed: number, amount: number): number {
+  const r = (hex >> 16) & 255;
+  const g = (hex >> 8) & 255;
+  const b = hex & 255;
+  
+  const vr = (Math.sin(seed * 1.1) * 0.5 + 0.5) * 2 - 1;
+  const vg = (Math.sin(seed * 1.2) * 0.5 + 0.5) * 2 - 1;
+  const vb = (Math.sin(seed * 1.3) * 0.5 + 0.5) * 2 - 1;
+
+  return (
+    (Math.min(255, Math.max(0, r + vr * 255 * amount)) << 16) |
+    (Math.min(255, Math.max(0, g + vg * 255 * amount)) << 8) |
+    Math.min(255, Math.max(0, b + vb * 255 * amount))
+  );
+}
+
+export function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function buildSpiderMesh(group: THREE.Group, a: AppearanceData): THREE.MeshStandardMaterial[] {
+  const materials: THREE.MeshStandardMaterial[] = [];
+  const bodyMat = npcMat(a.bodyColor);
+  materials.push(bodyMat);
+
+  // Abdomen
+  const abdomenGeo = new THREE.SphereGeometry(a.bodyWidth * 0.6, 8, 8);
+  const abdomen = new THREE.Mesh(abdomenGeo, bodyMat);
+  abdomen.position.set(0, 0.5, -0.4);
+  abdomen.scale.set(1, 0.8, 1.2);
+  group.add(abdomen);
+
+  // Cephalothorax (head/torso)
+  const headGeo = new THREE.SphereGeometry(a.bodyWidth * 0.4, 8, 8);
+  const head = new THREE.Mesh(headGeo, bodyMat);
+  head.position.set(0, 0.5, 0.2);
+  group.add(head);
+
+  // Legs (8 legs)
+  const legMat = npcMat(a.legColor);
+  materials.push(legMat);
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2;
+    const legGroup = new THREE.Group();
+    legGroup.position.set(0, 0.5, 0.1);
+    legGroup.rotation.y = angle;
+    
+    const legGeo = new THREE.CylinderGeometry(a.legRadius, a.legRadius, 0.8, 4);
+    legGeo.translate(0, 0.4, 0);
+    const leg = new THREE.Mesh(legGeo, legMat);
+    leg.rotation.z = Math.PI / 3;
+    legGroup.add(leg);
+    
+    const lowerLegGeo = new THREE.CylinderGeometry(a.legRadius * 0.7, a.legRadius * 0.7, 0.8, 4);
+    lowerLegGeo.translate(0, 0.4, 0);
+    const lowerLeg = new THREE.Mesh(lowerLegGeo, legMat);
+    lowerLeg.position.set(0.6, 0.4, 0);
+    lowerLeg.rotation.z = -Math.PI / 2;
+    legGroup.add(lowerLeg);
+
+    group.add(legGroup);
+  }
+
+  // Eyes (many small eyes)
+  const eyeMat = npcMat(a.eyeColor, 0.1, 0, a.eyeEmissive, a.eyeEmissiveIntensity);
+  materials.push(eyeMat);
+  for (let i = 0; i < 6; i++) {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.04, 4, 4), eyeMat);
+    eye.position.set((i - 2.5) * 0.08, 0.65, 0.5);
+    group.add(eye);
+  }
+
+  return materials;
+}
+
+function buildWaspMesh(group: THREE.Group, a: AppearanceData): THREE.MeshStandardMaterial[] {
+  const materials: THREE.MeshStandardMaterial[] = [];
+  const bodyMat = npcMat(a.bodyColor);
+  materials.push(bodyMat);
+
+  // Abdomen (striped)
+  const abdomenGeo = new THREE.SphereGeometry(a.bodyWidth * 0.5, 8, 8);
+  const abdomen = new THREE.Mesh(abdomenGeo, bodyMat);
+  abdomen.position.set(0, 1.2, -0.4);
+  abdomen.scale.set(0.8, 0.8, 1.5);
+  group.add(abdomen);
+
+  // Thorax
+  const thoraxGeo = new THREE.SphereGeometry(a.bodyWidth * 0.4, 8, 8);
+  const thorax = new THREE.Mesh(thoraxGeo, npcMat(0x111111));
+  thorax.position.set(0, 1.3, 0.1);
+  group.add(thorax);
+
+  // Head
+  const headGeo = new THREE.SphereGeometry(a.headWidth * 0.5, 8, 8);
+  const head = new THREE.Mesh(headGeo, npcMat(0x111111));
+  head.position.set(0, 1.4, 0.4);
+  group.add(head);
+
+  // Wings (translucent)
+  const wingMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
+  const wingGeo = new THREE.PlaneGeometry(1.2, 0.4);
+  wingGeo.translate(0.6, 0, 0);
+  const lWing = new THREE.Mesh(wingGeo, wingMat);
+  lWing.position.set(-0.1, 1.5, 0);
+  lWing.rotation.set(0, 0.5, 0.2);
+  group.add(lWing);
+  const rWing = lWing.clone();
+  rWing.scale.x = -1;
+  rWing.position.x = 0.1;
+  rWing.rotation.set(0, -0.5, -0.2);
+  group.add(rWing);
+
+  // Stinger
+  const stingerGeo = new THREE.ConeGeometry(0.05, 0.3, 4);
+  const stinger = new THREE.Mesh(stingerGeo, npcMat(0x000000));
+  stinger.position.set(0, 1.1, -1.0);
+  stinger.rotation.x = -Math.PI / 2;
+  group.add(stinger);
+
+  return materials;
+}
+
+function buildQuadrupedMesh(group: THREE.Group, a: AppearanceData, style: string): THREE.MeshStandardMaterial[] {
+  const materials: THREE.MeshStandardMaterial[] = [];
+  const bodyMat = npcMat(a.bodyColor);
+  materials.push(bodyMat);
+
+  // Body
+  const bodyGeo = new THREE.BoxGeometry(a.bodyWidth, a.bodyWidth, a.bodyDepth);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.set(0, a.bodyWidth / 2 + 0.2, 0);
+  group.add(body);
+
+  // Head
+  const headGeo = new THREE.BoxGeometry(a.headWidth, a.headWidth, a.headDepth);
+  const head = new THREE.Mesh(headGeo, bodyMat);
+  head.position.set(0, a.bodyWidth + 0.1, a.bodyDepth / 2);
+  group.add(head);
+
+  // Snout for wolf
+  if (style === 'wolf') {
+    const snoutGeo = new THREE.BoxGeometry(a.headWidth * 0.6, a.headWidth * 0.4, 0.3);
+    const snout = new THREE.Mesh(snoutGeo, bodyMat);
+    snout.position.set(0, -0.05, a.headDepth / 2);
+    head.add(snout);
+  }
+
+  // Legs (4 legs)
+  const legMat = npcMat(a.legColor);
+  materials.push(legMat);
+  const legH = 0.5;
+  const legGeo = new THREE.CylinderGeometry(a.legRadius, a.legRadius, legH, 6);
+  const legPositions = [
+    [-a.bodyWidth / 3, legH / 2, -a.bodyDepth / 3],
+    [a.bodyWidth / 3, legH / 2, -a.bodyDepth / 3],
+    [-a.bodyWidth / 3, legH / 2, a.bodyDepth / 3],
+    [a.bodyWidth / 3, legH / 2, a.bodyDepth / 3],
+  ];
+  for (const pos of legPositions) {
+    const leg = new THREE.Mesh(legGeo, legMat);
+    leg.position.set(pos[0], pos[1], pos[2]);
+    group.add(leg);
+  }
+
+  return materials;
+}
+
+function buildGolemMesh(group: THREE.Group, a: AppearanceData): THREE.MeshStandardMaterial[] {
+  const materials: THREE.MeshStandardMaterial[] = [];
+  const bodyMat = npcMat(a.bodyColor);
+  materials.push(bodyMat);
+
+  // Bulky Torso
+  const bodyGeo = new THREE.BoxGeometry(a.bodyWidth, 1.2, a.bodyDepth);
+  const body = new THREE.Mesh(bodyGeo, bodyMat);
+  body.position.set(0, 1.0, 0);
+  group.add(body);
+
+  // Head (small, sunken)
+  const headGeo = new THREE.BoxGeometry(a.headWidth, 0.4, a.headDepth);
+  const head = new THREE.Mesh(headGeo, bodyMat);
+  head.position.set(0, 1.7, 0.1);
+  group.add(head);
+
+  // Massive Arms
+  const armMat = npcMat(a.armColor);
+  materials.push(armMat);
+  const armGeo = new THREE.BoxGeometry(a.armRadius * 2, 1.0, a.armRadius * 2);
+  const lArm = new THREE.Mesh(armGeo, armMat);
+  lArm.position.set(-(a.bodyWidth / 2 + a.armRadius), 1.2, 0);
+  group.add(lArm);
+  const rArm = lArm.clone();
+  rArm.position.x *= -1;
+  group.add(rArm);
+
+  // Thick Legs
+  const legMat = npcMat(a.legColor);
+  materials.push(legMat);
+  const legGeo = new THREE.BoxGeometry(a.legRadius * 2, 0.6, a.legRadius * 2);
+  const lLeg = new THREE.Mesh(legGeo, legMat);
+  lLeg.position.set(-a.bodyWidth / 4, 0.3, 0);
+  group.add(lLeg);
+  const rLeg = lLeg.clone();
+  rLeg.position.x *= -1;
+  group.add(rLeg);
+
+  return materials;
+}
+
 export function getPlaceholderAppearance(style: NPCPlaceholderStyle): AppearanceData {
   switch (style) {
     case 'merchant':
@@ -297,6 +525,52 @@ export function getPlaceholderAppearance(style: NPCPlaceholderStyle): Appearance
         legRadius: 0.165, legColor: 0x383522,
         beltColor: 0x2f2f2f,
         hatRadius: 0, hatHeight: 0, hatColor: 0,
+      };
+    case 'spider':
+      return {
+        bodyWidth: 0.8, bodyDepth: 0.8, bodyColor: 0x222222,
+        headWidth: 0.4, headDepth: 0.4, headColor: 0x111111,
+        eyeColor: 0xff0000, eyeEmissive: 0x880000, eyeEmissiveIntensity: 1.2,
+        armRadius: 0.05, armColor: 0x222222,
+        legRadius: 0.05, legColor: 0x222222,
+        beltColor: 0, hatRadius: 0, hatHeight: 0, hatColor: 0,
+      };
+    case 'wasp':
+      return {
+        bodyWidth: 0.5, bodyDepth: 0.5, bodyColor: 0xffcc00,
+        headWidth: 0.3, headDepth: 0.3, headColor: 0x111111,
+        eyeColor: 0x000000, eyeEmissive: 0, eyeEmissiveIntensity: 0,
+        armRadius: 0.02, armColor: 0x000000,
+        legRadius: 0.02, legColor: 0x000000,
+        beltColor: 0, hatRadius: 0, hatHeight: 0, hatColor: 0,
+      };
+    case 'wolf':
+      return {
+        bodyWidth: 0.6, bodyDepth: 1.2, bodyColor: 0x666666,
+        headWidth: 0.4, headDepth: 0.5, headColor: 0x666666,
+        eyeColor: 0xffff00, eyeEmissive: 0x888800, eyeEmissiveIntensity: 0.8,
+        armRadius: 0.1, armColor: 0x666666,
+        legRadius: 0.1, legColor: 0x666666,
+        beltColor: 0, hatRadius: 0, hatHeight: 0, hatColor: 0,
+      };
+    case 'golem':
+      return {
+        bodyWidth: 1.2, bodyDepth: 0.8, bodyColor: 0x888888,
+        headWidth: 0.6, headDepth: 0.6, headColor: 0x888888,
+        eyeColor: 0x00ffff, eyeEmissive: 0x008888, eyeEmissiveIntensity: 1.5,
+        armRadius: 0.25, armColor: 0x888888,
+        legRadius: 0.3, legColor: 0x888888,
+        beltColor: 0x444444,
+        hatRadius: 0, hatHeight: 0, hatColor: 0,
+      };
+    case 'boar':
+      return {
+        bodyWidth: 0.8, bodyDepth: 1.3, bodyColor: 0x4a3520,
+        headWidth: 0.5, headDepth: 0.6, headColor: 0x4a3520,
+        eyeColor: 0xff0000, eyeEmissive: 0x440000, eyeEmissiveIntensity: 0.5,
+        armRadius: 0.12, armColor: 0x4a3520,
+        legRadius: 0.15, legColor: 0x4a3520,
+        beltColor: 0, hatRadius: 0, hatHeight: 0, hatColor: 0,
       };
     case 'orc':
       return {

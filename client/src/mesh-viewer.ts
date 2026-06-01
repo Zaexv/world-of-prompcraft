@@ -4,15 +4,19 @@ import { meshTypes, buildMesh } from './meshes/index';
 
 // ─── Category helpers ─────────────────────────────────────────────────────────
 
-type TabId = 'all' | 'building' | 'prop' | 'vegetation' | 'encounter';
+type TabId = 'all' | 'building' | 'prop' | 'vegetation' | 'encounter' | 'npc' | 'player';
 
 const buildingSet = new Set(meshTypes('building'));
 const vegSet      = new Set(meshTypes('vegetation'));
+const npcSet      = new Set(meshTypes('npc'));
+const playerSet   = new Set(meshTypes('player'));
 
 function tabFor(type: string): Exclude<TabId, 'all'> {
   if (type.startsWith('encounter_')) return 'encounter';
   if (buildingSet.has(type)) return 'building';
   if (vegSet.has(type)) return 'vegetation';
+  if (npcSet.has(type)) return 'npc';
+  if (playerSet.has(type)) return 'player';
   return 'prop';
 }
 
@@ -192,7 +196,7 @@ function buildGrid(): void {
   }
 
   // Update tab counts
-  const counts: Record<string, number> = { all: allTypes.length, building: 0, prop: 0, vegetation: 0, encounter: 0 };
+  const counts: Record<string, number> = { all: allTypes.length, building: 0, prop: 0, vegetation: 0, encounter: 0, npc: 0, player: 0 };
   for (const type of allTypes) counts[tabFor(type)]++;
   for (const btn of tabBar.querySelectorAll<HTMLElement>('[data-tab]')) {
     const tab = btn.dataset.tab as TabId;

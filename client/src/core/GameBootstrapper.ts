@@ -58,6 +58,8 @@ export function bootstrap(
   const sceneManager = new SceneManager(app);
   const { scene, camera, renderer, terrain } = sceneManager;
 
+  terrain.setManifest(worldManifest);
+
   const zoneAtmosphere = new ZoneAtmosphere(
     scene,
     sceneManager.lighting.sun,

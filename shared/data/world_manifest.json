@@ -135,16 +135,50 @@
     "topology": {
       "features": [
         {
-          "id": "castle-hill",
+          "id": "castle-hill-base",
+          "shape": "rect",
           "transform": {
             "x": -130,
             "z": -190
           },
+          "width": 100,
+          "depth": 80,
+          "radii": {
+            "inner": 40,
+            "outer": 80
+          },
+          "height": 8
+        },
+        {
+          "id": "castle-summit",
+          "shape": "rect",
+          "transform": {
+            "x": -130,
+            "z": -190,
+            "rotation": 0.2
+          },
+          "width": 40,
+          "depth": 40,
           "radii": {
             "inner": 15,
-            "outer": 45
+            "outer": 35
           },
-          "height": 12
+          "height": 16
+        },
+        {
+          "id": "cathedral-plaza",
+          "shape": "rect",
+          "transform": {
+            "x": -160,
+            "z": -240
+          },
+          "width": 60,
+          "depth": 50,
+          "radii": {
+            "inner": 25,
+            "outer": 40
+          },
+          "height": 4
         },
         {
           "id": "blasted-suarezlands-mountain",
@@ -909,12 +943,16 @@
               "position": [
                 -160,
                 0,
-                -220
+                -240
               ],
-              "scale": 1.4
+              "scale": 1.4,
+              "rotation": [0, 0, 0]
             },
             "visual": {
-              "label": "Cathedral of Malaka"
+              "label": "Cathedral of Malaka",
+              "metadata": {
+                "terrain_height": 4.0
+              }
             }
           },
           {
@@ -926,10 +964,14 @@
                 0,
                 -190
               ],
-              "scale": 1.2
+              "scale": 1.2,
+              "rotation": [0, 0.2, 0]
             },
             "visual": {
-              "label": "Torre del Homenaje"
+              "label": "Torre del Homenaje",
+              "metadata": {
+                "terrain_height": 16.0
+              }
             }
           },
           {
@@ -959,7 +1001,7 @@
               "position": [
                 -110,
                 0,
-                -210
+                -230
               ],
               "scale": 1.3,
               "rotation": [
@@ -969,7 +1011,10 @@
               ]
             },
             "visual": {
-              "label": "Ermita de la Victoria"
+              "label": "Ermita de la Victoria",
+              "metadata": {
+                "terrain_height": 8.0
+              }
             }
           },
           {
@@ -977,19 +1022,45 @@
             "type": "malaka_patio_house",
             "transform": {
               "position": [
-                -125,
+                -100,
                 0,
-                -245
+                -160
               ],
               "scale": 1.2,
               "rotation": [
                 0,
-                0.3,
+                0.5,
                 0
               ]
             },
             "visual": {
-              "label": "Palacio de los Granados"
+              "label": "Palacio de los Granados",
+              "metadata": {
+                "terrain_height": 8.0
+              }
+            }
+          },
+          {
+            "id": "malaka_bodega_01",
+            "type": "malaka_bodega",
+            "transform": {
+              "position": [
+                -120,
+                0,
+                -150
+              ],
+              "scale": 1.2,
+              "rotation": [
+                0,
+                -0.4,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Bodega del Puerto",
+              "metadata": {
+                "terrain_height": 8.0
+              }
             }
           },
           {
@@ -1030,6 +1101,30 @@
             },
             "visual": {
               "label": "Cortijo Real"
+            }
+          },
+          {
+            "id": "malaka_farm_01",
+            "type": "malaka_farm",
+            "transform": {
+              "position": [
+                -284,
+                0,
+                -334
+              ],
+              "scale": 1.1,
+              "rotation": [
+                0,
+                1.0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Olive Farmstead",
+              "metadata": {
+                "terrain_height": 4.0,
+                "grass_patch": true
+              }
             }
           },
           {

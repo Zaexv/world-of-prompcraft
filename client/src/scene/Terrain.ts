@@ -46,37 +46,65 @@ function cityPlatformFlatness(x: number, z: number): number {
 interface BuildingPad {
   x: number;
   z: number;
-  inner: number;        // radius levelled flat — must cover the footprint
-  outer: number;        // radius where the pad blends back to natural terrain
+  inner: number;        // radius levelled flat (for circle)
+  outer: number;        // radius where pad blends back (for circle) or AABB radius (for rect)
   target?: number;      // lazily-filled natural ground height at (x, z)
+  manifestHeight?: number; // optional fixed height from manifest
+  
+  // Shape support
+  shape: 'circle' | 'rect';
+  width?: number;       // full width (X)
+  depth?: number;       // full depth (Z)
+  rotation?: number;    // rotation in radians
+  blendWidth?: number;  // explicit blend width for rects
 }
 
 const PAD_BLEND = 14;   // width of the flat→natural blend ring
 
-// Only the landmarks whose footprint actually straddles a slope (range > ~1.5u);
-// flat-sited buildings (castle on its hill, etc.) are intentionally omitted.
-// `inner` ≈ the building's footprint radius (½·diagonal · scale, +margin).
-function pad(x: number, z: number, inner: number): BuildingPad {
-  return { x, z, inner, outer: inner + PAD_BLEND };
+interface FootprintSpec {
+  shape: 'circle' | 'rect';
+  radius?: number;
+  width?: number;
+  depth?: number;
 }
-const BUILDING_PADS: BuildingPad[] = [
-  pad(-160, -220, 22), // Cathedral of Malaka
-  pad(-110, -210, 12), // Ermita de la Victoria
-  pad(-120, -165, 9),  // Bodega del Puerto
-  pad(-220, -280, 28), // Teatro Romano (amphitheatre)
-  pad(-210, -265, 9),  // Casa del Gobernador (patio_house_02)
-  pad(-270, -180, 10), // Cortijo Real (cortijo_02)
-  pad(-190, -245, 6),  // malaka_house_s1
-  pad(-115, -265, 6),  // malaka_house_e1
-  pad(-105, -230, 6),  // malaka_house_e2
-  pad(-145, -280, 7),  // malaka_house_n3 (reconstructed)
-  pad(-130, -190, 17), // Torre del Homenaje (castle) — covers its corner turrets,
-                       // which reach past the castle-hill's flat top onto the skirt.
+
+/** Base footprints for mesh types (at scale 1.0) used for auto-padding. */
+export const FOOTPRINT_SPECS: Record<string, FootprintSpec> = {
+  'malaka_broken_church': { shape: 'rect', width: 16, depth: 24 },
+  'malaka_ermita': { shape: 'rect', width: 10, depth: 13 },
+  'malaka_bodega': { shape: 'rect', width: 8, depth: 15 },
+  'roman_amphitheatre': { shape: 'circle', radius: 4 },
+  'malaka_patio_house': { shape: 'rect', width: 10, depth: 10 },
+  'malaka_cortijo': { shape: 'rect', width: 12, depth: 10 },
+  'malaka_house': { shape: 'rect', width: 4, depth: 4 },
+  'malaka_house_reconstructed': { shape: 'rect', width: 5, depth: 5 },
+  'malaka_house_n3': { shape: 'rect', width: 5.5, depth: 5.5 },
+  'malaka_castle': { shape: 'rect', width: 16, depth: 16 },
+  'malaka_farm': { shape: 'rect', width: 46, depth: 40 },
+  'tower': { shape: 'circle', radius: 6 },
+  'ruins': { shape: 'circle', radius: 8 },
+  'altar': { shape: 'circle', radius: 4 },
+  'moonwell': { shape: 'circle', radius: 4 },
+  'pavilion': { shape: 'circle', radius: 5 },
+  'portal_arch': { shape: 'rect', width: 8, depth: 4 },
+  'wooden_fence': { shape: 'rect', width: 6, depth: 1 },
+};
+
+// Hardcoded legacy pads (to be gradually moved to manifest)
+const LEGACY_BUILDING_PADS: BuildingPad[] = [
+  // These are now handled automatically by setManifest for most buildings.
 ];
+
+let _manifestPads: BuildingPad[] = [];
+
+function getBuildingPads(): BuildingPad[] {
+  return [...LEGACY_BUILDING_PADS, ..._manifestPads];
+}
 
 /** Cheap AABB pre-check: does any pad overlap this region? */
 function padsInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
-  for (const p of BUILDING_PADS) {
+  for (const p of getBuildingPads()) {
+    // For OBBs, we use the conservative outer radius for the AABB pre-check
     const dx = Math.max(0, Math.max(minX - p.x, p.x - maxX));
     const dz = Math.max(0, Math.max(minZ - p.z, p.z - maxZ));
     if (dx * dx + dz * dz < p.outer * p.outer) return true;
@@ -85,39 +113,66 @@ function padsInBounds(minX: number, maxX: number, minZ: number, maxZ: number): b
 }
 
 function padTarget(p: BuildingPad): number {
+  if (p.manifestHeight !== undefined) return p.manifestHeight;
   if (p.target === undefined) {
-    // Natural ground height at the centre (noise + platform + full lift), no pad.
     p.target = Terrain.computeHeight(p.x, p.z) + getVerticalLiftAt(p.x, p.z);
   }
   return p.target;
 }
 
 /**
- * Level a sample toward the strongest overlapping building pad. "Strongest
- * wins" (rather than a blend of overlapping pads) guarantees a building's own
- * footprint — where its pad is at full strength — is never pulled off-level by
- * a neighbouring pad at a different height. Any height difference between two
- * adjacent pads therefore lands in the open ground between them as a terrace
- * step, never under either building.
+ * Level a sample toward the strongest overlapping building pad. 
+ * Supports both circular and oriented rectangular (OBB) footprints.
  */
 function applyBuildingPads(x: number, z: number, h: number): number {
   let bestFlat = 0;
   let bestTarget = 0;
-  for (const p of BUILDING_PADS) {
-    const dist = Math.hypot(x - p.x, z - p.z);
-    if (dist >= p.outer) continue;
-    let flat: number;
-    if (dist <= p.inner) {
-      flat = 1;
+  
+  for (const p of getBuildingPads()) {
+    let flat = 0;
+    
+    if (p.shape === 'circle') {
+      const dist = Math.hypot(x - p.x, z - p.z);
+      if (dist >= p.outer) continue;
+      if (dist <= p.inner) {
+        flat = 1;
+      } else {
+        const t = (dist - p.inner) / (p.outer - p.inner);
+        flat = 1 - t * t * (3 - 2 * t);
+      }
     } else {
-      const t = (dist - p.inner) / (p.outer - p.inner);
-      flat = 1 - t * t * (3 - 2 * t); // smoothstep falloff
+      // Rectangular OBB logic
+      const dx = x - p.x;
+      const dz = z - p.z;
+      const rot = p.rotation ?? 0;
+      
+      const localX = Math.abs(dx * Math.cos(-rot) - dz * Math.sin(-rot));
+      const localZ = Math.abs(dx * Math.sin(-rot) + dz * Math.cos(-rot));
+      
+      const halfW = (p.width ?? 0) / 2;
+      const halfD = (p.depth ?? 0) / 2;
+      
+      const distX = Math.max(0, localX - halfW);
+      const distZ = Math.max(0, localZ - halfD);
+      const dist = Math.sqrt(distX * distX + distZ * distZ);
+      
+      const blendWidth = p.blendWidth ?? PAD_BLEND;
+      if (dist >= blendWidth) continue;
+      
+      if (dist <= 0) {
+        flat = 1;
+      } else {
+        const t = dist / blendWidth;
+        flat = 1 - t * t * (3 - 2 * t);
+      }
     }
+    
     if (flat > bestFlat) {
       bestFlat = flat;
       bestTarget = padTarget(p);
     }
   }
+  
   if (bestFlat <= 0) return h;
   return h * (1 - bestFlat) + bestTarget * bestFlat;
 }
@@ -277,7 +332,94 @@ export class Terrain {
     return applyBuildingPads(x, z, h);
   }
 
-  setManifest(_data: TerrainManifestData): void { /* no-op: worker removed */ }
+  setManifest(data: any): void {
+    _manifestPads = [];
+
+    // 1. Process explicit topology features (e.g., flat_patch)
+    if (data?.world?.topology?.features) {
+      for (const f of data.world.topology.features) {
+        if (f.type === 'flat_patch') {
+          const shape = f.shape ?? 'circle';
+          if (shape === 'circle') {
+            _manifestPads.push({
+              x: f.transform.x,
+              z: f.transform.z,
+              inner: f.radii.inner,
+              outer: f.radii.outer,
+              manifestHeight: f.height,
+              shape: 'circle',
+            });
+          } else {
+            const width = f.width ?? (f.radii.inner * 2);
+            const depth = f.depth ?? (f.radii.inner * 2);
+            const rotation = f.transform?.rotation ?? f.rotation ?? 0;
+            const blendWidth = f.blendWidth ?? PAD_BLEND;
+            const innerRadius = Math.sqrt(width * width + depth * depth) / 2;
+            _manifestPads.push({
+              x: f.transform.x,
+              z: f.transform.z,
+              shape: 'rect',
+              width,
+              depth,
+              rotation,
+              inner: 0,
+              blendWidth,
+              outer: innerRadius + blendWidth,
+              manifestHeight: f.height,
+            });
+          }
+        }
+      }
+    }
+
+    // 2. Automatically create pads for all landmarks in the manifest
+    if (data?.zones) {
+      for (const zone of Object.values(data.zones) as any[]) {
+        if (zone.architecture?.landmarks) {
+          for (const l of zone.architecture.landmarks) {
+            const spec = l.visual?.metadata?.footprint ?? FOOTPRINT_SPECS[l.type];
+            if (spec) {
+              const scale = l.transform.scale ?? 1.0;
+              const rotation = l.transform.rotation ? l.transform.rotation[1] : 0;
+              
+              // Optional metadata height override
+              const manifestHeight = l.visual?.metadata?.terrain_height as number | undefined;
+
+              if (spec.shape === 'circle') {
+                const inner = (spec.radius ?? 1) * scale;
+                _manifestPads.push({
+                  x: l.transform.position[0],
+                  z: l.transform.position[2],
+                  shape: 'circle',
+                  inner,
+                  outer: inner + PAD_BLEND,
+                  manifestHeight,
+                });
+              } else {
+                const width = (spec.width ?? 1) * scale;
+                const depth = (spec.depth ?? 1) * scale;
+                const blendWidth = PAD_BLEND;
+                const innerRadius = Math.sqrt(width * width + depth * depth) / 2;
+                
+                _manifestPads.push({
+                  x: l.transform.position[0],
+                  z: l.transform.position[2],
+                  shape: 'rect',
+                  width,
+                  depth,
+                  rotation,
+                  inner: 0,
+                  blendWidth,
+                  outer: innerRadius + blendWidth,
+                  manifestHeight,
+                });
+              }
+            }
+          }
+        }
+      }
+    }
+  }
 
   // ── Per-frame update ─────────────────────────────────────────────────────
 
