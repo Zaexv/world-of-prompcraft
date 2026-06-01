@@ -19,6 +19,16 @@ interface EffectPreset {
   flash?: string;    // optional screen flash color
 }
 
+// Keywords that mark a prompt as an attack. MUST mirror the server's
+// `_ATTACK_KEYWORDS` (server/src/ws/handler.py) so the client only previews a
+// hit when the server will actually score one.
+const ATTACK_KEYWORDS = new Set<string>([
+  "attack", "hit", "strike", "slash", "stab", "punch", "kick", "fight", "kill",
+  "destroy", "smash", "fireball", "lightning", "swing", "cleave", "thrust",
+  "cut", "shoot", "blast", "crush", "bite", "claw", "charge", "slam", "cast",
+  "burn", "freeze",
+]);
+
 const EFFECT_PRESETS: Record<string, EffectPreset> = {
   fire: {
     color: "#ff4400", count: 40, speed: 3.5, gravity: -1, size: 0.35,
@@ -200,6 +210,31 @@ export class ReactionSystem {
     for (const action of response.actions) {
       this.processAction(action, response.npcId);
     }
+  }
+
+  /** True when a prompt reads as an attack (mirrors the server's detection). */
+  isAttackPrompt(prompt: string): boolean {
+    for (const word of prompt.toLowerCase().split(/\s+/)) {
+      if (ATTACK_KEYWORDS.has(word)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Instant, optimistic combat feedback shown the moment the player submits an
+   * attack — before the server round-trip. Plays the impact (hit sfx, NPC
+   * lunge, spark burst) so combat feels immediate; the authoritative damage
+   * number and HP arrive shortly after via the server's `npc_actions` message.
+   * No HP is mutated here — the server stays the source of truth.
+   */
+  previewLocalAttack(npcId: string): void {
+    const npc = this.entityManager.getNPC(npcId);
+    if (!npc) return;
+    this.audio?.playSfx("hit");
+    npc.playGesture?.("attack");
+    const pos = npc.mesh.position.clone();
+    pos.y += 1.5;
+    this.createParticleBurst(pos, "#ffd27f", 16, EFFECT_PRESETS.sparkle);
   }
 
   /** Call every frame so time-based effects can animate. */
