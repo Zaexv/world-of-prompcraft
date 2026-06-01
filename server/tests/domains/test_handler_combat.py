@@ -81,6 +81,7 @@ async def test_attack_delivers_immediate_hit_then_dialogue() -> None:
     assert len(fake_ws.sent) == 1
     immediate = fake_ws.sent[0]
     assert immediate["type"] == "npc_actions"
+    assert immediate["self"] is True  # marks the acting player's own hit for logging
     assert any(a["kind"] == "damage" for a in immediate["actions"])
 
     # The agent's answer arrives in the final response and does NOT repeat the

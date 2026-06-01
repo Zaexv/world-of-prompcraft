@@ -183,12 +183,18 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'npc_actions') {
+      const actions = (data.actions as AgentResponse['actions']) ?? [];
       this.d.reactionSystem.handleResponse({
         type: 'agent_response', npcId: data.npcId as string, dialogue: '',
-        actions: (data.actions as AgentResponse['actions']) ?? [],
+        actions,
         npcStateUpdate: data.npcStateUpdate ?? undefined,
         playerStateUpdate: undefined,
       } as AgentResponse);
+      // Combat log + damage-number popup for the instant hit — only for the
+      // acting player's own strike (`self`), not bystander combat-sync broadcasts.
+      if (data.self) {
+        this.applyCombatFeedback(actions, data.npcId as string);
+      }
       return;
     }
 
@@ -256,72 +262,7 @@ export class WebSocketHandler {
         this.d.uiManager.interactionPanel.updateMoodStatus(mood, relScore);
       }
 
-      const npcName =
-        this.d.npcNameMap.get(response.npcId) ??
-        this.d.entityManager.getNPC(response.npcId)?.name ??
-        response.npcId;
-      const logCombat = (msg: string, color: string) => {
-        if (this.d.uiManager.combatHUD.isVisible) {
-          this.d.uiManager.combatHUD.addLogEntry(msg, color);
-        } else {
-          this.d.uiManager.addCombatLog(msg, color);
-        }
-      };
-
-      for (const action of response.actions) {
-        if (action.kind === 'damage') {
-          const target = action.params.target ?? 'player';
-          const amount = action.params.amount ?? 0;
-          const damageType = action.params.damageType ?? 'physical';
-          if (target === 'player') {
-            logCombat(`${npcName} deals ${amount} ${damageType} damage!`, '#ff4444');
-            const playerPos = new THREE.Vector3(
-              this.d.playerController.position.x,
-              this.d.playerController.position.y + 2.5,
-              this.d.playerController.position.z,
-            );
-            const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
-            if (screenPos) {
-              this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff4444', amount >= 30);
-            }
-          } else {
-            logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
-            const targetNpc = this.d.entityManager.getNPC(target);
-            if (targetNpc) {
-              const npcPos = targetNpc.mesh.position.clone();
-              npcPos.y += 3;
-              const screenPos = DamagePopup.worldToScreen(npcPos, this.d.camera, window.innerWidth, window.innerHeight);
-              if (screenPos) {
-                this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff6633', amount >= 30);
-              }
-            }
-          }
-        } else if (action.kind === 'heal') {
-          const amount = action.params.amount ?? 0;
-          logCombat(`Healed for ${amount} HP`, '#44ff44');
-          const playerPos = new THREE.Vector3(
-            this.d.playerController.position.x,
-            this.d.playerController.position.y + 2.5,
-            this.d.playerController.position.z,
-          );
-          const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
-          if (screenPos) {
-            this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `+${amount}`, '#44ff44');
-          }
-        } else if (action.kind === 'give_item') {
-          logCombat(`Received: ${action.params.item ?? 'Unknown Item'}`, '#c5a55a');
-        } else if (action.kind === 'start_quest') {
-          const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
-          logCombat(`Quest Started: ${quest}`, '#c5a55a');
-        } else if (action.kind === 'complete_quest') {
-          const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
-          logCombat(`Quest Complete: ${quest}`, '#c5a55a');
-        } else if (action.kind === 'advance_objective') {
-          logCombat(`Objective Complete: ${action.params.objectiveId ?? 'objective'}`, '#c5a55a');
-        } else if (action.kind === 'emote') {
-          logCombat(`${npcName} performs ${action.params.animation ?? 'gesture'}`, '#aaaaaa');
-        }
-      }
+      this.applyCombatFeedback(response.actions, response.npcId);
       return;
     }
 
@@ -373,6 +314,81 @@ export class WebSocketHandler {
     if (data.type === 'world_modify_end') {
       this.d.worldBuilderPanel.endStreaming(data.blueprintId);
       return;
+    }
+  }
+
+  /**
+   * Combat log entries + prominent damage-number popups for a turn's actions.
+   * Called from BOTH the immediate `npc_actions` message (the player's hit, so
+   * the number and "You strike…" log appear instantly) and the final
+   * `agent_response` (the NPC's reply). Visual-only — HP is applied elsewhere.
+   */
+  private applyCombatFeedback(actions: AgentResponse['actions'], npcId: string): void {
+    const npcName =
+      this.d.npcNameMap.get(npcId) ??
+      this.d.entityManager.getNPC(npcId)?.name ??
+      npcId;
+    const logCombat = (msg: string, color: string) => {
+      if (this.d.uiManager.combatHUD.isVisible) {
+        this.d.uiManager.combatHUD.addLogEntry(msg, color);
+      } else {
+        this.d.uiManager.addCombatLog(msg, color);
+      }
+    };
+
+    for (const action of actions) {
+      if (action.kind === 'damage') {
+        const target = action.params.target ?? 'player';
+        const amount = action.params.amount ?? 0;
+        const damageType = action.params.damageType ?? 'physical';
+        if (target === 'player') {
+          logCombat(`${npcName} deals ${amount} ${damageType} damage!`, '#ff4444');
+          const playerPos = new THREE.Vector3(
+            this.d.playerController.position.x,
+            this.d.playerController.position.y + 2.5,
+            this.d.playerController.position.z,
+          );
+          const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
+          if (screenPos) {
+            this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff4444', amount >= 30);
+          }
+        } else {
+          logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
+          const targetNpc = this.d.entityManager.getNPC(target);
+          if (targetNpc) {
+            const npcPos = targetNpc.mesh.position.clone();
+            npcPos.y += 3;
+            const screenPos = DamagePopup.worldToScreen(npcPos, this.d.camera, window.innerWidth, window.innerHeight);
+            if (screenPos) {
+              this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff6633', amount >= 30);
+            }
+          }
+        }
+      } else if (action.kind === 'heal') {
+        const amount = action.params.amount ?? 0;
+        logCombat(`Healed for ${amount} HP`, '#44ff44');
+        const playerPos = new THREE.Vector3(
+          this.d.playerController.position.x,
+          this.d.playerController.position.y + 2.5,
+          this.d.playerController.position.z,
+        );
+        const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
+        if (screenPos) {
+          this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `+${amount}`, '#44ff44');
+        }
+      } else if (action.kind === 'give_item') {
+        logCombat(`Received: ${action.params.item ?? 'Unknown Item'}`, '#c5a55a');
+      } else if (action.kind === 'start_quest') {
+        const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
+        logCombat(`Quest Started: ${quest}`, '#c5a55a');
+      } else if (action.kind === 'complete_quest') {
+        const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
+        logCombat(`Quest Complete: ${quest}`, '#c5a55a');
+      } else if (action.kind === 'advance_objective') {
+        logCombat(`Objective Complete: ${action.params.objectiveId ?? 'objective'}`, '#c5a55a');
+      } else if (action.kind === 'emote') {
+        logCombat(`${npcName} performs ${action.params.animation ?? 'gesture'}`, '#aaaaaa');
+      }
     }
   }
 }

@@ -665,6 +665,10 @@ async def _handle_interaction(
                 "npcId": npc_id,
                 "actions": player_damage_actions,
                 "npcStateUpdate": immediate_npc_state,
+                # `self` marks this as the acting player's own hit so the client
+                # logs "You strike…" + a damage number. Bystander broadcasts omit
+                # it (they only need the visual sync, not the personal log).
+                "self": True,
             }
         )
         # Let nearby players see the hit at the same time.
