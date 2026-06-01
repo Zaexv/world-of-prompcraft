@@ -1,8 +1,8 @@
 """Tests for combat delivery in the interaction handler.
 
 Combat must feel instant: the player's hit is delivered immediately as an
-`npc_actions` message, and the agent's dialogue follows in the final
-`agent_response` — without re-applying the player's damage.
+`npc_actions` message, and the NPC fires back a deterministic, personality-based
+reply right away — attacks skip the (slow) LLM entirely.
 """
 
 from __future__ import annotations
@@ -35,14 +35,14 @@ class _FakeManager:
 
 
 class _FakeRegistry:
-    """Stand-in agent registry whose dialogue carries no damage action."""
+    """Records whether the LLM was invoked; attacks should never reach it."""
+
+    def __init__(self) -> None:
+        self.invoked = False
 
     async def invoke(self, **_kwargs: Any) -> dict[str, Any]:
-        return {
-            "dialogue": "You dare strike me?!",
-            "actions": [{"kind": "emote", "params": {"animation": "threaten"}}],
-            "npcStateUpdate": {},
-        }
+        self.invoked = True
+        return {"dialogue": "LLM_REPLY", "actions": [], "npcStateUpdate": {}}
 
 
 @pytest.fixture(autouse=True)
@@ -52,72 +52,86 @@ def _reset_world_state() -> Any:
     WorldState._instance = None
 
 
-@pytest.mark.asyncio
-async def test_attack_delivers_immediate_hit_then_dialogue() -> None:
-    world = WorldState()
+def _spawn_npc(world: WorldState, archetype: str, hp: int = 200) -> None:
     world.npcs["dragon_01"] = NPCData(
         npc_id="dragon_01",
         name="Ignathar",
         personality="boss",
-        hp=200,
-        max_hp=200,
+        hp=hp,
+        max_hp=hp,
         position=[0.0, 0.0, 0.0],
         mood="angry",
+        archetype=archetype,
     )
-    world.get_player("p1")  # auto-creates a live player
 
+
+async def _interact(
+    prompt: str, registry: _FakeRegistry
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
     manager = _FakeManager("p1")
-    handler.init_handler(_FakeRegistry(), world, manager)  # type: ignore[arg-type]
-
+    handler.init_handler(registry, WorldState(), manager)  # type: ignore[arg-type]
     fake_ws = _FakeWebSocket()
     result = await handler._handle_interaction(
-        {"npcId": "dragon_01", "playerId": "p1", "prompt": "I attack the dragon with my sword!"},
+        {"npcId": "dragon_01", "playerId": "p1", "prompt": prompt},
         fake_ws,  # type: ignore[arg-type]
         manager,  # type: ignore[arg-type]
     )
-
-    # The hit is pushed immediately as an npc_actions message (no dialogue),
-    # so the client resolves combat without waiting for the LLM.
-    assert len(fake_ws.sent) == 1
-    immediate = fake_ws.sent[0]
-    assert immediate["type"] == "npc_actions"
-    assert immediate["self"] is True  # marks the acting player's own hit for logging
-    assert any(a["kind"] == "damage" for a in immediate["actions"])
-
-    # The agent's answer arrives in the final response and does NOT repeat the
-    # player's damage (already applied + delivered).
-    assert result["type"] == "agent_response"
-    assert result["dialogue"] == "You dare strike me?!"
-    assert not any(
-        a["kind"] == "damage" and a.get("params", {}).get("target") == "dragon_01"
-        for a in result["actions"]
-    )
+    return result, fake_ws.sent
 
 
 @pytest.mark.asyncio
-async def test_non_attack_prompt_sends_no_immediate_message() -> None:
+async def test_attack_delivers_immediate_hit_then_instant_reply() -> None:
     world = WorldState()
-    world.npcs["dragon_01"] = NPCData(
-        npc_id="dragon_01",
-        name="Ignathar",
-        personality="boss",
-        hp=200,
-        max_hp=200,
-        position=[0.0, 0.0, 0.0],
-        mood="neutral",
-    )
+    _spawn_npc(world, archetype="hostile_boss")
     world.get_player("p1")
+    registry = _FakeRegistry()
 
-    manager = _FakeManager("p1")
-    handler.init_handler(_FakeRegistry(), world, manager)  # type: ignore[arg-type]
+    result, sent = await _interact("I attack the dragon with my sword!", registry)
 
-    fake_ws = _FakeWebSocket()
-    result = await handler._handle_interaction(
-        {"npcId": "dragon_01", "playerId": "p1", "prompt": "Hello there, friend."},
-        fake_ws,  # type: ignore[arg-type]
-        manager,  # type: ignore[arg-type]
-    )
+    # 1. The player's hit is pushed immediately as a self-tagged npc_actions message.
+    assert len(sent) == 1
+    assert sent[0]["type"] == "npc_actions"
+    assert sent[0]["self"] is True
+    assert any(a["kind"] == "damage" for a in sent[0]["actions"])
 
-    # No attack → no immediate hit; only the normal agent_response is returned.
-    assert fake_ws.sent == []
+    # 2. The reply is instant and deterministic — the LLM was never invoked.
+    assert registry.invoked is False
     assert result["type"] == "agent_response"
+    assert result["dialogue"] and result["dialogue"] != "LLM_REPLY"
+
+    # 3. A hostile NPC counterattacks the player.
+    counters = [
+        a
+        for a in result["actions"]
+        if a["kind"] == "damage" and a["params"].get("target") == "player"
+    ]
+    assert len(counters) == 1
+    assert counters[0]["params"]["amount"] > 0
+
+
+@pytest.mark.asyncio
+async def test_friendly_npc_does_not_counterattack() -> None:
+    world = WorldState()
+    _spawn_npc(world, archetype="friendly_merchant")
+    world.get_player("p1")
+    registry = _FakeRegistry()
+
+    result, _sent = await _interact("I attack the merchant!", registry)
+
+    assert registry.invoked is False
+    assert result["dialogue"]  # pleads instead of fighting
+    assert not any(a["kind"] == "damage" for a in result["actions"])
+
+
+@pytest.mark.asyncio
+async def test_non_attack_prompt_uses_llm_and_sends_no_immediate_message() -> None:
+    world = WorldState()
+    _spawn_npc(world, archetype="hostile_boss")
+    world.get_player("p1")
+    registry = _FakeRegistry()
+
+    result, sent = await _interact("Hello there, friend.", registry)
+
+    assert sent == []
+    assert registry.invoked is True
+    assert result["dialogue"] == "LLM_REPLY"

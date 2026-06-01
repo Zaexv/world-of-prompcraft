@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
     from ..agents.agent_state import NPCAgentState as _NPCAgentState
     from ..agents.registry import AgentRegistry
-    from ..world.world_state import WorldState
+    from ..world.world_state import NPCData, WorldState
     from .connection_manager import ConnectionManager
 
 logger = logging.getLogger(__name__)
@@ -127,6 +127,135 @@ _MAGIC_KEYWORDS = {
 def _is_attack_prompt(prompt: str) -> bool:
     words = set(prompt.lower().split())
     return bool(words & _ATTACK_KEYWORDS)
+
+
+# ── Instant combat replies ───────────────────────────────────────────────────
+# When the player attacks, the NPC fires back a deterministic, personality-
+# flavoured response immediately instead of waiting on the LLM. Each profile is
+# keyed by archetype: a few barks, a counterattack damage range + type, an
+# optional spawn effect, an emote, and the resulting mood.
+_COMBAT_PROFILES: dict[str, dict[str, Any]] = {
+    "hostile_boss": {
+        "lines": [
+            "You dare strike me, mortal? You will burn for that!",
+            "Pathetic. Witness true power!",
+            "Your insolence ends here!",
+        ],
+        "damage": (24, 36),
+        "type": "fire",
+        "effect": "fire",
+        "emote": "threaten",
+        "mood": "angry",
+    },
+    "hostile_monster": {
+        "lines": [
+            "The creature snarls and lunges back at you!",
+            "It shrieks and claws at you!",
+            "The beast retaliates savagely!",
+        ],
+        "damage": (12, 20),
+        "type": "physical",
+        "effect": None,
+        "emote": "threaten",
+        "mood": "angry",
+    },
+    "volatile_pyromancer": {
+        "lines": ["You'll regret that -- burn!", "Flames answer your folly!"],
+        "damage": (20, 30),
+        "type": "fire",
+        "effect": "fire",
+        "emote": "threaten",
+        "mood": "angry",
+    },
+    "mysterious_cryomancer": {
+        "lines": ["Freeze where you stand.", "The cold takes those who provoke me."],
+        "damage": (18, 26),
+        "type": "ice",
+        "effect": "ice",
+        "emote": "threaten",
+        "mood": "angry",
+    },
+    "neutral_guard": {
+        "lines": ["Attacking me? Bad move, citizen!", "Stand down, or face the law!"],
+        "damage": (14, 22),
+        "type": "physical",
+        "effect": None,
+        "emote": "threaten",
+        "mood": "annoyed",
+    },
+    "neutral_wanderer": {
+        "lines": ["I didn't want a fight, but so be it!", "You'll find I'm no easy mark!"],
+        "damage": (12, 20),
+        "type": "physical",
+        "effect": None,
+        "emote": "threaten",
+        "mood": "annoyed",
+    },
+    "eccentric_archmage": {
+        "lines": ["Rudeness met with arcane fire!", "You interrupt my studies -- unwise!"],
+        "damage": (16, 24),
+        "type": "arcane",
+        "effect": "sparkle",
+        "emote": "threaten",
+        "mood": "annoyed",
+    },
+}
+
+# Friendly archetypes (merchant, healer, guide, stoner, quest_giver) fall back
+# to this: they plead rather than fight, and deal no damage.
+_PACIFIST_PROFILE: dict[str, Any] = {
+    "lines": [
+        "Please, stop! I mean you no harm!",
+        "Why would you attack me?!",
+        "Mercy! I'm no fighter!",
+    ],
+    "damage": (0, 0),
+    "type": "physical",
+    "effect": None,
+    "emote": "cry",
+    "mood": "fearful",
+}
+
+_DEFEAT_LINES = ["No... this cannot be...", "You... have bested me...", "Argh! I am undone!"]
+
+
+def _basic_combat_reply(npc: NPCData, player_id: str) -> dict[str, Any]:
+    """Build an instant combat reply (dialogue + actions) for an attacked NPC.
+
+    No LLM involved — the response is chosen from the NPC's archetype profile so
+    attacks resolve immediately. HP is applied by the caller via apply_actions.
+    """
+    profile = _COMBAT_PROFILES.get(npc.archetype, _PACIFIST_PROFILE)
+
+    # The player's hit already landed; if it dropped the NPC, it gasps and falls.
+    if npc.hp <= 0:
+        npc.mood = "sad"
+        return {"dialogue": random.choice(_DEFEAT_LINES), "actions": [], "mood": "sad"}
+
+    actions: list[dict[str, Any]] = [{"kind": "emote", "params": {"animation": profile["emote"]}}]
+    low, high = profile["damage"]
+    if high > 0:
+        amount = random.randint(low, high)
+        actions.append(
+            {
+                "kind": "damage",
+                "params": {
+                    "target": "player",
+                    "player_id": player_id,
+                    "amount": amount,
+                    "damageType": profile["type"],
+                },
+            }
+        )
+        if profile["effect"]:
+            actions.append({"kind": "spawn_effect", "params": {"effectType": profile["effect"]}})
+
+    npc.mood = profile["mood"]
+    return {
+        "dialogue": random.choice(profile["lines"]),
+        "actions": actions,
+        "mood": profile["mood"],
+    }
 
 
 def _score_attack_quality(
@@ -257,6 +386,9 @@ def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) 
         "system_prompt",
         f"You are {name}, a creature encountered in the wild. You are hostile and territorial.",
     )
+    # Procedurally spawned NPCs are wild encounters — default to a hostile
+    # monster so the instant combat reply has them fight back.
+    archetype = personality.get("archetype", "hostile_monster")
     hp = 80
 
     npc = NPCData(
@@ -266,6 +398,7 @@ def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) 
         hp=hp,
         max_hp=hp,
         position=[0.0, 0.0, 0.0],
+        archetype=archetype,
     )
     _world_state.npcs[npc_id] = npc
     _registry.register_dynamic_npc(npc)
@@ -700,43 +833,58 @@ async def _handle_interaction(
     player_dict["completed_quests"] = list(player.completed_quests)
     player_dict["kill_count"] = player.kill_count
 
-    # Per-player lock + global semaphore:
-    #   lock  → serializes rapid clicks from the same player (prevents double-damage)
-    #   semaphore → caps total concurrent LLM calls (backpressure against API rate limits)
-    lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
-    async with lock, _agent_semaphore:
-        try:
-            result = await asyncio.wait_for(
-                _registry.invoke(
-                    npc_id=npc_id,
-                    player_id=player_id,
-                    prompt=prompt,
-                    player_state=player_dict,
-                ),
-                timeout=settings.agent_invoke_timeout_seconds,
-            )
-        except TimeoutError:
-            logger.warning(
-                "Agent invocation timed out for npc_id=%s player_id=%s", npc_id, player_id
-            )
-            return {
-                "type": "agent_response",
-                "npcId": npc_id,
-                "dialogue": "The NPC seems distracted and doesn't respond...",
-                "actions": player_damage_actions,
-                "playerStateUpdate": None,
-                "npcStateUpdate": None,
-            }
-        except Exception:
-            logger.exception("Agent invocation failed for NPC %s player %s", npc_id, player_id)
-            return {
-                "type": "agent_response",
-                "npcId": npc_id,
-                "dialogue": "The NPC seems confused and doesn't respond.",
-                "actions": player_damage_actions,
-                "playerStateUpdate": None,
-                "npcStateUpdate": None,
-            }
+    # ── Instant combat reply: attacks skip the LLM ──────────────────────
+    # An attacked NPC fires back a deterministic, personality-based response
+    # right away instead of waiting on the (slow) agent. Non-attack prompts
+    # (talk, trade, quests) still go through the full LangGraph agent below.
+    combat_npc = _world_state.get_npc(npc_id)
+    if _is_attack_prompt(prompt) and combat_npc is not None:
+        reply = _basic_combat_reply(combat_npc, player_id)
+        if reply["actions"]:
+            await _world_state.apply_actions(reply["actions"])
+        result = {
+            "dialogue": reply["dialogue"],
+            "actions": reply["actions"],
+            "npcStateUpdate": {"mood": reply["mood"], "relationship_score": 0},
+        }
+    else:
+        # Per-player lock + global semaphore:
+        #   lock  → serializes rapid clicks from the same player (prevents double-damage)
+        #   semaphore → caps total concurrent LLM calls (backpressure against API rate limits)
+        lock = _interaction_locks.setdefault(player_id, asyncio.Lock())
+        async with lock, _agent_semaphore:
+            try:
+                result = await asyncio.wait_for(
+                    _registry.invoke(
+                        npc_id=npc_id,
+                        player_id=player_id,
+                        prompt=prompt,
+                        player_state=player_dict,
+                    ),
+                    timeout=settings.agent_invoke_timeout_seconds,
+                )
+            except TimeoutError:
+                logger.warning(
+                    "Agent invocation timed out for npc_id=%s player_id=%s", npc_id, player_id
+                )
+                return {
+                    "type": "agent_response",
+                    "npcId": npc_id,
+                    "dialogue": "The NPC seems distracted and doesn't respond...",
+                    "actions": player_damage_actions,
+                    "playerStateUpdate": None,
+                    "npcStateUpdate": None,
+                }
+            except Exception:
+                logger.exception("Agent invocation failed for NPC %s player %s", npc_id, player_id)
+                return {
+                    "type": "agent_response",
+                    "npcId": npc_id,
+                    "dialogue": "The NPC seems confused and doesn't respond.",
+                    "actions": player_damage_actions,
+                    "playerStateUpdate": None,
+                    "npcStateUpdate": None,
+                }
 
     # Merge player damage actions before agent actions
     all_actions = player_damage_actions + result.get("actions", [])
