@@ -101,12 +101,25 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         parts.append("")
         parts.append(f"## Personal Notes: {notes}")
 
+    # RAG: retrieve relevant lore based on the player's prompt. Resolve this
+    # before writing the instructions so the length budget can adapt: a plain
+    # reply stays terse, a lore-bearing reply earns more room.
+    lore_entries: list[dict[str, Any]] = []
+    if player_prompt:
+        try:
+            lore_entries = get_retriever().retrieve(player_prompt, top_k=3)
+        except Exception:
+            logger.warning("RAG retrieval failed", exc_info=True)
+            lore_entries = []
+    lore_used = bool(lore_entries)
+
     parts.extend(
         [
             "",
             "## Instructions",
             "Respond to the player's prompt. Use tools to take actions in the world.",
-            "Be creative and stay in character. Keep your responses concise but flavourful.",
+            "Be creative and stay in character.",
+            _length_budget_instruction(lore_used),
             "Your mood, relationship, and memories should naturally colour your dialogue.",
         ]
     )
@@ -119,20 +132,30 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         for msg in recent_chat[-2:]:
             parts.append(f"  [{msg.get('player', '?')}]: {msg.get('text', '')}")
 
-    # RAG: retrieve relevant lore based on the player's prompt
-    if player_prompt:
-        try:
-            lore_entries = get_retriever().retrieve(player_prompt, top_k=3)
-        except Exception:
-            logger.warning("RAG retrieval failed", exc_info=True)
-            lore_entries = []
-        if lore_entries:
-            parts.append("")
-            parts.append("## World Lore (use to enrich your responses)")
-            for entry in lore_entries:
-                parts.append(f"[{entry['topic']}]: {entry['content']}")
+    if lore_used:
+        parts.append("")
+        parts.append("## World Lore (use to enrich your responses)")
+        for entry in lore_entries:
+            parts.append(f"[{entry['topic']}]: {entry['content']}")
 
     return "\n".join(parts)
+
+
+def _length_budget_instruction(lore_used: bool) -> str:
+    """Hard character budget for the spoken reply, tighter when there is no lore.
+
+    Prompt-only enforcement: the dialogue is never truncated server-side, so the
+    instruction must be explicit. Lore-bearing replies earn extra room to share it.
+    """
+    if lore_used:
+        return (
+            "LENGTH: Keep your reply under 500 characters since you are sharing lore. "
+            "Stay tight — only the lore that answers the prompt, no rambling."
+        )
+    return (
+        "LENGTH: Keep your reply under 200 characters. One or two punchy sentences. "
+        "No exposition, no lists, no lore dumps."
+    )
 
 
 def _build_compact_system_prompt(state: NPCAgentState) -> str:
@@ -141,7 +164,8 @@ def _build_compact_system_prompt(state: NPCAgentState) -> str:
         f"You are {state.get('npc_name', 'an NPC')} in {world.get('zone', 'the area')} in a fantasy RPG world. "
         f"Personality: {state.get('npc_personality', 'helpful villager')}. "
         f"Mood: {state.get('mood', 'neutral')}. "
-        "Reply naturally in 1-2 short sentences in character. Do not mention being an AI."
+        "Reply naturally in character, but keep it under 200 characters — one short "
+        "sentence is plenty. Do not mention being an AI."
     )
 
 

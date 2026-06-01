@@ -23,6 +23,9 @@ class NPCData:
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     mood: str = "neutral"
     scale: float = 1.0
+    # Archetype (e.g. "hostile_boss", "friendly_merchant") drives the instant,
+    # deterministic combat reply so attacks don't wait on the LLM.
+    archetype: str = ""
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -79,12 +82,14 @@ class WorldState:
             personality_key = npc_def.get("personality_key", npc_id)
             personality = NPC_PERSONALITIES.get(personality_key, {})
             system_prompt = personality.get("system_prompt", "You are a mysterious stranger.")
+            archetype = personality.get("archetype", "")
             initial_hp = npc_def.get("initial_hp", 100)
 
             if npc_id in self.npcs:
                 # Update existing (preserving dynamic state like current HP)
                 self.npcs[npc_id].name = npc_def["name"]
                 self.npcs[npc_id].personality = system_prompt
+                self.npcs[npc_id].archetype = archetype
                 self.npcs[npc_id].position = list(npc_def["position"])
                 self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
             else:
@@ -97,6 +102,7 @@ class WorldState:
                     max_hp=initial_hp,
                     position=list(npc_def["position"]),
                     scale=npc_def.get("scale", 1.0),
+                    archetype=archetype,
                 )
                 self.npcs[npc_id] = npc
 

@@ -1,4 +1,17 @@
 import { UIComponent } from "./core/UIComponent";
+import {
+  applyHighlightedText,
+  categoryAccent,
+  categoryForLabel,
+  type Highlight,
+  type NpcCategory,
+} from "./npcText";
+
+/** Optional per-message styling for NPC dialogue (category accent + highlights). */
+export interface NpcMessageStyle {
+  category?: NpcCategory;
+  highlights?: Highlight[];
+}
 
 /** Stored message for per-NPC chat history. */
 interface ChatEntry {
@@ -6,6 +19,8 @@ interface ChatEntry {
   text: string;
   ts: string;
   npcName: string;
+  category?: NpcCategory;
+  highlights?: Highlight[];
 }
 
 const DEFAULT_ACTIONS: Array<{ label: string; prompt: string }> = [
@@ -55,16 +70,8 @@ const NPC_ACTIONS: Record<string, Array<{ label: string; prompt: string }>> = {
 };
 
 function getActionColor(label: string): { border: string; text: string; hover: string; glow: string } {
-  const l = label.toLowerCase();
-  if (/attack|challenge|fight|flee|defend|strike/.test(l))
-    return { border: 'rgba(200,60,60,0.5)', text: '#f08888', hover: 'rgba(200,60,60,0.2)', glow: 'rgba(200,60,60,0.4)' };
-  if (/heal|bless|protect|restore/.test(l))
-    return { border: 'rgba(60,180,100,0.5)', text: '#88ddb0', hover: 'rgba(60,180,100,0.2)', glow: 'rgba(60,180,100,0.4)' };
-  if (/trade|browse|sell|buy|bribe/.test(l))
-    return { border: 'rgba(197,165,90,0.5)', text: '#d4b86a', hover: 'rgba(197,165,90,0.2)', glow: 'rgba(197,165,90,0.4)' };
-  if (/quest|story|lore|wisdom/.test(l))
-    return { border: 'rgba(130,160,220,0.5)', text: '#a0b8f0', hover: 'rgba(130,160,220,0.2)', glow: 'rgba(130,160,220,0.4)' };
-  return { border: 'rgba(197,165,90,0.3)', text: '#c8c0b0', hover: 'rgba(197,165,90,0.12)', glow: 'rgba(197,165,90,0.3)' };
+  const { border, text, hover, glow } = categoryAccent(categoryForLabel(label));
+  return { border, text, hover, glow };
 }
 
 // Mood colors without emoji (cross-OS safe)
@@ -187,10 +194,14 @@ export class InteractionPanel extends UIComponent {
     }
   }
 
-  addMessage(sender: "player" | "npc" | "system", text: string): void {
+  addMessage(sender: "player" | "npc" | "system", text: string, style?: NpcMessageStyle): void {
     const now = new Date();
     const ts  = `${String(now.getHours()).padStart(2,"0")}:${String(now.getMinutes()).padStart(2,"0")}`;
-    const entry: ChatEntry = { sender, text, ts, npcName: this.npcName };
+    const entry: ChatEntry = {
+      sender, text, ts, npcName: this.npcName,
+      category: sender === "npc" ? style?.category : undefined,
+      highlights: sender === "npc" ? style?.highlights : undefined,
+    };
     this.currentMessages.push(entry);
     this._renderEntry(entry, true);
   }
@@ -505,7 +516,7 @@ export class InteractionPanel extends UIComponent {
   }
 
   private _renderEntry(entry: ChatEntry, scrollToBottom: boolean): void {
-    const { sender, text, ts, npcName } = entry;
+    const { sender, text, ts, npcName, category, highlights } = entry;
     const isPlayer = sender === "player";
     const isSystem = sender === "system";
 
@@ -562,7 +573,9 @@ export class InteractionPanel extends UIComponent {
       meta.appendChild(tsEl);
       row.appendChild(meta);
 
-      // Bubble
+      // Bubble — NPC bubbles take a category accent (per-archetype baseline or
+      // overridden by the turn's action), so a sale reads differently to a threat.
+      const accent = (!isPlayer && category) ? categoryAccent(category) : null;
       const bubble = document.createElement("div");
       Object.assign(bubble.style, {
         maxWidth: "78%",
@@ -571,13 +584,22 @@ export class InteractionPanel extends UIComponent {
         fontSize: "13px",
         lineHeight: "1.55",
         wordBreak: "break-word",
-        background: isPlayer ? "rgba(60,110,190,0.24)" : "rgba(197,165,90,0.13)",
+        background: isPlayer
+          ? "rgba(60,110,190,0.24)"
+          : (accent?.bubbleBg ?? "rgba(197,165,90,0.13)"),
         border: isPlayer
           ? "1px solid rgba(100,160,220,0.32)"
-          : "1px solid rgba(197,165,90,0.25)",
+          : `1px solid ${accent?.bubbleBorder ?? "rgba(197,165,90,0.25)"}`,
         color: isPlayer ? "#c4dcf8" : "#e8dcc8",
+        borderLeft: !isPlayer && accent
+          ? `3px solid ${accent.border}`
+          : undefined,
       } as CSSStyleDeclaration);
-      bubble.textContent = text;
+      if (!isPlayer && highlights && highlights.length > 0) {
+        applyHighlightedText(bubble, text, highlights);
+      } else {
+        bubble.textContent = text;
+      }
 
       row.appendChild(bubble);
       this.chatHistory.appendChild(row);

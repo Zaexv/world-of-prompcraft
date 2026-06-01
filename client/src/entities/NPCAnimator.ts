@@ -2,7 +2,18 @@ import * as THREE from 'three';
 import { GLTF_CLIP_MAP } from './NPCModels';
 import type { NPCMotionProfile } from './NPCMotion';
 
-export type AnimationName = 'idle' | 'walk' | 'attack' | 'emote';
+export type AnimationName = 'idle' | 'walk' | 'attack' | 'emote' | 'talk';
+
+/** Per-emote playback length (seconds) for the procedural animator. */
+const EMOTE_DURATIONS: Record<string, number> = {
+  bow: 1.6,
+  wave: 1.5,
+  laugh: 1.6,
+  cheer: 1.6,
+  threaten: 1.8,
+  dance: 2.2,
+  cry: 2.0,
+};
 
 /**
  * Animation controller for an NPC.
@@ -23,6 +34,10 @@ export class NPCAnimator {
   private currentAnim: AnimationName = 'idle';
   private attackTimer = 0;
   private emoteTimer = 0;
+  private currentEmote = 'wave';
+  private talkTimer = 0;
+  /** How long a talk gesture runs; set by the caller to match the bubble. */
+  public talkDuration = 2.5;
   private attackOrigin: THREE.Vector3 = new THREE.Vector3();
   private attackDirection: THREE.Vector3 = new THREE.Vector3(0, 0, 1);
   private still = false;
@@ -77,19 +92,24 @@ export class NPCAnimator {
     this.still = value;
   }
 
-  play(animationName: string): void {
+  play(animationName: string, emote?: string): void {
     const name = animationName as AnimationName;
-    if (name === this.currentAnim) return;
+    if (name === 'emote' && emote) this.currentEmote = emote;
+    // Emote/talk always restart (re-issuing the same gesture should replay it);
+    // looping states (idle/walk) short-circuit to avoid resetting their phase.
+    if (name === this.currentAnim && name !== 'emote' && name !== 'talk') return;
     this.currentAnim = name;
     this.phase = 0;
     this.attackTimer = 0;
     this.emoteTimer = 0;
+    this.talkTimer = 0;
     if (name === 'attack') {
       this.attackOrigin.copy(this.group.position);
       this.attackDirection.set(0, 0, 1).applyQuaternion(this.group.quaternion).normalize();
     }
     if (this.mixer) {
-      this.playGLTFClip(name);
+      // GLTF NPCs have no distinct talk clip — keep their current clip running.
+      if (name !== 'talk') this.playGLTFClip(name);
     }
   }
 
@@ -125,6 +145,9 @@ export class NPCAnimator {
         break;
       case 'emote':
         this.animateEmote(throttledDelta);
+        break;
+      case 'talk':
+        this.animateTalk(throttledDelta);
         break;
     }
   }
@@ -200,16 +223,81 @@ export class NPCAnimator {
     }
   }
 
-  // --- Emote: scale pulse ---
+  // --- Emote: a distinct procedural gesture per emote name ---
   private animateEmote(delta: number): void {
     this.emoteTimer += delta;
-    const pulse = 1 + Math.sin(this.emoteTimer * 6) * (0.1 + this.profile.swayAmplitude * 1.8);
-    this.group.scale.set(pulse, pulse, pulse);
+    const t = this.emoteTimer;
+    const duration = EMOTE_DURATIONS[this.currentEmote] ?? 1.5;
+    // 0→1→0 envelope so the gesture eases in and settles back out.
+    const env = Math.sin(Math.min(t / duration, 1) * Math.PI);
 
-    if (this.emoteTimer > 1.5) {
-      this.group.scale.set(1, 1, 1);
-      this.play('idle');
+    switch (this.currentEmote) {
+      case 'bow': {
+        this.group.rotation.x = env * 0.6;
+        this.group.position.y = this.baseY - env * 0.1;
+        break;
+      }
+      case 'wave': {
+        if (this.rightArm) {
+          this.rightArm.rotation.z = -0.9 * env;
+          this.rightArm.rotation.x = Math.sin(t * 10) * 0.5 * env;
+        }
+        break;
+      }
+      case 'laugh':
+      case 'cheer': {
+        this.group.position.y = this.baseY + Math.abs(Math.sin(t * 9)) * 0.18 * env;
+        if (this.leftArm) this.leftArm.rotation.z = (0.3 + 0.9 * env);
+        if (this.rightArm) this.rightArm.rotation.z = -(0.3 + 0.9 * env);
+        break;
+      }
+      case 'threaten': {
+        this.group.rotation.x = -env * 0.22;
+        if (this.rightArm) this.rightArm.rotation.z = -1.1 * env;
+        this.group.rotation.z = Math.sin(t * 22) * 0.04 * env; // menacing shake
+        break;
+      }
+      case 'dance': {
+        this.group.rotation.z = Math.sin(t * 6) * 0.22 * env;
+        this.group.position.y = this.baseY + Math.abs(Math.sin(t * 6)) * 0.12 * env;
+        if (this.leftArm) this.leftArm.rotation.x = Math.sin(t * 6) * 0.7 * env;
+        if (this.rightArm) this.rightArm.rotation.x = -Math.sin(t * 6) * 0.7 * env;
+        break;
+      }
+      case 'cry': {
+        this.group.rotation.x = env * 0.18; // slumped forward
+        this.group.position.y = this.baseY + Math.sin(t * 3) * 0.03 * env;
+        if (this.leftArm) this.leftArm.rotation.x = -1.2 * env; // hands toward face
+        if (this.rightArm) this.rightArm.rotation.x = -1.2 * env;
+        break;
+      }
+      default: {
+        const pulse = 1 + Math.sin(t * 6) * (0.1 + this.profile.swayAmplitude * 1.8) * env;
+        this.group.scale.set(pulse, pulse, pulse);
+      }
     }
+
+    if (t > duration) this._endGesture();
+  }
+
+  // --- Talk: subtle torso bob + sway while a chat bubble is shown ---
+  private animateTalk(delta: number): void {
+    this.talkTimer += delta;
+    const t = this.talkTimer;
+    this.group.position.y = this.baseY + Math.sin(t * 8) * 0.025;
+    this.group.rotation.z = Math.sin(t * 3.5) * 0.03;
+    if (this.rightArm) this.rightArm.rotation.x = Math.sin(t * 5) * 0.12;
+
+    if (t > this.talkDuration) this._endGesture();
+  }
+
+  /** Reset any pose offsets left by a gesture and return to idle. */
+  private _endGesture(): void {
+    this.group.scale.set(1, 1, 1);
+    this.group.rotation.x = 0;
+    if (this.leftArm) this.leftArm.rotation.set(0, 0, this.leftArm.rotation.z);
+    if (this.rightArm) this.rightArm.rotation.set(0, 0, this.rightArm.rotation.z);
+    this.play('idle');
   }
 }
 
