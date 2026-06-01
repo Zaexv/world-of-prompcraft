@@ -56,6 +56,7 @@ export interface EntityManagerLike {
     mesh: THREE.Group;
     position?: THREE.Vector3;
     playEmote?: (emote: string) => void;
+    playGesture?: (gesture: string) => void;
     showAction?: (kind: string, duration?: number) => void;
     nameplate?: {
       updateHP: (hp: number, maxHp: number) => void;
@@ -216,6 +217,7 @@ export class ReactionSystem {
         const { amount = 10, target = "player", damageType } = action.params;
         this.audio?.playSfx("hit");
         if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
+        actingNpc?.playGesture?.("attack");
         if (amount < 0) {
           const healAmt = Math.abs(amount);
           this.playerState.heal(healAmt);
@@ -244,6 +246,7 @@ export class ReactionSystem {
         const { amount = 10 } = action.params;
         this.audio?.playSfx("heal");
         if (actingNpc?.showAction) actingNpc.showAction("heal", 3.0);
+        actingNpc?.playGesture?.("cheer"); // arms-raised casting gesture
         if (amount > 0) {
           this.playerState.heal(amount);
           this.createFloatingText(`+${amount}`, "#33ff66", this.playerWorldPos());
@@ -348,6 +351,7 @@ export class ReactionSystem {
         const { questId, quest, questName, description } = action.params;
         this.audio?.playSfx("quest_start");
         if (actingNpc?.showAction) actingNpc.showAction("start_quest", 3.0);
+        actingNpc?.playGesture?.("bow"); // present the quest with a gesture
         const id = questId ?? "";
         const name = quest ?? questName ?? description ?? "Unknown Quest";
         if (id) this.playerState.startQuest(id);
@@ -367,6 +371,7 @@ export class ReactionSystem {
         const { questId, questName, reward } = action.params;
         this.audio?.playSfx("quest_complete");
         if (actingNpc?.showAction) actingNpc.showAction("complete_quest", 3.0);
+        actingNpc?.playGesture?.("cheer");
         const id = questId ?? questName ?? "";
         const name = questName ?? questId ?? "Quest";
         if (id) this.playerState.completeQuest(id);

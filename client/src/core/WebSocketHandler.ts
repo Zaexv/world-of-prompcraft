@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import type { AgentResponse, RemotePlayerData } from '../network/MessageProtocol';
+import {
+  archetypeCategory,
+  categoryAccent,
+  categoryForActions,
+  highlightsFromActions,
+} from '../ui/npcText';
 import type { EntityManager } from '../entities/EntityManager';
 import type { UIManager } from '../ui/UIManager';
 import type { PlayerState } from '../state/PlayerState';
@@ -12,6 +18,11 @@ import { DamagePopup } from '../ui/DamagePopup';
 import type { RuntimeState } from './RuntimeState';
 
 interface LoadingOverlay { hide(): void }
+
+/** Talk-gesture length scaled to dialogue length, clamped to a sane range. */
+function talkSeconds(dialogue: string): number {
+  return Math.max(1.5, Math.min(4, dialogue.length * 0.045));
+}
 
 export interface WSHandlerDeps {
   runtime: RuntimeState;
@@ -157,9 +168,12 @@ export class WebSocketHandler {
 
     if (data.type === 'npc_dialogue') {
       if (data.npcName) {
-        this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, '#c5a55a');
+        const archetype = this.d.npcStateStore.getState(data.npcId as string)?.personality;
+        const dialogueColor = categoryAccent(archetypeCategory(archetype)).text;
+        this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, dialogueColor);
         const npc = this.d.entityManager.getNPC(data.npcId as string);
         this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
+        npc?.playTalk(talkSeconds(data.dialogue as string));
       } else {
         this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
         const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
@@ -193,22 +207,36 @@ export class WebSocketHandler {
       const response = data as AgentResponse;
       const isActiveNpc = response.npcId === this.d.runtime.activeNpcId;
 
+      // Pick a styling category: what the NPC actually DID this turn wins; fall
+      // back to its archetype so plain chit-chat still carries a baseline tint.
+      const archetype = this.d.npcStateStore.getState(response.npcId)?.personality;
+      const dialogueCategory =
+        categoryForActions(response.actions) ?? archetypeCategory(archetype);
+      const highlights = highlightsFromActions(response.actions);
+
       if (isActiveNpc) {
         this.d.uiManager.interactionPanel.hideThinking();
-        this.d.uiManager.interactionPanel.addMessage('npc', response.dialogue);
+        this.d.uiManager.interactionPanel.addMessage('npc', response.dialogue, {
+          category: dialogueCategory,
+          highlights,
+        });
       }
 
       const respondingNpc = this.d.entityManager.getNPC(response.npcId);
       if (respondingNpc) {
         respondingNpc.actionIcon.hide();
         this.d.spawnChatBubble(response.dialogue, respondingNpc.mesh, 'npc');
+        // Talk motion sized to the line; any action gesture below overrides it.
+        respondingNpc.playTalk(talkSeconds(response.dialogue));
       }
 
       const chatNpcName =
         this.d.npcNameMap.get(response.npcId) ??
         this.d.entityManager.getNPC(response.npcId)?.name ??
         response.npcId;
-      this.d.uiManager.chatPanel.addMessage(chatNpcName, response.dialogue, '#c5a55a');
+      this.d.uiManager.chatPanel.addMessage(
+        chatNpcName, response.dialogue, categoryAccent(dialogueCategory).text,
+      );
       this.d.reactionSystem.handleResponse(response);
 
       if (isActiveNpc && this.d.uiManager.combatHUD.isVisible) {

@@ -191,8 +191,25 @@ export class NPC {
   }
 
   playEmote(emote: string): void {
-    this.animator.play(emote === 'attack' ? 'attack' : 'emote');
+    if (emote === 'attack') this.animator.play('attack');
+    else this.animator.play('emote', emote);
     this.actionIcon.displayAction(emote, 2.5);
+  }
+
+  /**
+   * Drive a body gesture WITHOUT changing the action icon — used when an action
+   * (damage, heal, quest) already shows its own semantic icon but should also
+   * animate. `gesture` is an emote name or 'attack'.
+   */
+  playGesture(gesture: string): void {
+    if (gesture === 'attack') this.animator.play('attack');
+    else this.animator.play('emote', gesture);
+  }
+
+  /** Play a brief talk motion for `seconds` (matched to the chat bubble lifetime). */
+  playTalk(seconds = 2.5): void {
+    this.animator.talkDuration = seconds;
+    this.animator.play('talk');
   }
 
   showAction(actionKind: string, duration = 3.0): void {
