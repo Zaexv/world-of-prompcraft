@@ -29,12 +29,9 @@ import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
-import { buildMesh, selectBiomeBuildingType, selectBiomePropType, selectBiomeVegetationType } from '../meshes';
+import { buildMesh, selectBiomePropType, selectBiomeVegetationType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
-import { getEncountersFor } from './EncounterRegistry';
 import { tagDebugInfo } from '../debug/DebugInfo';
-// Side-effect import: registers all built-in encounters
-import './encounters';
 
 // ── Seeded PRNG ───────────────────────────────────────────────────────────────
 
@@ -258,85 +255,10 @@ export class ProceduralPopulator {
     const objs: THREE.Object3D[] = [];
     const npcIds: string[] = [];
 
-    // ── Encounter (first pick — highest-priority content) ──────────────
-    const eligibleEncounters = getEncountersFor(biome, dist);
-    if (eligibleEncounters.length > 0) {
-      for (const enc of eligibleEncounters) {
-        if (!rng.chance(enc.chance)) continue;
-
-        const ex = worldX + rng.nextRange(8, SIZE - 8);
-        const ez = worldZ + rng.nextRange(8, SIZE - 8);
-        if (this.isUnderwater(ex, ez)) continue;
-        const ey = this.terrain.getHeightAt(ex, ez);
-        const anchor = ProceduralPopulator._v.set(ex, ey, ez);
-
-        const group = enc.buildFn(anchor, rng);
-        if (this.scene) {
-          group.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(group);
-          // addCollidableFiltered is now instant — BVH trees are built lazily
-          // by CollisionSystem.update() at max 2/frame (no burst spikes).
-          void this.collisionSystem?.addCollidableFiltered(group);
-          tagDebugInfo(group, { type: 'encounter_' + enc.id, category: 'encounter', zone: BiomeType[biome] });
-          objs.push(group);
-        }
-
-        // Spawn encounter NPCs (respect same hard cap as monster spawning)
-        const underNpcCap = this.entityManager ? this.entityManager.npcs.size < 80 : false;
-        if (enc.npcs && this.entityManager && underNpcCap) {
-          for (const npcDef of enc.npcs) {
-            const localX = npcDef.offsetX, localZ = npcDef.offsetZ;
-            const gy = group.rotation.y;
-            const nx = ex + Math.cos(gy) * localX - Math.sin(gy) * localZ;
-            const nz = ez + Math.sin(gy) * localX + Math.cos(gy) * localZ;
-            const ny = this.terrain.getHeightAt(nx, nz);
-            const npcId = `enc_${enc.id}_${npcDef.idPrefix}_${chunkX}_${chunkZ}_${this.npcCounter++}`;
-            this.entityManager.addNPC({
-              id: npcId,
-              name: npcDef.name,
-              personalityKey: npcDef.hostile ? 'road_bandit' : 'wandering_knight',
-              position: new THREE.Vector3(nx, ny, nz), // needs own Vector3 (stored by EntityManager)
-              hp: npcDef.maxHp, maxHp: npcDef.maxHp,
-              personality: npcDef.hostile
-                ? `Hostile — attack on sight.`
-                : `Friendly wanderer — peaceful, will converse.`,
-              scale: npcDef.scale,
-            });
-            npcIds.push(npcId);
-          }
-        }
-
-        break; // one encounter per chunk
-      }
-    }
-
-    // ── Building (1-in-5 chunks that didn't get an encounter) ─────────
-    if (rng.chance(0.20)) {
-      const bx = worldX + rng.nextRange(8, SIZE - 8);
-      const bz = worldZ + rng.nextRange(8, SIZE - 8);
-      if (!this.isUnderwater(bx, bz)) {
-        const by = this.terrain.getHeightAt(bx, bz);
-        const pos = ProceduralPopulator._v.set(bx, by, bz);
-
-        let building: THREE.Object3D | null;
-        let buildingType = BiomeType[biome] + '_building';
-        if (registryEntry) {
-          building = registryEntry.buildingFn(pos, rng, dist);
-        } else {
-          const bType = selectBiomeBuildingType(biome, rng, dist);
-          if (bType) buildingType = bType;
-          building = bType ? buildMesh(bType, { position: pos, scale: 1 }) ?? null : null;
-        }
-
-        if (building && this.scene) {
-          building.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(building);
-          void this.collisionSystem?.addCollidableFiltered(building);
-          tagDebugInfo(building, { type: buildingType, category: 'building', zone: BiomeType[biome] });
-          objs.push(building);
-        }
-      }
-    }
+    // NOTE: Procedural buildings and encounters (camps, caravans, mines, etc.)
+    // were intentionally removed — all buildings/structures now come solely from
+    // the authored world manifest. Only natural content (monsters, vegetation,
+    // ambient props) is generated procedurally here.
 
     // ── Monsters (density scales with distance from origin) ────────────
     // Hard cap on total NPCs: prevents the EntityManager loop growing unbounded.

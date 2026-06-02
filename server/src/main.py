@@ -62,6 +62,28 @@ async def health() -> dict[str, str]:
     return {"status": "ok", "llm_provider": settings.llm_provider}
 
 
+def _manifest_path() -> str:
+    """Resolve the shared world manifest path (mirrors the save handler)."""
+    import os
+
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    return os.path.join(base_dir, "shared", "data", "world_manifest.json")
+
+
+@app.get("/world/manifest")
+async def get_world_manifest() -> dict[str, Any]:
+    """Serve the latest saved world manifest so the editor/game load live edits."""
+    import json
+    import os
+
+    path = _manifest_path()
+    if not os.path.exists(path):
+        return {"error": "manifest not found"}
+    with open(path) as f:
+        manifest: dict[str, Any] = json.load(f)
+    return manifest
+
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await manager.connect(websocket)

@@ -20,6 +20,13 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        // Lets WorldManifest.fetchAsync() pull the latest saved manifest from
+        // the backend (GET /world/manifest) instead of the build-time bundle.
+        '/world': {
+          target: serverUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
   };

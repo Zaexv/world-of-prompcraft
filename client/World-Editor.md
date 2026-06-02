@@ -39,7 +39,7 @@ The editor uses a dual-camera system designed for both close-up inspection and r
 You can switch modes via the UI Panel or keyboard shortcuts:
 *   **SELECT:** Idle mode. Hover to see the cursor.
 *   **MOVE:** Click and drag authored items (Buildings, NPCs, Paths, Features).
-*   **RAISE / LOWER:** Sculpt the underlying terrain noise. This writes explicit `grass_patch` adjustments to the manifest to permanently alter the terrain.
+*   **RAISE / LOWER:** True additive sculpting. Each brush deposit adds a smooth, radial height delta on top of the procedural noise; holding the brush in place deepens a hill or valley. These are stored as `world.topology.sculpt` strokes in the manifest and read back by the same `getHeightAt` used for rendering, collision, and player physics — so the deformation looks identical in-game.
 *   **PLACE OBJ / NPC:** Spawns an authored item. A translucent ghost preview follows the cursor.
 *   **PLACE PATH:** Click once to set the start point (marked by a dirt peg), click again to set the end point.
 *   **REMOVE:** Click to delete authored items from the manifest, or click procedural items to hide them.

@@ -32,7 +32,7 @@ try {
     await worldManifest.fetchAsync();
     setTerrainManifest(worldManifest);
     setBiomeManifest(worldManifest);
-    terrain.setManifest(worldManifest);
+    terrain.setManifest(worldManifest.toData());
     terrain.init();
 
     const assetLoader = new AssetLoader();
@@ -109,11 +109,17 @@ try {
       if (e.code === 'KeyV') { isFlyMode = !isFlyMode; orbitControls.enabled = !isFlyMode; if (isFlyMode) syncFlyRot(); updateFlyHUD(); if (!isFlyMode) { orbitControls.target.copy(new THREE.Vector3(0,0,-50).applyQuaternion(camera.quaternion).add(camera.position)); orbitControls.update(); } }
     });
 
-    window.addEventListener('editor:manifest_changed', () => {
-      terrain.setManifest(worldManifest);
+    window.addEventListener('editor:manifest_changed', (e) => {
+      terrain.setManifest(worldManifest.toData());
       worldGenerator.clearManifestItems();
       worldGenerator.setWorldManifest(worldManifest);
+      // Refresh around the edited point when provided (so far-away placements
+      // appear immediately), then also around the camera focus.
+      const detail = (e as CustomEvent).detail as { x?: number; z?: number } | undefined;
       const fx = isFlyMode ? camera.position.x : orbitControls.target.x, fz = isFlyMode ? camera.position.z : orbitControls.target.z;
+      if (detail && typeof detail.x === 'number' && typeof detail.z === 'number') {
+        terrain.refreshAt(detail.x, detail.z, 150);
+      }
       terrain.refreshAt(fx, fz, 250);
     });
 

@@ -31,9 +31,12 @@ export class WorldBuilder {
     this.scene = scene;
     this.terrain = terrain;
     this.persistence = new WorldBuilderPersistence();
-    
-    // Load persisted objects
-    this.loadFromStorage();
+
+    // The world is manifest-driven: we no longer reload objects placed in past
+    // sessions from localStorage (that's how stray, non-manifest structures like
+    // "old_watchtower" reappeared). Purge any stale persisted data so authored
+    // content (the world manifest) is the single source of truth.
+    this.persistence.clear();
   }
 
   setCollisionSystem(cs: CollisionSystem): void {
@@ -41,19 +44,6 @@ export class WorldBuilder {
     // Register existing objects for collision
     for (const obj of this.objects.values()) {
       this.collisionSystem.addCollidableFiltered(obj.group);
-    }
-  }
-
-  private loadFromStorage(): void {
-    const saved = this.persistence.load();
-    for (const obj of saved) {
-      this.spawnObject({
-        objectId: obj.id,
-        objectType: obj.type,
-        position: obj.position,
-        scale: obj.scale,
-        label: obj.label,
-      }, false); // don't push to undo stack when loading
     }
   }
 

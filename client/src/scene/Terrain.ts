@@ -79,6 +79,43 @@ function getBuildingPads(): BuildingPad[] {
   return [...LEGACY_BUILDING_PADS, ..._manifestPads];
 }
 
+// ── Additive sculpt layer ─────────────────────────────────────────────────────
+// True terrain sculpting: each RAISE/LOWER brush deposit adds a smooth, radial
+// height delta on TOP of the noise + building pads. Persisted in the manifest
+// under `world.topology.sculpt` so the editor mesh, the in-game mesh, collision,
+// and player physics all read the identical deformed surface.
+interface SculptStroke {
+  x: number;
+  z: number;
+  radius: number;
+  delta: number;
+}
+
+let _sculptStrokes: SculptStroke[] = [];
+
+/** Cheap AABB pre-check: does any sculpt stroke overlap this region? */
+function sculptInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  for (const s of _sculptStrokes) {
+    const dx = Math.max(0, Math.max(minX - s.x, s.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - s.z, s.z - maxZ));
+    if (dx * dx + dz * dz < s.radius * s.radius) return true;
+  }
+  return false;
+}
+
+/** Sum smooth radial height deltas from all overlapping sculpt strokes. */
+function applySculpt(x: number, z: number, h: number): number {
+  if (_sculptStrokes.length === 0) return h;
+  let off = 0;
+  for (const s of _sculptStrokes) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d >= s.radius) continue;
+    const t = d / s.radius;
+    off += s.delta * (1 - t * t * (3 - 2 * t)); // smoothstep falloff: 1 at centre → 0 at radius
+  }
+  return h + off;
+}
+
 /** Cheap AABB pre-check: does any pad overlap this region? */
 function padsInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
   for (const p of getBuildingPads()) {
@@ -307,7 +344,7 @@ export class Terrain {
    */
   getHeightAt(x: number, z: number): number {
     const h = Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
-    return applyBuildingPads(x, z, h);
+    return applySculpt(x, z, applyBuildingPads(x, z, h));
   }
 
   /**
@@ -335,6 +372,16 @@ export class Terrain {
 
   setManifest(data: any): void {
     _manifestPads = [];
+    _sculptStrokes = [];
+
+    // 0. Additive sculpt strokes (true raise/lower terrain deformation)
+    if (data?.world?.topology?.sculpt) {
+      for (const s of data.world.topology.sculpt) {
+        if (typeof s?.x === 'number' && typeof s?.z === 'number' && s.radius > 0) {
+          _sculptStrokes.push({ x: s.x, z: s.z, radius: s.radius, delta: s.delta ?? 0 });
+        }
+      }
+    }
 
     // 1. Process explicit topology features (e.g., flat_patch)
     if (data?.world?.topology?.features) {
@@ -582,12 +629,14 @@ export class Terrain {
     // returns 0 for every vertex and we can skip calling it entirely.
     const chunkHasLift = hasLiftInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasPad = padsInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
+    const chunkHasSculpt = sculptInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
 
     // Full world height for a sample point, matching getHeightAt (noise + lift +
-    // building-pad levelling). Used for edge-neighbour normals below too.
+    // building-pad levelling + sculpt). Used for edge-neighbour normals below too.
     const sampleHeight = (sx: number, sz: number, weights?: BiomeWeights): number => {
       const h = Terrain.computeHeight(sx, sz, weights) + (chunkHasLift ? getVerticalLiftAt(sx, sz) : 0);
-      return chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
+      const padded = chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
+      return chunkHasSculpt ? applySculpt(sx, sz, padded) : padded;
     };
 
     // ── Pass 1: world-space positions + biome weights + heights ───────────────

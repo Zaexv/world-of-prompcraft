@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { UIComponent } from "./core/UIComponent";
 import { TerrainEditor, EditorMode } from "../debug/TerrainEditor";
 import { meshTypes } from "../meshes/index";
@@ -163,9 +163,23 @@ export class TerrainEditorPanel extends UIComponent {
         const mode = btn.getAttribute('data-mode');
         const paletteSection = this.container.querySelector('.te-palette-section') as HTMLElement;
         const sculptSettings = this.container.querySelector('.te-sculpt-settings') as HTMLElement;
-        
-        paletteSection.style.display = mode === 'place' ? 'flex' : 'none';
+        const categorySelect = this.container.querySelector('.te-category-select') as HTMLSelectElement;
+
+        // The asset palette is needed for BOTH object and NPC placement.
+        paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
         sculptSettings.style.display = (mode === 'raise' || mode === 'lower') ? 'flex' : 'none';
+
+        // Drive the asset category from the mode: NPC placement must list NPC
+        // styles (not whatever building was last picked — which produced invalid
+        // NPCs like style "pavilion"), and object placement must never use an
+        // NPC style. Lock the category dropdown while placing NPCs.
+        if (mode === 'npc') {
+          if (categorySelect.value !== 'npc') { categorySelect.value = 'npc'; this.updateAssetList(); }
+          categorySelect.disabled = true;
+        } else {
+          categorySelect.disabled = false;
+          if (mode === 'place' && categorySelect.value === 'npc') { categorySelect.value = 'building'; this.updateAssetList(); }
+        }
 
         switch (mode) {
           case 'off': this.editor.setMode(EditorMode.OFF); break;
@@ -268,10 +282,15 @@ export class TerrainEditorPanel extends UIComponent {
     let types: string[] = [];
     if (category === 'npc') {
       types = [
-        'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer', 
-        'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem', 
+        'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer',
+        'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem',
         'boar', 'orc', 'undead', 'oracle'
       ];
+    } else if (category === 'encounter') {
+      // Encounter structures (campsite, bandit camp, …) are registered as 'prop'
+      // meshes with an `encounter_` prefix — there is no 'encounter' MeshCategory,
+      // so surface them by prefix instead (meshTypes('encounter') returns []).
+      types = meshTypes().filter(t => t.startsWith('encounter_')).sort();
     } else {
       types = meshTypes(category).sort();
     }
