@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import type { AgentResponse, RemotePlayerData } from '../network/MessageProtocol';
+import {
+  archetypeCategory,
+  categoryAccent,
+  categoryForActions,
+  highlightsFromActions,
+} from '../ui/npcText';
 import type { EntityManager } from '../entities/EntityManager';
 import type { UIManager } from '../ui/UIManager';
 import type { PlayerState } from '../state/PlayerState';
@@ -12,6 +18,11 @@ import { DamagePopup } from '../ui/DamagePopup';
 import type { RuntimeState } from './RuntimeState';
 
 interface LoadingOverlay { hide(): void }
+
+/** Talk-gesture length scaled to dialogue length, clamped to a sane range. */
+function talkSeconds(dialogue: string): number {
+  return Math.max(1.5, Math.min(4, dialogue.length * 0.045));
+}
 
 export interface WSHandlerDeps {
   runtime: RuntimeState;
@@ -157,22 +168,12 @@ export class WebSocketHandler {
 
     if (data.type === 'npc_dialogue') {
       if (data.npcName) {
-        this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, '#c5a55a');
+        const archetype = this.d.npcStateStore.getState(data.npcId as string)?.personality;
+        const dialogueColor = categoryAccent(archetypeCategory(archetype)).text;
+        this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, dialogueColor);
         const npc = this.d.entityManager.getNPC(data.npcId as string);
         this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
-
-        // Show NPC narration in the active interaction panel so the player sees it mid-combat
-        const isActiveNpc = (data.npcId as string) === this.d.runtime.activeNpcId;
-        if (isActiveNpc && data.dialogue) {
-          this.d.uiManager.interactionPanel.addMessage('npc', data.dialogue as string);
-        }
-        // Log to combat HUD when a fight is in progress
-        if (this.d.uiManager.combatHUD.isVisible && data.dialogue) {
-          this.d.uiManager.combatHUD.addLogEntry(
-            `${data.npcName as string}: ${data.dialogue as string}`,
-            '#c5a55a',
-          );
-        }
+        npc?.playTalk(talkSeconds(data.dialogue as string));
       } else {
         this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
         const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
@@ -182,32 +183,17 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'npc_actions') {
-      const npcActionsResponse: AgentResponse = {
-        type: 'agent_response',
-        npcId: data.npcId as string,
-        dialogue: '',
-        actions: (data.actions as AgentResponse['actions']) ?? [],
+      const actions = (data.actions as AgentResponse['actions']) ?? [];
+      this.d.reactionSystem.handleResponse({
+        type: 'agent_response', npcId: data.npcId as string, dialogue: '',
+        actions,
         npcStateUpdate: data.npcStateUpdate ?? undefined,
         playerStateUpdate: undefined,
-      };
-      this.d.reactionSystem.handleResponse(npcActionsResponse);
-
-      // Log NPC counter-attack damage from multiplayer broadcast to combat log
-      const npcActionsName =
-        this.d.npcNameMap.get(data.npcId as string) ??
-        this.d.entityManager.getNPC(data.npcId as string)?.name ??
-        (data.npcId as string);
-      for (const action of (data.actions as AgentResponse['actions']) ?? []) {
-        if (action.kind === 'damage' && (action.params.target as string | undefined) === 'player') {
-          const amount = (action.params.amount as number | undefined) ?? 0;
-          const dmgType = (action.params.damageType as string | undefined) ?? 'physical';
-          const msg = `${npcActionsName} retaliates for ${amount} ${dmgType} damage!`;
-          if (this.d.uiManager.combatHUD.isVisible) {
-            this.d.uiManager.combatHUD.addLogEntry(msg, '#ff4444');
-          } else {
-            this.d.uiManager.addCombatLog(msg, '#ff4444');
-          }
-        }
+      } as AgentResponse);
+      // Combat log + damage-number popup for the instant hit — only for the
+      // acting player's own strike (`self`), not bystander combat-sync broadcasts.
+      if (data.self) {
+        this.applyCombatFeedback(actions, data.npcId as string);
       }
       return;
     }
@@ -227,22 +213,36 @@ export class WebSocketHandler {
       const response = data as AgentResponse;
       const isActiveNpc = response.npcId === this.d.runtime.activeNpcId;
 
+      // Pick a styling category: what the NPC actually DID this turn wins; fall
+      // back to its archetype so plain chit-chat still carries a baseline tint.
+      const archetype = this.d.npcStateStore.getState(response.npcId)?.personality;
+      const dialogueCategory =
+        categoryForActions(response.actions) ?? archetypeCategory(archetype);
+      const highlights = highlightsFromActions(response.actions);
+
       if (isActiveNpc) {
         this.d.uiManager.interactionPanel.hideThinking();
-        this.d.uiManager.interactionPanel.addMessage('npc', response.dialogue);
+        this.d.uiManager.interactionPanel.addMessage('npc', response.dialogue, {
+          category: dialogueCategory,
+          highlights,
+        });
       }
 
       const respondingNpc = this.d.entityManager.getNPC(response.npcId);
       if (respondingNpc) {
         respondingNpc.actionIcon.hide();
         this.d.spawnChatBubble(response.dialogue, respondingNpc.mesh, 'npc');
+        // Talk motion sized to the line; any action gesture below overrides it.
+        respondingNpc.playTalk(talkSeconds(response.dialogue));
       }
 
       const chatNpcName =
         this.d.npcNameMap.get(response.npcId) ??
         this.d.entityManager.getNPC(response.npcId)?.name ??
         response.npcId;
-      this.d.uiManager.chatPanel.addMessage(chatNpcName, response.dialogue, '#c5a55a');
+      this.d.uiManager.chatPanel.addMessage(
+        chatNpcName, response.dialogue, categoryAccent(dialogueCategory).text,
+      );
       this.d.reactionSystem.handleResponse(response);
 
       if (isActiveNpc && this.d.uiManager.combatHUD.isVisible) {
@@ -262,72 +262,7 @@ export class WebSocketHandler {
         this.d.uiManager.interactionPanel.updateMoodStatus(mood, relScore);
       }
 
-      const npcName =
-        this.d.npcNameMap.get(response.npcId) ??
-        this.d.entityManager.getNPC(response.npcId)?.name ??
-        response.npcId;
-      const logCombat = (msg: string, color: string) => {
-        if (this.d.uiManager.combatHUD.isVisible) {
-          this.d.uiManager.combatHUD.addLogEntry(msg, color);
-        } else {
-          this.d.uiManager.addCombatLog(msg, color);
-        }
-      };
-
-      for (const action of response.actions) {
-        if (action.kind === 'damage') {
-          const target = action.params.target ?? 'player';
-          const amount = action.params.amount ?? 0;
-          const damageType = action.params.damageType ?? 'physical';
-          if (target === 'player') {
-            logCombat(`${npcName} deals ${amount} ${damageType} damage!`, '#ff4444');
-            const playerPos = new THREE.Vector3(
-              this.d.playerController.position.x,
-              this.d.playerController.position.y + 2.5,
-              this.d.playerController.position.z,
-            );
-            const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
-            if (screenPos) {
-              this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff4444', amount >= 30);
-            }
-          } else {
-            logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
-            const targetNpc = this.d.entityManager.getNPC(target);
-            if (targetNpc) {
-              const npcPos = targetNpc.mesh.position.clone();
-              npcPos.y += 3;
-              const screenPos = DamagePopup.worldToScreen(npcPos, this.d.camera, window.innerWidth, window.innerHeight);
-              if (screenPos) {
-                this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff6633', amount >= 30);
-              }
-            }
-          }
-        } else if (action.kind === 'heal') {
-          const amount = action.params.amount ?? 0;
-          logCombat(`Healed for ${amount} HP`, '#44ff44');
-          const playerPos = new THREE.Vector3(
-            this.d.playerController.position.x,
-            this.d.playerController.position.y + 2.5,
-            this.d.playerController.position.z,
-          );
-          const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
-          if (screenPos) {
-            this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `+${amount}`, '#44ff44');
-          }
-        } else if (action.kind === 'give_item') {
-          logCombat(`Received: ${action.params.item ?? 'Unknown Item'}`, '#c5a55a');
-        } else if (action.kind === 'start_quest') {
-          const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
-          logCombat(`Quest Started: ${quest}`, '#c5a55a');
-        } else if (action.kind === 'complete_quest') {
-          const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
-          logCombat(`Quest Complete: ${quest}`, '#c5a55a');
-        } else if (action.kind === 'advance_objective') {
-          logCombat(`Objective Complete: ${action.params.objectiveId ?? 'objective'}`, '#c5a55a');
-        } else if (action.kind === 'emote') {
-          logCombat(`${npcName} performs ${action.params.animation ?? 'gesture'}`, '#aaaaaa');
-        }
-      }
+      this.applyCombatFeedback(response.actions, response.npcId);
       return;
     }
 
@@ -379,6 +314,81 @@ export class WebSocketHandler {
     if (data.type === 'world_modify_end') {
       this.d.worldBuilderPanel.endStreaming(data.blueprintId);
       return;
+    }
+  }
+
+  /**
+   * Combat log entries + prominent damage-number popups for a turn's actions.
+   * Called from BOTH the immediate `npc_actions` message (the player's hit, so
+   * the number and "You strike…" log appear instantly) and the final
+   * `agent_response` (the NPC's reply). Visual-only — HP is applied elsewhere.
+   */
+  private applyCombatFeedback(actions: AgentResponse['actions'], npcId: string): void {
+    const npcName =
+      this.d.npcNameMap.get(npcId) ??
+      this.d.entityManager.getNPC(npcId)?.name ??
+      npcId;
+    const logCombat = (msg: string, color: string) => {
+      if (this.d.uiManager.combatHUD.isVisible) {
+        this.d.uiManager.combatHUD.addLogEntry(msg, color);
+      } else {
+        this.d.uiManager.addCombatLog(msg, color);
+      }
+    };
+
+    for (const action of actions) {
+      if (action.kind === 'damage') {
+        const target = action.params.target ?? 'player';
+        const amount = action.params.amount ?? 0;
+        const damageType = action.params.damageType ?? 'physical';
+        if (target === 'player') {
+          logCombat(`${npcName} deals ${amount} ${damageType} damage!`, '#ff4444');
+          const playerPos = new THREE.Vector3(
+            this.d.playerController.position.x,
+            this.d.playerController.position.y + 2.5,
+            this.d.playerController.position.z,
+          );
+          const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
+          if (screenPos) {
+            this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff4444', amount >= 30);
+          }
+        } else {
+          logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
+          const targetNpc = this.d.entityManager.getNPC(target);
+          if (targetNpc) {
+            const npcPos = targetNpc.mesh.position.clone();
+            npcPos.y += 3;
+            const screenPos = DamagePopup.worldToScreen(npcPos, this.d.camera, window.innerWidth, window.innerHeight);
+            if (screenPos) {
+              this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `-${amount}`, '#ff6633', amount >= 30);
+            }
+          }
+        }
+      } else if (action.kind === 'heal') {
+        const amount = action.params.amount ?? 0;
+        logCombat(`Healed for ${amount} HP`, '#44ff44');
+        const playerPos = new THREE.Vector3(
+          this.d.playerController.position.x,
+          this.d.playerController.position.y + 2.5,
+          this.d.playerController.position.z,
+        );
+        const screenPos = DamagePopup.worldToScreen(playerPos, this.d.camera, window.innerWidth, window.innerHeight);
+        if (screenPos) {
+          this.d.uiManager.spawnDamagePopup(screenPos.x, screenPos.y, `+${amount}`, '#44ff44');
+        }
+      } else if (action.kind === 'give_item') {
+        logCombat(`Received: ${action.params.item ?? 'Unknown Item'}`, '#c5a55a');
+      } else if (action.kind === 'start_quest') {
+        const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
+        logCombat(`Quest Started: ${quest}`, '#c5a55a');
+      } else if (action.kind === 'complete_quest') {
+        const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
+        logCombat(`Quest Complete: ${quest}`, '#c5a55a');
+      } else if (action.kind === 'advance_objective') {
+        logCombat(`Objective Complete: ${action.params.objectiveId ?? 'objective'}`, '#c5a55a');
+      } else if (action.kind === 'emote') {
+        logCombat(`${npcName} performs ${action.params.animation ?? 'gesture'}`, '#aaaaaa');
+      }
     }
   }
 }

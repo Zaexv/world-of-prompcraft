@@ -226,8 +226,10 @@ jobs:
           file: ./client/Dockerfile
           push: false
           tags: wop-client:latest,wop-client:${{ github.sha }}
-          cache-from: type=registry,ref=wop-client:buildcache
-          cache-to: type=registry,ref=wop-client:buildcache,mode=max
+          # GitHub Actions cache — no registry credentials required (registry
+          # cache to docker.io fails CI with 401 since we don't push images).
+          cache-from: type=gha,scope=client
+          cache-to: type=gha,mode=max,scope=client
 
   build-server-docker:
     name: "📦 Build Server Docker Image"
@@ -243,8 +245,10 @@ jobs:
           file: ./server/Dockerfile
           push: false
           tags: wop-server:latest,wop-server:${{ github.sha }}
-          cache-from: type=registry,ref=wop-server:buildcache
-          cache-to: type=registry,ref=wop-server:buildcache,mode=max
+          # GitHub Actions cache — no registry credentials required (registry
+          # cache to docker.io fails CI with 401 since we don't push images).
+          cache-from: type=gha,scope=server
+          cache-to: type=gha,mode=max,scope=server
 
   # ════════════════════════════════════════════════════════════════
   # STAGE 6: PIPELINE STATUS

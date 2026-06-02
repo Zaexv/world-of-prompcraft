@@ -247,6 +247,11 @@ export function bootstrap(
   uiManager.interactionPanel.onSendMessage = (prompt: string) => {
     if (!runtime.activeNpcId || !runtime.joinedServer) return;
     const npc = entityManager.getNPC(runtime.activeNpcId);
+    // Optimistic combat: show the hit instantly, before the server round-trip.
+    // The authoritative damage/HP follows via the server's npc_actions message.
+    if (reactionSystem.isAttackPrompt(prompt)) {
+      reactionSystem.previewLocalAttack(runtime.activeNpcId);
+    }
     if (npc) npc.showAction('thinking', 10);
     ws.send({
       type: 'interaction',

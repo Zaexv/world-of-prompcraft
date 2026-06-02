@@ -1,209 +1,137 @@
-"""Tests for the fast combat path in handler.py."""
+"""Tests for combat delivery in the interaction handler.
+
+Combat must feel instant: the player's hit is delivered immediately as an
+`npc_actions` message, and the NPC fires back a deterministic, personality-based
+reply right away — attacks skip the (slow) LLM entirely.
+"""
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
 
 import pytest
 
-from src.combat.combat_resolution import CombatResolution
+from src.world.world_state import NPCData, WorldState
+from src.ws import handler
 
 
-class TestFastCombatPath:
-    """Verify that attack prompts use the fast path (no LLM wait)."""
+class _FakeWebSocket:
+    def __init__(self) -> None:
+        self.sent: list[dict[str, Any]] = []
 
-    def _make_resolution(self, outcome: str = "clean_hit", damage: int = 25) -> CombatResolution:
-        return CombatResolution(
-            prompt_quality=1.5,
-            base_damage=17,
-            final_damage=damage,
-            damage_type="physical",
-            outcome=outcome,
-            combat_text=f"Clean hit! {damage} physical damage.",
-            visual_tags=["sparkle"],
-            is_crit=False,
-        )
+    async def send_json(self, data: dict[str, Any]) -> None:
+        self.sent.append(data)
 
-    def test_is_attack_prompt_detection(self) -> None:
-        from src.combat.combat_resolution import is_attack_prompt
 
-        assert is_attack_prompt("I attack the goblin")
-        assert is_attack_prompt("slash with my sword")
-        assert not is_attack_prompt("hello how are you")
-        assert not is_attack_prompt("I want to trade")
+class _FakeManager:
+    def __init__(self, player_id: str) -> None:
+        self._player_id = player_id
 
-    def test_combat_resolution_used_in_damage_action(self) -> None:
-        """resolve_combat output must map to the damage action params."""
-        from src.combat.combat_resolution import resolve_combat
+    def get_player_id(self, _websocket: Any) -> str:
+        return self._player_id
 
-        resolution = resolve_combat(
-            prompt="I slash the goblin with my sword",
-            player_level=1,
-            player_inventory=[],
-            player_equipped=None,
-            npc_hp=100,
-            npc_max_hp=100,
-        )
-        # Build action as handler does
-        action: dict = {
-            "kind": "damage",
-            "params": {
-                "target": "goblin_1",
-                "amount": resolution.final_damage,
-                "damageType": resolution.damage_type,
-                "outcome": resolution.outcome,
-                "isCrit": resolution.is_crit,
-                "combatText": resolution.combat_text,
-            },
-        }
-        assert action["kind"] == "damage"
-        assert action["params"]["amount"] == resolution.final_damage
-        assert action["params"]["outcome"] in {
-            "glancing_hit",
-            "clean_hit",
-            "critical_hit",
-            "devastating_hit",
-            "defeated",
-        }
+    async def broadcast_nearby(self, *_args: Any, **_kwargs: Any) -> None:
+        return None
 
-    def test_crit_visual_tags_present(self) -> None:
-        from src.combat.combat_resolution import resolve_combat
 
-        # Crafted prompt with enough keywords to score as critical
-        resolution = resolve_combat(
-            prompt="I execute a devastating berserk combo fury finisher attack with my weapon",
-            player_level=5,
-            player_inventory=[],
-            player_equipped={"weapon": "Sword", "shield": "Shield"},
-            npc_hp=200,
-            npc_max_hp=200,
-        )
-        if resolution.is_crit:
-            assert len(resolution.visual_tags) > 0
+class _FakeRegistry:
+    """Records whether the LLM was invoked; attacks should never reach it."""
 
-    def test_defeated_outcome_includes_explosion(self) -> None:
-        from src.combat.combat_resolution import resolve_combat
+    def __init__(self) -> None:
+        self.invoked = False
 
-        # 1 HP NPC will definitely die
-        resolution = resolve_combat(
-            prompt="attack",
-            player_level=1,
-            player_inventory=[],
-            player_equipped=None,
-            npc_hp=1,
-            npc_max_hp=100,
-        )
-        assert resolution.outcome == "defeated"
-        assert "explosion" in resolution.visual_tags
+    async def invoke(self, **_kwargs: Any) -> dict[str, Any]:
+        self.invoked = True
+        return {"dialogue": "LLM_REPLY", "actions": [], "npcStateUpdate": {}}
 
-    @pytest.mark.asyncio
-    async def test_fast_combat_reaction_drops_when_no_registry(self) -> None:
-        """_fast_combat_reaction should silently return when _registry is None."""
-        from src.ws import handler
 
-        original_registry = handler._registry
-        handler._registry = None
-        try:
-            resolution = self._make_resolution()
-            await handler._fast_combat_reaction(
-                player_id="player1",
-                npc_id="npc1",
-                npc_name="Goblin",
-                npc_personality="You are a goblin.",
-                resolution=resolution,
-                prompt="attack",
-                manager=MagicMock(),
-            )
-        finally:
-            handler._registry = original_registry
+@pytest.fixture(autouse=True)
+def _reset_world_state() -> Any:
+    WorldState._instance = None
+    yield
+    WorldState._instance = None
 
-    @pytest.mark.asyncio
-    async def test_fast_combat_reaction_sends_agent_response(self) -> None:
-        """_fast_combat_reaction sends agent_response with dialogue and counter-attack."""
-        from src.ws import handler
 
-        mock_llm = AsyncMock()
-        mock_llm_response = MagicMock()
-        mock_llm_response.content = "You dare strike me?! Feel my wrath!"
-        mock_llm.ainvoke = AsyncMock(return_value=mock_llm_response)
+def _spawn_npc(world: WorldState, archetype: str, hp: int = 200) -> None:
+    world.npcs["dragon_01"] = NPCData(
+        npc_id="dragon_01",
+        name="Ignathar",
+        personality="boss",
+        hp=hp,
+        max_hp=hp,
+        position=[0.0, 0.0, 0.0],
+        mood="angry",
+        archetype=archetype,
+    )
 
-        mock_registry = MagicMock()
-        mock_registry._llm = mock_llm
 
-        mock_npc = MagicMock()
-        mock_npc.hp = 80
-        mock_npc.max_hp = 100
-        mock_npc.position = [0.0, 0.0, 0.0]
+async def _interact(
+    prompt: str, registry: _FakeRegistry
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    manager = _FakeManager("p1")
+    handler.init_handler(registry, WorldState(), manager)  # type: ignore[arg-type]
+    fake_ws = _FakeWebSocket()
+    result = await handler._handle_interaction(
+        {"npcId": "dragon_01", "playerId": "p1", "prompt": prompt},
+        fake_ws,  # type: ignore[arg-type]
+        manager,  # type: ignore[arg-type]
+    )
+    return result, fake_ws.sent
 
-        mock_player = MagicMock()
-        mock_player.to_dict.return_value = {"id": "player1", "hp": 90}
 
-        mock_world_state = MagicMock()
-        mock_world_state.get_npc.return_value = mock_npc
-        mock_world_state.get_player.return_value = mock_player
-        mock_world_state.apply_actions = AsyncMock()
+@pytest.mark.asyncio
+async def test_attack_delivers_immediate_hit_then_instant_reply() -> None:
+    world = WorldState()
+    _spawn_npc(world, archetype="hostile_boss")
+    world.get_player("p1")
+    registry = _FakeRegistry()
 
-        mock_manager = AsyncMock()
+    result, sent = await _interact("I attack the dragon with my sword!", registry)
 
-        original_registry = handler._registry
-        original_world_state = handler._world_state
-        handler._registry = mock_registry  # type: ignore[assignment]
-        handler._world_state = mock_world_state  # type: ignore[assignment]
+    # 1. The player's hit is pushed immediately as a self-tagged npc_actions message.
+    assert len(sent) == 1
+    assert sent[0]["type"] == "npc_actions"
+    assert sent[0]["self"] is True
+    assert any(a["kind"] == "damage" for a in sent[0]["actions"])
 
-        try:
-            resolution = self._make_resolution()
-            await handler._fast_combat_reaction(
-                player_id="player1",
-                npc_id="npc1",
-                npc_name="Goblin",
-                npc_personality="You are a goblin.",
-                resolution=resolution,
-                prompt="I slash with my sword",
-                manager=mock_manager,
-            )
-            mock_manager.send_to.assert_called_once()
-            call_args = mock_manager.send_to.call_args
-            assert call_args[0][0] == "player1"
-            payload = call_args[0][1]
-            assert payload["type"] == "agent_response"
-            assert payload["dialogue"] == "You dare strike me?! Feel my wrath!"
-            # Counter-attack action should be included
-            assert any(a["kind"] == "damage" for a in payload["actions"])
-        finally:
-            handler._registry = original_registry
-            handler._world_state = original_world_state
+    # 2. The reply is instant and deterministic — the LLM was never invoked.
+    assert registry.invoked is False
+    assert result["type"] == "agent_response"
+    assert result["dialogue"] and result["dialogue"] != "LLM_REPLY"
 
-    @pytest.mark.asyncio
-    async def test_update_combat_memory_silently_handles_failure(self) -> None:
-        """_update_combat_memory_async should not raise even when registry fails."""
-        from src.ws import handler
+    # 3. A hostile NPC counterattacks the player.
+    counters = [
+        a
+        for a in result["actions"]
+        if a["kind"] == "damage" and a["params"].get("target") == "player"
+    ]
+    assert len(counters) == 1
+    assert counters[0]["params"]["amount"] > 0
 
-        mock_registry = AsyncMock()
-        mock_registry.invoke = AsyncMock(side_effect=Exception("LLM unavailable"))
 
-        mock_player = MagicMock()
-        mock_player.to_dict.return_value = {"id": "player1"}
-        mock_player.active_quests = []
-        mock_player.completed_quests = []
-        mock_player.kill_count = 0
+@pytest.mark.asyncio
+async def test_friendly_npc_does_not_counterattack() -> None:
+    world = WorldState()
+    _spawn_npc(world, archetype="friendly_merchant")
+    world.get_player("p1")
+    registry = _FakeRegistry()
 
-        mock_world_state = MagicMock()
-        mock_world_state.get_player.return_value = mock_player
+    result, _sent = await _interact("I attack the merchant!", registry)
 
-        original_registry = handler._registry
-        original_world_state = handler._world_state
-        handler._registry = mock_registry  # type: ignore[assignment]
-        handler._world_state = mock_world_state  # type: ignore[assignment]
+    assert registry.invoked is False
+    assert result["dialogue"]  # pleads instead of fighting
+    assert not any(a["kind"] == "damage" for a in result["actions"])
 
-        try:
-            resolution = self._make_resolution()
-            # Must not raise
-            await handler._update_combat_memory_async(
-                player_id="player1",
-                npc_id="npc1",
-                resolution=resolution,
-                prompt="I slash with my sword",
-            )
-        finally:
-            handler._registry = original_registry
-            handler._world_state = original_world_state
+
+@pytest.mark.asyncio
+async def test_non_attack_prompt_uses_llm_and_sends_no_immediate_message() -> None:
+    world = WorldState()
+    _spawn_npc(world, archetype="hostile_boss")
+    world.get_player("p1")
+    registry = _FakeRegistry()
+
+    result, sent = await _interact("Hello there, friend.", registry)
+
+    assert sent == []
+    assert registry.invoked is True
+    assert result["dialogue"] == "LLM_REPLY"

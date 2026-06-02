@@ -19,6 +19,16 @@ interface EffectPreset {
   flash?: string;    // optional screen flash color
 }
 
+// Keywords that mark a prompt as an attack. MUST mirror the server's
+// `_ATTACK_KEYWORDS` (server/src/ws/handler.py) so the client only previews a
+// hit when the server will actually score one.
+const ATTACK_KEYWORDS = new Set<string>([
+  "attack", "hit", "strike", "slash", "stab", "punch", "kick", "fight", "kill",
+  "destroy", "smash", "fireball", "lightning", "swing", "cleave", "thrust",
+  "cut", "shoot", "blast", "crush", "bite", "claw", "charge", "slam", "cast",
+  "burn", "freeze",
+]);
+
 const EFFECT_PRESETS: Record<string, EffectPreset> = {
   fire: {
     color: "#ff4400", count: 40, speed: 3.5, gravity: -1, size: 0.35,
@@ -56,6 +66,7 @@ export interface EntityManagerLike {
     mesh: THREE.Group;
     position?: THREE.Vector3;
     playEmote?: (emote: string) => void;
+    playGesture?: (gesture: string) => void;
     showAction?: (kind: string, duration?: number) => void;
     nameplate?: {
       updateHP: (hp: number, maxHp: number) => void;
@@ -201,6 +212,31 @@ export class ReactionSystem {
     }
   }
 
+  /** True when a prompt reads as an attack (mirrors the server's detection). */
+  isAttackPrompt(prompt: string): boolean {
+    for (const word of prompt.toLowerCase().split(/\s+/)) {
+      if (ATTACK_KEYWORDS.has(word)) return true;
+    }
+    return false;
+  }
+
+  /**
+   * Instant, optimistic combat feedback shown the moment the player submits an
+   * attack — before the server round-trip. Plays the impact (hit sfx, NPC
+   * lunge, spark burst) so combat feels immediate; the authoritative damage
+   * number and HP arrive shortly after via the server's `npc_actions` message.
+   * No HP is mutated here — the server stays the source of truth.
+   */
+  previewLocalAttack(npcId: string): void {
+    const npc = this.entityManager.getNPC(npcId);
+    if (!npc) return;
+    this.audio?.playSfx("hit");
+    npc.playGesture?.("attack");
+    const pos = npc.mesh.position.clone();
+    pos.y += 1.5;
+    this.createParticleBurst(pos, "#ffd27f", 16, EFFECT_PRESETS.sparkle);
+  }
+
   /** Call every frame so time-based effects can animate. */
   tick(delta: number): void {
     this.activeEffects = this.activeEffects.filter((e) => e.update(delta));
@@ -230,9 +266,9 @@ export class ReactionSystem {
         };
         this.audio?.playSfx("hit");
         if (actingNpc?.showAction) actingNpc.showAction(damageType ?? "damage", 3.0);
-
-        if ((amount as number) < 0) {
-          const healAmt = Math.abs(amount as number);
+        actingNpc?.playGesture?.("attack");
+        if (amount < 0) {
+          const healAmt = Math.abs(amount);
           this.playerState.heal(healAmt);
           this.createFloatingText(`+${healAmt}`, "#33ff66", this.playerWorldPos());
           this.flashScreen("#2d5016");
@@ -271,6 +307,7 @@ export class ReactionSystem {
         const { amount = 10 } = action.params;
         this.audio?.playSfx("heal");
         if (actingNpc?.showAction) actingNpc.showAction("heal", 3.0);
+        actingNpc?.playGesture?.("cheer"); // arms-raised casting gesture
         if (amount > 0) {
           this.playerState.heal(amount);
           this.createFloatingText(`+${amount}`, "#33ff66", this.playerWorldPos());
@@ -375,6 +412,7 @@ export class ReactionSystem {
         const { questId, quest, questName, description } = action.params;
         this.audio?.playSfx("quest_start");
         if (actingNpc?.showAction) actingNpc.showAction("start_quest", 3.0);
+        actingNpc?.playGesture?.("bow"); // present the quest with a gesture
         const id = questId ?? "";
         const name = quest ?? questName ?? description ?? "Unknown Quest";
         if (id) this.playerState.startQuest(id);
@@ -394,6 +432,7 @@ export class ReactionSystem {
         const { questId, questName, reward } = action.params;
         this.audio?.playSfx("quest_complete");
         if (actingNpc?.showAction) actingNpc.showAction("complete_quest", 3.0);
+        actingNpc?.playGesture?.("cheer");
         const id = questId ?? questName ?? "";
         const name = questName ?? questId ?? "Quest";
         if (id) this.playerState.completeQuest(id);

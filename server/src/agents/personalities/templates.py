@@ -15,6 +15,11 @@ _TOOL_RULES_PREAMBLE = (
     "- When giving items: ALWAYS call offer_item with the item name.\n"
     "- When spawning effects: call spawn_effect with a specific type.\n"
     "- NEVER just respond with text alone -- always pair dialogue with actions.\n"
+    "\n"
+    "BREVITY (CRITICAL):\n"
+    "- Pair ONE short spoken line with your action(s). Let the action do the talking.\n"
+    "- Do NOT narrate your tool calls or describe what you are about to do.\n"
+    "- Obey the LENGTH limit in the instructions exactly.\n"
 )
 
 # ── Combat narration context injected when NPC is narrating a combat outcome ──
