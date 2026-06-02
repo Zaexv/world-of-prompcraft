@@ -34,7 +34,7 @@ def get_llm(settings: Settings) -> BaseChatModel:
             max_tokens=settings.response_max_tokens,  # type: ignore[call-arg]
             request_timeout=settings.anthropic_request_timeout_seconds,
             max_retries=settings.anthropic_max_retries,
-            http_client=httpx.AsyncClient(timeout=settings.anthropic_request_timeout_seconds),
+            http_client=httpx.Client(timeout=settings.anthropic_request_timeout_seconds),
             model_kwargs=model_kwargs if model_kwargs else {},
         )
 

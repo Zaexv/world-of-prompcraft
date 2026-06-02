@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Rng } from '../../systems/worldbuilder/RngTypes';
 
 /** Category used by map generation to filter what may be placed where. */
-export type MeshCategory = 'building' | 'prop' | 'vegetation';
+export type MeshCategory = 'building' | 'prop' | 'vegetation' | 'npc' | 'player';
 
 /**
  * Everything a mesh needs in order to build itself. Authored placement (from the

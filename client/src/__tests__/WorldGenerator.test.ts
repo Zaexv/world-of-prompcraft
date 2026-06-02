@@ -45,8 +45,8 @@ describe('WorldGenerator - minimap waypoint sync', () => {
           kind: 'landmark',
         }),
         expect.objectContaining({
-          id: 'feature:castle-hill',
-          label: 'Castle Hill',
+          id: 'feature:castle-hill-base',
+          label: 'Castle Hill Base',
           x: -130,
           z: -190,
           kind: 'feature',

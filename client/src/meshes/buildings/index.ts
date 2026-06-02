@@ -13,6 +13,7 @@ import './malaka/MalakaCastle';
 import './malaka/MalakaTower';
 import './malaka/MalakaWall';
 import './malaka/MalakaCortijo';
+import './malaka/MalakaFarm';
 import './malaka/MalakaBodega';
 import './malaka/RomanAmphitheatre';
 import './malaka-broken';

@@ -12,6 +12,19 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
+
+// UI tests transitively import Terrain/Biomes, which eagernessly build PBR textures.
+// happy-dom has no canvas 2d context, so stub the PBR helpers.
+vi.mock('../utils/PBRMaps', () => ({
+  warmUpTextures: vi.fn(),
+  applyTerrainPBR: vi.fn(),
+  applyCharacterPBR: vi.fn(),
+  applyBarkPBR: vi.fn(),
+  applyCanopyPBR: vi.fn(),
+  applyStonePBR: vi.fn(),
+  applyMalakaPBR: vi.fn(),
+}));
+
 import { UIComponent } from '../ui/core/UIComponent';
 import { StatusBars } from '../ui/StatusBars';
 import { CombatHUD } from '../ui/CombatHUD';

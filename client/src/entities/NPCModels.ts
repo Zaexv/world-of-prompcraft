@@ -31,6 +31,11 @@ export type NPCPlaceholderStyle =
   | 'cryomancer'
   | 'dragon'
   | 'monster'
+  | 'spider'
+  | 'wasp'
+  | 'wolf'
+  | 'golem'
+  | 'boar'
   | 'orc'
   | 'undead' | 'oracle';
 
@@ -119,9 +124,14 @@ interface NPCPlaceholderStyleRule {
 
 const NPC_PLACEHOLDER_STYLE_RULES: NPCPlaceholderStyleRule[] = [
   { keywords: ['dragon', 'wyrm', 'beast', 'boss'], style: 'dragon' },
+  { keywords: ['spider', 'crawler', 'stalker'], style: 'spider' },
+  { keywords: ['wasp', 'bee', 'hornet', 'fly'], style: 'wasp' },
+  { keywords: ['wolf', 'hound', 'dog', 'coyote'], style: 'wolf' },
+  { keywords: ['golem', 'elemental', 'brute', 'ogre'], style: 'golem' },
+  { keywords: ['boar', 'pig', 'swine'], style: 'boar' },
   // undead before monster to prevent wraith/ghost from matching monster first
   { keywords: ['undead', 'ghost', 'wraith', 'skeleton', 'zombie', 'ghoul'], style: 'undead' },
-  { keywords: ['monster', 'spider', 'wolf', 'treant', 'golem', 'bat', 'hydra', 'elemental', 'crawler', 'stalker', 'revenant', 'abomination', 'slime', 'ogre', 'brute', 'demon'], style: 'monster' },
+  { keywords: ['monster', 'treant', 'bat', 'hydra', 'revenant', 'abomination', 'slime'], style: 'monster' },
   { keywords: ['merchant', 'trader', 'vendor', 'shop', 'citizen', 'village', 'villager', 'elder', 'artisan', 'baker', 'farmer', 'herbalist', 'fisher'], style: 'merchant' },
   { keywords: ['rogue', 'thief', 'assassin', 'pirate', 'bandit', 'outlaw', 'brigand'], style: 'guard' },
   { keywords: ['guard', 'sentinel', 'warden', 'captain', 'soldier', 'scout', 'knight', 'moonguard'], style: 'guard' },

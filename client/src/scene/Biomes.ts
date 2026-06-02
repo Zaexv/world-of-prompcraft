@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { WorldManifest, PathDefinition } from '../state/WorldManifest';
+import { FOOTPRINT_SPECS } from './Terrain';
 
 let worldManifest: WorldManifest | null = null;
 
@@ -13,6 +14,21 @@ let _envCached = false;
 /** Spatial index for paths: Map<"chunkX,chunkZ", PathDefinition[]> */
 const _pathSpatialIndex: Map<string, PathDefinition[]> = new Map();
 const _PATH_CHUNK_SIZE = 64; // Match Terrain.ts
+
+interface GrassPatch {
+  x: number;
+  z: number;
+  inner: number;
+  outer: number;
+  
+  // OBB support
+  shape: 'circle' | 'rect';
+  width?: number;
+  depth?: number;
+  rotation?: number;
+  blendWidth?: number;
+}
+let _manifestGrassPatches: GrassPatch[] = [];
 
 function _cacheEnv(): void {
   if (_envCached) return;
@@ -45,6 +61,88 @@ function _cacheEnv(): void {
         const key = `${cx},${cz}`;
         if (!_pathSpatialIndex.has(key)) _pathSpatialIndex.set(key, []);
         _pathSpatialIndex.get(key)!.push(path);
+      }
+    }
+  }
+
+  // Cache grass patches from topology
+  _manifestGrassPatches = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const rawData = (worldManifest as any)?.world ?? {};
+  const rawFeatures = rawData.topology?.features ?? [];
+  for (const f of rawFeatures) {
+    if (f.type === 'grass_patch' || f.type === 'flat_patch') {
+      const shape = f.shape ?? 'circle';
+      if (shape === 'circle') {
+        _manifestGrassPatches.push({
+          x: f.transform.x,
+          z: f.transform.z,
+          inner: f.radii.inner,
+          outer: f.radii.outer,
+          shape: 'circle',
+        });
+      } else {
+        const width = f.width ?? (f.radii.inner * 2);
+        const depth = f.depth ?? (f.radii.inner * 2);
+        const rotation = f.transform?.rotation ?? f.rotation ?? 0;
+        const blendWidth = f.blendWidth ?? 14;
+        const innerRadius = Math.sqrt(width * width + depth * depth) / 2;
+        _manifestGrassPatches.push({
+          x: f.transform.x,
+          z: f.transform.z,
+          shape: 'rect',
+          width,
+          depth,
+          rotation,
+          inner: 0,
+          blendWidth,
+          outer: innerRadius + blendWidth,
+        });
+      }
+    }
+  }
+
+  // Also check all landmarks for 'grass_patch' metadata
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const zones = (worldManifest as any)?.zones ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const zone of Object.values(zones) as any[]) {
+    if (zone.architecture?.landmarks) {
+      for (const l of zone.architecture.landmarks) {
+        if (l.visual?.metadata?.grass_patch === true) {
+          const spec = l.visual?.metadata?.footprint ?? FOOTPRINT_SPECS[l.type];
+          if (spec) {
+            const scale = l.transform.scale ?? 1.0;
+            const rotation = l.transform.rotation ? l.transform.rotation[1] : 0;
+            
+            if (spec.shape === 'circle') {
+              const inner = (spec.radius ?? 1) * scale;
+              _manifestGrassPatches.push({
+                x: l.transform.position[0],
+                z: l.transform.position[2],
+                shape: 'circle',
+                inner,
+                outer: inner + 14,
+              });
+            } else {
+              const width = (spec.width ?? 1) * scale;
+              const depth = (spec.depth ?? 1) * scale;
+              const blendWidth = 14;
+              const innerRadius = Math.sqrt(width * width + depth * depth) / 2;
+              _manifestGrassPatches.push({
+                x: l.transform.position[0],
+                z: l.transform.position[2],
+                shape: 'rect',
+                width,
+                depth,
+                rotation,
+                inner: 0,
+                blendWidth,
+                outer: innerRadius + blendWidth,
+              });
+            }
+          }
+        }
       }
     }
   }
@@ -414,6 +512,39 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
     }
 
     _colorResult.lerp(_colorTemp, cityBlend * 0.995);
+  }
+
+  // --- Manifest-driven Grass Patches ---
+  let grassBlend = 0;
+  for (const p of _manifestGrassPatches) {
+    let b = 0;
+    if (p.shape === 'circle') {
+      const dist = Math.hypot(x - p.x, z - p.z);
+      if (dist < p.outer) {
+        b = 1.0 - smoothstep(p.inner, p.outer, dist);
+      }
+    } else {
+      // OBB logic for grass
+      const dx = x - p.x;
+      const dz = z - p.z;
+      const rot = p.rotation ?? 0;
+      const localX = Math.abs(dx * Math.cos(-rot) - dz * Math.sin(-rot));
+      const localZ = Math.abs(dx * Math.sin(-rot) + dz * Math.cos(-rot));
+      const halfW = (p.width ?? 0) / 2;
+      const halfD = (p.depth ?? 0) / 2;
+      const distX = Math.max(0, localX - halfW);
+      const distZ = Math.max(0, localZ - halfD);
+      const dist = Math.sqrt(distX * distX + distZ * distZ);
+      const blendWidth = p.blendWidth ?? 14; // Standard PAD_BLEND
+      if (dist < blendWidth) {
+        b = 1.0 - (dist / blendWidth) * (dist / blendWidth) * (3 - 2 * (dist / blendWidth));
+      }
+    }
+    grassBlend = Math.max(grassBlend, b);
+  }
+  if (grassBlend > 0) {
+    const grassColor = _colorTemp.setHex(0x3a5a2a); // Lush Mediterranean Green
+    _colorResult.lerp(grassColor, grassBlend * 0.9);
   }
 
   // Paint roads on the terrain using spatial index
