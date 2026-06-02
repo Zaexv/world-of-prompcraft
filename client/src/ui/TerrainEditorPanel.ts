@@ -64,9 +64,8 @@ export class TerrainEditorPanel extends UIComponent {
           <button class="te-mode" data-mode="lower" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">LOWER</button>
           <button class="te-mode" data-mode="place" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE OBJ</button>
           <button class="te-mode" data-mode="npc" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE NPC</button>
-          <button class="te-mode" data-mode="path" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE PATH</button>
-          <button class="te-mode" data-mode="remove" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer; grid-column: span 2;">REMOVE</button>
-        </div>
+          <button class="te-mode" data-mode="flatten" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">FLATTEN</button>
+          </div>
       </div>
 
       <div class="te-properties-section" style="display:none; flex-direction:column; gap:8px;">
@@ -167,7 +166,7 @@ export class TerrainEditorPanel extends UIComponent {
 
         // The asset palette is needed for BOTH object and NPC placement.
         paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
-        sculptSettings.style.display = (mode === 'raise' || mode === 'lower') ? 'flex' : 'none';
+        sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten') ? 'flex' : 'none';
 
         // Drive the asset category from the mode: NPC placement must list NPC
         // styles (not whatever building was last picked — which produced invalid
@@ -186,6 +185,7 @@ export class TerrainEditorPanel extends UIComponent {
           case 'move': this.editor.setMode(EditorMode.MOVE_OBJECT); break;
           case 'raise': this.editor.setMode(EditorMode.SCULPT_RAISE); break;
           case 'lower': this.editor.setMode(EditorMode.SCULPT_LOWER); break;
+          case 'flatten': this.editor.setMode(EditorMode.SCULPT_FLATTEN); break;
           case 'place': this.editor.setMode(EditorMode.PLACE_OBJECT); break;
           case 'remove': this.editor.setMode(EditorMode.REMOVE_OBJECT); break;
           case 'npc': this.editor.setMode(EditorMode.PLACE_NPC); break;
@@ -211,6 +211,12 @@ export class TerrainEditorPanel extends UIComponent {
     scaleInput.addEventListener('input', updateSelected);
     rotYInput.addEventListener('input', updateSelected);
     pathWidthInput.addEventListener('input', updateSelected);
+
+    // Save state when user finishes adjusting the value
+    const saveState = () => this.editor.saveState();
+    scaleInput.addEventListener('change', saveState);
+    rotYInput.addEventListener('change', saveState);
+    pathWidthInput.addEventListener('change', saveState);
 
     window.addEventListener('editor:select', (e: any) => {
       const selected = e.detail;

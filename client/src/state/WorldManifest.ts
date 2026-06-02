@@ -78,6 +78,7 @@ export interface SculptStroke {
   z: number;
   radius: number;
   delta: number;
+  flatten?: boolean;
 }
 
 export interface ZoneDefinition {
@@ -202,15 +203,19 @@ export class WorldManifest {
    * radius are merged so holding the brush deepens one stroke instead of
    * appending hundreds of near-duplicates to the manifest.
    */
-  public addSculptStroke(x: number, z: number, radius: number, delta: number): void {
+  public addSculptStroke(x: number, z: number, radius: number, delta: number, flatten?: boolean): void {
     const MERGE_DIST = 1.5;
     for (const s of this.sculpt) {
-      if (Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
-        s.delta += delta;
+      if (s.flatten === flatten && Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
+        if (flatten) {
+           s.delta = delta; // target height
+        } else {
+           s.delta += delta;
+        }
         return;
       }
     }
-    this.sculpt.push({ x, z, radius, delta });
+    this.sculpt.push({ x, z, radius, delta, flatten });
   }
 
   public getPaths(): PathDefinition[] {

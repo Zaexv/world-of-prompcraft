@@ -11,6 +11,7 @@ export enum EditorMode {
   OFF,
   SCULPT_RAISE,
   SCULPT_LOWER,
+  SCULPT_FLATTEN,
   PLACE_OBJECT,
   REMOVE_OBJECT,
   MOVE_OBJECT,
@@ -22,6 +23,7 @@ export enum EditorMode {
 const MODE_COLORS: Record<number, number> = {
   [EditorMode.SCULPT_RAISE]: 0x6bff9c,
   [EditorMode.SCULPT_LOWER]: 0xff6b6b,
+  [EditorMode.SCULPT_FLATTEN]: 0x5a9cc5,
   [EditorMode.PLACE_OBJECT]: 0xc5a55a,
   [EditorMode.REMOVE_OBJECT]: 0xff4444,
   [EditorMode.MOVE_OBJECT]: 0x66ddff,
@@ -68,6 +70,18 @@ export class TerrainEditor {
   private hoverBox: THREE.BoxHelper | null = null;
   private dragStart: THREE.Vector3 | null = null;
   private pathStart: THREE.Vector3 | null = null;
+
+  // Rotation state (radians, around Y axis)
+  private currentRotation = 0;
+
+  // History for Undo/Redo
+  private history: any[] = [];
+  private historyIndex = -1;
+  private didSculpt = false;
+  
+  // Track visual-only spawns from editor so they can be cleaned up on full rebuilds (like Undo)
+  private manualSpawns: THREE.Object3D[] = [];
+  private manualNPCs: string[] = [];
 
   constructor(
     private scene: THREE.Scene,
@@ -122,14 +136,33 @@ export class TerrainEditor {
 
   private setupListeners(): void {
     const canvas = this.renderer.domElement;
-    canvas.addEventListener('mousemove', (e) => {
+    canvas.addEventListener('pointermove', (e) => {
       this.mouse.x = (e.clientX / window.innerWidth) * 2 - 1;
       this.mouse.y = -(e.clientY / window.innerHeight) * 2 + 1;
-    });
+      if (this.isMouseDown && this.mode !== EditorMode.OFF) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+    }, { capture: true });
 
-    canvas.addEventListener('mousedown', (e) => {
+    canvas.addEventListener('pointerdown', (e) => {
       if (this.mode === EditorMode.OFF) return;
       if (e.button !== 0) return;
+
+      // If we are in an active editor mode, prevent OrbitControls from moving the map.
+      // For MOVE_OBJECT, only intercept if we actually clicked an object.
+      if (this.mode === EditorMode.MOVE_OBJECT) {
+        const hit = this.findEditorObjectUnderCursor(false);
+        if (hit) {
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      } else {
+        // Sculpting, Placing, Removing, etc.
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+      }
+
       this.isMouseDown = true;
       const pos = this.lastIntersection?.point;
       if (!pos) return;
@@ -138,20 +171,26 @@ export class TerrainEditor {
         case EditorMode.PLACE_OBJECT: this.placeObject(pos); break;
         case EditorMode.REMOVE_OBJECT: this.removeObjectAt(pos); break;
         case EditorMode.MOVE_OBJECT:
-          // Press to pick + begin dragging; release commits (see mouseup).
+          // Press to pick + begin dragging; release commits (see pointerup).
           this.pickObject();
           this.dragStart = this.selectedObject ? this.selectedObject.group.position.clone() : null;
           break;
         case EditorMode.PLACE_NPC: this.placeNPC(pos); break;
         case EditorMode.PLACE_PATH: this.placePathPoint(pos); break;
       }
-    });
+    }, { capture: true });
 
-    window.addEventListener('mouseup', () => {
+    window.addEventListener('pointerup', () => {
       // Commit a move only if the object was actually dragged somewhere new.
       if (this.mode === EditorMode.MOVE_OBJECT && this.selectedObject && this.dragStart) {
         const moved = this.selectedObject.group.position.distanceTo(this.dragStart) > 0.5;
-        if (moved) this.dropObject(this.selectedObject.group.position.clone());
+        if (moved) {
+          this.dropObject(this.selectedObject.group.position.clone());
+        }
+      }
+      if (this.didSculpt) {
+        this.saveState();
+        this.didSculpt = false;
       }
       this.dragStart = null;
       this.isMouseDown = false;
@@ -164,6 +203,37 @@ export class TerrainEditor {
       if (this.mode === EditorMode.MOVE_OBJECT) this.deselectObject();
       if (this.mode === EditorMode.PLACE_PATH) this.cancelPath();
     });
+
+    // Rotation via scroll wheel when holding 'R'
+    canvas.addEventListener('wheel', (e) => {
+      if (this.mode === EditorMode.OFF) return;
+      const keys = (window as any).keys || {};
+      if (keys['KeyR']) {
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        
+        // Default to snapping to 45 degrees (Math.PI / 4). Hold Shift for fine rotation.
+        const snapAngle = e.shiftKey ? 0.05 : (Math.PI / 4);
+        const delta = e.deltaY > 0 ? -snapAngle : snapAngle;
+        
+        this.currentRotation += delta;
+
+        // Ensure we snap to exact multiples if not holding shift to avoid floating point drift
+        if (!e.shiftKey) {
+            this.currentRotation = Math.round(this.currentRotation / snapAngle) * snapAngle;
+        }
+
+        if (this.previewMesh) {
+          this.previewMesh.rotation.y = this.currentRotation;
+        }
+        if (this.mode === EditorMode.MOVE_OBJECT && this.selectedObject) {
+          this.selectedObject.group.rotation.y = this.currentRotation;
+          // Immediately save the rotation to the manifest without needing to drop/move the object
+          this.updateSelectedObjectQuietly({ rotation: [0, this.currentRotation, 0] });
+        }
+      }
+    }, { passive: false, capture: true });
   }
 
   public setMode(mode: EditorMode): void {
@@ -181,7 +251,7 @@ export class TerrainEditor {
     (this.cursorAxis.material as THREE.LineBasicMaterial).color.set(color);
 
     // The radius footprint only reads as a "brush" while sculpting.
-    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER;
+    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN;
   }
 
   public setLayerVisibility(layer: string, visible: boolean): void {
@@ -346,6 +416,7 @@ export class TerrainEditor {
       this.previewMesh = NPC.create({ id: 'preview', name: 'Preview', position: new THREE.Vector3(0, 0, 0), style: this.selectedType as any }, this.assetLoader).mesh;
     }
     if (this.previewMesh) {
+      this.previewMesh.rotation.y = this.currentRotation;
       this.previewMesh.traverse(o => { if (o instanceof THREE.Mesh) { o.material = (o.material as THREE.Material).clone(); (o.material as any).transparent = true; (o.material as any).opacity = 0.55; (o.material as any).depthWrite = false; } });
       this.cursor.add(this.previewMesh);
     }
@@ -360,6 +431,20 @@ export class TerrainEditor {
     if (hits.length > 0) {
       this.lastIntersection = hits[0];
       const p = hits[0].point;
+
+      // Apply Snapping logic for placement and dragging (unless holding Shift).
+      // Must run BEFORE positioning the cursor so the ghost preview sits where the
+      // object will actually land.
+      if (this.mode === EditorMode.PLACE_OBJECT || (this.mode === EditorMode.MOVE_OBJECT && this.selectedObject && this.isMouseDown)) {
+        const keys = (window as any).keys || {};
+        if (!keys['ShiftLeft'] && !keys['ShiftRight']) {
+           const typeToSnap = this.mode === EditorMode.PLACE_OBJECT ? this.selectedType : (this.selectedObject?.type === 'building' ? this.worldManifest.getLandmark(this.selectedObject.id)?.type : null);
+           if (typeToSnap) {
+             this.snapToNearestSimilar(p, typeToSnap, this.selectedObject?.id);
+           }
+        }
+      }
+
       this.cursor.position.copy(p); this.cursor.position.y += 0.15; this.cursor.visible = true;
 
       if (this.mode === EditorMode.MOVE_OBJECT && this.selectedObject && this.isMouseDown) {
@@ -371,7 +456,7 @@ export class TerrainEditor {
           if (npc) { npc.position.copy(p); npc.homePosition.copy(p); npc.isBeingMoved = true; }
         }
       }
-      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER)) this.handleAction();
+      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN)) this.handleAction();
     } else {
       this.lastIntersection = null; this.cursor.visible = false;
     }
@@ -386,8 +471,13 @@ export class TerrainEditor {
     if (!this.lastIntersection) return;
     const now = performance.now();
     if (now - this.lastSculptTime > this.SCULPT_INTERVAL) {
-      this.sculptTerrain(this.lastIntersection.point, this.mode === EditorMode.SCULPT_RAISE ? 1 : -1);
+      if (this.mode === EditorMode.SCULPT_FLATTEN) {
+        this.sculptTerrain(this.lastIntersection.point, 0, true);
+      } else {
+        this.sculptTerrain(this.lastIntersection.point, this.mode === EditorMode.SCULPT_RAISE ? 1 : -1, false);
+      }
       this.lastSculptTime = now;
+      this.didSculpt = true;
     }
   }
 
@@ -433,6 +523,125 @@ export class TerrainEditor {
     this.hoverBox.visible = true;
   }
 
+  public saveState(): void {
+    const data = this.getManifestData();
+    if (this.historyIndex < this.history.length - 1) {
+      this.history = this.history.slice(0, this.historyIndex + 1);
+    }
+    this.history.push(JSON.parse(JSON.stringify(data)));
+    this.historyIndex++;
+  }
+
+  public undo(): void {
+    if (this.historyIndex > 0) {
+      this.historyIndex--;
+      this.worldManifest.hydrate(this.history[this.historyIndex]);
+      this.deselectObject();
+      this.notifyManifestChanged(); 
+    }
+  }
+
+  public redo(): void {
+    if (this.historyIndex < this.history.length - 1) {
+      this.historyIndex++;
+      this.worldManifest.hydrate(this.history[this.historyIndex]);
+      this.deselectObject();
+      this.notifyManifestChanged();
+    }
+  }
+
+  /**
+   * Snap `pos` so the placed/dragged object butts edge-to-edge against the nearest
+   * same-type building with NO gap — for tiling walls into a continuous run.
+   * Keeps the user's current rotation (does NOT inherit the target's). The contact
+   * face is whichever side of the target the cursor is nearest; the new object is
+   * pushed out by exactly its own projected half-extent so the faces touch.
+   */
+  private snapToNearestSimilar(pos: THREE.Vector3, type: string, excludeId?: string): void {
+    let nearestDist = 15; // Only snap if cursor within 15 units of the wall's footprint
+    let targetObj: THREE.Object3D | undefined = undefined;
+
+    // Find nearest same-type object by distance to its FOOTPRINT (not its origin) so
+    // the back/ends of a long wall are just as snappable as its centre.
+    this.scene.traverse(o => {
+      if (o.userData.editorType === 'building' && o.userData.editorId !== excludeId) {
+         const l = this.worldManifest.getLandmark(o.userData.editorId);
+         if (l && l.type === type) {
+            const box = new THREE.Box3().setFromObject(o);
+            const ddx = Math.max(box.min.x - pos.x, 0, pos.x - box.max.x);
+            const ddz = Math.max(box.min.z - pos.z, 0, pos.z - box.max.z);
+            const dist = Math.hypot(ddx, ddz);
+            if (dist < nearestDist) {
+               nearestDist = dist;
+               targetObj = o;
+            }
+         }
+      }
+    });
+
+    if (!targetObj) return;
+    const target = targetObj as THREE.Object3D;
+
+    // Measure the target's true (unrotated) footprint half-extents.
+    const origRot = target.rotation.y;
+    target.rotation.y = 0;
+    target.updateMatrixWorld(true);
+    const localBox = new THREE.Box3().setFromObject(target);
+    target.rotation.y = origRot;
+    target.updateMatrixWorld(true);
+
+    const size = new THREE.Vector3(); localBox.getSize(size);
+    const boxCenter = new THREE.Vector3(); localBox.getCenter(boxCenter);
+    const thx = size.x / 2, thz = size.z / 2;
+    const offX = boxCenter.x - target.position.x;
+    const offZ = boxCenter.z - target.position.z;
+
+    // Target world axes + footprint centre.
+    const cosT = Math.cos(origRot), sinT = Math.sin(origRot);
+    const fcx = target.position.x + offX * cosT + offZ * sinT;
+    const fcz = target.position.z - offX * sinT + offZ * cosT;
+
+    // Cursor relative to footprint centre, projected onto the target's local axes.
+    const rx = pos.x - fcx, rz = pos.z - fcz;
+    const lx = rx * cosT - rz * sinT;   // along target +X
+    const lz = rx * sinT + rz * cosT;   // along target +Z
+
+    // Two unit axes of the target in world space.
+    const axX = { x: cosT, z: -sinT };  // target local +X
+    const axZ = { x: sinT, z: cosT };   // target local +Z
+
+    // `n` = contact-face normal (the target side the cursor is most beyond),
+    // `t` = the tangent (along the contact face). `sn`/`st` are which side.
+    // Compare RAW distance beyond each face (not normalised) so a thin wall's small
+    // end faces are as easy to hit as its long back/front faces.
+    let n: { x: number; z: number }, t: { x: number; z: number };
+    let targetNorm: number, targetTan: number, sn: number, st: number;
+    if (Math.abs(lx) - thx >= Math.abs(lz) - thz) {
+      sn = Math.sign(lx) || 1; st = Math.sign(lz) || 1;
+      n = axX; t = axZ; targetNorm = thx; targetTan = thz;
+    } else {
+      sn = Math.sign(lz) || 1; st = Math.sign(lx) || 1;
+      n = axZ; t = axX; targetNorm = thz; targetTan = thx;
+    }
+
+    // New object keeps the USER's rotation. Same type ⇒ same footprint half-extents.
+    // Project its half-size onto the contact normal and tangent.
+    const cosN = Math.cos(this.currentRotation), sinN = Math.sin(this.currentRotation);
+    const proj = (ax: number, az: number): number =>
+      thx * Math.abs(ax * cosN - az * sinN) + thz * Math.abs(ax * sinN + az * cosN);
+    const newNorm = proj(n.x, n.z);
+    const newTan = proj(t.x, t.z);
+
+    // Normal: push out so the faces touch with no gap.
+    const normDist = sn * (targetNorm + newNorm);
+    // Tangent: align the outer edges flush on the cursor's side → L-corner.
+    // (For a collinear same-rotation run newTan === targetTan ⇒ offset 0 ⇒ seamless tiling.)
+    const tanDist = st * (targetTan - newTan);
+
+    pos.x = fcx + n.x * normDist + t.x * tanDist;
+    pos.z = fcz + n.z * normDist + t.z * tanDist;
+  }
+
   private pickObject(): void {
     const found = this.findEditorObjectUnderCursor(false);
     if (found && found === this.selectedObject?.group) return; // re-clicking the same keeps it
@@ -442,6 +651,8 @@ export class TerrainEditor {
 
   private selectObject(group: THREE.Object3D): void {
     this.selectedObject = { id: group.userData.editorId, type: group.userData.editorType, group };
+    // Seed rotation from the picked object so the first wheel tick doesn't jump it to a stale value.
+    this.currentRotation = group.rotation.y;
     this.applyHighlight(group);
     this.setHover(null);
     if (!this.selectionBox) {
@@ -464,19 +675,33 @@ export class TerrainEditor {
     const groundY = this.terrain.getHeightAt(pos.x, pos.z);
     const p: [number, number, number] = [pos.x, groundY, pos.z];
     if (type === 'building') {
-      const l = this.worldManifest.getAllLandmarks().find(l => l.id === id); if (l) l.transform.position = p;
+      const l = this.worldManifest.getAllLandmarks().find(l => l.id === id); 
+      if (l) {
+        l.transform.position = p;
+        l.transform.rotation = [0, this.currentRotation, 0];
+      }
     } else if (type === 'npc') {
-      const n = this.worldManifest.getNPCs().find(n => n.id === id); if (n) n.transform.position = p;
+      const n = this.worldManifest.getNPCs().find(n => n.id === id); 
+      if (n) {
+        n.transform.position = p;
+        n.transform.rotation = [0, this.currentRotation, 0];
+      }
       const npc = (this as any).entityManager?.npcs.get(id); if (npc) npc.isBeingMoved = false;
     } else if (type === 'feature') {
-      const f = this.worldManifest.getTerrainFeatures().find(f => f.id === id); if (f) { f.transform.x = pos.x; f.transform.z = pos.z; }
+      const f = this.worldManifest.getTerrainFeatures().find(f => f.id === id); if (f) { f.transform.x = pos.x; f.transform.z = pos.z; f.transform.rotation = this.currentRotation; }
     }
-    this.deselectObject();
-    this.notifyManifestChanged(pos.x, pos.z);
+
+    // Apply position visually
+    this.selectedObject.group.position.set(p[0], p[1], p[2]);
+
+    // We intentionally DO NOT call this.deselectObject() here so the object remains selected after a move.
+    // We also DO NOT call notifyManifestChanged here, because that triggers a full world tear-down and respawn,
+    // which causes massive lag, flashing, and orphans our selectedObject reference.
     this.refreshVisualization();
+    this.saveState();
   }
 
-  private deselectObject(): void {
+  public deselectObject(): void {
     if (this.selectedObject) {
       this.selectedObject.group.traverse(o => { if (o instanceof THREE.Mesh && o.userData.origMat) o.material = o.userData.origMat; });
       this.selectedObject = null;
@@ -499,13 +724,15 @@ export class TerrainEditor {
     });
   }
 
-  private sculptTerrain(pos: THREE.Vector3, dir: number): void {
-    // True additive sculpting: each tick deposits a smooth radial height delta
-    // (+ for RAISE, − for LOWER). The manifest merges repeated deposits at the
-    // same spot, so holding the brush carves a deeper hill/valley. Terrain mesh,
-    // collision and player physics all read this back via Terrain.getHeightAt.
-    const delta = dir * (this.brushIntensity / 10);
-    this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, delta);
+  private sculptTerrain(pos: THREE.Vector3, dir: number, flatten = false): void {
+    if (flatten) {
+      // Flatten towards the height exactly at the brush center
+      const targetHeight = this.terrain.getHeightAt(pos.x, pos.z);
+      this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, targetHeight, true);
+    } else {
+      const delta = dir * (this.brushIntensity / 10);
+      this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, delta);
+    }
     this.terrain.setManifest(this.getManifestData());
     this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
     this.refreshVisualization();
@@ -520,15 +747,49 @@ export class TerrainEditor {
     if (!z.architecture) z.architecture = { landmarks: [], paths: [], dungeons: {} };
     if (!z.architecture.landmarks) z.architecture.landmarks = [];
 
-    const l: LandmarkDefinition = { id: `${this.selectedType}_${Date.now()}`, type: this.selectedType, transform: { position: [pos.x, 0, pos.z], scale: 1, rotation: [0, 0, 0] }, visual: { label: this.selectedType } };
+    const l: LandmarkDefinition = { 
+      id: `${this.selectedType}_${Date.now()}`, 
+      type: this.selectedType, 
+      transform: { 
+        position: [pos.x, 0, pos.z], 
+        scale: 1, 
+        rotation: [0, this.currentRotation, 0] 
+      }, 
+      visual: { label: this.selectedType } 
+    };
     z.architecture.landmarks.push(l); this.worldManifest.addLandmark(l);
-    this.notifyManifestChanged(pos.x, pos.z);
+    
+    // Visually spawn it immediately to avoid full world refresh lag
+    const wb = (this as any).worldBuilder;
+    if (wb) {
+      const spawned = wb.spawnObject({
+        objectId: l.id,
+        objectType: l.type,
+        position: l.transform.position,
+        rotation: l.transform.rotation,
+        scale: l.transform.scale,
+        label: l.visual.label,
+        persist: false // Handled by manifest
+      }, true);
+      if (spawned) this.manualSpawns.push(spawned);
+    }
+    
     this.refreshVisualization();
+    this.saveState();
   }
 
   private removeObjectAt(_pos: THREE.Vector3): void {
     const target = this.findEditorObjectUnderCursor(true);
     if (!target) return;
+    this.executeRemoval(target);
+  }
+
+  public deleteSelectedObject(): void {
+    if (!this.selectedObject) return;
+    this.executeRemoval(this.selectedObject.group);
+  }
+
+  private executeRemoval(target: THREE.Object3D): void {
     const id = target.userData.editorId, type = target.userData.editorType;
 
     if (id) {
@@ -537,20 +798,58 @@ export class TerrainEditor {
       else if (type === 'feature') { const fs = this.worldManifest.getTerrainFeatures(); const i = fs.findIndex(f => f.id === id); if (i !== -1) fs.splice(i, 1); }
       else if (type === 'path') { const i = parseInt(id.split('_')[1]); this.worldManifest.getPaths().splice(i, 1); }
       this.setHover(null);
-      this.notifyManifestChanged(target.position.x, target.position.z);
+      this.deselectObject();
+      
+      // Visually hide the object immediately to avoid full world refresh lag
+      target.visible = false;
+      target.traverse(c => c.visible = false);
+      if (type === 'npc') {
+        const em = (this as any).entityManager;
+        if (em) em.removeNPC(id);
+      }
+
       this.refreshVisualization();
+      this.saveState();
     } else if (target.userData.debugInfo) {
       target.visible = false;
       target.traverse(c => c.visible = false);
       this.setHover(null);
+      this.deselectObject();
     }
   }
 
+
   private placeNPC(pos: THREE.Vector3): void {
-    const n: NPCDefinition = { id: `npc_${Date.now()}`, identity: { name: `New ${this.selectedType}`, role: this.selectedType }, transform: { position: [pos.x, pos.y, pos.z], rotation: [0, 0, 0], scale: 1 }, stats: { max_hp: 100, level: 1 }, ai: { personality_key: "friendly", wander_radius: 10, style: this.selectedType } };
+    const n: NPCDefinition = { 
+      id: `npc_${Date.now()}`, 
+      identity: { name: `New ${this.selectedType}`, role: this.selectedType }, 
+      transform: { 
+        position: [pos.x, pos.y, pos.z], 
+        rotation: [0, this.currentRotation, 0], 
+        scale: 1 
+      }, 
+      stats: { max_hp: 100, level: 1 }, 
+      ai: { personality_key: "friendly", wander_radius: 10, style: this.selectedType } 
+    };
     this.worldManifest.getNPCs().push(n);
-    this.notifyManifestChanged(pos.x, pos.z);
+    
+    // Visually spawn it immediately to avoid full world refresh lag
+    const em = (this as any).entityManager;
+    if (em) {
+      em.addNPC({
+        id: n.id,
+        name: n.identity.name,
+        position: new THREE.Vector3(...n.transform.position),
+        personalityKey: n.ai.personality_key,
+        wanderRadius: n.ai.wander_radius,
+        scale: n.transform.scale,
+        style: n.ai.style as any
+      });
+      this.manualNPCs.push(n.id);
+    }
+
     this.refreshVisualization();
+    this.saveState();
   }
 
   private placePathPoint(pos: THREE.Vector3): void {
@@ -565,6 +864,7 @@ export class TerrainEditor {
       this.pathStart = null;
       this.notifyManifestChanged(pos.x, pos.z);
       this.refreshVisualization();
+      this.saveState();
     }
   }
 
@@ -575,14 +875,38 @@ export class TerrainEditor {
     this.refreshVisualization();
   }
 
-  public updateSelectedObject(props: any): void {
+  public updateSelectedObjectQuietly(props: any): void {
     if (!this.selectedObject) return;
     const id = this.selectedObject.id, type = this.selectedObject.type;
     if (type === 'building') { const l = this.worldManifest.getLandmark(id); if (l) { if (props.rotation) l.transform.rotation = props.rotation; if (props.scale) l.transform.scale = props.scale; } }
     else if (type === 'npc') { const n = this.worldManifest.getNPCs().find(n => n.id === id); if (n) { if (props.rotation) n.transform.rotation = props.rotation; if (props.scale) n.transform.scale = props.scale; } }
     else if (type === 'path') { const i = parseInt(id.split('_')[1]), p = this.worldManifest.getPaths()[i]; if (p && props.pathWidth !== undefined) p.width = props.pathWidth; }
-    const g = this.selectedObject.group.position;
-    this.notifyManifestChanged(g.x, g.z);
+    else if (type === 'feature') { const f = this.worldManifest.getTerrainFeatures().find(f => f.id === id); if (f) { if (props.rotation) f.transform.rotation = props.rotation[1]; } }
+      // Dispatch select event to update the properties panel numbers without refreshing the whole world
+      window.dispatchEvent(new CustomEvent('editor:select', { detail: this.selectedObject }));
+  }
+    
+  public updateSelectedObject(props: any): void {
+      if (!this.selectedObject) return;
+      const id = this.selectedObject.id, type = this.selectedObject.type;
+      if (type === 'building') { const l = this.worldManifest.getLandmark(id); if (l) { if (props.rotation) l.transform.rotation = props.rotation; if (props.scale) l.transform.scale = props.scale; } }
+      else if (type === 'npc') { const n = this.worldManifest.getNPCs().find(n => n.id === id); if (n) { if (props.rotation) n.transform.rotation = props.rotation; if (props.scale) n.transform.scale = props.scale; } }
+      else if (type === 'path') { const i = parseInt(id.split('_')[1]), p = this.worldManifest.getPaths()[i]; if (p && props.pathWidth !== undefined) p.width = props.pathWidth; }
+      else if (type === 'feature') { const f = this.worldManifest.getTerrainFeatures().find(f => f.id === id); if (f) { if (props.rotation) f.transform.rotation = props.rotation[1]; } }
+    
+    // Apply changes visually directly
+    if (props.rotation) {
+      if (type === 'building' || type === 'npc') {
+        this.selectedObject.group.rotation.set(props.rotation[0], props.rotation[1], props.rotation[2]);
+      } else if (type === 'feature') {
+        this.selectedObject.group.rotation.y = props.rotation[1];
+      }
+    }
+    if (props.scale) {
+      this.selectedObject.group.scale.setScalar(props.scale);
+    }
+
+
     this.refreshVisualization();
   }
 
@@ -590,6 +914,19 @@ export class TerrainEditor {
 
   /** Notify the host app that the manifest changed, including where, so it can refresh terrain/spawns at the edit. */
   private notifyManifestChanged(x?: number, z?: number): void {
+    // Clear manual spawns because WorldGenerator will rebuild from the manifest
+    this.manualSpawns.forEach(obj => {
+      this.scene.remove(obj);
+      obj.traverse(c => { if (c instanceof THREE.Mesh) c.geometry.dispose(); });
+    });
+    this.manualSpawns = [];
+    
+    const em = (this as any).entityManager;
+    if (em) {
+      this.manualNPCs.forEach(id => em.removeNPC(id));
+      this.manualNPCs = [];
+    }
+
     window.dispatchEvent(new CustomEvent('editor:manifest_changed', { detail: { x, z } }));
   }
 

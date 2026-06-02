@@ -89,6 +89,7 @@ interface SculptStroke {
   z: number;
   radius: number;
   delta: number;
+  flatten?: boolean;
 }
 
 let _sculptStrokes: SculptStroke[] = [];
@@ -106,14 +107,19 @@ function sculptInBounds(minX: number, maxX: number, minZ: number, maxZ: number):
 /** Sum smooth radial height deltas from all overlapping sculpt strokes. */
 function applySculpt(x: number, z: number, h: number): number {
   if (_sculptStrokes.length === 0) return h;
-  let off = 0;
+  let finalH = h;
   for (const s of _sculptStrokes) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d >= s.radius) continue;
     const t = d / s.radius;
-    off += s.delta * (1 - t * t * (3 - 2 * t)); // smoothstep falloff: 1 at centre → 0 at radius
+    const w = (1 - t * t * (3 - 2 * t)); // smoothstep falloff: 1 at centre → 0 at radius
+    if (s.flatten) {
+      finalH += (s.delta - finalH) * w;
+    } else {
+      finalH += s.delta * w;
+    }
   }
-  return h + off;
+  return finalH;
 }
 
 /** Cheap AABB pre-check: does any pad overlap this region? */
@@ -379,7 +385,13 @@ export class Terrain {
     if (data?.world?.topology?.sculpt) {
       for (const s of data.world.topology.sculpt) {
         if (typeof s?.x === 'number' && typeof s?.z === 'number' && s.radius > 0) {
-          _sculptStrokes.push({ x: s.x, z: s.z, radius: s.radius, delta: s.delta ?? 0 });
+          _sculptStrokes.push({ 
+            x: s.x, 
+            z: s.z, 
+            radius: s.radius, 
+            delta: s.delta ?? 0,
+            flatten: !!s.flatten
+          });
         }
       }
     }
