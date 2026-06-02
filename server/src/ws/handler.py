@@ -1714,7 +1714,9 @@ async def _handle_world_manifest_update(data: dict[str, Any]) -> dict[str, Any]:
     # Path to shared world manifest
     # Try multiple common locations relative to the server script
     # handler.py is in server/src/ws/, so we need to go up 4 levels to reach root
-    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    base_dir = os.path.dirname(
+        os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    )
     manifest_path = os.path.join(base_dir, "shared", "data", "world_manifest.json")
 
     try:
