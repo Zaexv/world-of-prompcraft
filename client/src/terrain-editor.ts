@@ -313,6 +313,11 @@ try {
     document.getElementById('toggle-ui')?.addEventListener('click', () => terrainEditorPanel.toggle());
     document.getElementById('toggle-fly')?.addEventListener('click', () => { isFlyMode = !isFlyMode; orbitControls.enabled = !isFlyMode; if (isFlyMode) syncFlyRot(); updateFlyHUD(); });
 
+    // Help modal: trigger opens it (display:flex so the Escape handler matches), close button hides it.
+    const helpOverlay = document.getElementById('help-overlay');
+    document.getElementById('help-trigger')?.addEventListener('click', () => { if (helpOverlay) helpOverlay.style.display = 'flex'; });
+    document.getElementById('help-close')?.addEventListener('click', () => { if (helpOverlay) helpOverlay.style.display = 'none'; });
+
     window.addEventListener('editor:manifest_changed', (e) => {
       terrain.setManifest(worldManifest.toData());
       worldGenerator.clearManifestItems();

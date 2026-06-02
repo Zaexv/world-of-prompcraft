@@ -51,22 +51,46 @@
 
     <!-- Help Modal Overlay -->
     <div id="help-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(5px);">
-      <div style="background:#1a1108; border:2px solid #c5a55a; padding:30px; width:450px; color:#e8dcc8; border-radius:8px; box-shadow:0 0 30px rgba(0,0,0,0.8);">
+      <div style="background:#1a1108; border:2px solid #c5a55a; padding:30px; width:560px; max-height:85vh; overflow-y:auto; color:#e8dcc8; border-radius:8px; box-shadow:0 0 30px rgba(0,0,0,0.8);">
         <h2 style="color:#c5a55a; margin-bottom:15px; text-align:center;">EDITOR CONTROLS</h2>
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">
-          <strong>[TAB]</strong> <span>Toggle Camera/Select Mode</span>
-          <strong>[V]</strong> <span>Toggle Fly/Orbit Mode</span>
-          <strong>[1]</strong> <span>Search Objects</span>
-          <strong>[2]</strong> <span>Search NPCs</span>
-          <strong>[Click]</strong> <span>Select / Drag Object</span>
+
+        <h3 style="color:#c5a55a; margin:8px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">MODES</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[TAB]</strong> <span>Toggle Camera / Select Mode</span>
+          <strong>[1]</strong> <span>Search &amp; place Objects</span>
+          <strong>[2]</strong> <span>Search &amp; place NPCs</span>
+          <strong>[3]</strong> <span>Place Path Mode</span>
+          <strong>[4]</strong> <span>Sculpt Raise / Lower (toggles)</span>
+          <strong>[5]</strong> <span>Sculpt Flatten</span>
+        </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">EDITING</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[Click]</strong> <span>Select / Drag Object (paint while sculpting)</span>
+          <strong>[R + Scroll]</strong> <span>Rotate selection (hold Shift for fine)</span>
           <strong>[Delete]</strong> <span>Remove Selected</span>
-          <strong>[R + Scroll]</strong> <span>Rotate (Hold Shift for fine)</span>
-          <strong>[T]</strong> <span>Toggle Editor Panel</span>
-          <strong>[Esc]</strong> <span>Deselect / Cancel</span>
-          <strong>[Right Click]</strong> <span>Cancel Move/Path</span>
-          <strong>[H]</strong> <span>Hide/Show All Gizmos</span>
+          <strong>[Right Click]</strong> <span>Cancel Move / Path</span>
+          <strong>[Ctrl + Z]</strong> <span>Undo</span>
+          <strong>[Ctrl + Shift + Z]</strong> <span>Redo (also Ctrl + Y)</span>
+          <strong>[Esc]</strong> <span>Close Help / Deselect / Back to Select</span>
+        </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">CAMERA</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[V]</strong> <span>Toggle Fly / Orbit Mode</span>
+          <strong>[W A S D]</strong> <span>Fly move (also Arrow keys)</span>
+          <strong>[Q] / [E]</strong> <span>Fly down / up (Space also up)</span>
+          <strong>[Shift]</strong> <span>Hold for 6× fly speed</span>
+          <strong>[Mouse Drag]</strong> <span>Look around (in Fly mode)</span>
           <strong>[F]</strong> <span>Focus Camera on Cursor</span>
         </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">INTERFACE</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[T]</strong> <span>Toggle Editor Panel</span>
+          <strong>[H]</strong> <span>Hide / Show All Gizmos &amp; HUD</span>
+        </div>
+
         <button id="help-close" style="margin-top:25px; width:100%; padding:10px; background:#c5a55a; border:none; color:#1a1108; font-weight:bold; cursor:pointer; border-radius:4px;">CLOSE</button>
       </div>
     </div>
