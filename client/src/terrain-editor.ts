@@ -67,7 +67,29 @@ try {
     let isFlyMode = false, yaw = 0, pitch = 0;
     const orbitControls = new OrbitControls(camera, renderer.domElement);
     orbitControls.enableDamping = true; orbitControls.dampingFactor = 0.05;
+    // OrbitControls' built-in wheel dolly is radial toward the pivot and collapses
+    // the pivot to ~minDistance ahead of the camera, so zoom hits a hard "max"
+    // wall that ignores the view angle — you can't keep flying toward distant
+    // terrain. Replace it with an angle-aware dolly (below) that moves the camera
+    // AND the pivot along the view direction, like fly-mode zoom.
+    orbitControls.enableZoom = false;
     camera.position.set(150, 80, 150); orbitControls.update();
+
+    // Angle-aware orbit zoom: scroll flies the camera (and its orbit pivot) along
+    // the look direction toward whatever you're pointing at. Step scales with the
+    // pivot distance so it's fine up close and fast far away — no radial wall.
+    const zoomDir = new THREE.Vector3();
+    renderer.domElement.addEventListener('wheel', (e) => {
+      if (isFlyMode || !orbitControls.enabled) return;
+      // Let R+scroll (object rotation, handled in TerrainEditor) win.
+      if ((window as any).keys?.['KeyR']) return;
+      e.preventDefault();
+      camera.getWorldDirection(zoomDir);
+      const dist = camera.position.distanceTo(orbitControls.target);
+      const step = THREE.MathUtils.clamp(dist, 5, 400) * 0.0006 * e.deltaY;
+      camera.position.addScaledVector(zoomDir, -step);
+      orbitControls.target.addScaledVector(zoomDir, -step);
+    }, { passive: false });
 
     // Default to OFF (Camera Mode)
     terrainEditor.setMode(EditorMode.OFF);

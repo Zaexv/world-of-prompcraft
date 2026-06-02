@@ -269,9 +269,9 @@ export class TerrainEditorPanel extends UIComponent {
 
     const saveBtn = this.container.querySelector('.te-save')!;
     saveBtn.addEventListener('click', () => {
-      this.editor.saveManifest();
-      saveBtn.textContent = 'SAVING...';
-      setTimeout(() => saveBtn.textContent = 'SAVE MANIFEST', 1000);
+      const fixes = this.editor.saveManifest();
+      saveBtn.textContent = fixes.length > 0 ? `SAVED — FIXED: ${fixes.join(', ')}` : 'SAVING...';
+      setTimeout(() => saveBtn.textContent = 'SAVE MANIFEST', fixes.length > 0 ? 2500 : 1000);
     });
 
     const refreshBtn = this.container.querySelector('.te-refresh')!;

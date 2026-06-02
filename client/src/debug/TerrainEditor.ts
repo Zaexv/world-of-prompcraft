@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from 'three';
-import { Terrain } from '../scene/Terrain';
+import { Terrain, FOOTPRINT_SPECS } from '../scene/Terrain';
 import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition } from '../state/WorldManifest';
 import { WebSocketClient } from '../network/WebSocketClient';
 import { buildObject } from '../systems/worldbuilder/objects';
@@ -411,13 +411,37 @@ export class TerrainEditor {
   private updatePreview(): void {
     if (this.previewMesh) { this.cursor.remove(this.previewMesh); this.previewMesh = null; }
     if (this.mode === EditorMode.PLACE_OBJECT) {
-      this.previewMesh = buildObject(this.selectedType, new THREE.Vector3(0, 0, 0), 1);
+      const built = buildObject(this.selectedType, new THREE.Vector3(0, 0, 0), 1);
+      // Buildings are wrapped in a THREE.LOD whose detailed level only shows
+      // within ~180 units of the camera. The editor camera is usually farther
+      // out while placing, so the ghost would collapse to a stripped/empty LOD
+      // level and read as "nothing there". Always preview the full-detail level.
+      if (built instanceof THREE.LOD && built.levels.length > 0) {
+        const full = built.levels[0].object;
+        full.position.set(0, 0, 0);
+        this.previewMesh = full;
+      } else {
+        this.previewMesh = built;
+      }
     } else if (this.mode === EditorMode.PLACE_NPC) {
       this.previewMesh = NPC.create({ id: 'preview', name: 'Preview', position: new THREE.Vector3(0, 0, 0), style: this.selectedType as any }, this.assetLoader).mesh;
     }
     if (this.previewMesh) {
       this.previewMesh.rotation.y = this.currentRotation;
-      this.previewMesh.traverse(o => { if (o instanceof THREE.Mesh) { o.material = (o.material as THREE.Material).clone(); (o.material as any).transparent = true; (o.material as any).opacity = 0.55; (o.material as any).depthWrite = false; } });
+      // Clone per-mesh materials so the ghost can go translucent without mutating
+      // the shared catalog materials. Meshes may carry a material ARRAY (e.g. the
+      // multi-material door) — handle both or .clone() throws and the preview is
+      // silently dropped.
+      const ghost = (m: THREE.Material): THREE.Material => {
+        const c = m.clone();
+        c.transparent = true; c.opacity = 0.55; c.depthWrite = false;
+        return c;
+      };
+      this.previewMesh.traverse(o => {
+        if (o instanceof THREE.Mesh) {
+          o.material = Array.isArray(o.material) ? o.material.map(ghost) : ghost(o.material);
+        }
+      });
       this.cursor.add(this.previewMesh);
     }
   }
@@ -711,15 +735,21 @@ export class TerrainEditor {
   }
 
   private applyHighlight(o: THREE.Object3D): void {
+    // Highlight a clone so the shared catalog material is never mutated. Meshes
+    // may carry a material ARRAY (e.g. the multi-material door) — handle both or
+    // .clone() throws and selecting that building breaks.
+    const highlight = (m: THREE.Material): THREE.Material => {
+      const h = m.clone();
+      if ('emissive' in h) {
+        (h as any).emissive = new THREE.Color(SELECT_COLOR);
+        (h as any).emissiveIntensity = 0.6;
+      }
+      return h;
+    };
     o.traverse(c => {
       if (c instanceof THREE.Mesh) {
         if (!c.userData.origMat) c.userData.origMat = c.material;
-        const h = (c.material as THREE.Material).clone();
-        if ('emissive' in h) {
-          (h as any).emissive = new THREE.Color(SELECT_COLOR);
-          (h as any).emissiveIntensity = 0.6;
-        }
-        c.material = h;
+        c.material = Array.isArray(c.material) ? c.material.map(highlight) : highlight(c.material);
       }
     });
   }
@@ -930,7 +960,121 @@ export class TerrainEditor {
     window.dispatchEvent(new CustomEvent('editor:manifest_changed', { detail: { x, z } }));
   }
 
-  public saveManifest(): void {
+  // Footprint measurements are stable per type — cache so a save with many
+  // same-type buildings only builds the mesh once.
+  private static footprintCache = new Map<string, { shape: 'rect'; width: number; depth: number } | null>();
+
+  /**
+   * Build a mesh of `type` at scale 1 and measure its XZ footprint, shrunk
+   * slightly to approximate the base (stripping roof overhang). Cached per type.
+   */
+  private measureFootprint(type: string): { shape: 'rect'; width: number; depth: number } | null {
+    if (TerrainEditor.footprintCache.has(type)) return TerrainEditor.footprintCache.get(type)!;
+    let fp: { shape: 'rect'; width: number; depth: number } | null = null;
+    const obj = buildObject(type, new THREE.Vector3(0, 0, 0), 1);
+    if (obj) {
+      obj.updateMatrixWorld(true);
+      const box = new THREE.Box3().setFromObject(obj);
+      if (!box.isEmpty() && isFinite(box.min.x)) {
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        fp = {
+          shape: 'rect',
+          width: Math.max(1, +(size.x * 0.9).toFixed(1)),
+          depth: Math.max(1, +(size.z * 0.9).toFixed(1)),
+        };
+      }
+      obj.traverse(o => { if (o instanceof THREE.Mesh) o.geometry.dispose(); });
+    }
+    TerrainEditor.footprintCache.set(type, fp);
+    return fp;
+  }
+
+  /**
+   * Pre-save cleanup: remove the inconsistencies that read as bugs in-world
+   * before the manifest is persisted. Three classes of fix:
+   *   1. Sculpt strokes that form near-vertical jumps — these stretch the
+   *      world-tiled ground UVs so badly they look like a missing texture.
+   *      Empty (stray-click) strokes are dropped; over-steep raise/lower
+   *      deposits are clamped so the brush edge can't exceed ~MAX_SCULPT_SLOPE.
+   *   2. Buildings with no footprint spec get an auto-measured one stamped into
+   *      metadata.footprint, so they receive a flat pad instead of floating/
+   *      tilting ("flying") on sloped ground.
+   *   3. Buildings and NPCs whose stored Y drifted from the authoritative
+   *      terrain height (e.g. placed at y=0, or the ground was sculpted under
+   *      them afterwards) — re-grounded so they sit flush instead of
+   *      floating/sinking.
+   * Returns a short human-readable list of what was changed (for the toast).
+   */
+  private sanitizeManifest(): string[] {
+    const fixes: string[] = [];
+
+    // ── 1. Clean sculpt strokes (terrain jumps → "missing texture" look) ──────
+    // Max gradient of the smoothstep falloff (1 - t²(3-2t)) is 1.5/radius at
+    // t=0.5, so the brush edge's steepest slope is 1.5·|delta|/radius. Cap it.
+    const MAX_SCULPT_SLOPE = 1.2;          // ≈50°, past this world-tiled UVs stretch badly
+    const SMOOTHSTEP_PEAK_GRAD = 1.5;
+    const strokes = this.worldManifest.getSculpt();
+    let clamped = 0, dropped = 0;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      const s = strokes[i];
+      if (!s.flatten && Math.abs(s.delta) < 0.05) { strokes.splice(i, 1); dropped++; continue; }
+      if (!s.flatten) {
+        const maxDelta = (s.radius * MAX_SCULPT_SLOPE) / SMOOTHSTEP_PEAK_GRAD;
+        if (Math.abs(s.delta) > maxDelta) { s.delta = Math.sign(s.delta) * maxDelta; clamped++; }
+      }
+    }
+    if (clamped) fixes.push(`smoothed ${clamped} steep sculpt stroke${clamped === 1 ? '' : 's'}`);
+    if (dropped) fixes.push(`removed ${dropped} empty sculpt stroke${dropped === 1 ? '' : 's'}`);
+
+    // ── 2. Ensure every building has a footprint so it gets a flat pad ────────
+    // Buildings whose type is missing from FOOTPRINT_SPECS get no auto-pad, so on
+    // sloped ground they tilt/float ("fly"). Measure the mesh's real footprint
+    // once and stamp it into metadata.footprint (already honoured by
+    // Terrain.setManifest), which fixes both the editor and the in-game terrain.
+    let footprints = 0;
+    for (const l of this.worldManifest.getAllLandmarks()) {
+      if (l.visual?.metadata?.footprint || FOOTPRINT_SPECS[l.type]) continue;
+      const fp = this.measureFootprint(l.type);
+      if (!fp) continue;
+      if (!l.visual.metadata) l.visual.metadata = {};
+      l.visual.metadata.footprint = fp;
+      footprints++;
+    }
+    if (footprints) fixes.push(`padded ${footprints} unpadded building${footprints === 1 ? '' : 's'}`);
+
+    // Push the cleaned topology into the terrain so getHeightAt below samples the
+    // corrected surface (incl. building pads) when re-grounding objects.
+    this.terrain.setManifest(this.getManifestData());
+
+    // ── 2. Re-ground buildings so they sit flat on the pad ────────────────────
+    let buildings = 0;
+    for (const l of this.worldManifest.getAllLandmarks()) {
+      const gy = this.terrain.getHeightAt(l.transform.position[0], l.transform.position[2]);
+      if (Math.abs(l.transform.position[1] - gy) > 0.05) { l.transform.position[1] = gy; buildings++; }
+    }
+    if (buildings) fixes.push(`re-grounded ${buildings} building${buildings === 1 ? '' : 's'}`);
+
+    // ── 3. Re-ground NPCs ─────────────────────────────────────────────────────
+    let npcs = 0;
+    for (const n of this.worldManifest.getNPCs()) {
+      const gy = this.terrain.getHeightAt(n.transform.position[0], n.transform.position[2]);
+      if (Math.abs(n.transform.position[1] - gy) > 0.05) { n.transform.position[1] = gy; npcs++; }
+    }
+    if (npcs) fixes.push(`re-grounded ${npcs} NPC${npcs === 1 ? '' : 's'}`);
+
+    return fixes;
+  }
+
+  public saveManifest(): string[] {
+    // Fix visible inconsistencies (floating buildings, missing-texture terrain
+    // jumps) before persisting, then re-render so the editor reflects the fixes.
+    const fixes = this.sanitizeManifest();
+    if (fixes.length > 0) {
+      this.refreshVisualization();
+      window.dispatchEvent(new CustomEvent('editor:manifest_changed', { detail: {} }));
+    }
+
     const zs = this.worldManifest.getZones();
     zs.forEach(z => {
       if (!z.population) z.population = { npcs: [] };
@@ -957,5 +1101,6 @@ export class TerrainEditor {
       }
     });
     this.ws.send({ type: 'world_manifest_update', data: this.getManifestData() });
+    return fixes;
   }
 }
