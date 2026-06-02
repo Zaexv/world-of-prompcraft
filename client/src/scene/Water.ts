@@ -148,6 +148,7 @@ export class Water {
     this.waterMesh.position.y = Water.LEVEL;
     this.waterMesh.frustumCulled = false;
     this.waterMesh.renderOrder = 0; // Ensure water renders first
+    this.waterMesh.userData.isWater = true;
     scene.add(this.waterMesh);
 
     this.mesh = this.waterMesh;
@@ -170,6 +171,7 @@ export class Water {
     this.foam.position.y    = Water.LEVEL + 0.05; 
     this.foam.frustumCulled = false;
     this.foam.renderOrder = 1; // Ensure foam renders on top
+    this.foam.userData.isWater = true;
     scene.add(this.foam);
   }
 

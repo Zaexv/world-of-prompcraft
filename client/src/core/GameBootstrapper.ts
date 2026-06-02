@@ -58,7 +58,10 @@ export function bootstrap(
   const sceneManager = new SceneManager(app);
   const { scene, camera, renderer, terrain } = sceneManager;
 
-  terrain.setManifest(worldManifest);
+  // Pass the raw data shape (not the instance) so building pads / flat-patches
+  // are actually built — Terrain.setManifest reads `world.topology.features`
+  // and `zones`, which the WorldManifest instance does not expose directly.
+  terrain.setManifest(worldManifest.toData());
 
   const zoneAtmosphere = new ZoneAtmosphere(
     scene,

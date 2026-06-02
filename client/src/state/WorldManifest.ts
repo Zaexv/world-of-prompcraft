@@ -53,6 +53,7 @@ export interface NPCDefinition {
   transform: {
     position: [number, number, number];
     rotation: [number, number, number];
+    scale?: number;
   };
   stats: {
     max_hp: number;
@@ -61,6 +62,7 @@ export interface NPCDefinition {
   ai: {
     personality_key: string;
     wander_radius: number;
+    style?: string;
   };
 }
 
@@ -68,6 +70,14 @@ export interface PathDefinition {
   start: [number, number];
   end: [number, number];
   width: number;
+}
+
+/** A single additive terrain-sculpt deposit (RAISE/LOWER brush). */
+export interface SculptStroke {
+  x: number;
+  z: number;
+  radius: number;
+  delta: number;
 }
 
 export interface ZoneDefinition {
@@ -89,6 +99,7 @@ export interface WorldManifestData {
     environment: EnvironmentConfig;
     topology: {
       features: VerticalPlace[];
+      sculpt?: SculptStroke[];
     };
   };
   zones: Record<string, ZoneDefinition>;
@@ -100,8 +111,10 @@ export interface WorldManifestData {
  * Loads directly from the shared manifest file on disk.
  */
 export class WorldManifest {
+  private version = '2.1.0';
   private landmarks: Map<string, LandmarkDefinition> = new Map();
   private terrainFeatures: VerticalPlace[] = [];
+  private sculpt: SculptStroke[] = [];
   private environment: EnvironmentConfig | null = null;
   private dungeons: Record<string, DungeonConfig> = {};
   private npcs: NPCDefinition[] = [];
@@ -113,12 +126,29 @@ export class WorldManifest {
   }
 
   /**
+   * Fetches the latest manifest from the server and hydrates local state.
+   */
+  public async fetchAsync(): Promise<void> {
+    try {
+      const response = await fetch('/world/manifest');
+      if (response.ok) {
+        const data = await response.json();
+        this.hydrate(data);
+      }
+    } catch (err) {
+      console.warn('Failed to fetch latest manifest from server, using local import:', err);
+    }
+  }
+
+  /**
    * Hydrate the manifest with data.
    */
   public hydrate(data: WorldManifestData): void {
     // 1. World-level systems
+    this.version = data.version ?? this.version;
     this.environment = data.world.environment;
     this.terrainFeatures = data.world.topology.features;
+    this.sculpt = data.world.topology.sculpt ?? [];
     
     // 2. Clear caches
     this.landmarks.clear();
@@ -163,6 +193,26 @@ export class WorldManifest {
     return this.terrainFeatures;
   }
 
+  public getSculpt(): SculptStroke[] {
+    return this.sculpt;
+  }
+
+  /**
+   * Deposit an additive sculpt stroke. Strokes at (nearly) the same spot and
+   * radius are merged so holding the brush deepens one stroke instead of
+   * appending hundreds of near-duplicates to the manifest.
+   */
+  public addSculptStroke(x: number, z: number, radius: number, delta: number): void {
+    const MERGE_DIST = 1.5;
+    for (const s of this.sculpt) {
+      if (Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
+        s.delta += delta;
+        return;
+      }
+    }
+    this.sculpt.push({ x, z, radius, delta });
+  }
+
   public getPaths(): PathDefinition[] {
     return this.paths;
   }
@@ -204,5 +254,23 @@ export class WorldManifest {
 
   public getZones(): Map<string, ZoneDefinition> {
     return this.zones;
+  }
+
+  /**
+   * Serialize the current in-memory state back into the raw manifest data shape.
+   * This is the canonical shape consumed by Terrain.setManifest() (which reads
+   * `world.topology.features` and `zones` to build terrain pads) and by the
+   * server's `world_manifest_update` save handler. Zones hold the authoritative
+   * architecture/population; environment + topology are world-level.
+   */
+  public toData(): WorldManifestData {
+    return {
+      version: this.version,
+      world: {
+        environment: this.environment as EnvironmentConfig,
+        topology: { features: this.terrainFeatures, sculpt: this.sculpt },
+      },
+      zones: Object.fromEntries(this.zones),
+    };
   }
 }

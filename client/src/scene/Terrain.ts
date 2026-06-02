@@ -11,28 +11,6 @@ import {
 } from './Biomes';
 import { getVerticalLiftAt, hasLiftInBounds } from './VerticalTerrain';
 
-// ── Fort Malaka city platform ────────────────────────────────────────────────
-// `cityPlatformFlatness` returns how strongly the Fort Malaka platform overrides
-// the base terrain noise at (x, z): 1 = flat plaza interior, 0 = wilderness
-// beyond it, smoothstep-blended in the ring between. Used by computeHeight to
-// level the rolling-hills noise so the city reads as a coherent plain — while
-// the authored topology features (castle hill, suarezlands mountain) are left
-// to rise on top of it.
-const CITY_CENTER_X = -160;
-const CITY_CENTER_Z = -220;
-const CITY_INNER = 95;  // radius held perfectly flat (covers every landmark)
-const CITY_OUTER = 150; // radius where the platform blends back to wilderness
-const CITY_HEIGHT = 4.0;
-
-function cityPlatformFlatness(x: number, z: number): number {
-  const fx = x - CITY_CENTER_X;
-  const fz = z - CITY_CENTER_Z;
-  const fDist = Math.sqrt(fx * fx + fz * fz);
-  if (fDist >= CITY_OUTER) return 0;
-  const raw = Math.max(0, Math.min(1, (fDist - CITY_INNER) / (CITY_OUTER - CITY_INNER)));
-  return 1 - raw * raw * (3 - 2 * raw); // smoothstep
-}
-
 // ── Flat building pads ───────────────────────────────────────────────────────
 // A building placed at a single `getHeightAt(center)` floats/tilts when the
 // authored hills/mountain slope the ground across its footprint. Rather than
@@ -99,6 +77,43 @@ let _manifestPads: BuildingPad[] = [];
 
 function getBuildingPads(): BuildingPad[] {
   return [...LEGACY_BUILDING_PADS, ..._manifestPads];
+}
+
+// ── Additive sculpt layer ─────────────────────────────────────────────────────
+// True terrain sculpting: each RAISE/LOWER brush deposit adds a smooth, radial
+// height delta on TOP of the noise + building pads. Persisted in the manifest
+// under `world.topology.sculpt` so the editor mesh, the in-game mesh, collision,
+// and player physics all read the identical deformed surface.
+interface SculptStroke {
+  x: number;
+  z: number;
+  radius: number;
+  delta: number;
+}
+
+let _sculptStrokes: SculptStroke[] = [];
+
+/** Cheap AABB pre-check: does any sculpt stroke overlap this region? */
+function sculptInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  for (const s of _sculptStrokes) {
+    const dx = Math.max(0, Math.max(minX - s.x, s.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - s.z, s.z - maxZ));
+    if (dx * dx + dz * dz < s.radius * s.radius) return true;
+  }
+  return false;
+}
+
+/** Sum smooth radial height deltas from all overlapping sculpt strokes. */
+function applySculpt(x: number, z: number, h: number): number {
+  if (_sculptStrokes.length === 0) return h;
+  let off = 0;
+  for (const s of _sculptStrokes) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d >= s.radius) continue;
+    const t = d / s.radius;
+    off += s.delta * (1 - t * t * (3 - 2 * t)); // smoothstep falloff: 1 at centre → 0 at radius
+  }
+  return h + off;
 }
 
 /** Cheap AABB pre-check: does any pad overlap this region? */
@@ -329,12 +344,45 @@ export class Terrain {
    */
   getHeightAt(x: number, z: number): number {
     const h = Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
-    return applyBuildingPads(x, z, h);
+    return applySculpt(x, z, applyBuildingPads(x, z, h));
+  }
+
+  /**
+   * Refreshes all chunks within a radius of the given world position.
+   * Useful when terrain features or pads are updated.
+   */
+  public refreshAt(x: number, z: number, radius: number): void {
+    const minCX = Math.floor((x - radius) / CHUNK_SIZE);
+    const maxCX = Math.floor((x + radius) / CHUNK_SIZE);
+    const minCZ = Math.floor((z - radius) / CHUNK_SIZE);
+    const maxCZ = Math.floor((z + radius) / CHUNK_SIZE);
+
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const key = `${cx},${cz}`;
+        const chunk = this.chunks.get(key);
+        if (chunk) {
+          // Dispose and reload
+          this.unloadChunk(key, chunk);
+          this.loadChunk(cx, cz);
+        }
+      }
+    }
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setManifest(data: any): void {
     _manifestPads = [];
+    _sculptStrokes = [];
+
+    // 0. Additive sculpt strokes (true raise/lower terrain deformation)
+    if (data?.world?.topology?.sculpt) {
+      for (const s of data.world.topology.sculpt) {
+        if (typeof s?.x === 'number' && typeof s?.z === 'number' && s.radius > 0) {
+          _sculptStrokes.push({ x: s.x, z: s.z, radius: s.radius, delta: s.delta ?? 0 });
+        }
+      }
+    }
 
     // 1. Process explicit topology features (e.g., flat_patch)
     if (data?.world?.topology?.features) {
@@ -543,20 +591,6 @@ export class Terrain {
     // Very fine detail (root-like bumps) - significantly reduced to avoid "teeth"
     h += Math.sin(x * 0.15 + 1.1) * Math.cos(z * 0.13 - 3.2) * 0.05;
 
-    // Fort Malaka city platform — smoothly flatten terrain so buildings sit flush.
-    // (Vertical-lift suppression that completes the flattening lives in liftAt,
-    // applied alongside this by getHeightAt and the chunk mesher.)
-    {
-      const flatness = cityPlatformFlatness(x, z);
-      if (flatness > 0) {
-        // Subtle "Ancient Sand Dunes" undulation, only in the fully-flat
-        // interior, so the plaza sand still reads natural.
-        const dune = flatness >= 1 ? Math.sin(x * 0.15) * Math.cos(z * 0.12) * 0.15 : 0;
-        const cityH = CITY_HEIGHT + dune;
-        h = h * (1 - flatness) + cityH * flatness;
-      }
-    }
-
     // Blend in biome-specific height modifications.
     // Accept pre-computed weights from the caller to avoid a redundant getBiomeWeights call.
     const weights = precomputedWeights ?? getBiomeWeights(x, z);
@@ -580,7 +614,7 @@ export class Terrain {
   //  Chunk lifecycle
   // ────────────────────────────────────────────────────────────────────────────
 
-  private loadChunk(cx: number, cz: number): void {
+  public loadChunk(cx: number, cz: number): void {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
     const segments = CHUNK_SEGMENTS;
@@ -597,12 +631,14 @@ export class Terrain {
     // returns 0 for every vertex and we can skip calling it entirely.
     const chunkHasLift = hasLiftInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasPad = padsInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
+    const chunkHasSculpt = sculptInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
 
     // Full world height for a sample point, matching getHeightAt (noise + lift +
-    // building-pad levelling). Used for edge-neighbour normals below too.
+    // building-pad levelling + sculpt). Used for edge-neighbour normals below too.
     const sampleHeight = (sx: number, sz: number, weights?: BiomeWeights): number => {
       const h = Terrain.computeHeight(sx, sz, weights) + (chunkHasLift ? getVerticalLiftAt(sx, sz) : 0);
-      return chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
+      const padded = chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
+      return chunkHasSculpt ? applySculpt(sx, sz, padded) : padded;
     };
 
     // ── Pass 1: world-space positions + biome weights + heights ───────────────
@@ -742,7 +778,7 @@ export class Terrain {
     }
   }
 
-  private unloadChunk(key: string, chunk: ChunkData): void {
+  public unloadChunk(key: string, chunk: ChunkData): void {
     this.scene.remove(chunk.mesh);
     chunk.mesh.geometry.dispose();
     // Material is shared — do NOT dispose it here.

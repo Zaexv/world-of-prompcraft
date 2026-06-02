@@ -18,6 +18,7 @@ export interface NPCConfig {
   position: THREE.Vector3;
   color?: number;
   behavior?: NPCMotionSource['behavior'];
+  style?: NPCPlaceholderStyle;
   movementStyle?: NPCMotionSource['movementStyle'];
   wanderRadius?: number;
   hp?: number;
@@ -59,7 +60,7 @@ export class NPC {
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
     this.motionProfile = createNPCMotionProfile(config);
-    this.placeholderStyle = getNPCPlaceholderStyle(config.id, config.name, config.behavior);
+    this.placeholderStyle = config.style ?? getNPCPlaceholderStyle(config.id, config.name, config.behavior);
     this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
     this.mesh = new THREE.Group();
     if (config.scale) this.mesh.scale.setScalar(config.scale);

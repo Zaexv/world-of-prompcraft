@@ -14,7 +14,8 @@ import type { CollisionSystem } from './CollisionSystem';
 import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
 import { ProceduralPopulator } from './ProceduralPopulator';
-import type { LandmarkDefinition } from '../state/WorldManifest';
+import type { LandmarkDefinition, NPCDefinition } from '../state/WorldManifest';
+import type { NPCPlaceholderStyle } from '../entities/NPCModels';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
 
@@ -39,6 +40,8 @@ export class WorldGenerator {
 
   /** Spatial index for landmarks: Map<"chunkX,chunkZ", LandmarkDefinition[]> */
   private landmarkSpatialIndex: Map<string, LandmarkDefinition[]> = new Map();
+  /** Spatial index for manifest NPCs: Map<"chunkX,chunkZ", NPCDefinition[]> */
+  private npcSpatialIndex: Map<string, NPCDefinition[]> = new Map();
 
   constructor(
     scene: THREE.Scene,
@@ -70,10 +73,33 @@ export class WorldGenerator {
     this.populator.setCollisionSystem(cs);
   }
 
+  /** Clear all manifest-driven objects and NPCs. */
+  public clearManifestItems(): void {
+    for (const [key, objects] of this.chunkObjects.entries()) {
+      for (const obj of objects) {
+        this.scene.remove(obj);
+        this.collisionSystem?.removeCollidable(obj);
+        obj.traverse(child => { if (child instanceof THREE.Mesh) child.geometry.dispose(); });
+      }
+      this.chunkObjects.delete(key);
+    }
+    for (const [key, npcIds] of this.chunkNPCs.entries()) {
+      for (const id of npcIds) {
+        this.entityManager.removeNPC(id);
+      }
+      this.chunkNPCs.delete(key);
+    }
+    // Chunks need to be marked as "not generated" for manifest items
+    // (procedural items can stay as they are proximity based)
+    // Actually, it's safer to just clear generatedChunks.
+    this.generatedChunks.clear();
+  }
+
   /** Set the world manifest for data-driven landmark spawning. */
   setWorldManifest(wm: WorldManifest): void {
     this.worldManifest = wm;
     this.rebuildSpatialIndex();
+    this.rebuildNPCIndex();
     this.syncMinimapWaypoints();
   }
 
@@ -100,6 +126,24 @@ export class WorldGenerator {
         this.landmarkSpatialIndex.set(key, []);
       }
       this.landmarkSpatialIndex.get(key)!.push(landmark);
+    }
+  }
+
+  /** Rebuild the spatial index for manifest NPCs. */
+  private rebuildNPCIndex(): void {
+    this.npcSpatialIndex.clear();
+    if (!this.worldManifest) return;
+
+    for (const npc of this.worldManifest.getNPCs()) {
+      const [nx, , nz] = npc.transform.position;
+      const cx = Math.floor(nx / CHUNK_SIZE);
+      const cz = Math.floor(nz / CHUNK_SIZE);
+      const key = `${cx},${cz}`;
+
+      if (!this.npcSpatialIndex.has(key)) {
+        this.npcSpatialIndex.set(key, []);
+      }
+      this.npcSpatialIndex.get(key)!.push(npc);
     }
   }
 
@@ -178,6 +222,25 @@ export class WorldGenerator {
 
     if (chunkObjects.length > 0) {
       this.chunkObjects.set(key, chunkObjects);
+    }
+
+    // Spawn manifest NPCs
+    const manifestNpcs = this.npcSpatialIndex.get(key);
+    if (manifestNpcs) {
+      const npcIds: string[] = [];
+      for (const npcDef of manifestNpcs) {
+        this.entityManager.addNPC({
+          id: npcDef.id,
+          name: npcDef.identity.name,
+          position: new THREE.Vector3(...npcDef.transform.position),
+          personalityKey: npcDef.ai.personality_key,
+          wanderRadius: npcDef.ai.wander_radius,
+          scale: npcDef.transform.scale,
+          style: npcDef.ai.style as NPCPlaceholderStyle | undefined
+        });
+        npcIds.push(npcDef.id);
+      }
+      this.chunkNPCs.set(key, npcIds);
     }
 
     // Force NPCs inside this chunk to re-snap to newly loaded terrain.

@@ -472,6 +472,9 @@ async def handle_message(
     if msg_type == "world_modify":
         return await _handle_world_modify(data, websocket)
 
+    if msg_type == "world_manifest_update":
+        return await _handle_world_manifest_update(data)
+
     return {"type": "error", "message": f"Unknown message type: {msg_type}"}
 
 
@@ -1697,3 +1700,36 @@ async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> di
         "dialogue": dialogue,
         "actions": actions,
     }
+
+
+async def _handle_world_manifest_update(data: dict[str, Any]) -> dict[str, Any]:
+    """Save the updated world manifest to disk."""
+    import json
+    import os
+
+    manifest_data = data.get("data")
+    if not manifest_data:
+        return {"type": "error", "message": "No manifest data provided"}
+
+    # Path to shared world manifest
+    # Try multiple common locations relative to the server script
+    base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    manifest_path = os.path.join(base_dir, "shared", "data", "world_manifest.json")
+
+    if not os.path.exists(manifest_path):
+        # Fallback to absolute path provided in context
+        manifest_path = "/Users/eduardo.pertierrapuche/Development/My Project/world-of-prompcraft/shared/data/world_manifest.json"
+
+    try:
+        with open(manifest_path, "w") as f:
+            json.dump(manifest_data, f, indent=2)
+        logger.info("World manifest updated successfully at %s", manifest_path)
+
+        # Broadcast the update to all connected players (optional)
+        if _manager:
+            await _manager.broadcast({"type": "world_manifest_refreshed"})
+
+        return {"type": "ack", "status": "ok"}
+    except Exception as e:
+        logger.exception("Failed to save world manifest")
+        return {"type": "error", "message": f"Failed to save manifest: {e!s}"}
