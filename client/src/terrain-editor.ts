@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { SceneManager } from './scene/SceneManager';
@@ -122,7 +123,6 @@ try {
       terrainEditor.tick(delta);
       const fx = isFlyMode ? camera.position.x : orbitControls.target.x, fz = isFlyMode ? camera.position.z : orbitControls.target.z;
       worldGenerator.update(fx, fz);
-      entityManager.npcs.forEach(n => n.update(delta));
       zoneTracker.update(fx, fz);
       zoneAtmosphere.enterZone(zoneTracker.getCurrentZone());
       zoneAtmosphere.update(delta);

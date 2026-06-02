@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import { UIComponent } from "./core/UIComponent";
 import { TerrainEditor, EditorMode } from "../debug/TerrainEditor";
 import { meshTypes } from "../meshes/index";

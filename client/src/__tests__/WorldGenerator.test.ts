@@ -32,23 +32,31 @@ describe('WorldGenerator - minimap waypoint sync', () => {
 
     const minimap = { setWaypoints: vi.fn() } as unknown as Minimap;
     generator.setMinimap(minimap);
-    generator.setWorldManifest(new WorldManifest());
+    
+    const manifest = new WorldManifest();
+    manifest.getAllLandmarks = vi.fn().mockReturnValue([
+      { id: 'test_l', visual: { label: 'Test L' }, transform: { position: [1, 0, 2] } }
+    ]);
+    manifest.getTerrainFeatures = vi.fn().mockReturnValue([
+      { id: 'test_f', transform: { x: 3, z: 4 } }
+    ]);
+    generator.setWorldManifest(manifest);
 
     expect(minimap.setWaypoints).toHaveBeenCalledTimes(1);
     expect(minimap.setWaypoints).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'landmark:starting_pavilion',
-          label: 'Origin Pavilion',
-          x: 0,
-          z: 0,
+          id: 'landmark:test_l',
+          label: 'Test L',
+          x: 1,
+          z: 2,
           kind: 'landmark',
         }),
         expect.objectContaining({
-          id: 'feature:castle-hill-base',
-          label: 'Castle Hill Base',
-          x: -130,
-          z: -190,
+          id: 'feature:test_f',
+          label: 'Test F',
+          x: 3,
+          z: 4,
           kind: 'feature',
         }),
       ]),

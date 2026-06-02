@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars */
 import * as THREE from 'three';
 import { Terrain } from '../scene/Terrain';
 import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition } from '../state/WorldManifest';
@@ -126,7 +127,7 @@ export class TerrainEditor {
     if (em) {
       em.npcs.forEach((npc: any) => {
         if (!npc.isBeingMoved) {
-          npc.mesh.position.y = this.terrain.getHeightAt(npc.position.x, npc.position.z);
+          npc.snapToGround((x: number, z: number) => this.terrain.getHeightAt(x, z));
         }
         npc.update(delta);
       });
@@ -240,13 +241,20 @@ export class TerrainEditor {
   private pickObject(pos: THREE.Vector3): void {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObjects(this.scene.children, true);
-    if (hits.length > 0) {
-      let root = hits[0].object;
-      while (root.parent && !root.userData.editorId && root.parent !== this.scene) root = root.parent;
-      if (root.userData.editorId) {
-        this.selectedObject = { id: root.userData.editorId, type: root.userData.editorType, group: root };
-        this.applyHighlight(root);
+    for (const hit of hits) {
+      const root = hit.object;
+      if (root.userData.isWater) continue; // Skip water meshes
+      
+      let current: THREE.Object3D | null = root;
+      while (current && !current.userData.editorId && current.parent !== this.scene) {
+        current = current.parent;
+      }
+      
+      if (current && current.userData.editorId) {
+        this.selectedObject = { id: current.userData.editorId, type: current.userData.editorType, group: current };
+        this.applyHighlight(current);
         window.dispatchEvent(new CustomEvent('editor:select', { detail: this.selectedObject }));
+        return;
       }
     }
   }
@@ -307,10 +315,13 @@ export class TerrainEditor {
   private removeObjectAt(pos: THREE.Vector3): void {
     this.raycaster.setFromCamera(this.mouse, this.camera);
     const hits = this.raycaster.intersectObjects(this.scene.children, true);
-    if (hits.length > 0) {
-      let root = hits[0].object;
+    for (const hit of hits) {
+      let root = hit.object;
+      if (root.userData.isWater) continue; // Skip water meshes
+
       while (root.parent && !root.userData.editorId && !root.userData.debugInfo && root.parent !== this.scene) root = root.parent;
       const id = root.userData.editorId, type = root.userData.editorType;
+      
       if (id) {
         if (type === 'building') { this.worldManifest.removeLandmark(id); this.worldManifest.getZones().forEach(z => { if (z.architecture?.landmarks) { const i = z.architecture.landmarks.findIndex(l => l.id === id); if (i !== -1) z.architecture.landmarks.splice(i, 1); } }); }
         else if (type === 'npc') { const i = this.worldManifest.getNPCs().findIndex(n => n.id === id); if (i !== -1) this.worldManifest.getNPCs().splice(i, 1); }
@@ -318,7 +329,12 @@ export class TerrainEditor {
         else if (type === 'path') { const i = parseInt(id.split('_')[1]); this.worldManifest.getPaths().splice(i, 1); }
         window.dispatchEvent(new CustomEvent('editor:manifest_changed'));
         this.refreshVisualization();
-      } else if (root.userData.debugInfo) { root.visible = false; root.traverse(c => c.visible = false); }
+        return;
+      } else if (root.userData.debugInfo) { 
+        root.visible = false; 
+        root.traverse(c => c.visible = false); 
+        return;
+      }
     }
   }
 
