@@ -15,6 +15,7 @@ import type { WorldManifest } from '../state/WorldManifest';
 import type { WorldBuilder } from './WorldBuilder';
 import { ProceduralPopulator } from './ProceduralPopulator';
 import type { LandmarkDefinition, NPCDefinition } from '../state/WorldManifest';
+import type { NPCPlaceholderStyle } from '../entities/NPCModels';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
 
@@ -235,7 +236,7 @@ export class WorldGenerator {
           personalityKey: npcDef.ai.personality_key,
           wanderRadius: npcDef.ai.wander_radius,
           scale: npcDef.transform.scale,
-          style: npcDef.ai.style as any
+          style: npcDef.ai.style as NPCPlaceholderStyle | undefined
         });
         npcIds.push(npcDef.id);
       }
