@@ -23,6 +23,7 @@ export function registerPlayerMeshes() {
     Object.defineProperty(PlayerClass, 'type', { value: type });
     Object.defineProperty(PlayerClass, 'category', { value: 'player' });
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     registerMesh(PlayerClass as any);
   }
 }

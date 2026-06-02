@@ -1,63 +1,56 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
-import { getMaterials, createDoor, createRoofTile, withLOD, MedMaterials } from './MalakaBrokenKit';
+import { getMaterials, createDoor, createRoofTile, withLOD } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
-/** A stone box whose masonry tiles at a constant world scale (no stretching). */
-function stoneBox(mats: MedMaterials, w: number, h: number, d: number): THREE.Mesh {
-  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.stone);
+function stoneBox(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
+  const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
 }
 
-function createStoneCross(scale: number, mats: MedMaterials): THREE.Group {
+function createStoneCross(scale: number, mat: THREE.Material): THREE.Group {
   const g = new THREE.Group();
   const t = 0.12 * scale;
-  const v = new THREE.Mesh(new THREE.BoxGeometry(t, 1.2 * scale, t), mats.stone);
-  const h = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, t, t), mats.stone);
+  const v = new THREE.Mesh(new THREE.BoxGeometry(t, 1.2 * scale, t), mat);
+  const h = new THREE.Mesh(new THREE.BoxGeometry(0.8 * scale, t, t), mat);
   h.position.y = 0.2 * scale;
-  // Nudge slightly in Z to avoid coplanar faces with the vertical bar
   h.position.z = 0.002 * scale;
   g.add(v, h);
   v.castShadow = h.castShadow = true;
-  g.userData.noCollision = true;
-  g.traverse(c => { c.userData.noCollision = true; });
   return g;
 }
 
 /**
  * Creates a realistic rectangular glass window.
  */
-function createRectangularGlassWindow(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
+function createRectangularGlassWindow(width: number, height: number, scale: number, stoneMat: THREE.Material, glassMat: THREE.Material): THREE.Group {
     const group = new THREE.Group();
     
     // 1. Stone Frame (Rectangular)
     const frameT = 0.4 * scale;
-    const frame = stoneBox(mats, width + frameT, height + frameT / 2, frameT);
+    const frame = stoneBox(width + frameT, height + frameT / 2, frameT, stoneMat);
     frame.position.y = (height + frameT / 4) / 2;
     group.add(frame);
 
-    // 2. Glass Pane (Using shared material)
-    const glass = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.1 * scale), mats.glass);
+    // 2. Glass Pane
+    const glass = new THREE.Mesh(new THREE.BoxGeometry(width, height, 0.1 * scale), glassMat);
     glass.position.y = height / 2;
     glass.position.z = 0.05 * scale;
     group.add(glass);
 
-    // 3. Stone Tracery (Horizontal and Vertical bars)
-    const mullionV = stoneBox(mats, 0.12 * scale, height, 0.15 * scale);
+    // 3. Stone Tracery
+    const mullionV = stoneBox(0.12 * scale, height, 0.15 * scale, stoneMat);
     mullionV.position.set(0, height/2, 0.1 * scale);
     group.add(mullionV);
 
-    const mullionH = stoneBox(mats, width, 0.12 * scale, 0.15 * scale);
-    // Nudge slightly in Z to avoid coplanar faces with vertical mullion
+    const mullionH = stoneBox(width, 0.12 * scale, 0.15 * scale, stoneMat);
     mullionH.position.set(0, height/2, 0.102 * scale);
     group.add(mullionH);
 
-    group.userData.noCollision = true;
-    group.traverse(c => { c.userData.noCollision = true; });
     return group;
 }
 
@@ -70,6 +63,7 @@ export class MalakaBrokenChurch extends Mesh {
     const g = new THREE.Group();
     g.position.copy(pos);
     const mats = getMaterials();
+    const stoneMat = mats.stone;
 
     // Helper for Corbel Tables
     const addCorbels = (parent: THREE.Group, width: number, length: number, height: number, spacing: number) => {
@@ -79,7 +73,7 @@ export class MalakaBrokenChurch extends Mesh {
         for (let i = 0; i <= countX; i++) {
             const x = -width/2 + i * spacing;
             for (const side of [-1, 1]) {
-                const c = stoneBox(mats, 0.2 * scale, 0.3 * scale, 0.3 * scale);
+                const c = stoneBox(0.2 * scale, 0.3 * scale, 0.3 * scale, stoneMat);
                 c.position.set(x, height - 0.2 * scale, side * (length/2 + 0.1 * scale));
                 corbelG.add(c);
             }
@@ -87,13 +81,11 @@ export class MalakaBrokenChurch extends Mesh {
         for (let i = 0; i <= countZ; i++) {
             const z = -length/2 + i * spacing;
             for (const side of [-1, 1]) {
-                const c = stoneBox(mats, 0.3 * scale, 0.3 * scale, 0.2 * scale);
+                const c = stoneBox(0.3 * scale, 0.3 * scale, 0.2 * scale, stoneMat);
                 c.position.set(side * (width/2 + 0.1 * scale), height - 0.2 * scale, z);
                 corbelG.add(c);
             }
         }
-        corbelG.userData.noCollision = true;
-        corbelG.traverse(c => { c.userData.noCollision = true; });
         parent.add(corbelG);
     };
     
@@ -114,20 +106,16 @@ export class MalakaBrokenChurch extends Mesh {
     const plinthD = frontEdgeZ - backEdgeZ;
     const plinthZ = (frontEdgeZ + backEdgeZ) / 2;
 
-    // Skirt the plinth below grade (top stays at baseH) so it doesn't float on slopes.
     const plinthHeight = baseH + 0.4 * scale;
-    const plinth = stoneBox(mats, transeptW + 4 * scale, plinthHeight, plinthD);
+    const plinth = stoneBox(transeptW + 4 * scale, plinthHeight, plinthD, stoneMat);
     plinth.position.set(0, baseH - plinthHeight / 2, plinthZ);
-    plinth.userData.noCollision = true; // Covered by baseColl proxy
     g.add(plinth);
 
     // 2. MAIN BODIES
     const createBody = (w: number, h: number, d: number) => {
       const group = new THREE.Group();
-      // Overlap the base so the bottom face is buried inside it (no coplanar seam -> no z-fighting).
-      const sink = 0.3 * scale;
-      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h + sink, d), mats.stucco);
-      body.position.y = (h + sink) / 2 - sink;
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.stucco);
+      body.position.y = h / 2;
       body.castShadow = body.receiveShadow = true;
       group.add(body);
 
@@ -135,14 +123,12 @@ export class MalakaBrokenChurch extends Mesh {
       for (const sx of [-1, 1]) {
         for (const sz of [-1, 1]) {
           for (let y = 0.3 * scale; y < h; y += 0.8 * scale) {
-            const quoin = stoneBox(mats, 0.6 * scale, 0.4 * scale, 0.6 * scale);
+            const quoin = stoneBox(0.6 * scale, 0.4 * scale, 0.6 * scale, stoneMat);
             quoin.position.set(sx * (w / 2), y, sz * (d / 2));
             group.add(quoin);
           }
         }
       }
-      group.userData.noCollision = true;
-      group.traverse(c => { c.userData.noCollision = true; });
       return group;
     };
 
@@ -155,9 +141,9 @@ export class MalakaBrokenChurch extends Mesh {
     transBody.position.set(0, baseH, transeptZ);
     addCorbels(transBody, transeptW, transeptD, naveH, 1.5 * scale);
     
-    // Large Rectangular Windows for Transept Ends
+    // Large Rectangular Windows
     for (const side of [-1, 1]) {
-        const win = createRectangularGlassWindow(4 * scale, 8 * scale, scale, mats);
+        const win = createRectangularGlassWindow(4 * scale, 8 * scale, scale, stoneMat, mats.glass);
         win.position.set(side * (transeptW / 2), naveH * 0.15, 0);
         win.rotation.y = side * Math.PI / 2;
         transBody.add(win);
@@ -166,23 +152,21 @@ export class MalakaBrokenChurch extends Mesh {
 
     // 3. FRONT FACADE
     const facadeH = naveH + 6 * scale;
-    const facadeSink = 0.3 * scale;
-    const facadeBody = new THREE.Mesh(new THREE.BoxGeometry(naveW + 3.5 * scale, facadeH + facadeSink, facadeT), mats.stucco);
-    facadeBody.position.set(0, baseH + facadeH / 2 - facadeSink / 2, naveD / 2 + facadeT / 2 - 0.1 * scale);
+    const facadeBody = new THREE.Mesh(new THREE.BoxGeometry(naveW + 3.5 * scale, facadeH, facadeT), mats.stucco);
+    facadeBody.position.set(0, baseH + facadeH / 2, naveD / 2 + facadeT / 2 - 0.1 * scale);
     facadeBody.castShadow = true;
-    facadeBody.userData.noCollision = true;
     g.add(facadeBody);
 
     const portalG = new THREE.Group();
     for (let i = 0; i < 5; i++) {
       const pw = (6.5 - i * 0.7) * scale;
       const ph = (8.5 - i * 0.6) * scale;
-      const layer = stoneBox(mats, pw, ph, 0.4 * scale);
+      const layer = stoneBox(pw, ph, 0.4 * scale, stoneMat);
       layer.position.set(0, ph / 2, i * 0.45 * scale);
       portalG.add(layer);
       
       if (i === 4) {
-          const tym = new THREE.Mesh(new THREE.CylinderGeometry(pw/2, pw/2, 0.15 * scale, 16, 1, false, 0, Math.PI), mats.stone);
+          const tym = new THREE.Mesh(new THREE.CylinderGeometry(pw/2, pw/2, 0.15 * scale, 16, 1, false, 0, Math.PI), stoneMat);
           tym.rotation.x = Math.PI / 2;
           tym.position.y = ph - pw/2;
           tym.position.z = 0.2 * scale;
@@ -190,13 +174,12 @@ export class MalakaBrokenChurch extends Mesh {
       }
     }
     
-    // Multi-tiered Columns
     const createOrnateColumn = (sx: number, z: number, h: number) => {
         const cg = new THREE.Group();
-        const base = stoneBox(mats, 0.6 * scale, 0.5 * scale, 0.6 * scale);
-        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.3 * scale, h, 8), mats.stone);
+        const base = stoneBox(0.6 * scale, 0.5 * scale, 0.6 * scale, stoneMat);
+        const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.25 * scale, 0.3 * scale, h, 8), stoneMat);
         shaft.position.y = h/2 + 0.25 * scale;
-        const capital = stoneBox(mats, 0.7 * scale, 0.4 * scale, 0.7 * scale);
+        const capital = stoneBox(0.7 * scale, 0.4 * scale, 0.7 * scale, stoneMat);
         capital.position.y = h + 0.45 * scale;
         cg.add(base, shaft, capital);
         cg.position.set(sx, 0, z);
@@ -209,10 +192,9 @@ export class MalakaBrokenChurch extends Mesh {
     entranceDoor.position.set(0, 0, 1.8 * scale);
     portalG.add(entranceDoor);
     
-    // Sacred Niches
     for (const sx of [-1, 1]) {
         const nicheG = new THREE.Group();
-        const frame = stoneBox(mats, 1.1 * scale, 2.4 * scale, 0.6 * scale);
+        const frame = stoneBox(1.1 * scale, 2.4 * scale, 0.6 * scale, stoneMat);
         nicheG.add(frame);
         const statue = new THREE.Mesh(new THREE.CylinderGeometry(0.2 * scale, 0.3 * scale, 1.4 * scale, 8), new THREE.MeshStandardMaterial({ color: 0xdddddd }));
         statue.position.set(0, 0, 0.25 * scale);
@@ -221,56 +203,38 @@ export class MalakaBrokenChurch extends Mesh {
         portalG.add(nicheG);
     }
 
-    portalG.position.set(0, baseH, naveD / 2 + facadeT - 0.08 * scale);
-    portalG.userData.noCollision = true;
-    portalG.traverse(c => { c.userData.noCollision = true; });
+    portalG.position.set(0, baseH, naveD / 2 + facadeT - 0.1 * scale);
     g.add(portalG);
 
     // Rose Window
     const roseG = new THREE.Group();
     const roseR = 2.4 * scale;
-    const roseFrame = new THREE.Mesh(new THREE.TorusGeometry(roseR, 0.4 * scale, 16, 48), mats.stone);
+    const roseFrame = new THREE.Mesh(new THREE.TorusGeometry(roseR, 0.4 * scale, 16, 48), stoneMat);
     const roseGlass = new THREE.Mesh(new THREE.CircleGeometry(roseR, 32), mats.glass);
-    
-    // LAYERED NUDGES to avoid internal Z-fighting
-    roseGlass.position.z = -0.02 * scale;
-    roseFrame.position.z = 0.02 * scale;
     roseG.add(roseFrame, roseGlass);
-    
-    // Hub (Solid Cylinder) to hide the center spoke intersection
-    const roseCenter = new THREE.Mesh(new THREE.CylinderGeometry(0.7 * scale, 0.7 * scale, 0.3 * scale, 12), mats.stone);
-    roseCenter.rotation.x = Math.PI / 2;
-    roseCenter.position.z = 0.1 * scale;
+    const roseCenter = new THREE.Mesh(new THREE.TorusGeometry(0.6 * scale, 0.2 * scale, 8, 24), stoneMat);
+    roseCenter.position.z = 0.2 * scale;
     roseG.add(roseCenter);
-    
     for (let i = 0; i < 12; i++) {
         const a = (i / 12) * Math.PI * 2;
-        const spoke = stoneBox(mats, 0.12 * scale, roseR * 1.9, 0.25 * scale);
+        const spoke = stoneBox(0.12 * scale, roseR * 1.9, 0.25 * scale, stoneMat);
         spoke.rotation.z = a;
-        // Alternating Nudges to avoid Z-fighting at the center where all meet
-        spoke.position.z = (0.05 + (i % 2 === 0 ? 0.005 : -0.005)) * scale;
         roseG.add(spoke);
     }
-    roseG.position.set(0, baseH + naveH + 2.0 * scale, naveD / 2 + facadeT + 0.15 * scale);
-    roseG.userData.noCollision = true;
-    roseG.traverse(c => { c.userData.noCollision = true; });
+    roseG.position.set(0, baseH + naveH + 2.0 * scale, naveD / 2 + facadeT + 0.1 * scale);
     g.add(roseG);
 
-    // Facade Cross
-    const fCross = createStoneCross(scale, mats);
+    const fCross = createStoneCross(scale, stoneMat);
     fCross.position.set(0, baseH + facadeH, naveD / 2 + facadeT / 2);
     g.add(fCross);
 
-    // 4. BELL TOWER (Campanario)
+    // 4. BELL TOWER
     const towerG = new THREE.Group();
     const tw = 5.2 * scale;
     const th1 = 20 * scale;
     const th2 = 9 * scale;
-    // Sink tower into plinth
-    const towerSink = 0.4 * scale;
-    const towerBody = new THREE.Mesh(new THREE.BoxGeometry(tw, th1 + towerSink, tw), mats.stone);
-    towerBody.position.y = (th1 + towerSink) / 2 - towerSink;
-    towerBody.castShadow = towerBody.receiveShadow = true;
+    const towerBody = stoneBox(tw, th1, tw, stoneMat);
+    towerBody.position.y = th1 / 2;
     towerG.add(towerBody);
 
     const belfry = new THREE.Mesh(new THREE.BoxGeometry(tw - 0.8 * scale, th2, tw - 0.8 * scale), mats.stucco);
@@ -283,7 +247,7 @@ export class MalakaBrokenChurch extends Mesh {
         const bW = 1.8 * scale;
         const bH = 4.5 * scale;
         const bWinG = new THREE.Group();
-        const bFr = stoneBox(mats, bW, bH, 0.8 * scale);
+        const bFr = stoneBox(bW, bH, 0.8 * scale, stoneMat);
         bWinG.add(bFr);
         const bell = new THREE.Mesh(new THREE.CylinderGeometry(0.35 * scale, 0.55 * scale, 1.0 * scale, 16), bellMat);
         bell.position.set(0, -0.2 * scale, 0);
@@ -301,13 +265,11 @@ export class MalakaBrokenChurch extends Mesh {
     spire.rotation.y = Math.PI / 4;
     towerG.add(spire);
 
-    const tCross = createStoneCross(scale * 0.9, mats);
+    const tCross = createStoneCross(scale * 0.9, stoneMat);
     tCross.position.y = th1 + th2 + 6.8 * scale; 
     towerG.add(tCross);
 
     towerG.position.set(-naveW / 2 - tw / 2 + 0.2 * scale, baseH, naveD / 2 - tw / 2 + 0.5 * scale);
-    towerG.userData.noCollision = true;
-    towerG.traverse(c => { c.userData.noCollision = true; });
     g.add(towerG);
 
     // 5. CROSSING DOME
@@ -320,15 +282,12 @@ export class MalakaBrokenChurch extends Mesh {
     const cupola = new THREE.Mesh(new THREE.SphereGeometry(drumR + 0.3 * scale, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2), mats.roof);
     cupola.position.y = drumH;
     domeG.add(cupola);
-    const lantern = stoneBox(mats, 1.5 * scale, 2.5 * scale, 1.5 * scale);
+    const lantern = stoneBox(1.5 * scale, 2.5 * scale, 1.5 * scale, stoneMat);
     lantern.position.y = drumH + drumR;
-    domeG.add(lantern);
-    const dCross = createStoneCross(scale * 0.7, mats);
+    const dCross = createStoneCross(scale * 0.7, stoneMat);
     dCross.position.y = drumH + drumR + 1.25 * scale;
     domeG.add(dCross);
     domeG.position.set(0, baseH + naveH - 1 * scale, transeptZ);
-    domeG.userData.noCollision = true;
-    domeG.traverse(c => { c.userData.noCollision = true; });
     g.add(domeG);
 
     // 6. ROOFS
@@ -350,8 +309,6 @@ export class MalakaBrokenChurch extends Mesh {
             rg.add(tile);
         }
       }
-      rg.userData.noCollision = true;
-      rg.traverse(c => { c.userData.noCollision = true; });
       return rg;
     };
     const r1 = createGableRoof(naveW, naveD, 4.5 * scale);
@@ -365,22 +322,19 @@ export class MalakaBrokenChurch extends Mesh {
 
     // 7. APSE
     const apseG = new THREE.Group();
-    const apseBody = new THREE.Mesh(new THREE.CylinderGeometry(apseR + 0.05 * scale, apseR + 0.05 * scale, naveH, 32), mats.stucco);
+    const apseBody = new THREE.Mesh(new THREE.CylinderGeometry(apseR, apseR, naveH, 32), mats.stucco);
     apseBody.position.y = naveH / 2;
     apseG.add(apseBody);
-    const apseRoof = new THREE.Mesh(new THREE.SphereGeometry(apseR + 0.45 * scale, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mats.roof);
+    const apseRoof = new THREE.Mesh(new THREE.SphereGeometry(apseR + 0.4 * scale, 32, 16, 0, Math.PI * 2, 0, Math.PI / 2), mats.roof);
     apseRoof.position.y = naveH - 0.1 * scale;
     apseG.add(apseRoof);
-    const apseCross = createStoneCross(scale * 0.6, mats);
+    const apseCross = createStoneCross(scale * 0.6, stoneMat);
     apseCross.position.set(0, naveH + apseR + 0.3 * scale, 0);
     apseG.add(apseCross);
-    // Nudge slightly into the nave to avoid Z-fighting
     apseG.position.set(0, baseH, -naveD / 2 + 0.1 * scale);
-    apseG.userData.noCollision = true;
-    apseG.traverse(c => { c.userData.noCollision = true; });
     g.add(apseG);
 
-    // 8. STEPPED BUTTRESSES & RECTANGULAR SIDE WINDOWS
+    // 8. BUTTRESSES & SIDE WINDOWS
     for (let z = -naveD / 2 + 3 * scale; z <= naveD / 2 - 3 * scale; z += 5 * scale) {
       if (Math.abs(z - transeptZ) < 4 * scale) continue;
       for (const side of [-1, 1]) {
@@ -389,61 +343,47 @@ export class MalakaBrokenChurch extends Mesh {
         const bD = 2.0 * scale;
         const lowerH = naveH * 0.5;
         const upperH = naveH * 0.4;
-        const lower = stoneBox(mats, bW, lowerH, bD);
+        const lower = stoneBox(bW, lowerH, bD, stoneMat);
         lower.position.y = lowerH / 2;
         buttG.add(lower);
-        const upper = stoneBox(mats, bW, upperH, bD * 0.7);
+        const upper = stoneBox(bW, upperH, bD * 0.7, stoneMat);
         upper.position.set(0, lowerH + upperH / 2, -bD * 0.15);
         buttG.add(upper);
-        const gargoyle = stoneBox(mats, 0.4 * scale, 0.25 * scale, 0.8 * scale);
+        const gargoyle = stoneBox(0.4 * scale, 0.25 * scale, 0.8 * scale, stoneMat);
         gargoyle.position.set(0, lowerH + upperH, -bD * 0.5);
         buttG.add(gargoyle);
-        buttG.position.set(side * (naveW / 2 + 0.7 * scale), baseH, z);
-        buttG.userData.noCollision = true;
-        buttG.traverse(c => { c.userData.noCollision = true; });
+        buttG.position.set(side * (naveW / 2 + 0.75 * scale), baseH, z);
         g.add(buttG);
 
-        const sideWin = createRectangularGlassWindow(1.5 * scale, 4.5 * scale, scale, mats);
+        const sideWin = createRectangularGlassWindow(1.5 * scale, 4.5 * scale, scale, stoneMat, mats.glass);
         sideWin.position.set(side * (naveW / 2), baseH + naveH * 0.3, z);
         sideWin.rotation.y = side * Math.PI / 2;
         g.add(sideWin);
       }
     }
 
-    // ── Collision proxies (explicit invisible hitboxes) ──────────
-    const naveColl = boxCollider(naveW + 0.2 * scale, naveH + baseH, naveD + 0.2 * scale);
-    naveColl.position.set(0, (naveH + baseH) / 2, 0);
+    // Colliders
+    const naveColl = boxCollider(naveW, naveH, naveD);
+    naveColl.position.set(0, baseH + naveH / 2, 0);
     g.add(naveColl);
 
-    const baseColl = boxCollider(transeptW + 4 * scale, baseH, plinthD + 0.2 * scale);
-    baseColl.position.set(0, baseH / 2, plinthZ);
-    g.add(baseColl);
-
-    const transColl = boxCollider(transeptW + 0.2 * scale, naveH + baseH, transeptD + 0.2 * scale);
-    transColl.position.set(0, (naveH + baseH) / 2, transeptZ);
+    const transColl = boxCollider(transeptW, naveH, transeptD);
+    transColl.position.set(0, baseH + naveH / 2, transeptZ);
     g.add(transColl);
 
-    const towerColl = boxCollider(tw + 0.2 * scale, th1 + th2 + baseH, tw + 0.2 * scale);
-    towerColl.position.set(towerG.position.x, (th1 + th2 + baseH) / 2, towerG.position.z);
+    const towerColl = boxCollider(tw, th1 + th2, tw);
+    towerColl.position.copy(towerG.position).add(new THREE.Vector3(0, (th1 + th2) / 2, 0));
     g.add(towerColl);
 
-    const facadeColl = boxCollider(naveW + 3.6 * scale, facadeH + baseH, facadeT + 0.4 * scale);
-    facadeColl.position.set(0, (facadeH + baseH) / 2, naveD / 2 + facadeT / 2);
+    const facadeColl = boxCollider(naveW + 3 * scale, facadeH, facadeT);
+    facadeColl.position.set(0, baseH + facadeH / 2, naveD / 2 + facadeT / 2);
     g.add(facadeColl);
 
-    const apseColl = boxCollider(apseR * 2 + 0.2 * scale, naveH + baseH, apseR * 1.3);
-    apseColl.position.set(0, (naveH + baseH) / 2, -naveD / 2 - apseR / 2);
+    const apseColl = boxCollider(apseR * 2, naveH, apseR * 1.2);
+    apseColl.position.set(0, baseH + naveH / 2, -naveD / 2 - apseR / 2);
     g.add(apseColl);
 
-    const domeColl = boxCollider(drumR * 2, drumH + drumR, drumR * 2);
-    domeColl.position.set(0, baseH + naveH + (drumH + drumR) / 2, transeptZ);
-    g.add(domeColl);
-
-    const portalColl = boxCollider(6.8 * scale, 8.8 * scale, 2.5 * scale);
-    portalColl.position.set(0, (8.8 * scale) / 2, naveD / 2 + facadeT + 0.8 * scale);
-    g.add(portalColl);
-
-    // Roof Colliders (Gabled)
+    // Roof Colliders
     const addGableColliders = (w: number, l: number, h: number, y: number, z: number, ry: number = 0) => {
         const over = 1.2 * scale;
         const sw = Math.sqrt(Math.pow(w / 2 + over, 2) + Math.pow(h, 2));
@@ -462,24 +402,15 @@ export class MalakaBrokenChurch extends Mesh {
     addGableColliders(naveW, naveD, 4.5 * scale, baseH + naveH, 0);
     addGableColliders(transeptW, transeptD, 4.5 * scale, baseH + naveH, transeptZ, Math.PI / 2);
 
-    // Buttress Proxies
-    for (let z = -naveD / 2 + 3 * scale; z <= naveD / 2 - 3 * scale; z += 5 * scale) {
-        if (Math.abs(z - transeptZ) < 4 * scale) continue;
-        for (const side of [-1, 1]) {
-            const buttProxy = boxCollider(1.5 * scale, naveH * 0.9, 2.0 * scale);
-            buttProxy.position.set(side * (naveW / 2 + 0.7 * scale), baseH + (naveH * 0.9) / 2, z);
-            g.add(buttProxy);
-        }
-    }
-
-    // Final Polish: World-tile stone and roof surfaces to avoid stretching
     applyWorldTiling(g, mats.stone);
     applyWorldTiling(g, mats.roof);
-    // Stucco is untiled (flat color) in the standard Malaka pattern
-    
+    applyWorldTiling(g, mats.stucco);
+    applyWorldTiling(g, mats.wood);
+    applyWorldTiling(g, mats.glass);
+    applyWorldTiling(g, mats.door);
+
     return withLOD(g);
   }
 }
 
 registerMesh(MalakaBrokenChurch);
-

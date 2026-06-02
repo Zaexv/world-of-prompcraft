@@ -67,6 +67,7 @@ function _cacheEnv(): void {
 
   // Cache grass patches from topology
   _manifestGrassPatches = [];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const rawData = (worldManifest as any)?.world ?? {};
   const rawFeatures = rawData.topology?.features ?? [];
   for (const f of rawFeatures) {
@@ -102,7 +103,9 @@ function _cacheEnv(): void {
   }
 
   // Also check all landmarks for 'grass_patch' metadata
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const zones = (worldManifest as any)?.zones ?? {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const zone of Object.values(zones) as any[]) {
     if (zone.architecture?.landmarks) {
       for (const l of zone.architecture.landmarks) {
