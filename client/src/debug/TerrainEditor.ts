@@ -294,6 +294,10 @@ export class TerrainEditor {
     let zid = 'teldrassil_central';
     for (const [id, z] of zones) if (pos.x >= z.bounds.min[0] && pos.x <= z.bounds.max[0] && pos.z >= z.bounds.min[1] && pos.z <= z.bounds.max[1]) { zid = id; break; }
     const z = zones.get(zid); if (!z) return;
+    
+    if (!z.architecture) z.architecture = { landmarks: [], paths: [], dungeons: {} };
+    if (!z.architecture.landmarks) z.architecture.landmarks = [];
+    
     const l: LandmarkDefinition = { id: `${this.selectedType}_${Date.now()}`, type: this.selectedType, transform: { position: [pos.x, 0, pos.z], scale: 1, rotation: [0, 0, 0] }, visual: { label: this.selectedType } };
     z.architecture.landmarks.push(l); this.worldManifest.addLandmark(l);
     window.dispatchEvent(new CustomEvent('editor:manifest_changed'));
@@ -308,7 +312,7 @@ export class TerrainEditor {
       while (root.parent && !root.userData.editorId && !root.userData.debugInfo && root.parent !== this.scene) root = root.parent;
       const id = root.userData.editorId, type = root.userData.editorType;
       if (id) {
-        if (type === 'building') { this.worldManifest.removeLandmark(id); this.worldManifest.getZones().forEach(z => { const i = z.architecture.landmarks.findIndex(l => l.id === id); if (i !== -1) z.architecture.landmarks.splice(i, 1); }); }
+        if (type === 'building') { this.worldManifest.removeLandmark(id); this.worldManifest.getZones().forEach(z => { if (z.architecture?.landmarks) { const i = z.architecture.landmarks.findIndex(l => l.id === id); if (i !== -1) z.architecture.landmarks.splice(i, 1); } }); }
         else if (type === 'npc') { const i = this.worldManifest.getNPCs().findIndex(n => n.id === id); if (i !== -1) this.worldManifest.getNPCs().splice(i, 1); }
         else if (type === 'feature') { const fs = this.worldManifest.getTerrainFeatures(); const i = fs.findIndex(f => f.id === id); if (i !== -1) fs.splice(i, 1); }
         else if (type === 'path') { const i = parseInt(id.split('_')[1]); this.worldManifest.getPaths().splice(i, 1); }
@@ -344,16 +348,26 @@ export class TerrainEditor {
 
   public saveManifest(): void {
     const zs = this.worldManifest.getZones();
-    zs.forEach(z => { z.population.npcs = []; z.architecture.paths = []; });
+    zs.forEach(z => { 
+      if (!z.population) z.population = { npcs: [] };
+      if (!z.architecture) z.architecture = { landmarks: [], paths: [], dungeons: {} };
+      z.population.npcs = []; 
+      z.architecture.paths = []; 
+    });
     this.worldManifest.getNPCs().forEach(n => { 
       let target = zs.values().next().value; 
       for (const [_, z] of zs) if (n.transform.position[0] >= z.bounds.min[0] && n.transform.position[0] <= z.bounds.max[0] && n.transform.position[2] >= z.bounds.min[1] && n.transform.position[2] <= z.bounds.max[1]) { target = z; break; } 
-      if (target) target.population.npcs.push(n); 
+      if (target) {
+        if (!target.population) target.population = { npcs: [] };
+        if (!target.population.npcs) target.population.npcs = [];
+        target.population.npcs.push(n); 
+      }
     });
     this.worldManifest.getPaths().forEach(p => { 
       let target = zs.values().next().value; 
       for (const [_, z] of zs) if (p.start[0] >= z.bounds.min[0] && p.start[0] <= z.bounds.max[0] && p.start[1] >= z.bounds.min[1] && p.start[1] <= z.bounds.max[1]) { target = z; break; } 
       if (target) {
+        if (!target.architecture) target.architecture = { landmarks: [], paths: [], dungeons: {} };
         if (!target.architecture.paths) target.architecture.paths = [];
         target.architecture.paths.push(p); 
       }
