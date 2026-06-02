@@ -30,6 +30,3 @@ client/dist/
 
 # Logs
 *.log
-
-# Mesh fixer captures (local-only, linked to LLM ad-hoc)
-mesh-fixes/
