@@ -40,6 +40,7 @@ export function registerNPCMeshes() {
   // 2. Register Individual NPCs from Manifest
   const seenIds = new Set<string>();
   for (const zone of Object.values(manifest.zones)) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const npcs = (zone as any).population?.npcs ?? [];
     for (const npc of npcs) {
       if (seenIds.has(npc.id)) continue;
@@ -48,6 +49,7 @@ export function registerNPCMeshes() {
       const type = `npc_individual_${npc.id}`;
       if (hasMesh(type)) continue;
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const style = getNPCPlaceholderStyle(npc.id, npc.identity.name, npc.identity.role as any);
       registerNPCStyle(type, style, npc.identity.name);
     }
@@ -73,6 +75,7 @@ function registerNPCStyle(type: string, style: NPCPlaceholderStyle, label?: stri
   Object.defineProperty(NPCClass, 'type', { value: type });
   Object.defineProperty(NPCClass, 'category', { value: 'npc' });
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   registerMesh(NPCClass as any);
 }
 

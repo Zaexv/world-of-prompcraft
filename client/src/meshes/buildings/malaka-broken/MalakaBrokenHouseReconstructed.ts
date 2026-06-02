@@ -9,7 +9,6 @@ import {
   createFlowerPot,
   createChimney,
   createWoodenBench,
-  createClimbingPlant,
   withLOD,
 } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';

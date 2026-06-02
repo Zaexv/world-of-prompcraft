@@ -65,17 +65,6 @@ export class MalakaBrokenChurch extends Mesh {
     const mats = getMaterials();
     const stoneMat = mats.stone;
 
-    // Explicit Vibrant Blue Glass for the Church
-    const churchGlassMat = new THREE.MeshStandardMaterial({
-      color: 0x00ccff,
-      emissive: 0x00ccff,
-      emissiveIntensity: 1.0,
-      metalness: 0.0,
-      roughness: 1.0,
-      transparent: true,
-      opacity: 0.9
-    });
-
     // Helper for Corbel Tables
     const addCorbels = (parent: THREE.Group, width: number, length: number, height: number, spacing: number) => {
         const corbelG = new THREE.Group();

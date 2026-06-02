@@ -332,6 +332,7 @@ export class Terrain {
     return applyBuildingPads(x, z, h);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   setManifest(data: any): void {
     _manifestPads = [];
 
@@ -374,6 +375,7 @@ export class Terrain {
 
     // 2. Automatically create pads for all landmarks in the manifest
     if (data?.zones) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       for (const zone of Object.values(data.zones) as any[]) {
         if (zone.architecture?.landmarks) {
           for (const l of zone.architecture.landmarks) {
