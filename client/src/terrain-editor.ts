@@ -114,8 +114,11 @@ try {
     };
 
     const renderSearchResults = () => {
-      const query = searchInput.value.toLowerCase();
-      currentFiltered = searchOptions.filter(o => o.toLowerCase().includes(query));
+      // Type names are underscore_separated but shown space-separated, so match
+      // spaces and underscores interchangeably ("malaka broken" finds
+      // malaka_broken_*).
+      const query = searchInput.value.toLowerCase().trim().replace(/[\s_]+/g, ' ');
+      currentFiltered = searchOptions.filter(o => o.toLowerCase().replace(/_/g, ' ').includes(query));
       
       if (searchSelectedIndex >= currentFiltered.length) searchSelectedIndex = Math.max(0, currentFiltered.length - 1);
 
