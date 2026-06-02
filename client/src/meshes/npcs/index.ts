@@ -8,6 +8,7 @@ import { hasMesh } from '../core/MeshRegistry';
 // Import individual NPCs
 import './individual/NiregJenkins';
 import './individual/AureliaTrader';
+import './individual/ElTito';
 
 // We import the manifest to get individual NPCs
 import manifest from '../../../../shared/data/world_manifest.json';
