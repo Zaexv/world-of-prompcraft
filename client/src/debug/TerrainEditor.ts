@@ -16,7 +16,8 @@ export enum EditorMode {
   REMOVE_OBJECT,
   MOVE_OBJECT,
   PLACE_NPC,
-  PLACE_PATH
+  PLACE_PATH,
+  PAINT_GROUND
 }
 
 /** Themed accent colour per mode — drives the cursor, brush and helpers. */
@@ -29,6 +30,7 @@ const MODE_COLORS: Record<number, number> = {
   [EditorMode.MOVE_OBJECT]: 0x66ddff,
   [EditorMode.PLACE_NPC]: 0xbb88ff,
   [EditorMode.PLACE_PATH]: 0xffaa55,
+  [EditorMode.PAINT_GROUND]: 0x88dd66,
 };
 
 const SELECT_COLOR = 0xffe08a;  // warm gold — selected
@@ -39,6 +41,7 @@ export class TerrainEditor {
   private brushRadius = 15;
   private brushIntensity = 5;
   private selectedType: string = 'pavilion';
+  private selectedGroundType: string = 'grass';
 
   // ── Cursor visuals ──────────────────────────────────────────────────────
   private cursor: THREE.Group;
@@ -251,7 +254,7 @@ export class TerrainEditor {
     (this.cursorAxis.material as THREE.LineBasicMaterial).color.set(color);
 
     // The radius footprint only reads as a "brush" while sculpting.
-    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN;
+    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN || mode === EditorMode.PAINT_GROUND;
   }
 
   public setLayerVisibility(layer: string, visible: boolean): void {
@@ -480,7 +483,7 @@ export class TerrainEditor {
           if (npc) { npc.position.copy(p); npc.homePosition.copy(p); npc.isBeingMoved = true; }
         }
       }
-      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN)) this.handleAction();
+      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN || this.mode === EditorMode.PAINT_GROUND)) this.handleAction();
     } else {
       this.lastIntersection = null; this.cursor.visible = false;
     }
@@ -495,7 +498,9 @@ export class TerrainEditor {
     if (!this.lastIntersection) return;
     const now = performance.now();
     if (now - this.lastSculptTime > this.SCULPT_INTERVAL) {
-      if (this.mode === EditorMode.SCULPT_FLATTEN) {
+      if (this.mode === EditorMode.PAINT_GROUND) {
+        this.paintGround(this.lastIntersection.point);
+      } else if (this.mode === EditorMode.SCULPT_FLATTEN) {
         this.sculptTerrain(this.lastIntersection.point, 0, true);
       } else {
         this.sculptTerrain(this.lastIntersection.point, this.mode === EditorMode.SCULPT_RAISE ? 1 : -1, false);
@@ -766,6 +771,15 @@ export class TerrainEditor {
     this.terrain.setManifest(this.getManifestData());
     this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
     this.refreshVisualization();
+  }
+
+  public setSelectedGroundType(t: string): void { this.selectedGroundType = t; }
+
+  /** Paint the chosen surface type (grass/sand/mud/…) into the brush footprint. */
+  private paintGround(pos: THREE.Vector3): void {
+    this.worldManifest.addPaintStroke(pos.x, pos.z, this.brushRadius, this.selectedGroundType);
+    this.terrain.setManifest(this.getManifestData());
+    this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
   }
 
   private placeObject(pos: THREE.Vector3): void {

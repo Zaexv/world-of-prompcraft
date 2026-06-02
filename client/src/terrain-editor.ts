@@ -16,6 +16,7 @@ import { ZoneAtmosphere } from './systems/ZoneAtmosphere';
 import { setWorldManifest as setTerrainManifest } from './scene/VerticalTerrain';
 import { setWorldManifest as setBiomeManifest } from './scene/Biomes';
 import { meshTypes } from './meshes';
+import { GROUND_TYPES } from './scene/Terrain';
 
 try {
   const app = document.getElementById('app')!;
@@ -103,7 +104,7 @@ try {
     const searchInput = document.getElementById('search-input') as HTMLInputElement;
     const searchResults = document.getElementById('search-results')!;
     const searchTitle = document.getElementById('search-title')!;
-    let searchContext: 'object' | 'npc' = 'object';
+    let searchContext: 'object' | 'npc' | 'ground' = 'object';
     let searchOptions: string[] = [];
     let searchSelectedIndex = 0;
     let currentFiltered: string[] = [];
@@ -145,6 +146,16 @@ try {
     };
 
     const selectSearchResult = (val: string) => {
+      if (searchContext === 'ground') {
+        terrainEditor.setSelectedGroundType(val);
+        terrainEditor.setMode(EditorMode.PAINT_GROUND);
+        const btn = document.querySelector('.te-mode[data-mode="paint"]') as HTMLElement;
+        if (btn) btn.click();
+        const sel = document.querySelector('.te-ground-select') as HTMLSelectElement | null;
+        if (sel) sel.value = val;
+        closeSearch();
+        return;
+      }
       if (searchContext === 'object') {
         let cat = 'landmark';
         if (val.startsWith('encounter_')) cat = 'encounter';
@@ -187,16 +198,18 @@ try {
       }
     });
 
-    const openSearch = (type: 'object' | 'npc') => {
+    const openSearch = (type: 'object' | 'npc' | 'ground') => {
       searchContext = type;
-      searchTitle.textContent = type === 'object' ? 'SEARCH OBJECTS' : 'SEARCH NPCS';
-      
+      searchTitle.textContent = type === 'object' ? 'SEARCH OBJECTS' : type === 'npc' ? 'SEARCH NPCS' : 'PAINT GROUND';
+
       if (type === 'npc') {
         searchOptions = [
           'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer',
           'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem',
           'boar', 'orc', 'undead', 'oracle'
         ].sort();
+      } else if (type === 'ground') {
+        searchOptions = Object.keys(GROUND_TYPES).sort();
       } else {
         searchOptions = meshTypes().sort();
       }
@@ -275,6 +288,7 @@ try {
 
       if (e.code === 'Digit1') { e.preventDefault(); openSearch('object'); }
       if (e.code === 'Digit2') { e.preventDefault(); openSearch('npc'); }
+      if (e.code === 'Digit6') { e.preventDefault(); openSearch('ground'); }
       if (e.code === 'Digit3') { 
         e.preventDefault(); 
         terrainEditor.setMode(EditorMode.PLACE_PATH);

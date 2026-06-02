@@ -79,6 +79,57 @@ function getBuildingPads(): BuildingPad[] {
   return [...LEGACY_BUILDING_PADS, ..._manifestPads];
 }
 
+// ── Ground paint layer ────────────────────────────────────────────────────────
+// Lets the editor override the biome-driven ground colour with a chosen surface
+// type (grass/sand/mud/…) inside radial brush strokes. Pure colour tint — does
+// NOT change height/normals — applied in the chunk vertex-colour pass and
+// persisted in the manifest under `world.topology.paint`.
+export const GROUND_TYPES: Record<string, [number, number, number]> = {
+  grass: [0.29, 0.42, 0.18],
+  mud:   [0.25, 0.19, 0.13],
+  dirt:  [0.40, 0.30, 0.20],
+  sand:  [0.76, 0.66, 0.42],
+  rock:  [0.42, 0.40, 0.37],
+  gravel:[0.52, 0.50, 0.47],
+  ash:   [0.20, 0.18, 0.18],
+  snow:  [0.90, 0.93, 0.97],
+};
+
+interface PaintStroke {
+  x: number;
+  z: number;
+  radius: number;
+  color: [number, number, number];
+}
+
+let _paintStrokes: PaintStroke[] = [];
+
+/** Cheap AABB pre-check: does any paint stroke overlap this region? */
+function paintInBounds(minX: number, maxX: number, minZ: number, maxZ: number): boolean {
+  for (const s of _paintStrokes) {
+    const dx = Math.max(0, Math.max(minX - s.x, s.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - s.z, s.z - maxZ));
+    if (dx * dx + dz * dz < s.radius * s.radius) return true;
+  }
+  return false;
+}
+
+/** Strongest overlapping paint stroke at (x,z): its colour + blend weight, or null. */
+function sampleGroundPaint(x: number, z: number): { r: number; g: number; b: number; w: number } | null {
+  if (_paintStrokes.length === 0) return null;
+  let bestW = 0;
+  let col: [number, number, number] | null = null;
+  for (const s of _paintStrokes) {
+    const d = Math.hypot(x - s.x, z - s.z);
+    if (d >= s.radius) continue;
+    const t = d / s.radius;
+    const w = 1 - t * t * (3 - 2 * t); // smoothstep: 1 at centre → 0 at radius
+    if (w > bestW) { bestW = w; col = s.color; }
+  }
+  if (bestW <= 0 || !col) return null;
+  return { r: col[0], g: col[1], b: col[2], w: bestW };
+}
+
 // ── Additive sculpt layer ─────────────────────────────────────────────────────
 // True terrain sculpting: each RAISE/LOWER brush deposit adds a smooth, radial
 // height delta on TOP of the noise + building pads. Persisted in the manifest
@@ -380,6 +431,21 @@ export class Terrain {
   setManifest(data: any): void {
     _manifestPads = [];
     _sculptStrokes = [];
+    _paintStrokes = [];
+
+    // 0b. Ground paint strokes (surface-type colour tint)
+    if (data?.world?.topology?.paint) {
+      for (const s of data.world.topology.paint) {
+        if (typeof s?.x === 'number' && typeof s?.z === 'number' && s.radius > 0) {
+          _paintStrokes.push({
+            x: s.x,
+            z: s.z,
+            radius: s.radius,
+            color: GROUND_TYPES[s.type] ?? GROUND_TYPES.grass,
+          });
+        }
+      }
+    }
 
     // 0. Additive sculpt strokes (true raise/lower terrain deformation)
     if (data?.world?.topology?.sculpt) {
@@ -644,6 +710,7 @@ export class Terrain {
     const chunkHasLift = hasLiftInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasPad = padsInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasSculpt = sculptInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
+    const chunkHasPaint = paintInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
 
     // Full world height for a sample point, matching getHeightAt (noise + lift +
     // building-pad levelling + sculpt). Used for edge-neighbour normals below too.
@@ -754,6 +821,17 @@ export class Terrain {
       r = THREE.MathUtils.clamp(r + surfNoise.r, 0, 1);
       g = THREE.MathUtils.clamp(g + surfNoise.g, 0, 1);
       b = THREE.MathUtils.clamp(b + surfNoise.b, 0, 1);
+
+      // Editor ground paint overrides the biome colour toward the chosen surface
+      // type, keeping a little of the underlying noise so it doesn't read flat.
+      if (chunkHasPaint) {
+        const paint = sampleGroundPaint(vx, vz);
+        if (paint) {
+          r = r * (1 - paint.w) + paint.r * paint.w;
+          g = g * (1 - paint.w) + paint.g * paint.w;
+          b = b * (1 - paint.w) + paint.b * paint.w;
+        }
+      }
 
       colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
 

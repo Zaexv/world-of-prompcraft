@@ -2,6 +2,7 @@
 import { UIComponent } from "./core/UIComponent";
 import { TerrainEditor, EditorMode } from "../debug/TerrainEditor";
 import { meshTypes } from "../meshes/index";
+import { GROUND_TYPES } from "../scene/Terrain";
 
 /**
  * Terrain Editor Panel — manual 3D interface for sculpting terrain and placing buildings.
@@ -65,6 +66,7 @@ export class TerrainEditorPanel extends UIComponent {
           <button class="te-mode" data-mode="place" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE OBJ</button>
           <button class="te-mode" data-mode="npc" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE NPC</button>
           <button class="te-mode" data-mode="flatten" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">FLATTEN</button>
+          <button class="te-mode" data-mode="paint" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PAINT GROUND</button>
           </div>
       </div>
 
@@ -134,6 +136,12 @@ export class TerrainEditorPanel extends UIComponent {
         </div>
       </div>
 
+      <div class="te-ground-section" style="display:none; flex-direction:column; gap:4px;">
+        <span style="font-size:11px; color:#aaaaaa; text-transform:uppercase; letter-spacing:1px;">Ground Type</span>
+        <select class="te-ground-select" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;"></select>
+        <span style="font-size:10px; color:#666;">Press 6 to search ground types</span>
+      </div>
+
       <div style="display:grid; grid-template-columns: 1fr 1fr; gap:6px; margin-top:8px;">
         <button class="te-refresh" style="padding:8px; background:rgba(197,165,90,0.15); border:1px solid rgba(197,165,90,0.3); color:#c5a55a; cursor:pointer; font-family:inherit; font-size:11px;">REFRESH VIEW</button>
         <button class="te-save" style="padding:8px; background:linear-gradient(135deg, #3a2408, #c5a55a); border:none; border-radius:4px; color:#1a1108; font-weight:700; cursor:pointer; font-family:inherit; font-size:11px;">SAVE MANIFEST</button>
@@ -162,11 +170,14 @@ export class TerrainEditorPanel extends UIComponent {
         const mode = btn.getAttribute('data-mode');
         const paletteSection = this.container.querySelector('.te-palette-section') as HTMLElement;
         const sculptSettings = this.container.querySelector('.te-sculpt-settings') as HTMLElement;
+        const groundSection = this.container.querySelector('.te-ground-section') as HTMLElement;
         const categorySelect = this.container.querySelector('.te-category-select') as HTMLSelectElement;
 
         // The asset palette is needed for BOTH object and NPC placement.
         paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
-        sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten') ? 'flex' : 'none';
+        // Brush settings drive sculpt AND ground paint.
+        sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten' || mode === 'paint') ? 'flex' : 'none';
+        groundSection.style.display = mode === 'paint' ? 'flex' : 'none';
 
         // Drive the asset category from the mode: NPC placement must list NPC
         // styles (not whatever building was last picked — which produced invalid
@@ -190,6 +201,7 @@ export class TerrainEditorPanel extends UIComponent {
           case 'remove': this.editor.setMode(EditorMode.REMOVE_OBJECT); break;
           case 'npc': this.editor.setMode(EditorMode.PLACE_NPC); break;
           case 'path': this.editor.setMode(EditorMode.PLACE_PATH); break;
+          case 'paint': this.editor.setMode(EditorMode.PAINT_GROUND); break;
         }
       });
     });
@@ -257,6 +269,11 @@ export class TerrainEditorPanel extends UIComponent {
     assetSelect.addEventListener('change', () => {
       this.editor.setSelectedAsset(assetSelect.value, categorySelect.value);
     });
+
+    const groundSelect = this.container.querySelector('.te-ground-select') as HTMLSelectElement;
+    groundSelect.innerHTML = Object.keys(GROUND_TYPES)
+      .map(t => `<option value="${t}">${t}</option>`).join('');
+    groundSelect.addEventListener('change', () => this.editor.setSelectedGroundType(groundSelect.value));
 
     const layerChecks = this.container.querySelectorAll('.te-layer');
     layerChecks.forEach(check => {
