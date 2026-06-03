@@ -78,6 +78,15 @@ export interface SculptStroke {
   z: number;
   radius: number;
   delta: number;
+  flatten?: boolean;
+}
+
+/** A single ground-type paint deposit (grass/sand/mud/… tint brush). */
+export interface GroundPaintStroke {
+  x: number;
+  z: number;
+  radius: number;
+  type: string;
 }
 
 export interface ZoneDefinition {
@@ -100,6 +109,7 @@ export interface WorldManifestData {
     topology: {
       features: VerticalPlace[];
       sculpt?: SculptStroke[];
+      paint?: GroundPaintStroke[];
     };
   };
   zones: Record<string, ZoneDefinition>;
@@ -115,6 +125,7 @@ export class WorldManifest {
   private landmarks: Map<string, LandmarkDefinition> = new Map();
   private terrainFeatures: VerticalPlace[] = [];
   private sculpt: SculptStroke[] = [];
+  private paint: GroundPaintStroke[] = [];
   private environment: EnvironmentConfig | null = null;
   private dungeons: Record<string, DungeonConfig> = {};
   private npcs: NPCDefinition[] = [];
@@ -149,7 +160,8 @@ export class WorldManifest {
     this.environment = data.world.environment;
     this.terrainFeatures = data.world.topology.features;
     this.sculpt = data.world.topology.sculpt ?? [];
-    
+    this.paint = data.world.topology.paint ?? [];
+
     // 2. Clear caches
     this.landmarks.clear();
     this.dungeons = {};
@@ -202,15 +214,39 @@ export class WorldManifest {
    * radius are merged so holding the brush deepens one stroke instead of
    * appending hundreds of near-duplicates to the manifest.
    */
-  public addSculptStroke(x: number, z: number, radius: number, delta: number): void {
+  public addSculptStroke(x: number, z: number, radius: number, delta: number, flatten?: boolean): void {
     const MERGE_DIST = 1.5;
     for (const s of this.sculpt) {
-      if (Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
-        s.delta += delta;
+      if (s.flatten === flatten && Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
+        if (flatten) {
+           s.delta = delta; // target height
+        } else {
+           s.delta += delta;
+        }
         return;
       }
     }
-    this.sculpt.push({ x, z, radius, delta });
+    this.sculpt.push({ x, z, radius, delta, flatten });
+  }
+
+  public getPaint(): GroundPaintStroke[] {
+    return this.paint;
+  }
+
+  /**
+   * Deposit a ground-paint stroke. Strokes at (nearly) the same spot/radius/type
+   * are merged so dragging the brush doesn't append hundreds of duplicates. A
+   * stroke of a different type at the same spot overwrites (last paint wins).
+   */
+  public addPaintStroke(x: number, z: number, radius: number, type: string): void {
+    const MERGE_DIST = 1.5;
+    for (const s of this.paint) {
+      if (Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
+        s.type = type;
+        return;
+      }
+    }
+    this.paint.push({ x, z, radius, type });
   }
 
   public getPaths(): PathDefinition[] {
@@ -268,7 +304,7 @@ export class WorldManifest {
       version: this.version,
       world: {
         environment: this.environment as EnvironmentConfig,
-        topology: { features: this.terrainFeatures, sculpt: this.sculpt },
+        topology: { features: this.terrainFeatures, sculpt: this.sculpt, paint: this.paint },
       },
       zones: Object.fromEntries(this.zones),
     };

@@ -46,6 +46,63 @@
       <div class="hud-button" id="gen-info" style="color: #88d0ff; font-weight: normal;">Procedural Layer: Active</div>
       <div class="hud-button" id="toggle-fly">Fly Mode: OFF (V)</div>
       <div class="hud-button" id="toggle-ui">Toggle Panel (T)</div>
+      <div class="hud-button" id="help-trigger" style="color: #88ff88;">Help (?)</div>
+    </div>
+
+    <!-- Help Modal Overlay -->
+    <div id="help-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.8); z-index:2000; align-items:center; justify-content:center; backdrop-filter:blur(5px);">
+      <div style="background:#1a1108; border:2px solid #c5a55a; padding:30px; width:560px; max-height:85vh; overflow-y:auto; color:#e8dcc8; border-radius:8px; box-shadow:0 0 30px rgba(0,0,0,0.8);">
+        <h2 style="color:#c5a55a; margin-bottom:15px; text-align:center;">EDITOR CONTROLS</h2>
+
+        <h3 style="color:#c5a55a; margin:8px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">MODES</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[TAB]</strong> <span>Toggle Camera / Select Mode</span>
+          <strong>[1]</strong> <span>Search &amp; place Objects</span>
+          <strong>[2]</strong> <span>Search &amp; place NPCs</span>
+          <strong>[3]</strong> <span>Place Path Mode</span>
+          <strong>[4]</strong> <span>Sculpt Raise / Lower (toggles)</span>
+          <strong>[5]</strong> <span>Sculpt Flatten</span>
+          <strong>[6]</strong> <span>Search &amp; paint Ground type</span>
+        </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">EDITING</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[Click]</strong> <span>Select / Drag Object (paint while sculpting)</span>
+          <strong>[R + Scroll]</strong> <span>Rotate selection (hold Shift for fine)</span>
+          <strong>[Delete]</strong> <span>Remove Selected</span>
+          <strong>[Right Click]</strong> <span>Cancel Move / Path</span>
+          <strong>[Ctrl + Z]</strong> <span>Undo</span>
+          <strong>[Ctrl + Shift + Z]</strong> <span>Redo (also Ctrl + Y)</span>
+          <strong>[Esc]</strong> <span>Close Help / Deselect / Back to Select</span>
+        </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">CAMERA</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[V]</strong> <span>Toggle Fly / Orbit Mode</span>
+          <strong>[W A S D]</strong> <span>Fly move (also Arrow keys)</span>
+          <strong>[Q] / [E]</strong> <span>Fly down / up (Space also up)</span>
+          <strong>[Shift]</strong> <span>Hold for 6× fly speed</span>
+          <strong>[Mouse Drag]</strong> <span>Look around (in Fly mode)</span>
+          <strong>[F]</strong> <span>Focus Camera on Cursor</span>
+        </div>
+
+        <h3 style="color:#c5a55a; margin:18px 0 8px; font-size:13px; border-bottom:1px solid #4a3a1a; padding-bottom:4px;">INTERFACE</h3>
+        <div style="display:grid; grid-template-columns:120px 1fr; gap:10px 12px; font-size:13px;">
+          <strong>[T]</strong> <span>Toggle Editor Panel</span>
+          <strong>[H]</strong> <span>Hide / Show All Gizmos &amp; HUD</span>
+        </div>
+
+        <button id="help-close" style="margin-top:25px; width:100%; padding:10px; background:#c5a55a; border:none; color:#1a1108; font-weight:bold; cursor:pointer; border-radius:4px;">CLOSE</button>
+      </div>
+    </div>
+
+    <!-- Quick Search Modal -->
+    <div id="search-overlay" style="display:none; position:fixed; top:20%; left:50%; transform:translateX(-50%); background:rgba(26,17,8,0.95); border:2px solid #c5a55a; padding:20px; width:350px; color:#e8dcc8; border-radius:8px; z-index:2001; box-shadow:0 0 30px rgba(0,0,0,0.8);">
+      <h3 id="search-title" style="margin:0 0 10px 0; color:#c5a55a; text-align:center;">SEARCH</h3>
+      <input type="text" id="search-input" placeholder="Type to search..." style="width:100%; box-sizing:border-box; padding:10px; background:#111; color:#fff; border:1px solid #c5a55a; border-radius:4px; margin-bottom:10px; font-size:14px;">
+      <ul id="search-results" style="list-style:none; padding:0; margin:0; max-height:200px; overflow-y:auto; background:#222; border-radius:4px;">
+        <!-- Results injected here -->
+      </ul>
     </div>
 
     <script type="module" src="/src/terrain-editor.ts"></script>

@@ -103,7 +103,8 @@ scene.add(fillLight);
 const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(15, 10, 20);
 
-const renderer = new THREE.WebGLRenderer({ antialias: true });
+// preserveDrawingBuffer lets fixer mode read the rendered frame back via toDataURL.
+const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
@@ -161,6 +162,7 @@ const soloBbox     = document.getElementById('soloBbox')!;
 let activeTab: TabId  = 'all';
 let searchQuery       = '';
 let inSoloMode        = false;
+let currentType       = '';
 
 const bboxMap = new Map<string, THREE.Vector3>();
 const tileMap = new Map<string, HTMLElement>();
@@ -224,6 +226,7 @@ function onTileClick(type: string): void {
 
 function enterSoloMode(type: string, bboxSize: THREE.Vector3): void {
   inSoloMode = true;
+  currentType = type;
   gridOverlay.style.display = 'none';
   soloHeader.style.display = 'flex';
   soloTitle.textContent = type;
@@ -234,11 +237,178 @@ function enterSoloMode(type: string, bboxSize: THREE.Vector3): void {
 }
 
 function exitSoloMode(): void {
+  exitFixerMode();
   inSoloMode = false;
   gridOverlay.style.display = 'flex';
   soloHeader.style.display = 'none';
   controls.enabled = false;
 }
+
+// ─── Fixer mode (highlight a broken region → save capture) ─────────────────────
+
+const fixBtn      = document.getElementById('fixBtn')!;
+const fixOverlay  = document.getElementById('fixOverlay')!;
+const fixRect     = document.getElementById('fixRect') as HTMLElement;
+const fixHint     = document.getElementById('fixHint')!;
+const saveDialog  = document.getElementById('saveDialog')!;
+const savePreview = document.getElementById('savePreview') as HTMLImageElement;
+const saveName    = document.getElementById('saveName') as HTMLInputElement;
+const saveStatus  = document.getElementById('saveStatus')!;
+const saveCancel  = document.getElementById('saveCancel')!;
+const saveConfirm = document.getElementById('saveConfirm')!;
+
+let fixerActive = false;
+let dragging    = false;
+const dragStart = { x: 0, y: 0 };
+let capturedDataUrl = '';
+
+function enterFixerMode(): void {
+  if (!inSoloMode) return;
+  fixerActive = true;
+  fixBtn.classList.add('active');
+  // Freeze the camera so the highlighted region stays put while drawing.
+  controls.enabled = false;
+  fixOverlay.style.display = 'block';
+  fixHint.style.display = 'block';
+}
+
+function exitFixerMode(): void {
+  fixerActive = false;
+  dragging = false;
+  fixBtn.classList.remove('active');
+  fixOverlay.style.display = 'none';
+  fixHint.style.display = 'none';
+  fixRect.style.display = 'none';
+  if (inSoloMode) controls.enabled = true;
+}
+
+fixBtn.addEventListener('click', () => {
+  if (fixerActive) exitFixerMode();
+  else enterFixerMode();
+});
+
+fixOverlay.addEventListener('mousedown', (e) => {
+  dragging = true;
+  dragStart.x = e.clientX;
+  dragStart.y = e.clientY;
+  fixRect.style.left = `${e.clientX}px`;
+  fixRect.style.top = `${e.clientY}px`;
+  fixRect.style.width = '0px';
+  fixRect.style.height = '0px';
+  fixRect.style.display = 'block';
+});
+
+fixOverlay.addEventListener('mousemove', (e) => {
+  if (!dragging) return;
+  const x = Math.min(e.clientX, dragStart.x);
+  const y = Math.min(e.clientY, dragStart.y);
+  const w = Math.abs(e.clientX - dragStart.x);
+  const h = Math.abs(e.clientY - dragStart.y);
+  fixRect.style.left = `${x}px`;
+  fixRect.style.top = `${y}px`;
+  fixRect.style.width = `${w}px`;
+  fixRect.style.height = `${h}px`;
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (!dragging) return;
+  dragging = false;
+  const x = Math.min(e.clientX, dragStart.x);
+  const y = Math.min(e.clientY, dragStart.y);
+  const w = Math.abs(e.clientX - dragStart.x);
+  const h = Math.abs(e.clientY - dragStart.y);
+  if (w < 6 || h < 6) { fixRect.style.display = 'none'; return; }
+  openSaveDialog(buildCapture(x, y, w, h));
+});
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') {
+    if (saveDialog.style.display === 'flex') closeSaveDialog();
+    else if (fixerActive) exitFixerMode();
+  }
+});
+
+// Composite the rendered frame + red highlight + mesh name into a PNG data URL.
+// Selection coords are CSS px (clientX/Y); scale to the renderer's drawing buffer.
+function buildCapture(cssX: number, cssY: number, cssW: number, cssH: number): string {
+  renderer.render(scene, camera);
+  const gl = renderer.domElement;
+  const scale = gl.width / window.innerWidth;
+
+  const cv = document.createElement('canvas');
+  cv.width = gl.width;
+  cv.height = gl.height;
+  const ctx = cv.getContext('2d')!;
+  ctx.drawImage(gl, 0, 0);
+
+  const rx = cssX * scale;
+  const ry = cssY * scale;
+  const rw = cssW * scale;
+  const rh = cssH * scale;
+  ctx.fillStyle = 'rgba(255,45,45,0.12)';
+  ctx.fillRect(rx, ry, rw, rh);
+  ctx.strokeStyle = '#ff2d2d';
+  ctx.lineWidth = Math.max(2, 3 * scale);
+  ctx.strokeRect(rx, ry, rw, rh);
+
+  // Mesh name label, top-left.
+  const fontPx = Math.round(20 * scale);
+  ctx.font = `600 ${fontPx}px 'SF Mono', Consolas, monospace`;
+  const label = currentType;
+  const pad = 8 * scale;
+  const tw = ctx.measureText(label).width;
+  ctx.fillStyle = 'rgba(13,17,23,0.85)';
+  ctx.fillRect(pad, pad, tw + pad * 2, fontPx + pad * 1.2);
+  ctx.fillStyle = '#f0f6fc';
+  ctx.textBaseline = 'top';
+  ctx.fillText(label, pad * 2, pad * 1.5);
+
+  return cv.toDataURL('image/png');
+}
+
+function defaultFixName(): string {
+  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return `${currentType}-fix-${ts}`;
+}
+
+function openSaveDialog(dataUrl: string): void {
+  capturedDataUrl = dataUrl;
+  savePreview.src = dataUrl;
+  saveName.value = defaultFixName();
+  saveStatus.textContent = '';
+  saveStatus.className = '';
+  saveDialog.style.display = 'flex';
+  saveName.focus();
+  saveName.select();
+}
+
+function closeSaveDialog(): void {
+  saveDialog.style.display = 'none';
+  fixRect.style.display = 'none';
+}
+
+saveCancel.addEventListener('click', closeSaveDialog);
+
+saveConfirm.addEventListener('click', async () => {
+  const filename = saveName.value.trim() || defaultFixName();
+  saveStatus.textContent = 'Saving…';
+  saveStatus.className = '';
+  try {
+    const res = await fetch('/__save-mesh-fix', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, dataUrl: capturedDataUrl }),
+    });
+    const json = (await res.json()) as { ok: boolean; path?: string; error?: string };
+    if (!res.ok || !json.ok) throw new Error(json.error ?? `HTTP ${res.status}`);
+    saveStatus.textContent = `Saved → ${json.path}`;
+    saveStatus.className = 'ok';
+    setTimeout(closeSaveDialog, 1500);
+  } catch (err) {
+    saveStatus.textContent = `Failed: ${String(err)}`;
+    saveStatus.className = 'err';
+  }
+});
 
 // ─── Thumbnail generation ─────────────────────────────────────────────────────
 
