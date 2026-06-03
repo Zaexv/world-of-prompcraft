@@ -65,8 +65,10 @@ export class TerrainEditorPanel extends UIComponent {
           <button class="te-mode" data-mode="lower" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">LOWER</button>
           <button class="te-mode" data-mode="place" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE OBJ</button>
           <button class="te-mode" data-mode="npc" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PLACE NPC</button>
+          <button class="te-mode" data-mode="remove" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">REMOVE</button>
           <button class="te-mode" data-mode="flatten" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">FLATTEN</button>
           <button class="te-mode" data-mode="paint" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">PAINT GROUND</button>
+          <button class="te-mode" data-mode="erase" style="padding:6px; font-size:10px; background:rgba(255,255,255,0.05); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer;">ERASE TERRAIN</button>
           </div>
       </div>
 
@@ -100,6 +102,9 @@ export class TerrainEditorPanel extends UIComponent {
           </label>
           <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
             <input type="checkbox" class="te-layer" data-layer="paths" checked> Paths
+          </label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:11px; cursor:pointer;">
+            <input type="checkbox" class="te-layer" data-layer="sculpt" checked> Sculpt Edits
           </label>
         </div>
       </div>
@@ -176,7 +181,7 @@ export class TerrainEditorPanel extends UIComponent {
         // The asset palette is needed for BOTH object and NPC placement.
         paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
         // Brush settings drive sculpt AND ground paint.
-        sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten' || mode === 'paint') ? 'flex' : 'none';
+        sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten' || mode === 'paint' || mode === 'erase') ? 'flex' : 'none';
         groundSection.style.display = mode === 'paint' ? 'flex' : 'none';
 
         // Drive the asset category from the mode: NPC placement must list NPC
@@ -202,6 +207,7 @@ export class TerrainEditorPanel extends UIComponent {
           case 'npc': this.editor.setMode(EditorMode.PLACE_NPC); break;
           case 'path': this.editor.setMode(EditorMode.PLACE_PATH); break;
           case 'paint': this.editor.setMode(EditorMode.PAINT_GROUND); break;
+          case 'erase': this.editor.setMode(EditorMode.ERASE_TERRAIN); break;
         }
       });
     });

@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import * as THREE from 'three';
 import { Terrain, FOOTPRINT_SPECS } from '../scene/Terrain';
-import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition } from '../state/WorldManifest';
+import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition, SculptStroke } from '../state/WorldManifest';
 import { WebSocketClient } from '../network/WebSocketClient';
 import { buildObject } from '../systems/worldbuilder/objects';
 import { NPC } from '../entities/NPC';
@@ -17,7 +17,8 @@ export enum EditorMode {
   MOVE_OBJECT,
   PLACE_NPC,
   PLACE_PATH,
-  PAINT_GROUND
+  PAINT_GROUND,
+  ERASE_TERRAIN
 }
 
 /** Themed accent colour per mode — drives the cursor, brush and helpers. */
@@ -31,6 +32,7 @@ const MODE_COLORS: Record<number, number> = {
   [EditorMode.PLACE_NPC]: 0xbb88ff,
   [EditorMode.PLACE_PATH]: 0xffaa55,
   [EditorMode.PAINT_GROUND]: 0x88dd66,
+  [EditorMode.ERASE_TERRAIN]: 0xff44aa,  // Magenta — strips manual sculpt back to procedural
 };
 
 const SELECT_COLOR = 0xffe08a;  // warm gold — selected
@@ -65,6 +67,7 @@ export class TerrainEditor {
   private layerFeatures = new THREE.Group();
   private layerPaths = new THREE.Group();
   private layerZones = new THREE.Group();
+  private layerSculpt = new THREE.Group();  // overlay of manual terrain edits (sculpt strokes)
 
   // Selection / hover state
   private selectedObject: { id: string, type: string, group: THREE.Object3D } | null = null;
@@ -132,6 +135,7 @@ export class TerrainEditor {
     this.scene.add(this.layerFeatures);
     this.scene.add(this.layerPaths);
     this.scene.add(this.layerZones);
+    this.scene.add(this.layerSculpt);
 
     this.setupListeners();
     this.refreshVisualization();
@@ -254,13 +258,14 @@ export class TerrainEditor {
     (this.cursorAxis.material as THREE.LineBasicMaterial).color.set(color);
 
     // The radius footprint only reads as a "brush" while sculpting.
-    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN || mode === EditorMode.PAINT_GROUND;
+    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN || mode === EditorMode.PAINT_GROUND || mode === EditorMode.ERASE_TERRAIN;
   }
 
   public setLayerVisibility(layer: string, visible: boolean): void {
     if (layer === 'features') this.layerFeatures.visible = visible;
     if (layer === 'paths') this.layerPaths.visible = visible;
     if (layer === 'zones') this.layerZones.visible = visible;
+    if (layer === 'sculpt') this.layerSculpt.visible = visible;
     if (layer === 'ui') {
       this.cursor.visible = visible && this.mode !== EditorMode.OFF;
       if (this.selectionBox) this.selectionBox.visible = visible && !!this.selectedObject;
@@ -305,6 +310,11 @@ export class TerrainEditor {
     this.clearLayer(this.layerFeatures);
     this.clearLayer(this.layerPaths);
     this.clearLayer(this.layerZones);
+    this.clearLayer(this.layerSculpt);
+
+    for (const s of this.worldManifest.getSculpt()) {
+      this.layerSculpt.add(this.createSculptGizmo(s));
+    }
 
     for (const f of this.worldManifest.getTerrainFeatures()) {
       const g = this.createFeatureGizmo(f);
@@ -344,6 +354,27 @@ export class TerrainEditor {
         }
       });
     }
+  }
+
+  /**
+   * Flat colour-coded disc marking a manual terrain edit: green = raised,
+   * red = lowered, blue = flattened. Lets the user see (and target with the
+   * ERASE TERRAIN brush) exactly where the land is no longer purely generative.
+   */
+  private createSculptGizmo(s: SculptStroke): THREE.Object3D {
+    const g = new THREE.Group();
+    const y = this.terrain.getHeightAt(s.x, s.z);
+    g.position.set(s.x, y + 0.3, s.z);
+    const color = s.flatten ? 0x5a9cc5 : (s.delta >= 0 ? 0x6bff9c : 0xff6b6b);
+    g.add(new THREE.Mesh(
+      new THREE.CircleGeometry(s.radius, 32).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.12, side: THREE.DoubleSide, depthWrite: false, blending: THREE.AdditiveBlending }),
+    ));
+    g.add(new THREE.Mesh(
+      new THREE.RingGeometry(Math.max(0.1, s.radius - 0.6), s.radius, 32).rotateX(-Math.PI / 2),
+      new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7, side: THREE.DoubleSide, depthWrite: false }),
+    ));
+    return g;
   }
 
   private createFeatureGizmo(f: VerticalPlace): THREE.Object3D {
@@ -483,7 +514,7 @@ export class TerrainEditor {
           if (npc) { npc.position.copy(p); npc.homePosition.copy(p); npc.isBeingMoved = true; }
         }
       }
-      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN || this.mode === EditorMode.PAINT_GROUND)) this.handleAction();
+      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN || this.mode === EditorMode.PAINT_GROUND || this.mode === EditorMode.ERASE_TERRAIN)) this.handleAction();
     } else {
       this.lastIntersection = null; this.cursor.visible = false;
     }
@@ -500,6 +531,8 @@ export class TerrainEditor {
     if (now - this.lastSculptTime > this.SCULPT_INTERVAL) {
       if (this.mode === EditorMode.PAINT_GROUND) {
         this.paintGround(this.lastIntersection.point);
+      } else if (this.mode === EditorMode.ERASE_TERRAIN) {
+        this.eraseTerrainAt(this.lastIntersection.point);
       } else if (this.mode === EditorMode.SCULPT_FLATTEN) {
         this.sculptTerrain(this.lastIntersection.point, 0, true);
       } else {
@@ -768,6 +801,26 @@ export class TerrainEditor {
       const delta = dir * (this.brushIntensity / 10);
       this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, delta);
     }
+    this.terrain.setManifest(this.getManifestData());
+    this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
+    this.refreshVisualization();
+  }
+
+  /**
+   * Strip every manual sculpt stroke whose centre falls inside the brush, so
+   * the terrain reverts to its pure procedural (generative) base in that area.
+   * Drag like a brush; the sculpt overlay updates live to show what remains.
+   */
+  private eraseTerrainAt(pos: THREE.Vector3): void {
+    const strokes = this.worldManifest.getSculpt();
+    let removed = false;
+    for (let i = strokes.length - 1; i >= 0; i--) {
+      if (Math.hypot(strokes[i].x - pos.x, strokes[i].z - pos.z) <= this.brushRadius) {
+        strokes.splice(i, 1);
+        removed = true;
+      }
+    }
+    if (!removed) return;
     this.terrain.setManifest(this.getManifestData());
     this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
     this.refreshVisualization();
