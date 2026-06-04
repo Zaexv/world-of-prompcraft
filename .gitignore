@@ -30,3 +30,6 @@ client/dist/
 
 # Logs
 *.log
+
+# Claude Code worktrees
+.claude/worktrees/
