@@ -4,6 +4,17 @@
 check: lint typecheck test
 	@echo "✅ All checks passed"
 
+# ── Run ───────────────────────────────────────────────
+run-cli:
+	@echo "🚀 Starting client..."
+	cd client && npm run dev &
+	@echo "✅ Server and client started"
+run-server:
+	cd server && pip install -e ".[dev]"
+	@echo "✅ All dependencies installed"
+	@echo "🚀 Starting server..."
+	python -m uvicorn src.main:app --reload --port 8000
+
 # ── Linting ─────────────────────────────────────────────
 lint: lint-client lint-server
 

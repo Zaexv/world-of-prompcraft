@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Any
 
-_ATTACK_KEYWORDS = {
+ATTACK_KEYWORDS = {
     # Direct violence
     "attack",
     "hit",
@@ -90,7 +90,7 @@ _ATTACK_KEYWORDS = {
     "face",
 }
 
-_WEAPON_KEYWORDS = {
+WEAPON_KEYWORDS = {
     "sword",
     "blade",
     "axe",
@@ -106,7 +106,7 @@ _WEAPON_KEYWORDS = {
     "claws",
 }
 
-_STYLE_KEYWORDS = {
+STYLE_KEYWORDS = {
     "humiliate",
     "taunt",
     "mock",
@@ -137,7 +137,7 @@ _STYLE_KEYWORDS = {
     "execute",
 }
 
-_MAGIC_KEYWORDS = {
+MAGIC_KEYWORDS = {
     "fireball",
     "lightning",
     "ice",
@@ -175,7 +175,7 @@ class CombatResolution:
 
 def is_attack_prompt(prompt: str) -> bool:
     words = set(prompt.lower().split())
-    return bool(words & _ATTACK_KEYWORDS)
+    return bool(words & ATTACK_KEYWORDS)
 
 
 def score_attack(
@@ -217,7 +217,7 @@ def score_attack(
     if word_count >= 25:
         multiplier += 0.2
 
-    if words & _WEAPON_KEYWORDS:
+    if words & WEAPON_KEYWORDS:
         multiplier += 0.3
 
     for item in inventory:
@@ -226,13 +226,13 @@ def score_attack(
             multiplier += 0.4
             break
 
-    style_matches = words & _STYLE_KEYWORDS
+    style_matches = words & STYLE_KEYWORDS
     multiplier += min(len(style_matches) * 0.25, 0.75)
 
     if {"humiliate", "taunt", "mock", "insult"} & words:
         multiplier += 0.5
 
-    magic_matches = words & _MAGIC_KEYWORDS
+    magic_matches = words & MAGIC_KEYWORDS
     if magic_matches:
         multiplier += 0.3
         if {"fireball", "flame", "inferno", "fire", "burn", "meteor"} & magic_matches:

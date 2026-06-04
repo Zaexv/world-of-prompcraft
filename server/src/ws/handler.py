@@ -25,111 +25,6 @@ _background_tasks: set[asyncio.Task[None]] = set()
 # Action kinds that nearby players need to see for combat/world sync.
 _BROADCAST_KINDS = {"damage", "move_npc", "emote", "spawn_effect"}
 
-# ── Attack detection & quality scoring ──────────────────────────────────────
-_ATTACK_KEYWORDS = {
-    "attack",
-    "hit",
-    "strike",
-    "slash",
-    "stab",
-    "punch",
-    "kick",
-    "fight",
-    "kill",
-    "destroy",
-    "smash",
-    "fireball",
-    "lightning",
-    "swing",
-    "cleave",
-    "thrust",
-    "cut",
-    "shoot",
-    "blast",
-    "crush",
-    "bite",
-    "claw",
-    "charge",
-    "slam",
-    "cast",
-    "burn",
-    "freeze",
-}
-
-_WEAPON_KEYWORDS = {
-    "sword",
-    "blade",
-    "axe",
-    "dagger",
-    "bow",
-    "arrow",
-    "staff",
-    "mace",
-    "hammer",
-    "spear",
-    "shield",
-    "fist",
-    "claws",
-}
-
-_STYLE_KEYWORDS = {
-    "humiliate",
-    "taunt",
-    "mock",
-    "insult",
-    "feint",
-    "dodge",
-    "parry",
-    "counter",
-    "flank",
-    "ambush",
-    "backstab",
-    "critical",
-    "powerful",
-    "mighty",
-    "devastating",
-    "precise",
-    "swift",
-    "spinning",
-    "leaping",
-    "charging",
-    "overhead",
-    "uppercut",
-    "combo",
-    "fury",
-    "rage",
-    "berserk",
-    "finisher",
-    "execute",
-}
-
-_MAGIC_KEYWORDS = {
-    "fireball",
-    "lightning",
-    "ice",
-    "frost",
-    "flame",
-    "thunder",
-    "arcane",
-    "holy",
-    "shadow",
-    "spell",
-    "magic",
-    "enchant",
-    "inferno",
-    "blizzard",
-    "meteor",
-    "bolt",
-    "beam",
-    "nova",
-}
-
-
-def _is_attack_prompt(prompt: str) -> bool:
-    words = set(prompt.lower().split())
-    return bool(words & _ATTACK_KEYWORDS)
-
-
 # ── Instant combat replies ───────────────────────────────────────────────────
 # When the player attacks, the NPC fires back a deterministic, personality-
 # flavoured response immediately instead of waiting on the LLM. Each profile is
@@ -1026,7 +921,7 @@ async def _handle_interaction(
     # right away instead of waiting on the (slow) agent. Non-attack prompts
     # (talk, trade, quests) still go through the full LangGraph agent below.
     combat_npc = _world_state.get_npc(npc_id)
-    if _is_attack_prompt(prompt) and combat_npc is not None:
+    if is_attack_prompt(prompt) and combat_npc is not None:
         reply = _basic_combat_reply(combat_npc, player_id)
         if reply["actions"]:
             await _world_state.apply_actions(reply["actions"])

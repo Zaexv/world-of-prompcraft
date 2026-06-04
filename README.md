@@ -177,6 +177,9 @@ world-of-prompcraft/
 │       ├── world/                 # npc_definitions (loads from shared manifest)
 │       ├── ws/                    # WebSocket handler with sync-on-join
 │       └── ...
+│
+├── docs/                          # 📚 Centralized documentation (Architecture, Protocol, Plans)
+└── management/                    # 📋 Project management (Feature lists, Presentations)
 ```
 
 ---
@@ -290,13 +293,15 @@ Detailed technical documentation lives in [`docs/`](./docs/):
 
 | Document | Description |
 |----------|-------------|
-| [Client Architecture](./client/ARCHITECTURE.md) | Frontend deep-dive — render loop, entity system, collision, UI, state, WebSocket |
-| [Server Architecture](./server/ARCHITECTURE.md) | Backend deep-dive — FastAPI, WebSocket layer, LangGraph, tools, RAG, WorldState |
-| [Agentic Workflow](./docs/agentic-workflow.md) | LangGraph pipeline reference — all nodes, tool system, memory model, example traces |
-| [Protocol](./docs/protocol.md) | WebSocket protocol spec — every message type, field, and action kind |
-| [Backend Guide](./docs/backend_guide.md) | Server architecture deep-dive |
-| [Architecture Blueprint](./docs/architecture-blueprint.md) | Full engine-agnostic technical spec |
-| [Improvements](./docs/improvements.md) | Code audit — 39 tracked issues by severity |
+| [Architecture Blueprint](./docs/architecture/blueprint.md) | Full engine-agnostic technical spec |
+| [Client Architecture](./docs/architecture/client.md) | Frontend deep-dive — render loop, entity system, collision, UI, state |
+| [Server Architecture](./docs/architecture/server.md) | Backend deep-dive — FastAPI, WebSocket layer, LangGraph, WorldState |
+| [Agentic Workflow](./docs/agentic/workflow.md) | LangGraph pipeline reference — all nodes, tool system, memory model |
+| [Protocol](./docs/protocol/spec.md) | WebSocket protocol spec — every message type, field, and action kind |
+| [World Editor](./docs/tools/world-editor.md) | Guide for using the visual World Builder & Terrain Editor |
+| [AI Writing Guidelines](./docs/standards/writing-guidelines.md) | Standardized documentation format for efficient AI-human collaboration |
+
+*Historical plans and research are available in the [Archive](./docs/plans/).*
 
 ---
 
