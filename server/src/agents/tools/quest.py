@@ -60,14 +60,34 @@ def create_quest_tools(pending_actions: list[Any], world_state: dict[str, Any]) 
     @tool
     def check_player_quests() -> str:
         """Check which quests the player currently has active and which are
-        completed. Use this to decide whether to offer a new quest or complete
+        completed. Also shows available follow-up quests if a completed quest
+        has a chain. Use this to decide whether to offer a new quest or complete
         an existing one."""
         player = world_state.get("player", {})
         active = player.get("active_quests", [])
         completed = player.get("completed_quests", [])
         inventory = player.get("inventory", [])
-        return (
+
+        from ...world.quest_definitions import QUEST_DEFINITIONS
+
+        follow_ups: list[str] = []
+        for cq_id in completed:
+            qdef = QUEST_DEFINITIONS.get(cq_id)
+            if qdef and qdef.next_quest_id:
+                next_id = qdef.next_quest_id
+                if next_id not in completed and not any(q["id"] == next_id for q in active):
+                    next_def = QUEST_DEFINITIONS.get(next_id)
+                    if next_def:
+                        follow_ups.append(f"{next_def.name} (id: {next_id})")
+
+        result = (
             f"Active quests: {active}\nCompleted quests: {completed}\nPlayer inventory: {inventory}"
         )
+        if follow_ups:
+            result += (
+                f"\nAvailable follow-up quests: {', '.join(follow_ups)}. "
+                "Consider offering one of these to the player if appropriate."
+            )
+        return result
 
     return [start_quest, advance_quest_objective, check_player_quests]

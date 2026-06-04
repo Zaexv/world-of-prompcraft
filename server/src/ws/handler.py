@@ -448,9 +448,72 @@ async def _handle_join(
 
     # Build NPC list
     current_npcs: list[dict[str, Any]] = []
+    npcs_context: list[str] = []
     if _world_state is not None:
         for npc in _world_state.npcs.values():
             current_npcs.append(npc.to_dict())
+            npcs_context.append(f"{npc.name} ({npc.archetype or 'wanderer'})")
+
+    # ── World Spirit onboarding: greet new players with their story ──────
+    spirit_greeting: str | None = None
+    if _world_state is not None and _registry is not None:
+        player = _world_state.get_player(username)
+        if player is not None and not player.has_backstory:
+            try:
+                from langchain_core.messages import HumanMessage, SystemMessage
+
+                llm = _registry._llm.bind(max_tokens=800, temperature=0.9)
+                npc_list = "\n".join(f"  - {n}" for n in npcs_context[:12])
+                gen_prompt = (
+                    f"You are the World Spirit of Promptcraft — the ancient voice of the world itself. "
+                    f"A new player named {username} (a {race} of the {faction}) has entered your realm.\n\n"
+                    f"Generate an exciting, evocative opening story (4-7 sentences) that the World Spirit "
+                    f"speaks directly to them. Make it feel like the beginning of an epic fantasy novel. "
+                    f"Give them a unique past, a reason they are here, and a hint of what calls to them. "
+                    f"Be creative, vivid, and specific. "
+                    f"Reference one or two characters from this world naturally:\n"
+                    f"{npc_list}"
+                )
+                gen_result = await asyncio.wait_for(
+                    llm.ainvoke(
+                        [
+                            SystemMessage(content=gen_prompt),
+                            HumanMessage(content="A new presence stirs in the world. Speak."),
+                        ]
+                    ),
+                    timeout=15.0,
+                )
+                backstory = (
+                    getattr(gen_result, "content", "").strip()
+                    if hasattr(gen_result, "content")
+                    else ""
+                )
+                if backstory:
+                    await _world_state.apply_actions(
+                        [
+                            {
+                                "kind": "set_backstory",
+                                "params": {"player_id": username, "backstory": backstory},
+                            }
+                        ]
+                    )
+                    # Give the player their first quest
+                    if not player.active_quests:
+                        await _world_state.apply_actions(
+                            [
+                                {
+                                    "kind": "start_quest",
+                                    "params": {
+                                        "player_id": username,
+                                        "quest_id": "village_patrol",
+                                    },
+                                }
+                            ]
+                        )
+                    spirit_greeting = backstory
+                    logger.info("World Spirit greeted new player %s", username)
+            except Exception:
+                logger.warning("World Spirit greeting failed for %s", username, exc_info=True)
 
     # Broadcast player_joined to everyone else
     if _world_state is not None:
@@ -462,6 +525,23 @@ async def _handle_join(
             },
             exclude=username,
         )
+
+    # Send World Spirit dialogue to the joining player (before join_ok)
+    if spirit_greeting:
+        try:
+            await websocket.send_json(
+                {
+                    "type": "agent_response",
+                    "npcId": "world_spirit",
+                    "npcName": "World Spirit",
+                    "dialogue": spirit_greeting,
+                    "actions": [],
+                    "playerStateUpdate": None,
+                    "npcStateUpdate": None,
+                }
+            )
+        except Exception:
+            logger.warning("Failed to send World Spirit greeting", exc_info=True)
 
     logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
     return {

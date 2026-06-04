@@ -101,6 +101,27 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         parts.append("")
         parts.append(f"## Personal Notes: {notes}")
 
+    # ── Player's Journey (shared story across all NPCs) ──────────────────
+    player_backstory = world.get("player_backstory", "")
+    player_story = world.get("player_story", [])
+    if player_backstory:
+        parts.append("")
+        parts.append("## Your Knowledge of This Traveler")
+        parts.append(
+            "Below is what is known about this player's journey. "
+            "Decide naturally whether YOU would know about these events "
+            "based on who you are, where you live, and your role in the world. "
+            "You may recognize the player, reference their deeds, or treat them "
+            "as a complete stranger — whatever fits your character."
+        )
+        parts.append("")
+        parts.append(f"Origin: {player_backstory}")
+        if player_story:
+            story_window = player_story[-8:]
+            parts.append("Known events (most recent first):")
+            for event in reversed(story_window):
+                parts.append(f"  - {event}")
+
     # RAG: retrieve relevant lore based on the player's prompt. Resolve this
     # before writing the instructions so the length budget can adapt: a plain
     # reply stays terse, a lore-bearing reply earns more room.

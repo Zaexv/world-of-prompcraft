@@ -23,6 +23,9 @@ class PlayerData:
     race: str = "human"
     faction: str = "alliance"
     yaw: float = 0.0
+    player_story: list[str] = field(default_factory=list)
+    player_backstory: str = ""
+    has_backstory: bool = False
 
     def to_public_dict(self) -> dict[str, Any]:
         """Return minimal data suitable for broadcasting to other players."""
@@ -73,6 +76,9 @@ class PlayerData:
             ],
             "completed_quests": list(self.completed_quests),
             "kill_count": self.kill_count,
+            "player_story": list(self.player_story),
+            "player_backstory": self.player_backstory,
+            "has_backstory": self.has_backstory,
         }
 
     def start_quest(self, quest_id: str) -> None:

@@ -26,6 +26,7 @@ class QuestDefinition:
     reward_item: str = ""
     reward_description: str = ""
     required_level: int = 1
+    next_quest_id: str = ""
 
 
 QUEST_DEFINITIONS: dict[str, QuestDefinition] = {
@@ -63,6 +64,7 @@ QUEST_DEFINITIONS: dict[str, QuestDefinition] = {
         reward_description=(
             "El Tito's legendary artifact, now ablaze with sacred fire. Grants +50 max mana."
         ),
+        next_quest_id="crystal_tear",
     ),
     "crystal_tear": QuestDefinition(
         id="crystal_tear",
@@ -95,6 +97,7 @@ QUEST_DEFINITIONS: dict[str, QuestDefinition] = {
         ],
         reward_item="Amulet of Clarity",
         reward_description="A shimmering amulet that clears the mind. Grants +20 max mana.",
+        next_quest_id="village_patrol",
     ),
     "village_patrol": QuestDefinition(
         id="village_patrol",
