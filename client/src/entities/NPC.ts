@@ -3,11 +3,12 @@ import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
-import { getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
-import { buildProceduralMesh, getPlaceholderAppearance } from './NPCAppearance';
-import { addPlaceholderAccessory, addNPCVisualOutline, applyFlatShading } from './NPCAccessories';
+import type { NPCPlaceholderStyle } from './NPCModels';
+import type { NPCAppearanceOverride } from './NPCModels';
 import { NPCWander } from './NPCWander';
 import { Water } from '../scene/Water';
+import { buildNPCMesh, type NPCBuiltMesh } from './npc/NPCMeshFactory';
+import { resolveAppearance } from './npc/NPCAppearanceResolver';
 
 export interface NPCConfig {
   id: string;
@@ -16,6 +17,7 @@ export interface NPCConfig {
   color?: number;
   behavior?: NPCMotionSource['behavior'];
   style?: NPCPlaceholderStyle;
+  appearance?: NPCAppearanceOverride;
   movementStyle?: NPCMotionSource['movementStyle'];
   wanderRadius?: number;
   hp?: number;
@@ -40,7 +42,6 @@ export class NPC {
   public isGrounded = false;
 
   private readonly motionProfile: NPCMotionProfile;
-  private readonly placeholderStyle: NPCPlaceholderStyle;
   private readonly wander: NPCWander;
   private waterHoverPhase = Math.random() * Math.PI * 2;
   private readonly waterHoverHeight = 0.9;
@@ -49,24 +50,18 @@ export class NPC {
   private materials: THREE.MeshStandardMaterial[] = [];
   private originalEmissives: number[] = [];
 
-  constructor(config: NPCConfig) {
+  constructor(config: NPCConfig, built: NPCBuiltMesh) {
     this.id = config.id;
     this.name = config.name;
     this.personalityKey = config.personalityKey ?? '';
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
     this.motionProfile = createNPCMotionProfile(config);
-    this.placeholderStyle = config.style ?? getNPCPlaceholderStyle(config.id, config.name, config.behavior);
     this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
-    this.mesh = new THREE.Group();
-    if (config.scale) this.mesh.scale.setScalar(config.scale);
 
-    const appearance = getPlaceholderAppearance(this.placeholderStyle);
-    this.materials = buildProceduralMesh(this.mesh, appearance, this.placeholderStyle);
-
-    addPlaceholderAccessory(this.mesh, this.placeholderStyle);
-    applyFlatShading(this.mesh);
-    addNPCVisualOutline(this.mesh, this.placeholderStyle);
+    this.mesh = built.object3D;
+    this.materials = built.materials;
+    this.mesh.position.copy(this.position);
 
     this.nameplate = new Nameplate(this.name);
     this.mesh.add(this.nameplate.sprite);
@@ -79,7 +74,6 @@ export class NPC {
       child.userData.npcName = this.name;
     });
 
-    this.mesh.position.copy(this.position);
     this.animator = new NPCAnimator(this.mesh, this.motionProfile);
     this.wander = new NPCWander(this.mesh, this.position, this.motionProfile, this.animator, this.id);
   }
@@ -91,10 +85,6 @@ export class NPC {
     this.position.y = y;
     this.homePosition.y = y;
     this.animator.setBaseY(y);
-  }
-
-  static create(config: NPCConfig): NPC {
-    return new NPC(config);
   }
 
   update(delta: number): void {
@@ -161,9 +151,16 @@ export class NPC {
     this.actionIcon.displayAction(actionKind, duration);
   }
 
+  /** Convenience factory — resolves appearance and builds the mesh in one call. */
+  static create(config: NPCConfig): NPC {
+    const spec = resolveAppearance(config);
+    const scale = spec.scale ?? config.scale ?? 1;
+    const built = buildNPCMesh({ ...spec, scale }, config.position, config.id);
+    return new NPC(config, built);
+  }
+
   dispose(): void {
-    // Only dispose unique per-instance assets.
-    // Shared NPC geometries and materials are kept in a global cache (NPCAppearance.ts).
+    for (const mat of this.materials) mat.dispose();
 
     this.nameplate.sprite.material.dispose();
     if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {

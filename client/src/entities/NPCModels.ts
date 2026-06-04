@@ -3,6 +3,22 @@
  * with per-ID overrides. Drives the procedural mesh appearance (NPCAppearance.ts).
  */
 
+export interface NPCAppearanceOverride {
+  mesh?: string;
+  palette?: Record<string, number>;
+  scale?: number;
+}
+
+/** FNV-1a 32-bit hash — pure, no THREE.js, safe to import in tests. */
+export function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let i = 0; i < value.length; i++) {
+    hash ^= value.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 export type NPCPlaceholderStyle =
   | 'civilian'
   | 'merchant'

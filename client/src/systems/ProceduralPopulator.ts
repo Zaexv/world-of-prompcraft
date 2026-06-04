@@ -29,7 +29,7 @@ import { Water } from '../scene/Water';
 import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
-import { buildMesh, selectBiomePropType, selectBiomeVegetationType } from '../meshes';
+import { buildMesh, selectBiomePropType, selectBiomeVegetationType, selectBiomeBuildingType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
 import { tagDebugInfo } from '../debug/DebugInfo';
 
@@ -264,13 +264,13 @@ export class ProceduralPopulator {
     // Hard cap on total NPCs: prevents the EntityManager loop growing unbounded.
     // 36 server NPCs + up to ~44 procedural = comfortable 80 total.
     const MAX_NPCS = 80;
-    const monsterChance = Math.min(0.38, 0.06 + dist * 0.0005);
+    const monsterChance = Math.min(0.45, 0.08 + dist * 0.0006);
     if (rng.chance(monsterChance) && this.entityManager &&
         this.entityManager.npcs.size < MAX_NPCS) {
       const defs = registryEntry?.monsters
         ?? BIOME_MONSTERS[biome]
         ?? BIOME_MONSTERS[BiomeType.Teldrassil]!;
-      const count = rng.nextInt(2) + 1;
+      const count = rng.nextInt(3) + 1;
       for (let i = 0; i < count; i++) {
         const mx = worldX + rng.nextRange(6, SIZE - 6);
         const mz = worldZ + rng.nextRange(6, SIZE - 6);
@@ -285,14 +285,69 @@ export class ProceduralPopulator {
           hp: def.maxHp, maxHp: def.maxHp,
           personality: `Hostile creature — attack on sight.`,
           scale: def.scale,
+          behavior: 'hostile',
         });
         npcIds.push(npcId);
       }
     }
 
-    // ── Vegetation / Clutter (High density, 10–30 items) ───────────────
-    if (rng.chance(0.95)) {
-      const vegCount = rng.nextInt(20) + 10;
+    // ── Biome buildings (1 per chunk, ~10% chance) ────────────────────
+    if (rng.chance(0.10)) {
+      const bx = worldX + rng.nextRange(8, SIZE - 8);
+      const bz = worldZ + rng.nextRange(8, SIZE - 8);
+      if (!this.isUnderwater(bx, bz)) {
+        const by = this.terrain.getHeightAt(bx, bz);
+        const bPos = new THREE.Vector3(bx, by, bz);
+
+        let building: THREE.Object3D | null = null;
+        let buildingType = 'biome_building';
+        if (registryEntry) {
+          building = registryEntry.buildingFn(bPos, rng, dist);
+        } else {
+          const bType = selectBiomeBuildingType(biome, rng, dist);
+          if (bType) {
+            buildingType = bType;
+            building = buildMesh(bType, { position: bPos, scale: 1, rng }) ?? null;
+          }
+        }
+
+        if (building && this.scene) {
+          building.rotation.y = rng.nextRange(0, Math.PI * 2);
+          this.scene.add(building);
+          void this.collisionSystem?.addCollidableFiltered(building);
+          tagDebugInfo(building, { type: buildingType, category: 'building', zone: BiomeType[biome] });
+          objs.push(building);
+        }
+      }
+    }
+
+    // ── Rare encounters (1 per chunk, ~8% beyond 100u) ─────────────────
+    const ENCOUNTERS = [
+      'encounter_campsite', 'encounter_bandit_camp', 'encounter_hermit_dwelling',
+      'encounter_mine_entrance', 'encounter_crashed_wagon', 'encounter_battlefield_remnant',
+      'encounter_merchant_caravan', 'encounter_fishing_spot', 'encounter_ritual_site',
+    ] as const;
+    if (rng.chance(0.04) && dist > 100) {
+      const ex = worldX + rng.nextRange(10, SIZE - 10);
+      const ez = worldZ + rng.nextRange(10, SIZE - 10);
+      if (!this.isUnderwater(ex, ez)) {
+        const ey = this.terrain.getHeightAt(ex, ez);
+        const ePos = new THREE.Vector3(ex, ey, ez);
+        const encType = rng.pick(ENCOUNTERS);
+        const enc = buildMesh(encType, { position: ePos, scale: 1, rng }) ?? null;
+        if (enc && this.scene) {
+          enc.rotation.y = rng.nextRange(0, Math.PI * 2);
+          this.scene.add(enc);
+          void this.collisionSystem?.addCollidableFiltered(enc);
+          tagDebugInfo(enc, { type: encType, category: 'prop', zone: BiomeType[biome] });
+          objs.push(enc);
+        }
+      }
+    }
+
+    // ── Vegetation / Clutter (4–12 items) ────────────────────────────
+    if (rng.chance(0.75)) {
+      const vegCount = rng.nextInt(8) + 4;
       for (let i = 0; i < vegCount; i++) {
         const px = worldX + rng.nextRange(2, SIZE - 2);
         const pz = worldZ + rng.nextRange(2, SIZE - 2);
@@ -317,9 +372,9 @@ export class ProceduralPopulator {
       }
     }
 
-    // ── Ambient props (3–6, richer density) ───────────────────────────
-    if (rng.chance(0.60)) {
-      const propCount = rng.nextInt(4) + 3; // 3–6
+    // ── Ambient props (1–3) ───────────────────────────────────────────
+    if (rng.chance(0.40)) {
+      const propCount = rng.nextInt(2) + 1; // 1–3
       for (let i = 0; i < propCount; i++) {
         const px = worldX + rng.nextRange(3, SIZE - 3);
         const pz = worldZ + rng.nextRange(3, SIZE - 3);

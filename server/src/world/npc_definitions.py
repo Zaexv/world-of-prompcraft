@@ -50,6 +50,8 @@ def load_npc_definitions() -> dict[str, dict[str, Any]]:
                 "personality_key": n["ai"].get("personality_key", n["id"]),
                 "scale": n["transform"].get("scale", 1.0),
                 "zone_id": zone_id,
+                "style": n["ai"].get("style"),
+                "appearance": n.get("appearance"),
             }
 
     return npc_registry

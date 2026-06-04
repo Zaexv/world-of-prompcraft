@@ -26,9 +26,11 @@ class NPCData:
     # Archetype (e.g. "hostile_boss", "friendly_merchant") drives the instant,
     # deterministic combat reply so attacks don't wait on the LLM.
     archetype: str = ""
+    style: str | None = None
+    appearance: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        d: dict[str, Any] = {
             "npc_id": self.npc_id,
             "name": self.name,
             "hp": self.hp,
@@ -38,6 +40,11 @@ class NPCData:
             "mood": self.mood,
             "scale": self.scale,
         }
+        if self.style is not None:
+            d["style"] = self.style
+        if self.appearance is not None:
+            d["appearance"] = self.appearance
+        return d
 
 
 class WorldState:
@@ -92,6 +99,8 @@ class WorldState:
                 self.npcs[npc_id].archetype = archetype
                 self.npcs[npc_id].position = list(npc_def["position"])
                 self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
+                self.npcs[npc_id].style = npc_def.get("style")
+                self.npcs[npc_id].appearance = npc_def.get("appearance")
             else:
                 # Add new
                 npc = NPCData(
@@ -103,6 +112,8 @@ class WorldState:
                     position=list(npc_def["position"]),
                     scale=npc_def.get("scale", 1.0),
                     archetype=archetype,
+                    style=npc_def.get("style"),
+                    appearance=npc_def.get("appearance"),
                 )
                 self.npcs[npc_id] = npc
 
