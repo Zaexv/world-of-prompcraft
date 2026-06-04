@@ -1,10 +1,15 @@
 import { UIComponent } from "./core/UIComponent";
-import { BiomeType, getDominantBiome } from '../scene/Biomes';
+import { BiomeType, getDominantBiome, getBiomeWeights } from '../scene/Biomes';
+import { ZONES } from '../systems/ZoneTracker';
 
 // Module-level constants so they are defined when render() is called
 // (instance class fields are undefined during super() → render()).
 const MM_SIZE  = 290; // canvas pixels
 const MM_SCALE = 2.0; // world-units per canvas pixel
+
+const WM_MAP_SIZE = 500;
+const WM_RANGE    = 600;
+const WM_SCALE    = (WM_RANGE * 2) / WM_MAP_SIZE; // 2.4 wu/px
 
 export interface MinimapWaypoint {
   id: string;
@@ -30,6 +35,12 @@ export class Minimap extends UIComponent {
   declare private ctx: CanvasRenderingContext2D;
   declare private biomeLabel: HTMLDivElement;
   declare private coordLabel: HTMLDivElement;
+  declare private modeWorldBtn: HTMLButtonElement;
+  declare private modeLocalBtn: HTMLButtonElement;
+
+  private viewMode: 'local' | 'world' = 'world';
+  private _worldBiomeCanvas: HTMLCanvasElement | null = null;
+  private _worldBiomeDirty = true;
 
   // World waypoints and entity dots
   private waypoints: MinimapWaypoint[] = [];
@@ -99,7 +110,39 @@ export class Minimap extends UIComponent {
       fontWeight: '700',
     } as Partial<CSSStyleDeclaration>);
     titleText.textContent = 'World Map';
+
+    const modeBar = document.createElement('div');
+    modeBar.style.cssText = 'display:flex;gap:4px;margin-left:8px;';
+
+    this.modeWorldBtn = document.createElement('button');
+    this.modeWorldBtn.textContent = 'World';
+    Object.assign(this.modeWorldBtn.style, {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '9px',
+      fontFamily: "'Cinzel', serif",
+      padding: '2px 4px',
+    } as Partial<CSSStyleDeclaration>);
+    this.modeLocalBtn = document.createElement('button');
+    this.modeLocalBtn.textContent = 'Local';
+    Object.assign(this.modeLocalBtn.style, {
+      background: 'transparent',
+      border: 'none',
+      cursor: 'pointer',
+      fontSize: '9px',
+      fontFamily: "'Cinzel', serif",
+      padding: '2px 4px',
+    } as Partial<CSSStyleDeclaration>);
+
+    this.modeWorldBtn.addEventListener('click', () => this._setMode('world'));
+    this.modeLocalBtn.addEventListener('click', () => this._setMode('local'));
+
+    modeBar.appendChild(this.modeWorldBtn);
+    modeBar.appendChild(this.modeLocalBtn);
+
     titleBar.appendChild(titleText);
+    titleBar.appendChild(modeBar);
 
     this.biomeLabel = document.createElement('div');
     Object.assign(this.biomeLabel.style, {
@@ -183,6 +226,8 @@ export class Minimap extends UIComponent {
     this.container.appendChild(footer);
 
     this.ctx = this.canvas.getContext('2d')!;
+
+    this._updateModeButtons();
   }
 
   protected override onShow(): void {
@@ -193,6 +238,8 @@ export class Minimap extends UIComponent {
     this.lastDrawX = NaN;
     this.lastDrawZ = NaN;
     this.lastDrawAngle = NaN;
+    // Defensive reset of world biome cache
+    this._worldBiomeDirty = true;
   }
 
   setWaypoints(waypoints: MinimapWaypoint[]): void {
@@ -211,6 +258,175 @@ export class Minimap extends UIComponent {
     this.addWaypoint({ id: `cave:${label}:${x}:${z}`, label, x, z, kind: 'feature' });
   }
 
+  invalidateWorldBiomeCache(): void {
+    this._worldBiomeDirty = true;
+  }
+
+  private _setMode(mode: 'local' | 'world'): void {
+    this.viewMode = mode;
+    const size = mode === 'world' ? WM_MAP_SIZE : MM_SIZE;
+    this.canvas.width = size;
+    this.canvas.height = size;
+    this.canvas.style.width  = `${size}px`;
+    this.canvas.style.height = `${size}px`;
+    this.container.style.width = `${size + 8}px`;
+    this.lastDrawX = NaN;
+    this._updateModeButtons();
+  }
+
+  private _updateModeButtons(): void {
+    const activeStyle   = 'rgba(197,165,90,0.9)';
+    const inactiveStyle = 'rgba(197,165,90,0.3)';
+    this.modeWorldBtn.style.color = this.viewMode === 'world' ? activeStyle : inactiveStyle;
+    this.modeLocalBtn.style.color = this.viewMode === 'local' ? activeStyle : inactiveStyle;
+  }
+
+  private _prerenderWorldBiomes(): void {
+    const S = WM_MAP_SIZE;
+    const scale = WM_SCALE;
+    const step = 4;
+
+    if (!this._worldBiomeCanvas) {
+      this._worldBiomeCanvas = document.createElement('canvas');
+      this._worldBiomeCanvas.width  = S;
+      this._worldBiomeCanvas.height = S;
+    }
+    const offCtx = this._worldBiomeCanvas.getContext('2d')!;
+    offCtx.fillStyle = '#12141e';
+    offCtx.fillRect(0, 0, S, S);
+
+    for (let px = 0; px < S; px += step) {
+      for (let py = 0; py < S; py += step) {
+        const wx = (px - S / 2) * scale;
+        const wz = (py - S / 2) * scale;
+        const weights = getBiomeWeights(wx, wz);
+        let r = 0, g = 0, b = 0;
+        for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
+          const w = weights[biome];
+          if (w > 0.001) { r += color.r * w; g += color.g * w; b += color.b * w; }
+        }
+        offCtx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
+        offCtx.fillRect(px, py, step, step);
+      }
+    }
+    this._worldBiomeDirty = false;
+  }
+
+  private _drawZoneOverlays(ctx: CanvasRenderingContext2D): void {
+    const S  = WM_MAP_SIZE;
+    const sc = WM_SCALE;
+    const toCanvasX = (wx: number) => wx / sc + S / 2;
+    const toCanvasZ = (wz: number) => wz / sc + S / 2;
+    const CLAMP = WM_RANGE;
+
+    const sorted = [...ZONES].sort((a, b) =>
+      (b.maxX - b.minX) * (b.maxZ - b.minZ) - (a.maxX - a.minX) * (a.maxZ - a.minZ)
+    );
+
+    for (const zone of sorted) {
+      const accent = ZONE_ACCENT_COLORS[zone.name] ?? ZONE_DEFAULT_ACCENT;
+      const x0 = Math.max(zone.minX, -CLAMP);
+      const x1 = Math.min(zone.maxX,  CLAMP);
+      const z0 = Math.max(zone.minZ, -CLAMP);
+      const z1 = Math.min(zone.maxZ,  CLAMP);
+      if (x1 <= x0 || z1 <= z0) continue;
+
+      const cx0 = toCanvasX(x0), cx1 = toCanvasX(x1);
+      const cz0 = toCanvasZ(z0), cz1 = toCanvasZ(z1);
+      const cw = cx1 - cx0, ch = cz1 - cz0;
+
+      ctx.save();
+      ctx.globalAlpha = 0.13;
+      ctx.fillStyle = accent;
+      ctx.fillRect(cx0, cz0, cw, ch);
+      ctx.restore();
+
+      ctx.save();
+      ctx.strokeStyle = accent;
+      ctx.globalAlpha = 0.35;
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.strokeRect(cx0 + 0.5, cz0 + 0.5, cw - 1, ch - 1);
+      ctx.restore();
+
+      if (cw >= 30 && ch >= 14) {
+        const labelX = (cx0 + cx1) / 2;
+        const labelZ = (cz0 + cz1) / 2;
+        ctx.save();
+        ctx.font = 'bold 9px "Cinzel", serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = accent;
+        ctx.globalAlpha = 0.85;
+        ctx.shadowColor = 'rgba(0,0,0,0.9)';
+        ctx.shadowBlur = 4;
+        ctx.fillText(zone.name.toUpperCase(), labelX, labelZ);
+        ctx.restore();
+      }
+    }
+  }
+
+  private _drawWorldView(playerX: number, playerZ: number): void {
+    if (this._worldBiomeDirty) this._prerenderWorldBiomes();
+    const ctx = this.ctx;
+    const S = WM_MAP_SIZE;
+
+    ctx.drawImage(this._worldBiomeCanvas!, 0, 0);
+    this._drawZoneOverlays(ctx);
+
+    for (const npc of this.npcDots) {
+      const nx = npc.x / WM_SCALE + S / 2;
+      const nz = npc.z / WM_SCALE + S / 2;
+      if (nx < -4 || nx > S + 4 || nz < -4 || nz > S + 4) continue;
+      ctx.save();
+      ctx.shadowColor = npc.hostile ? '#ff4444' : '#44ff88';
+      ctx.shadowBlur = 4;
+      ctx.fillStyle  = npc.hostile ? '#ff6644' : '#88ffaa';
+      ctx.beginPath(); ctx.arc(nx, nz, 2.5, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+    }
+
+    for (const wp of this.waypoints) {
+      const wx = wp.x / WM_SCALE + S / 2;
+      const wy = wp.z / WM_SCALE + S / 2;
+      if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
+      this.drawWaypointMarker(ctx, wx, wy, wp.kind, false);
+    }
+
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
+    const px = playerX / WM_SCALE + S / 2;
+    const pz = playerZ / WM_SCALE + S / 2;
+    ctx.save();
+    ctx.shadowColor = '#ffd966'; ctx.shadowBlur = 8 + pulse * 6;
+    ctx.fillStyle = '#ffd966';
+    ctx.beginPath(); ctx.arc(px, pz, 4, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = `rgba(255,217,102,${0.3 + pulse * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(px, pz, 6 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+
+    // Edge vignette
+    const vg = ctx.createRadialGradient(S/2, S/2, S*0.32, S/2, S/2, S*0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, S, S);
+
+    this._drawCompass(ctx, S);
+  }
+
+  private _drawCompass(ctx: CanvasRenderingContext2D, size: number): void {
+    ctx.font = 'bold 9px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = 'rgba(197,165,90,0.7)';
+    ctx.fillText('N', size / 2, 11);
+    ctx.fillText('S', size / 2, size - 2);
+    ctx.textAlign = 'left';
+    ctx.fillText('W', 3, size / 2 + 3);
+    ctx.textAlign = 'right';
+    ctx.fillText('E', size - 3, size / 2 + 3);
+  }
+
   /**
    * Redraw the minimap. Call each frame (or throttled).
    * @param playerX World X
@@ -220,22 +436,36 @@ export class Minimap extends UIComponent {
   update(playerX: number, playerZ: number, playerAngle: number): void {
     if (!this.isVisible) return;
 
+    // World mode redraws every frame for pulse animation — skip throttle
+    if (this.viewMode === 'world') {
+      const ctx = this.ctx;
+      if (!ctx) return;
+      this.lastDrawX = playerX;
+      this.lastDrawZ = playerZ;
+      this.lastDrawAngle = playerAngle;
+      ctx.clearRect(0, 0, WM_MAP_SIZE, WM_MAP_SIZE);
+      this._drawWorldView(playerX, playerZ);
+      this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
+      this.biomeLabel.textContent = BIOME_NAMES[getDominantBiome(playerX, playerZ)] ?? '—';
+      return;
+    }
+
     // Throttle: only redraw when player moves significantly or rotates
     this.frameSkip++;
     const dx = playerX - this.lastDrawX;
     const dz = playerZ - this.lastDrawZ;
     const moved = isNaN(this.lastDrawX) || (dx * dx + dz * dz) > 9; // 3m threshold
-    
+
     let angleDiff = playerAngle - this.lastDrawAngle;
     angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
     const rotated = isNaN(this.lastDrawAngle) || Math.abs(angleDiff) > 0.1; // ~6 degrees
-    
+
     // Always update labels, but skip heavy canvas draw
     if (!moved && !rotated && this.frameSkip < 10) {
       this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
       return;
     }
-    
+
     this.frameSkip = 0;
     this.lastDrawX = playerX;
     this.lastDrawZ = playerZ;
@@ -255,13 +485,18 @@ export class Minimap extends UIComponent {
     // 9x performance improvement for the same visual clarity at map scale.
     const step = 6;
     const dominantBiome = getDominantBiome(playerX, playerZ);
-    
+
     for (let px = 0; px < S; px += step) {
       for (let py = 0; py < S; py += step) {
         const wx = playerX + (px - S / 2) * scale;
         const wz = playerZ + (py - S / 2) * scale;
-        const biome = getDominantBiome(wx, wz);
-        ctx.fillStyle = BIOME_COLORS[biome];
+        const weights = getBiomeWeights(wx, wz);
+        let r = 0, g = 0, b = 0;
+        for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
+          const w = weights[biome];
+          if (w > 0.001) { r += color.r * w; g += color.g * w; b += color.b * w; }
+        }
+        ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
         ctx.fillRect(px, py, step, step);
       }
     }
@@ -280,12 +515,12 @@ export class Minimap extends UIComponent {
     const firstChunkX = Math.ceil((playerX - halfWorld) / chunkSize) * chunkSize;
     const firstChunkZ = Math.ceil((playerZ - halfWorld) / chunkSize) * chunkSize;
     for (let wx = firstChunkX; wx < playerX + halfWorld; wx += chunkSize) {
-      const px = (wx - playerX) / scale + S / 2;
-      ctx.beginPath(); ctx.moveTo(px, 0); ctx.lineTo(px, S); ctx.stroke();
+      const cpx = (wx - playerX) / scale + S / 2;
+      ctx.beginPath(); ctx.moveTo(cpx, 0); ctx.lineTo(cpx, S); ctx.stroke();
     }
     for (let wz = firstChunkZ; wz < playerZ + halfWorld; wz += chunkSize) {
-      const py = (wz - playerZ) / scale + S / 2;
-      ctx.beginPath(); ctx.moveTo(0, py); ctx.lineTo(S, py); ctx.stroke();
+      const cpy = (wz - playerZ) / scale + S / 2;
+      ctx.beginPath(); ctx.moveTo(0, cpy); ctx.lineTo(S, cpy); ctx.stroke();
     }
 
     // ── NPC dots ───────────────────────────────────────────────────────────
@@ -347,15 +582,7 @@ export class Minimap extends UIComponent {
     ctx.restore();
 
     // ── Compass (corners) ──────────────────────────────────────────────────
-    ctx.font = 'bold 9px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillStyle = 'rgba(197,165,90,0.7)';
-    ctx.fillText('N', S / 2, 11);
-    ctx.fillText('S', S / 2, S - 2);
-    ctx.textAlign = 'left';
-    ctx.fillText('W', 3, S / 2 + 3);
-    ctx.textAlign = 'right';
-    ctx.fillText('E', S - 3, S / 2 + 3);
+    this._drawCompass(ctx, S);
 
     // ── Biome label + coords (updated in DOM elements, not canvas) ─────────
     this.biomeLabel.textContent = BIOME_NAMES[dominantBiome] ?? '—';
@@ -530,3 +757,23 @@ const BIOME_NAMES: Record<BiomeType, string> = {
   [BiomeType.MalakaArea]: 'Malaka Area',
   [BiomeType.TanisDesert]: 'Tanis Desert',
 };
+
+const BIOME_COLOR_COMPONENTS: Array<[BiomeType, {r:number,g:number,b:number}]> =
+  Object.entries(BIOME_COLORS).map(([biome, hex]) => {
+    const n = parseInt(hex.slice(1), 16);
+    return [Number(biome) as BiomeType, { r: (n>>16)&0xff, g: (n>>8)&0xff, b: n&0xff }];
+  });
+
+const ZONE_ACCENT_COLORS: Record<string, string> = {
+  "Blasted Suarezlands": "#cc88ff",
+  "Fort Malaka":         "#ffdd88",
+  "Elders' Village":     "#88ffcc",
+  "Dark Forest":         "#55dd55",
+  "Ember Peaks":         "#ff7733",
+  "Crystal Lake":        "#66ddff",
+  "Crystal Tundra":      "#aaeeff",
+  "Moin Swamps":         "#66bb44",
+  "Malaka Area":         "#eecc44",
+  "Teldrassil Wilds":    "#9966ff",
+};
+const ZONE_DEFAULT_ACCENT = "#c5a55a";
