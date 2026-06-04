@@ -145,7 +145,10 @@ export class ReactionSystem {
       (a) => a.kind === "damage" || a.kind === "heal",
     );
     const actionTouchesInventory = response.actions.some(
-      (a) => a.kind === "give_item" || a.kind === "take_item",
+      (a) =>
+        a.kind === "give_item" ||
+        a.kind === "take_item" ||
+        a.kind === "complete_purchase",
     );
 
     if (response.playerStateUpdate) {
@@ -325,11 +328,35 @@ export class ReactionSystem {
       }
 
       case "give_item": {
-        const { item = "Unknown Item", description, rarity, icon } = action.params;
+        const { item = "Unknown Item", description, rarity, icon, effects } = action.params;
         this.audio?.playSfx("item_pickup");
         if (actingNpc?.showAction) actingNpc.showAction("give_item", 3.0);
-        this.playerState.addItem({ name: item, description, rarity, icon });
+        this.playerState.addItem({ name: item, description, rarity, icon, effects });
         this.createFloatingText(`+${item}`, "#c5a55a", this.playerWorldPos());
+        break;
+      }
+
+      case "give_gold": {
+        const { amount = 0 } = action.params;
+        if (amount > 0) {
+          this.audio?.playSfx("item_pickup");
+          this.playerState.addGold(amount);
+          this.createFloatingText(`+${amount} Gold`, "#ffcc33", this.playerWorldPos());
+        }
+        break;
+      }
+
+      case "complete_purchase": {
+        const { item = "Unknown Item", price = 0, description, rarity, icon, effects } =
+          action.params;
+        this.audio?.playSfx("item_pickup");
+        if (actingNpc?.showAction) actingNpc.showAction("give_item", 3.0);
+        this.playerState.addItem({ name: item, description, rarity, icon, effects });
+        if (price > 0) this.playerState.addGold(-price);
+        this.createFloatingText(`+${item}`, "#c5a55a", this.playerWorldPos());
+        if (price > 0) {
+          this.createFloatingText(`-${price} Gold`, "#ffcc33", this.playerWorldPos());
+        }
         break;
       }
 

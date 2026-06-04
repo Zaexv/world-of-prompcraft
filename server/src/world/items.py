@@ -9,7 +9,7 @@ description, rarity color, and icon for every item.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 # Rarity tiers, ordered low → high. Mirrored by the client palette.
@@ -18,13 +18,20 @@ RARITIES = ("common", "uncommon", "rare", "epic", "legendary")
 
 @dataclass(frozen=True)
 class ItemDef:
-    """Static definition of an item."""
+    """Static definition of an item.
+
+    ``effects`` maps a structured effect key to its magnitude, applied
+    deterministically when the item is used. Recognized keys:
+    ``heal_hp``, ``restore_mana``, ``max_hp``, ``level``. An empty dict means
+    the item has no consumable effect (e.g. a weapon, equipped instead).
+    """
 
     name: str
     description: str
     rarity: str = "common"
     icon: str = "📦"
     stackable: bool = True
+    effects: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -33,31 +40,55 @@ class ItemDef:
             "rarity": self.rarity,
             "icon": self.icon,
             "stackable": self.stackable,
+            "effects": dict(self.effects),
         }
 
 
 # Known items keyed by lowercased name.
 CATALOG: dict[str, ItemDef] = {
     "health potion": ItemDef(
-        "Health Potion", "Restores a chunk of health when consumed.", "common", "🧪"
+        "Health Potion",
+        "Restores a chunk of health when consumed.",
+        "common",
+        "🧪",
+        effects={"heal_hp": 30},
     ),
-    "mana potion": ItemDef("Mana Potion", "Restores magical energy when consumed.", "common", "🧴"),
+    "mana potion": ItemDef(
+        "Mana Potion",
+        "Restores magical energy when consumed.",
+        "common",
+        "🧴",
+        effects={"restore_mana": 25},
+    ),
     "iron sword": ItemDef(
         "Iron Sword", "A sturdy, well-balanced blade.", "uncommon", "🗡️", stackable=False
     ),
     "steel shield": ItemDef(
         "Steel Shield", "A heavy shield that turns aside blows.", "uncommon", "🛡️", stackable=False
     ),
-    "dragon scale": ItemDef("Dragon Scale", "An iridescent scale, hot to the touch.", "epic", "🐲"),
+    "dragon scale": ItemDef(
+        "Dragon Scale",
+        "An iridescent scale, hot to the touch.",
+        "epic",
+        "🐲",
+        effects={"max_hp": 20},
+    ),
     "ancient relic": ItemDef(
         "Ancient Relic",
         "A mysterious artifact humming with power.",
         "legendary",
         "🏺",
         stackable=False,
+        effects={"level": 1},
     ),
     "gold coin": ItemDef("Gold Coin", "Shiny currency of the realm.", "common", "🪙"),
-    "bread": ItemDef("Bread", "A simple loaf. Filling, if plain.", "common", "🍞"),
+    "bread": ItemDef(
+        "Bread",
+        "A simple loaf. Filling, if plain.",
+        "common",
+        "🍞",
+        effects={"heal_hp": 10},
+    ),
     "magic ring": ItemDef(
         "Magic Ring", "A band etched with faintly glowing runes.", "rare", "💍", stackable=False
     ),
@@ -67,19 +98,21 @@ CATALOG: dict[str, ItemDef] = {
 }
 
 
-# Keyword → (rarity, icon, stackable) heuristics for unknown, LLM-invented names.
-_HEURISTICS: tuple[tuple[tuple[str, ...], str, str, bool], ...] = (
-    (("legendary", "ancient", "relic", "artifact"), "legendary", "🏺", False),
-    (("dragon", "epic", "enchanted"), "epic", "✨", False),
-    (("magic", "rune", "ring", "amulet", "crystal", "gem"), "rare", "💎", False),
-    (("sword", "blade", "dagger", "axe", "mace", "spear"), "uncommon", "🗡️", False),
-    (("bow", "crossbow"), "uncommon", "🏹", False),
-    (("shield", "armor", "armour", "plate", "helm", "helmet"), "uncommon", "🛡️", False),
-    (("potion", "elixir", "tonic", "brew"), "common", "🧪", True),
-    (("scroll", "tome", "book", "map"), "uncommon", "📜", True),
-    (("coin", "gold", "silver"), "common", "🪙", True),
-    (("food", "bread", "meat", "apple", "fruit"), "common", "🍖", True),
-    (("key",), "uncommon", "🗝️", False),
+# Keyword → (rarity, icon, stackable, effects) heuristics for unknown,
+# LLM-invented names. Effects let consumable-looking items still do something
+# deterministic when used.
+_HEURISTICS: tuple[tuple[tuple[str, ...], str, str, bool, dict[str, int]], ...] = (
+    (("legendary", "ancient", "relic", "artifact"), "legendary", "🏺", False, {"level": 1}),
+    (("dragon", "epic", "enchanted"), "epic", "✨", False, {}),
+    (("magic", "rune", "ring", "amulet", "crystal", "gem"), "rare", "💎", False, {}),
+    (("sword", "blade", "dagger", "axe", "mace", "spear"), "uncommon", "🗡️", False, {}),
+    (("bow", "crossbow"), "uncommon", "🏹", False, {}),
+    (("shield", "armor", "armour", "plate", "helm", "helmet"), "uncommon", "🛡️", False, {}),
+    (("potion", "elixir", "tonic", "brew"), "common", "🧪", True, {"heal_hp": 30}),
+    (("scroll", "tome", "book", "map"), "uncommon", "📜", True, {"restore_mana": 30}),
+    (("coin", "gold", "silver"), "common", "🪙", True, {}),
+    (("food", "bread", "meat", "apple", "fruit"), "common", "🍖", True, {"heal_hp": 10}),
+    (("key",), "uncommon", "🗝️", False, {}),
 )
 
 
@@ -93,7 +126,7 @@ def resolve(name: str) -> ItemDef:
     if key in CATALOG:
         return CATALOG[key]
 
-    for keywords, rarity, icon, stackable in _HEURISTICS:
+    for keywords, rarity, icon, stackable, effects in _HEURISTICS:
         if any(kw in key for kw in keywords):
             return ItemDef(
                 name=name,
@@ -101,6 +134,7 @@ def resolve(name: str) -> ItemDef:
                 rarity=rarity,
                 icon=icon,
                 stackable=stackable,
+                effects=dict(effects),
             )
 
     return ItemDef(

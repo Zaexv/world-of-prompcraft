@@ -14,6 +14,7 @@ from ..combat.combat_resolution import (
     is_attack_prompt,
     resolve_combat,
 )
+from ..combat.loot import generate_loot
 from ..config import settings
 
 if TYPE_CHECKING:
@@ -120,6 +121,60 @@ _PACIFIST_PROFILE: dict[str, Any] = {
 }
 
 _DEFEAT_LINES = ["No... this cannot be...", "You... have bested me...", "Argh! I am undone!"]
+
+
+# Gold reward multiplier per archetype tier — bosses pay out far more than
+# trash mobs. Multiplied by the NPC's max HP to scale with difficulty.
+_GOLD_TIER: dict[str, float] = {
+    "hostile_boss": 0.6,
+    "eccentric_archmage": 0.5,
+    "volatile_pyromancer": 0.4,
+    "mysterious_cryomancer": 0.4,
+    "neutral_guard": 0.3,
+    "neutral_wanderer": 0.3,
+    "hostile_monster": 0.25,
+}
+
+
+def _gold_reward(npc: NPCData) -> int:
+    """Calculate gold dropped by a defeated NPC, scaled by HP and archetype."""
+    tier = _GOLD_TIER.get(npc.archetype, 0.2)
+    base = int(npc.max_hp * tier)
+    return max(1, base + random.randint(0, max(1, base // 2)))
+
+
+async def _build_kill_rewards(npc: NPCData, player_id: str) -> list[dict[str, Any]]:
+    """Award gold + LLM loot for a freshly defeated NPC. Returns client actions.
+
+    Idempotent: guarded by ``npc.loot_dropped`` so a corpse only pays out once.
+    """
+    if _world_state is None or npc.loot_dropped:
+        return []
+    npc.loot_dropped = True
+
+    actions: list[dict[str, Any]] = []
+
+    gold = _gold_reward(npc)
+    gold_action = {
+        "kind": "give_gold",
+        "params": {"amount": gold, "player_id": player_id},
+    }
+    actions.append(gold_action)
+
+    # LLM loot drop — bespoke item themed to the slain NPC.
+    if _registry is not None:
+        try:
+            loot_params = await asyncio.wait_for(
+                generate_loot(_registry._llm, npc.name, npc.archetype),
+                timeout=settings.agent_invoke_timeout_seconds,
+            )
+            loot_params["player_id"] = player_id
+            actions.append({"kind": "give_item", "params": loot_params})
+        except Exception:
+            logger.warning("Loot generation timed out for %s", npc.npc_id)
+
+    await _world_state.apply_actions(actions)
+    return actions
 
 
 def _basic_combat_reply(npc: NPCData, player_id: str) -> dict[str, Any]:
@@ -1009,6 +1064,9 @@ async def _handle_interaction(
                     "params": {"color": "#ff4400", "count": 50},
                 }
             )
+            # Award gold + LLM-generated loot once per corpse.
+            kill_rewards = await _build_kill_rewards(npc, player_id)
+            all_actions.extend(kill_rewards)
 
     # Bug 19: Sync offer_item actions to server-side player inventory
     for action in all_actions:
@@ -1282,94 +1340,52 @@ async def _handle_use_item(data: dict[str, Any]) -> dict[str, Any]:
     # Remove from inventory
     player.inventory.remove(item_name)
 
-    # Apply effects based on item type
+    # Resolve the item's structured effects and apply them deterministically.
+    from ..world.items import resolve
+
+    item_def = resolve(item_name)
     actions: list[dict[str, Any]] = []
-    message = f"Used {item_name}"
+    parts: list[str] = []
 
-    lower = item_name.lower()
+    heal_hp = item_def.effects.get("heal_hp", 0)
+    restore_mana = item_def.effects.get("restore_mana", 0)
+    max_hp_bonus = item_def.effects.get("max_hp", 0)
+    level_bonus = item_def.effects.get("level", 0)
 
-    if "health" in lower or "heal" in lower or "potion" in lower:
-        heal_amount = 30
-        player.hp = min(player.max_hp, player.hp + heal_amount)
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
-        message = f"Restored {heal_amount} HP"
-
-    elif "mana" in lower or "elixir" in lower:
-        mana_amount = 25
-        player.mana = min(player.max_mana, player.mana + mana_amount)
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": 0}})
-        message = f"Restored {mana_amount} Mana"
-
-    elif "sword" in lower or "blade" in lower or "axe" in lower or "dagger" in lower:
-        # Weapon buff — player's next attacks deal more damage for the session
-        player.level = min(player.level + 1, 10)
+    if max_hp_bonus:
+        player.max_hp += max_hp_bonus
+        parts.append(f"Max HP +{max_hp_bonus}")
+    if level_bonus:
+        player.level = min(player.level + level_bonus, 10)
+        parts.append(f"Level {player.level}")
         actions.append(
             {
                 "kind": "spawn_effect",
                 "params": {"effectType": "sparkle", "color": "#ffaa44", "count": 20},
             }
         )
-        message = f"Equipped {item_name}! Attack power increased (Level {player.level})"
-
-    elif "shield" in lower or "armor" in lower:
-        # Defensive item — restore some HP as a shield effect
-        shield_hp = 20
-        player.hp = min(player.max_hp, player.hp + shield_hp)
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": shield_hp}})
+    if heal_hp:
+        player.hp = min(player.max_hp, player.hp + heal_hp)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_hp}})
+        parts.append(f"+{heal_hp} HP")
+    if restore_mana:
+        player.mana = min(player.max_mana, player.mana + restore_mana)
+        parts.append(f"+{restore_mana} Mana")
         actions.append(
             {
                 "kind": "spawn_effect",
-                "params": {"effectType": "sparkle", "color": "#4488ff", "count": 15},
+                "params": {"effectType": "sparkle", "color": "#aa44ff", "count": 20},
             }
         )
-        message = f"Shield activated! +{shield_hp} HP"
 
-    elif "scroll" in lower:
-        # Scrolls restore mana and grant a magic boost
-        mana_amount = 30
-        player.mana = min(player.max_mana, player.mana + mana_amount)
-        player.level = min(player.level + 1, 10)
-        actions.append(
-            {
-                "kind": "spawn_effect",
-                "params": {"effectType": "sparkle", "color": "#aa44ff", "count": 30},
-            }
-        )
-        message = f"Read {item_name}! Mana +{mana_amount}, magic power increased"
-
-    elif "charm" in lower or "amulet" in lower or "rune" in lower:
-        # Trinkets — small heal + buff
-        heal_amount = 15
-        player.hp = min(player.max_hp, player.hp + heal_amount)
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
-        actions.append(
-            {
-                "kind": "spawn_effect",
-                "params": {"effectType": "holy_light", "color": "#ffcc00", "count": 15},
-            }
-        )
-        message = f"The {item_name} glows warmly. +{heal_amount} HP"
-
-    elif "brownie" in lower or "tea" in lower or "herb" in lower:
-        # El Tito's special items — full HP/mana restore
-        player.hp = player.max_hp
-        player.mana = player.max_mana
-        heal_amount = player.max_hp
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
-        actions.append(
-            {
-                "kind": "spawn_effect",
-                "params": {"effectType": "smoke", "color": "#44ff88", "count": 30},
-            }
-        )
-        message = "Whoa... full restore! HP and Mana replenished"
-
+    if parts:
+        message = f"Used {item_def.name}: " + ", ".join(parts)
     else:
-        # Generic item — small heal
-        heal_amount = 10
-        player.hp = min(player.max_hp, player.hp + heal_amount)
-        actions.append({"kind": "heal", "params": {"target": "player", "amount": heal_amount}})
-        message = f"Used {item_name}. +{heal_amount} HP"
+        # No structured effect — small fallback heal so every item does something.
+        fallback = 10
+        player.hp = min(player.max_hp, player.hp + fallback)
+        actions.append({"kind": "heal", "params": {"target": "player", "amount": fallback}})
+        message = f"Used {item_def.name}. +{fallback} HP"
 
     # Send updated state. The client will use actions as source of truth
     # for HP (ReactionSystem skips merge for fields touched by actions).

@@ -117,11 +117,11 @@ export function bootstrap(
 
   const uiManager = new UIManager();
   uiManager.updateStatusBars(playerState);
-  uiManager.inventoryPanel.update(playerState.inventory);
+  uiManager.inventoryPanel.update(playerState.inventory, playerState.gold);
   uiManager.updateQuestUI(playerState);
   playerState.onChange = (state) => {
     uiManager.updateStatusBars(state);
-    uiManager.inventoryPanel.update(state.inventory);
+    uiManager.inventoryPanel.update(state.inventory, state.gold);
     if (uiManager.combatHUD.isVisible) {
       uiManager.combatHUD.updatePlayerHP(state.hp, state.maxHp);
       uiManager.combatHUD.updatePlayerMana(state.mana, state.maxMana);

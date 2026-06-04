@@ -13,6 +13,8 @@ export interface Item {
   rarity: Rarity;
   icon: string;
   quantity: number;
+  /** Structured use-effects (heal_hp, restore_mana, max_hp, level). */
+  effects: Record<string, number>;
 }
 
 /** Loose item shape as it arrives from the wire (rarity not yet validated). */
@@ -22,6 +24,7 @@ export interface RawItem {
   rarity?: string;
   icon?: string;
   quantity?: number;
+  effects?: Record<string, number>;
 }
 
 /** WoW-style rarity palette (slot border + name color). */
@@ -79,6 +82,7 @@ export function toItem(raw: string | RawItem): Item {
       rarity: "common",
       icon: guessIcon(lower),
       quantity: 1,
+      effects: {},
     };
   }
   const name = raw.name ?? "Unknown Item";
@@ -89,5 +93,6 @@ export function toItem(raw: string | RawItem): Item {
     rarity: isRarity(raw.rarity) ? raw.rarity : "common",
     icon: raw.icon ?? guessIcon(lower),
     quantity: raw.quantity ?? 1,
+    effects: raw.effects ?? {},
   };
 }

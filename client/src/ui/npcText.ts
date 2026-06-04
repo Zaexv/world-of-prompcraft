@@ -129,6 +129,8 @@ export function highlightsFromActions(actions: readonly Action[]): Highlight[] {
   for (const action of actions) {
     if (action.kind === "give_item" || action.kind === "take_item") {
       push(action.params.item, "item");
+    } else if (action.kind === "complete_purchase") {
+      push(action.params.item, "item");
     } else if (action.kind === "start_quest") {
       push(action.params.quest ?? action.params.questName, "quest");
     } else if (action.kind === "complete_quest") {

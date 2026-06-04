@@ -14,6 +14,7 @@ class PlayerData:
     mana: int = 50
     max_mana: int = 50
     level: int = 1
+    gold: int = 0
     inventory: list[str] = field(default_factory=list)
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     active_quests: list[dict[str, Any]] = field(default_factory=list)
@@ -34,6 +35,7 @@ class PlayerData:
             "faction": self.faction,
             "hp": self.hp,
             "maxHp": self.max_hp,
+            "gold": self.gold,
             "yaw": self.yaw,
         }
 
@@ -44,6 +46,7 @@ class PlayerData:
             "mana": self.mana,
             "maxMana": self.max_mana,
             "level": self.level,
+            "gold": self.gold,
             "inventory": stacked_inventory(self.inventory),
             "username": self.username,
             "race": self.race,

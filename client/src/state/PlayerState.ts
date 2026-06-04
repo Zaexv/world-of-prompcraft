@@ -31,6 +31,7 @@ export class PlayerState {
   mana: number;
   maxMana: number;
   level: number;
+  gold: number;
   inventory: Item[];
   position: [number, number, number];
   isDead: boolean = false;
@@ -59,6 +60,7 @@ export class PlayerState {
     this.mana = 50;
     this.maxMana = 50;
     this.level = 1;
+    this.gold = 0;
     this.inventory = [];
     this.position = [0, 0, 0];
   }
@@ -79,6 +81,7 @@ export class PlayerState {
     if (update.mana !== undefined) this.mana = update.mana;
     if (update.maxMana !== undefined) this.maxMana = update.maxMana;
     if (update.level !== undefined) this.level = update.level;
+    if (update.gold !== undefined) this.gold = update.gold;
     if (update.inventory !== undefined) {
       this.inventory = update.inventory.map((i) => toItem(i));
     }
@@ -123,6 +126,12 @@ export class PlayerState {
 
   restoreMana(amount: number): void {
     this.mana = Math.min(this.maxMana, this.mana + amount);
+    this.notify();
+  }
+
+  /** Add (or subtract, if negative) gold, clamped at zero. */
+  addGold(amount: number): void {
+    this.gold = Math.max(0, this.gold + amount);
     this.notify();
   }
 
