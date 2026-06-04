@@ -16,11 +16,17 @@ def test_player_defaults() -> None:
 
 
 def test_player_to_dict() -> None:
-    p = PlayerData(hp=80, inventory=["Sword"])
+    p = PlayerData(hp=80, inventory=["Iron Sword"])
     d = p.to_dict()
     assert d["hp"] == 80
     assert d["maxHp"] == 100
-    assert d["inventory"] == ["Sword"]
+    # Inventory is serialized to full item metadata (resolved + stacked).
+    assert len(d["inventory"]) == 1
+    item = d["inventory"][0]
+    assert item["name"] == "Iron Sword"
+    assert item["rarity"] == "uncommon"
+    assert item["quantity"] == 1
+    assert "icon" in item and "description" in item
     assert "maxMana" in d
 
 

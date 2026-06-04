@@ -1,9 +1,12 @@
 import { UIComponent } from "./core/UIComponent";
+import type { Item } from "../state/itemModel";
+import { RARITY_COLORS, sortItems } from "../state/itemModel";
 
 /**
  * WoW-style inventory bag panel — right side of screen.
  * Opens/closes with the I key. Pure DOM, no framework.
- * Extends UIComponent for consistent lifecycle management.
+ * Square icon slots with rarity-colored borders, stack badges, and rich
+ * tooltips sourced from server-supplied item metadata.
  */
 export class InventoryPanel extends UIComponent {
   /** Fired when the player uses a consumable (potion, scroll, etc.). */
@@ -12,27 +15,30 @@ export class InventoryPanel extends UIComponent {
   onEquipItem: ((itemName: string) => void) | null = null;
   onClose: (() => void) | null = null;
 
-  private readonly MAX_SLOTS = 20;
-  private readonly COLUMNS = 4;
+  // Static so they're available inside render(), which runs in the
+  // UIComponent super-constructor before instance fields initialize.
+  private static readonly MAX_SLOTS = 24;
+  private static readonly COLUMNS = 6;
+  private static readonly SLOT_PX = 40;
   declare private grid: HTMLDivElement;
   declare private itemCountLabel: HTMLSpanElement;
   declare private tooltip: HTMLDivElement;
-  private currentInventory: string[] = [];
+  private currentInventory: Item[] = [];
+
+  private static readonly EQUIP_RE =
+    /sword|blade|axe|dagger|mace|hammer|spear|bow|staff|shield|armor|charm|amulet|rune|ring|trinket|cloak/i;
 
   constructor() {
     super('ui-root', 'inventory-panel');
   }
 
-  /**
-   * Render the component's DOM structure.
-   * Called during initialization.
-   */
   render(): void {
+    const width = InventoryPanel.COLUMNS * InventoryPanel.SLOT_PX + (InventoryPanel.COLUMNS - 1) * 6 + 24;
     Object.assign(this.container.style, {
       position: "absolute",
       top: "60px",
       right: "16px",
-      width: "260px",
+      width: `${width}px`,
       display: "none",
       flexDirection: "column",
       background: "rgba(8,6,18,0.94)",
@@ -107,7 +113,7 @@ export class InventoryPanel extends UIComponent {
     this.grid = document.createElement("div");
     Object.assign(this.grid.style, {
       display: "grid",
-      gridTemplateColumns: `repeat(${this.COLUMNS}, 1fr)`,
+      gridTemplateColumns: `repeat(${InventoryPanel.COLUMNS}, ${InventoryPanel.SLOT_PX}px)`,
       gap: "6px",
       padding: "12px",
     } as CSSStyleDeclaration);
@@ -123,7 +129,7 @@ export class InventoryPanel extends UIComponent {
     } as CSSStyleDeclaration);
 
     this.itemCountLabel = document.createElement("span");
-    this.itemCountLabel.textContent = `0/${this.MAX_SLOTS} items`;
+    this.itemCountLabel.textContent = `0/${InventoryPanel.MAX_SLOTS} slots`;
     footer.appendChild(this.itemCountLabel);
     this.container.appendChild(footer);
 
@@ -131,8 +137,8 @@ export class InventoryPanel extends UIComponent {
     Object.assign(this.tooltip.style, {
       position: "fixed",
       display: "none",
-      padding: "6px 10px",
-      background: "rgba(10,6,2,0.95)",
+      padding: "8px 12px",
+      background: "rgba(10,6,2,0.96)",
       border: "1px solid #c5a55a",
       borderRadius: "4px",
       color: "#e8dcc8",
@@ -140,10 +146,10 @@ export class InventoryPanel extends UIComponent {
       fontFamily: "'Cinzel', 'Times New Roman', serif",
       pointerEvents: "none",
       zIndex: "30",
-      maxWidth: "180px",
-      textAlign: "center",
+      maxWidth: "220px",
+      textAlign: "left",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-      lineHeight: "1.4",
+      lineHeight: "1.45",
     } as CSSStyleDeclaration);
     this.container.appendChild(this.tooltip);
 
@@ -151,10 +157,6 @@ export class InventoryPanel extends UIComponent {
   }
 
   // ── Public API ──────────────────────────────────────────────────────────────
-
-  override show(): void {
-    super.show();
-  }
 
   override hide(): void {
     this.tooltip.style.display = "none";
@@ -170,149 +172,113 @@ export class InventoryPanel extends UIComponent {
     }
   }
 
-
-  update(inventory: string[]): void {
-    this.currentInventory = [...inventory];
+  update(inventory: Item[]): void {
+    // Sort rarest-first so the grid reads consistently regardless of pickup order.
+    this.currentInventory = sortItems(inventory);
     this.renderSlots(this.currentInventory);
-    this.itemCountLabel.textContent = `${this.currentInventory.length}/${this.MAX_SLOTS} items`;
+    this.itemCountLabel.textContent = `${this.currentInventory.length}/${InventoryPanel.MAX_SLOTS} slots`;
   }
 
   // ── Internal rendering ──────────────────────────────────────────────────────
 
-  private renderSlots(items: string[]): void {
+  private renderSlots(items: Item[]): void {
     this.grid.innerHTML = "";
-
-    for (let i = 0; i < this.MAX_SLOTS; i++) {
-      const itemName = items[i] ?? null;
-      const slot = this.createSlot(itemName);
-      this.grid.appendChild(slot);
+    for (let i = 0; i < InventoryPanel.MAX_SLOTS; i++) {
+      this.grid.appendChild(this.createSlot(items[i] ?? null));
     }
   }
 
-  private createSlot(itemName: string | null): HTMLDivElement {
+  private createSlot(item: Item | null): HTMLDivElement {
     const slot = document.createElement("div");
+    const rarityColor = item ? RARITY_COLORS[item.rarity] : "rgba(197,165,90,0.25)";
     Object.assign(slot.style, {
-      width: "100%",
-      aspectRatio: "1",
-      background: itemName
-        ? "rgba(40,28,14,0.8)"
-        : "rgba(20,14,6,0.6)",
-      border: itemName
-        ? "1px solid #c5a55a"
-        : "1px solid rgba(197,165,90,0.25)",
+      width: `${InventoryPanel.SLOT_PX}px`,
+      height: `${InventoryPanel.SLOT_PX}px`,
+      background: item ? "rgba(30,22,12,0.85)" : "rgba(20,14,6,0.6)",
+      border: `2px solid ${rarityColor}`,
       borderRadius: "4px",
       display: "flex",
-      flexDirection: "column",
       alignItems: "center",
       justifyContent: "center",
-      cursor: itemName ? "pointer" : "default",
+      cursor: item ? "pointer" : "default",
       position: "relative",
       overflow: "hidden",
-      transition: "border-color 0.15s, background 0.15s",
+      boxSizing: "border-box",
+      transition: "box-shadow 0.15s, background 0.15s",
     } as CSSStyleDeclaration);
 
-    if (!itemName) return slot;
+    if (!item) return slot;
 
-    const label = document.createElement("span");
-    Object.assign(label.style, {
-      fontSize: "11px",
-      color: "#e8dcc8",
-      textAlign: "center",
-      padding: "2px 4px",
-      lineHeight: "1.25",
-      wordBreak: "break-word",
+    const icon = document.createElement("span");
+    Object.assign(icon.style, {
+      fontSize: "24px",
+      lineHeight: "1",
       textShadow: "0 1px 2px rgba(0,0,0,0.8)",
-      letterSpacing: "0.02em",
     } as CSSStyleDeclaration);
-    label.textContent = itemName;
-    slot.appendChild(label);
+    icon.textContent = item.icon;
+    slot.appendChild(icon);
 
-    const useBtn = document.createElement("button");
-    Object.assign(useBtn.style, {
-      position: "absolute",
-      bottom: "2px",
-      left: "50%",
-      transform: "translateX(-50%)",
-      display: "none",
-      padding: "1px 8px",
-      fontSize: "9px",
-      fontFamily: "'Cinzel', 'Times New Roman', serif",
-      fontWeight: "700",
-      color: "#1a1108",
-      background: "linear-gradient(180deg, #d4b96a 0%, #a8893a 100%)",
-      border: "1px solid #c5a55a",
-      borderRadius: "3px",
-      cursor: "pointer",
-      whiteSpace: "nowrap",
-      zIndex: "2",
-    } as CSSStyleDeclaration);
-
-    const lower = itemName.toLowerCase();
-    const isEquipment = /sword|blade|axe|dagger|mace|hammer|spear|bow|staff|shield|armor|charm|amulet|rune|ring|trinket|cloak/i.test(lower);
-
-    if (isEquipment) {
-      useBtn.textContent = "Equip";
-    } else if (/scroll/i.test(lower)) {
-      useBtn.textContent = "Read";
-    } else {
-      useBtn.textContent = "Use";
+    if (item.quantity > 1) {
+      const badge = document.createElement("span");
+      Object.assign(badge.style, {
+        position: "absolute",
+        bottom: "1px",
+        right: "3px",
+        fontSize: "11px",
+        fontWeight: "700",
+        color: "#fff",
+        textShadow: "0 1px 2px #000, 0 0 3px #000",
+      } as CSSStyleDeclaration);
+      badge.textContent = String(item.quantity);
+      slot.appendChild(badge);
     }
 
-    useBtn.addEventListener("click", (e) => {
-      e.stopPropagation();
+    const isEquipment = InventoryPanel.EQUIP_RE.test(item.name);
+
+    slot.addEventListener("mouseenter", () => {
+      slot.style.boxShadow = `0 0 8px ${rarityColor}`;
+      slot.style.background = "rgba(50,36,18,0.92)";
+      this.showTooltip(slot, item, isEquipment);
+    });
+    slot.addEventListener("mouseleave", () => {
+      slot.style.boxShadow = "";
+      slot.style.background = "rgba(30,22,12,0.85)";
+      this.tooltip.style.display = "none";
+    });
+    slot.addEventListener("click", () => {
       this.tooltip.style.display = "none";
       if (isEquipment) {
         this.flashSlot(slot, "#ffd700");
-        this.onEquipItem?.(itemName);
+        this.onEquipItem?.(item.name);
       } else {
         this.flashSlot(slot, "#44ff88");
-        this.onUseItem?.(itemName);
+        this.onUseItem?.(item.name);
       }
-    });
-    slot.appendChild(useBtn);
-
-    const description = this.getItemDescription(lower);
-
-    slot.addEventListener("mouseenter", () => {
-      slot.style.borderColor = "#e8cc6a";
-      slot.style.background = "rgba(60,42,20,0.9)";
-      this.tooltip.innerHTML = `<strong style="color:#c5a55a">${itemName}</strong><br><span style="color:#aaa;font-size:11px">${description}</span>`;
-      this.tooltip.style.display = "block";
-      const rect = slot.getBoundingClientRect();
-      this.tooltip.style.left = `${rect.left + rect.width / 2}px`;
-      this.tooltip.style.top = `${rect.top - 8}px`;
-      this.tooltip.style.transform = "translate(-50%, -100%)";
-      useBtn.style.display = "block";
-    });
-
-    slot.addEventListener("mouseleave", () => {
-      slot.style.borderColor = "#c5a55a";
-      slot.style.background = "rgba(40,28,14,0.8)";
-      this.tooltip.style.display = "none";
-      useBtn.style.display = "none";
     });
 
     return slot;
   }
 
-  private flashSlot(slot: HTMLDivElement, color: string): void {
-    const original = slot.style.borderColor;
-    slot.style.borderColor = color;
-    slot.style.boxShadow = `0 0 8px ${color}`;
-    setTimeout(() => {
-      slot.style.borderColor = original;
-      slot.style.boxShadow = "";
-    }, 350);
+  private showTooltip(slot: HTMLDivElement, item: Item, isEquipment: boolean): void {
+    const rarityColor = RARITY_COLORS[item.rarity];
+    const action = isEquipment ? "Click to equip" : "Click to use";
+    this.tooltip.innerHTML =
+      `<strong style="color:${rarityColor};font-size:13px">${item.name}</strong>` +
+      `<br><span style="color:${rarityColor};font-size:10px;text-transform:capitalize">${item.rarity}</span>` +
+      `<br><span style="color:#cbb890;font-size:11px">${item.description}</span>` +
+      `<br><span style="color:#8a7a55;font-size:10px;font-style:italic">${action}</span>`;
+    this.tooltip.style.display = "block";
+    const rect = slot.getBoundingClientRect();
+    this.tooltip.style.left = `${rect.left}px`;
+    this.tooltip.style.top = `${rect.top - 8}px`;
+    this.tooltip.style.transform = "translate(-100%, -100%)";
   }
 
-  private getItemDescription(lower: string): string {
-    if (/health|heal|potion/i.test(lower)) return "Restores HP";
-    if (/mana|elixir/i.test(lower)) return "Restores Mana";
-    if (/sword|blade|axe|dagger|mace|hammer|spear|bow|staff/i.test(lower)) return "Equip as weapon";
-    if (/shield|armor/i.test(lower)) return "Equip as shield";
-    if (/charm|amulet|rune|ring|trinket/i.test(lower)) return "Equip as trinket";
-    if (/scroll/i.test(lower)) return "Consumable magic item";
-    return "Use item";
+  private flashSlot(slot: HTMLDivElement, color: string): void {
+    slot.style.boxShadow = `0 0 10px ${color}`;
+    setTimeout(() => {
+      slot.style.boxShadow = "";
+    }, 350);
   }
 
   get element(): HTMLElement {

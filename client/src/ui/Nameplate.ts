@@ -20,7 +20,7 @@ export class Nameplate extends UIComponent {
   private _relationshipScore = 0;
   // Static so they are available during render(), which runs before instance fields init
   private static readonly CANVAS_W = 512;
-  private static readonly CANVAS_H = 160;
+  private static readonly CANVAS_H = 120;
 
   constructor(name: string, maxHp = 100) {
     super('ui-root', `nameplate-${name}`);
@@ -49,7 +49,7 @@ export class Nameplate extends UIComponent {
 
     // Pass material to constructor — avoids setting sprite.material after creation
     this.sprite = new THREE.Sprite(this.material);
-    this.sprite.scale.set(3, 0.94, 1);
+    this.sprite.scale.set(3, 0.7, 1);
     this.sprite.position.set(0, 3.2, 0);
     this.sprite.renderOrder = 999;
   }
@@ -96,57 +96,24 @@ export class Nameplate extends UIComponent {
     const panelY = 8;
     const panelW = w - 48;
     const panelH = h - 16;
-    const radius = 14;
-
-    // ── Outer glow (purple/gold ethereal border) ──────────────────────
-    ctx.save();
-    ctx.shadowColor = "rgba(102, 51, 170, 0.6)";
-    ctx.shadowBlur = 18;
-    ctx.shadowOffsetX = 0;
-    ctx.shadowOffsetY = 0;
-    this.roundRect(ctx, panelX - 2, panelY - 2, panelW + 4, panelH + 4, radius + 2);
-    ctx.fillStyle = "rgba(102, 51, 170, 0.15)";
-    ctx.fill();
-    ctx.restore();
+    const radius = 12;
 
     // ── Background panel ──────────────────────────────────────────────
     ctx.save();
     this.roundRect(ctx, panelX, panelY, panelW, panelH, radius);
     ctx.fillStyle = "rgba(10, 6, 18, 0.7)";
     ctx.fill();
-
-    // Subtle inner gradient overlay for depth
-    const innerGrad = ctx.createLinearGradient(panelX, panelY, panelX, panelY + panelH);
-    innerGrad.addColorStop(0, "rgba(197, 165, 90, 0.08)");
-    innerGrad.addColorStop(0.5, "rgba(102, 51, 170, 0.04)");
-    innerGrad.addColorStop(1, "rgba(10, 6, 18, 0.0)");
-    ctx.fillStyle = innerGrad;
-    ctx.fill();
-
-    // Gold border stroke
     ctx.strokeStyle = "rgba(197, 165, 90, 0.45)";
     ctx.lineWidth = 1.5;
     ctx.stroke();
     ctx.restore();
 
-    // ── Decorative flourish lines on either side ──────────────────────
-    this.drawFlourish(ctx, w / 2, 50, panelW * 0.35);
-
     // ── NPC Name text ─────────────────────────────────────────────────
-    const fontSize = 28;
-    ctx.font = `bold ${fontSize}px Georgia, "Times New Roman", serif`;
+    ctx.font = `bold 28px Georgia, "Times New Roman", serif`;
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
 
     const textY = 38;
-
-    // Outer glow behind text
-    ctx.save();
-    ctx.shadowColor = "rgba(197, 165, 90, 0.5)";
-    ctx.shadowBlur = 10;
-    ctx.fillStyle = "rgba(0, 0, 0, 0.01)";
-    ctx.fillText(this._name, w / 2, textY);
-    ctx.restore();
 
     // Text shadow (dark)
     ctx.fillStyle = "rgba(0, 0, 0, 0.9)";
@@ -163,17 +130,47 @@ export class Nameplate extends UIComponent {
     ctx.fillText(this._name, w / 2, textY);
 
     // ── Health bar ────────────────────────────────────────────────────
-    this.drawHealthBar(ctx, w, h);
+    this.drawHealthBar(ctx, w);
 
-    // ── Mood & relationship indicators ────────────────────────────────
-    this.drawMoodRelationship(ctx, w);
+    // ── Thin relationship-tinted underline ────────────────────────────
+    this.drawRelationshipTint(ctx, panelX, panelY, panelW, panelH);
 
     this.texture.needsUpdate = true;
   }
 
-  private drawHealthBar(ctx: CanvasRenderingContext2D, w: number, _h: number): void {
+  /** Relationship color: red (enemy) → yellow (neutral) → green (ally). */
+  private relationshipColor(): string {
+    if (this._relationshipScore < -30) return "#cc2222";
+    if (this._relationshipScore < 10) return "#ccaa22";
+    return "#22cc44";
+  }
+
+  /** Thin colored bar hugging the panel's bottom edge, tinted by relationship. */
+  private drawRelationshipTint(
+    ctx: CanvasRenderingContext2D,
+    panelX: number,
+    panelY: number,
+    panelW: number,
+    panelH: number,
+  ): void {
+    const inset = 14;
+    const lineH = 4;
+    const lineW = panelW - inset * 2;
+    const lineX = panelX + inset;
+    const lineY = panelY + panelH - 12;
+
+    ctx.save();
+    this.roundRect(ctx, lineX, lineY, lineW, lineH, 2);
+    ctx.fillStyle = this.relationshipColor();
+    ctx.shadowColor = this.relationshipColor();
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.restore();
+  }
+
+  private drawHealthBar(ctx: CanvasRenderingContext2D, w: number): void {
     const barPad = 80;
-    const barY = 68;
+    const barY = 64;
     const barH = 14;
     const barW = w - barPad * 2;
     const barRadius = 4;
@@ -248,124 +245,6 @@ export class Nameplate extends UIComponent {
       ctx.lineTo(tx, barY + barH - 2);
       ctx.stroke();
     }
-  }
-
-  private static readonly MOOD_MAP: Record<string, { emoji: string; color: string }> = {
-    neutral: { emoji: "😐", color: "#888888" },
-    happy: { emoji: "😊", color: "#44cc44" },
-    pleased: { emoji: "🙂", color: "#88cc44" },
-    angry: { emoji: "😠", color: "#cc4444" },
-    annoyed: { emoji: "😒", color: "#cc8844" },
-    sad: { emoji: "😢", color: "#4488cc" },
-    fearful: { emoji: "😰", color: "#8844cc" },
-    amused: { emoji: "😄", color: "#cccc44" },
-  };
-
-  private drawMoodRelationship(ctx: CanvasRenderingContext2D, w: number): void {
-    const y = 92;
-    const barPad = 80;
-
-    // Mood emoji + label (left side)
-    const moodInfo = Nameplate.MOOD_MAP[this._mood] ?? Nameplate.MOOD_MAP.neutral;
-    ctx.font = "18px sans-serif";
-    ctx.textAlign = "left";
-    ctx.textBaseline = "middle";
-    ctx.fillText(moodInfo.emoji, barPad, y + 8);
-
-    ctx.font = "bold 11px Georgia, serif";
-    ctx.fillStyle = moodInfo.color;
-    ctx.fillText(this._mood.toUpperCase(), barPad + 22, y + 8);
-
-    // Relationship bar (right side) — thin horizontal bar
-    const relBarX = w / 2 + 20;
-    const relBarW = w - barPad - relBarX;
-    const relBarH = 6;
-    const relBarY = y + 5;
-
-    // Label
-    ctx.font = "bold 10px Georgia, serif";
-    ctx.textAlign = "left";
-    ctx.fillStyle = "rgba(197, 165, 90, 0.6)";
-    ctx.fillText("REP", w / 2 - 4, y + 8);
-
-    // Background track
-    ctx.save();
-    this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
-    ctx.fillStyle = "rgba(20, 10, 30, 0.8)";
-    ctx.fill();
-    ctx.restore();
-
-    // Filled portion: map -100..100 → 0..1
-    const frac = (this._relationshipScore + 100) / 200;
-    const fillW = relBarW * Math.max(0, Math.min(1, frac));
-
-    if (fillW > 0) {
-      ctx.save();
-      this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
-      ctx.clip();
-
-      // Color: red (enemy) → yellow (neutral) → green (ally)
-      let barColor: string;
-      if (this._relationshipScore < -30) {
-        barColor = "#cc2222";
-      } else if (this._relationshipScore < 10) {
-        barColor = "#ccaa22";
-      } else {
-        barColor = "#22cc44";
-      }
-      ctx.fillStyle = barColor;
-      ctx.fillRect(relBarX, relBarY, fillW, relBarH);
-      ctx.restore();
-    }
-
-    // Border
-    ctx.save();
-    this.roundRect(ctx, relBarX, relBarY, relBarW, relBarH, 3);
-    ctx.strokeStyle = "rgba(197, 165, 90, 0.4)";
-    ctx.lineWidth = 0.5;
-    ctx.stroke();
-    ctx.restore();
-  }
-
-  private drawFlourish(
-    ctx: CanvasRenderingContext2D,
-    cx: number,
-    y: number,
-    halfWidth: number,
-  ): void {
-    ctx.save();
-    ctx.strokeStyle = "rgba(197, 165, 90, 0.3)";
-    ctx.lineWidth = 1;
-
-    // Left flourish: gentle curve
-    ctx.beginPath();
-    ctx.moveTo(cx - 60, y);
-    ctx.lineTo(cx - halfWidth + 10, y);
-    ctx.quadraticCurveTo(cx - halfWidth, y, cx - halfWidth, y - 6);
-    ctx.stroke();
-
-    // Right flourish: mirror
-    ctx.beginPath();
-    ctx.moveTo(cx + 60, y);
-    ctx.lineTo(cx + halfWidth - 10, y);
-    ctx.quadraticCurveTo(cx + halfWidth, y, cx + halfWidth, y - 6);
-    ctx.stroke();
-
-    // Small diamond at each end
-    for (const side of [-1, 1]) {
-      const dx = cx + side * (halfWidth + 2);
-      const dy = y - 8;
-      ctx.fillStyle = "rgba(197, 165, 90, 0.35)";
-      ctx.beginPath();
-      ctx.moveTo(dx, dy - 3);
-      ctx.lineTo(dx + 2, dy);
-      ctx.lineTo(dx, dy + 3);
-      ctx.lineTo(dx - 2, dy);
-      ctx.closePath();
-      ctx.fill();
-    }
-
-    ctx.restore();
   }
 
   /** Draw a rounded rectangle path (does NOT fill/stroke). */

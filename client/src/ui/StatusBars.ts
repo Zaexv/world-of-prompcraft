@@ -126,7 +126,7 @@ export class StatusBars extends UIComponent {
     this.manaText.textContent = `${state.mana} / ${state.maxMana}`;
 
     // Inventory
-    const count = state.inventory.length;
+    const count = state.inventory.reduce((sum, i) => sum + i.quantity, 0);
     this.inventoryCount.textContent = `${count} item${count !== 1 ? "s" : ""}`;
 
     // Equipment slots

@@ -122,6 +122,9 @@ export interface HealParams {
 
 export interface GiveItemParams {
   item: string;
+  description?: string;
+  rarity?: string;
+  icon?: string;
 }
 
 export interface TakeItemParams {
@@ -214,12 +217,22 @@ export type Action =
 
 // ── Shared Data Shapes ────────────────────────────────────────────────────────
 
+/** Full item metadata as serialized by the server (stacked). */
+export interface ItemData {
+  name: string;
+  description: string;
+  rarity: string;
+  icon: string;
+  quantity: number;
+  stackable?: boolean;
+}
+
 export interface PlayerStateData {
   hp: number;
   maxHp: number;
   mana: number;
   maxMana: number;
-  inventory: string[];
+  inventory: ItemData[];
   level: number;
 }
 

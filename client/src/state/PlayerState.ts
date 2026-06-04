@@ -1,6 +1,8 @@
 import type { PlayerStateData } from "../network/MessageProtocol";
 import type { ActiveQuest } from "./QuestDefinitions";
 import { QUEST_DEFINITIONS } from "./QuestDefinitions";
+import type { Item, RawItem } from "./itemModel";
+import { toItem } from "./itemModel";
 
 /** Equipment slot types. */
 export type EquipSlot = "weapon" | "shield" | "trinket";
@@ -29,7 +31,7 @@ export class PlayerState {
   mana: number;
   maxMana: number;
   level: number;
-  inventory: string[];
+  inventory: Item[];
   position: [number, number, number];
   isDead: boolean = false;
 
@@ -77,7 +79,9 @@ export class PlayerState {
     if (update.mana !== undefined) this.mana = update.mana;
     if (update.maxMana !== undefined) this.maxMana = update.maxMana;
     if (update.level !== undefined) this.level = update.level;
-    if (update.inventory !== undefined) this.inventory = [...update.inventory];
+    if (update.inventory !== undefined) {
+      this.inventory = update.inventory.map((i) => toItem(i));
+    }
     let questChanged = false;
     if (update.activeQuests !== undefined) {
       this.activeQuests = update.activeQuests.map((q) => ({
@@ -122,22 +126,42 @@ export class PlayerState {
     this.notify();
   }
 
-  addItem(item: string): void {
-    this.inventory.push(item);
+  /** Item names as a flat list (duplicates per quantity) — for server payloads. */
+  inventoryNames(): string[] {
+    const names: string[] = [];
+    for (const item of this.inventory) {
+      for (let i = 0; i < item.quantity; i++) names.push(item.name);
+    }
+    return names;
+  }
+
+  /** Add an item, stacking by name. Accepts a full/partial item or a bare name. */
+  addItem(raw: string | RawItem): void {
+    const incoming = toItem(raw);
+    const existing = this.inventory.find((i) => i.name === incoming.name);
+    if (existing) {
+      existing.quantity += incoming.quantity;
+    } else {
+      this.inventory.push(incoming);
+    }
     this.notify();
   }
 
-  removeItem(item: string): void {
-    const idx = this.inventory.indexOf(item);
-    if (idx !== -1) {
+  removeItem(name: string): void {
+    const idx = this.inventory.findIndex((i) => i.name === name);
+    if (idx === -1) return;
+    const item = this.inventory[idx];
+    if (item.quantity > 1) {
+      item.quantity -= 1;
+    } else {
       this.inventory.splice(idx, 1);
-      this.notify();
     }
+    this.notify();
   }
 
   /** Equip an item from inventory into the appropriate slot. Returns the slot used. */
-  equip(item: string): EquipSlot | null {
-    const lower = item.toLowerCase();
+  equip(name: string): EquipSlot | null {
+    const lower = name.toLowerCase();
     let slot: EquipSlot | null = null;
 
     if (/sword|blade|axe|dagger|mace|hammer|spear|bow|staff/i.test(lower)) {
@@ -153,24 +177,20 @@ export class PlayerState {
     // If something was already in that slot, put it back in inventory
     const prev = this.equipped[slot];
     if (prev) {
-      this.inventory.push(prev);
+      this.addItem(prev);
     }
 
-    // Remove from inventory and put in slot
-    const idx = this.inventory.indexOf(item);
-    if (idx !== -1) {
-      this.inventory.splice(idx, 1);
-    }
-    this.equipped[slot] = item;
+    this.removeItem(name);
+    this.equipped[slot] = name;
     this.notify();
     return slot;
   }
 
   /** Unequip an item from a slot back into inventory. */
   unequip(slot: EquipSlot): void {
-    const item = this.equipped[slot];
-    if (item) {
-      this.inventory.push(item);
+    const name = this.equipped[slot];
+    if (name) {
+      this.addItem(name);
       this.equipped[slot] = null;
       this.notify();
     }

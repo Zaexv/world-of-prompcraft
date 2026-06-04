@@ -317,10 +317,10 @@ export class ReactionSystem {
       }
 
       case "give_item": {
-        const { item = "Unknown Item" } = action.params;
+        const { item = "Unknown Item", description, rarity, icon } = action.params;
         this.audio?.playSfx("item_pickup");
         if (actingNpc?.showAction) actingNpc.showAction("give_item", 3.0);
-        this.playerState.addItem(item);
+        this.playerState.addItem({ name: item, description, rarity, icon });
         this.createFloatingText(`+${item}`, "#c5a55a", this.playerWorldPos());
         break;
       }

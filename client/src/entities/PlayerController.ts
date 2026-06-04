@@ -170,6 +170,12 @@ export class PlayerController {
     });
   }
 
+  /** Release any active orbit-drag / pointer-lock. Safe to call when idle. */
+  public releaseCameraControl(): void {
+    this.endOrbitDrag();
+    if (document.pointerLockElement) document.exitPointerLock();
+  }
+
   private endOrbitDrag(): void {
     this.isRotatingCamera = false;
     this.activeOrbitButton = null;
