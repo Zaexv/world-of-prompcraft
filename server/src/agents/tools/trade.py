@@ -6,6 +6,8 @@ from typing import Any
 
 from langchain_core.tools import tool
 
+from ...world.items import resolve
+
 
 def create_trade_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
     """Create trade-related tools closed over shared state.
@@ -27,16 +29,22 @@ def create_trade_tools(pending_actions: list[Any], world_state: dict[str, Any]) 
             item_name: The name of the item to offer.
             price: The price in gold. Use 0 for a free gift.
         """
+        item_def = resolve(item_name)
         pending_actions.append(
             {
                 "kind": "give_item",
-                "params": {"item": item_name},
+                "params": {
+                    "item": item_def.name,
+                    "description": item_def.description,
+                    "rarity": item_def.rarity,
+                    "icon": item_def.icon,
+                },
             }
         )
         # Keep server-side inventory in sync so use_item can find it later
         player = world_state.get("player", {})
         inv = player.get("inventory", [])
-        inv.append(item_name)
+        inv.append(item_def.name)
         player["inventory"] = inv
         world_state["player"] = player
 

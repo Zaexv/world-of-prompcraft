@@ -41,6 +41,7 @@ export interface WSHandlerDeps {
   npcNameMap: Map<string, string>;
   HOSTILE_NPCS: ReadonlySet<string>;
   startIntroCinematic: () => void;
+  stopReconnect: () => void;
   spawnChatBubble: (text: string, parent?: THREE.Object3D, style?: 'player' | 'npc' | 'system', name?: string) => void;
 }
 
@@ -119,6 +120,9 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'join_error') {
+      // Fatal: stop the auto-reconnect loop so a rejected duplicate login
+      // doesn't ping-pong reconnecting and re-triggering the error.
+      this.d.stopReconnect();
       this.d.loadingOverlay.hide();
       this.d.loginScreen.showError(data.message as string);
       return;

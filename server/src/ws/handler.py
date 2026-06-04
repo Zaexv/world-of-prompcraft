@@ -402,6 +402,16 @@ async def _handle_join(
     if faction not in _VALID_FACTIONS:
         faction = "alliance"
 
+    # Reject duplicate logins instead of session takeover. Taking over the old
+    # socket made the kicked client auto-reconnect and re-join, ping-ponging
+    # forever and spamming "X has joined".
+    if manager.is_username_taken(username):
+        logger.warning(f"Join rejected: username '{username}' already online")
+        return {
+            "type": "join_error",
+            "message": f"A player named '{username}' is already online.",
+        }
+
     # Register websocket with manager
     await manager.register(websocket, username)
     logger.info(f"WebSocket registered for player: {username}")

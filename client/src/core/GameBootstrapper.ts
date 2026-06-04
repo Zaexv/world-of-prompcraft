@@ -189,6 +189,7 @@ export function bootstrap(
     startIntroCinematic: () => {
       if (engine) engine.startIntroCinematic();
     },
+    stopReconnect: () => ws.stopReconnect(),
     spawnChatBubble,
   });
 
@@ -260,7 +261,7 @@ export function bootstrap(
       playerId: runtime.localPlayerId,
       playerState: {
         position: [playerController.position.x, playerController.position.y, playerController.position.z],
-        hp: playerState.hp, inventory: playerState.inventory, equipped: playerState.equipped,
+        hp: playerState.hp, inventory: playerState.inventoryNames(), equipped: playerState.equipped,
       },
     });
   };
@@ -269,7 +270,7 @@ export function bootstrap(
   uiManager.inventoryPanel.onUseItem = (itemName: string) => {
     if (!runtime.joinedServer) return;
     playerState.removeItem(itemName);
-    ws.send({ type: 'use_item', playerId: runtime.localPlayerId, item: itemName, inventory: playerState.inventory });
+    ws.send({ type: 'use_item', playerId: runtime.localPlayerId, item: itemName, inventory: playerState.inventoryNames() });
     const lower = itemName.toLowerCase();
     if (/health|heal|potion/i.test(lower)) {
       uiManager.showItemUseEffect(itemName, 'heal');
@@ -295,13 +296,16 @@ export function bootstrap(
   // Keyboard shortcuts
   window.addEventListener('keydown', (e: KeyboardEvent) => {
     const key = e.key.toLowerCase();
+
+    // Suppress all hotkeys (including M) while typing in any text field, e.g.
+    // the NPC chat input — otherwise M opened the minimap mid-conversation.
+    const tag = (e.target as HTMLElement)?.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || uiManager.chatPanel.isFocused) return;
+
     if (e.code === 'KeyM' || key === 'm') {
       uiManager.toggleMinimap();
       return;
     }
-
-    const tag = (e.target as HTMLElement)?.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA') return;
     if (e.code === 'KeyI' || key === 'i') uiManager.toggleInventory();
     if (e.code === 'KeyL' || key === 'l') uiManager.toggleQuestLog(playerState);
     if (e.code === 'KeyE' || key === 'e') dungeonSystem.tryEnter();

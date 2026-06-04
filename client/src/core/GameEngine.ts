@@ -194,6 +194,14 @@ export class GameEngine {
     return true;
   }
 
+  /** Clear active NPC dialog focus and release any locked camera state. */
+  private clearNpcFocus(): void {
+    const { d } = this;
+    d.runtime.activeNpcId = null;
+    d.playerController.facingYawOverride = null;
+    d.playerController.releaseCameraControl();
+  }
+
   private wireCallbacks(): void {
     const { d } = this;
 
@@ -232,12 +240,18 @@ export class GameEngine {
     // Death
     d.playerState.onDeath = () => {
       AudioSystem.getInstance().playSfx("death");
+      // Release NPC dialog focus — death usually happens mid-combat, so
+      // activeNpcId is set and would keep the camera locked after respawn.
+      this.clearNpcFocus();
       d.uiManager.showDeathScreen(this.lastInteractedNpcName || undefined);
       d.uiManager.hideInteractionPanel();
       d.uiManager.hideCombatHUD();
     };
     d.uiManager.deathScreen.onRespawn = () => {
       AudioSystem.getInstance().playSfx("respawn");
+      // Defensive: ensure dialog focus + camera control are fully released so
+      // the player regains movement and free-look after respawn.
+      this.clearNpcFocus();
       d.playerState.respawn();
       const { terrain } = d.sceneManager;
       d.playerController.position.set(0, terrain.getHeightAt(0, 0), 0);

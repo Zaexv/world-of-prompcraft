@@ -36,6 +36,11 @@ export class WebSocketClient {
     }
   }
 
+  /** Stop auto-reconnect without closing the current socket (e.g. fatal join error). */
+  stopReconnect(): void {
+    this.shouldReconnect = false;
+  }
+
   /** Cleanly shut down the connection. */
   disconnect(): void {
     this.shouldReconnect = false;

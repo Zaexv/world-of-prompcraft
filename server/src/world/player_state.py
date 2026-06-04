@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .items import stacked_inventory
 from .quest_definitions import QUEST_DEFINITIONS
 
 
@@ -43,7 +44,7 @@ class PlayerData:
             "mana": self.mana,
             "maxMana": self.max_mana,
             "level": self.level,
-            "inventory": list(self.inventory),
+            "inventory": stacked_inventory(self.inventory),
             "username": self.username,
             "race": self.race,
             "faction": self.faction,

@@ -38,7 +38,36 @@ describe('PlayerState', () => {
   });
 
   it('merge updates state from server', () => {
-    state.merge({ hp: 80, mana: 30, inventory: ['Sword'] });
+    state.merge({
+      hp: 80,
+      mana: 30,
+      inventory: [
+        { name: 'Iron Sword', description: 'A blade.', rarity: 'uncommon', icon: '🗡️', quantity: 1 },
+      ],
+    });
     expect(state.hp).toBe(80);
+    expect(state.inventory).toHaveLength(1);
+    expect(state.inventory[0].name).toBe('Iron Sword');
+    expect(state.inventory[0].rarity).toBe('uncommon');
+  });
+
+  it('addItem stacks duplicates by name', () => {
+    state.addItem({ name: 'Health Potion', rarity: 'common', quantity: 1 });
+    state.addItem({ name: 'Health Potion', rarity: 'common', quantity: 1 });
+    expect(state.inventory).toHaveLength(1);
+    expect(state.inventory[0].quantity).toBe(2);
+  });
+
+  it('addItem normalizes a bare string name', () => {
+    state.addItem('Mysterious Trinket');
+    expect(state.inventory[0].name).toBe('Mysterious Trinket');
+    expect(state.inventory[0].rarity).toBe('common');
+    expect(state.inventory[0].quantity).toBe(1);
+  });
+
+  it('inventoryNames expands quantities into a flat list', () => {
+    state.addItem({ name: 'Bread', quantity: 1 });
+    state.addItem({ name: 'Bread', quantity: 1 });
+    expect(state.inventoryNames()).toEqual(['Bread', 'Bread']);
   });
 });
