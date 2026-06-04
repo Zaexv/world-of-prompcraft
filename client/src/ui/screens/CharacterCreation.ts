@@ -1,4 +1,4 @@
-import { getDefaultPlayerSkin, getPlayerSkinOptions, type PlayerSkinId } from '../../entities/PlayerSkins';
+import { CharacterPreview } from './CharacterPreview';
 
 interface RaceDef {
   id: string;
@@ -7,18 +7,19 @@ interface RaceDef {
   faction: 'alliance' | 'horde';
 }
 
+// Faction is no longer chosen on screen — it is derived from the selected race
+// so downstream systems (nameplate colour, server state) keep working.
 const RACES: RaceDef[] = [
-  { id: 'human',     label: 'Human',    color: '#c4a882', faction: 'alliance' },
+  { id: 'human',     label: 'Human',     color: '#c4a882', faction: 'alliance' },
   { id: 'night_elf', label: 'Night Elf', color: '#8866cc', faction: 'alliance' },
-  { id: 'orc',       label: 'Orc',      color: '#44aa44', faction: 'horde'    },
-  { id: 'undead',    label: 'Undead',   color: '#88aaaa', faction: 'horde'    },
+  { id: 'orc',       label: 'Orc',       color: '#44aa44', faction: 'horde'    },
+  { id: 'undead',    label: 'Undead',    color: '#88aaaa', faction: 'horde'    },
 ];
 
 export interface CharacterSelectionResult {
   username: string;
   race: string;
   faction: 'alliance' | 'horde';
-  skin: string;
 }
 
 export class CharacterCreation {
@@ -26,19 +27,17 @@ export class CharacterCreation {
 
   onSubmit: ((result: CharacterSelectionResult) => void) | null = null;
 
-  private selectedFaction: 'alliance' | 'horde' = 'alliance';
   private selectedRace = 'human';
-  private selectedSkin = getDefaultPlayerSkin();
+
+  private readonly preview: CharacterPreview;
 
   private usernameInput!: HTMLInputElement;
   private enterBtn!: HTMLButtonElement;
   private errorText!: HTMLDivElement;
   private raceCardsContainer!: HTMLDivElement;
-  private skinCardsContainer!: HTMLDivElement;
-  private allianceBtn!: HTMLButtonElement;
-  private hordeBtn!: HTMLButtonElement;
 
   constructor() {
+    this.preview = new CharacterPreview();
     this.element = document.createElement('div');
     Object.assign(this.element.style, {
       position:       'relative',
@@ -46,9 +45,11 @@ export class CharacterCreation {
       display:        'flex',
       flexDirection:  'column',
       alignItems:     'center',
-      gap:            '1em',
+      gap:            '1.2em',
     } as CSSStyleDeclaration);
     this.build();
+    this.preview.setRace(this.selectedRace);
+    this.preview.start();
   }
 
   showError(message: string): void {
@@ -62,27 +63,41 @@ export class CharacterCreation {
     this.enterBtn.style.opacity = enabled ? '1' : '0.5';
   }
 
+  /** Tear down the 3D preview renderer. Call when leaving the login screen. */
+  dispose(): void {
+    this.preview.dispose();
+  }
+
+  private factionFor(raceId: string): 'alliance' | 'horde' {
+    return RACES.find((r) => r.id === raceId)?.faction ?? 'alliance';
+  }
+
   private build(): void {
-    const factionRow = document.createElement('div');
-    Object.assign(factionRow.style, { display: 'flex', gap: '1em' } as CSSStyleDeclaration);
-    this.allianceBtn = this.createFactionButton('ALLIANCE', 'alliance');
-    this.hordeBtn    = this.createFactionButton('HORDE',    'horde');
-    factionRow.appendChild(this.allianceBtn);
-    factionRow.appendChild(this.hordeBtn);
-    this.element.appendChild(factionRow);
+    // ── Two-column layout: 3D preview (left) | race list (right) ──
+    const columns = document.createElement('div');
+    Object.assign(columns.style, {
+      display: 'flex', gap: '2.5em', alignItems: 'center', justifyContent: 'center',
+    } as CSSStyleDeclaration);
+
+    const previewPane = document.createElement('div');
+    Object.assign(previewPane.style, {
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      borderRadius: '8px',
+      border: '1px solid rgba(197, 165, 90, 0.35)',
+      background: 'rgba(10, 8, 4, 0.35)',
+      boxShadow: 'inset 0 0 30px rgba(0,0,0,0.5)',
+    } as CSSStyleDeclaration);
+    previewPane.appendChild(this.preview.canvas);
+    columns.appendChild(previewPane);
 
     this.raceCardsContainer = document.createElement('div');
-    Object.assign(this.raceCardsContainer.style, { display: 'flex', gap: '1em' } as CSSStyleDeclaration);
-    this.element.appendChild(this.raceCardsContainer);
-    this.updateRaceCards();
-    this.updateFactionButtons();
-
-    this.skinCardsContainer = document.createElement('div');
-    Object.assign(this.skinCardsContainer.style, {
-      display: 'flex', gap: '1em', flexWrap: 'wrap', justifyContent: 'center', maxWidth: '460px',
+    Object.assign(this.raceCardsContainer.style, {
+      display: 'flex', flexDirection: 'column', gap: '0.6em', minWidth: '200px',
     } as CSSStyleDeclaration);
-    this.element.appendChild(this.skinCardsContainer);
-    this.updateSkinCards();
+    columns.appendChild(this.raceCardsContainer);
+    this.updateRaceCards();
+
+    this.element.appendChild(columns);
 
     this.usernameInput = document.createElement('input');
     this.usernameInput.type = 'text';
@@ -158,51 +173,14 @@ export class CharacterCreation {
     this.enterBtn.addEventListener('click', () => {
       const username = this.usernameInput.value.trim();
       if (!username) return;
-      this.onSubmit?.({ username, race: this.selectedRace, faction: this.selectedFaction, skin: this.selectedSkin });
+      this.onSubmit?.({ username, race: this.selectedRace, faction: this.factionFor(this.selectedRace) });
     });
     this.element.appendChild(this.enterBtn);
   }
 
-  private createFactionButton(label: string, faction: 'alliance' | 'horde'): HTMLButtonElement {
-    const btn = document.createElement('button');
-    btn.textContent = label;
-    Object.assign(btn.style, {
-      fontFamily:    "'Cinzel', Georgia, serif",
-      fontSize:      '0.9rem',
-      fontWeight:    '700',
-      letterSpacing: '0.1em',
-      padding:       '0.5em 1.5em',
-      border:        '2px solid #555',
-      borderRadius:  '4px',
-      cursor:        'pointer',
-      transition:    'all 0.2s ease',
-      background:    'rgba(26, 17, 8, 0.8)',
-      color:         '#999',
-    } as CSSStyleDeclaration);
-    btn.addEventListener('click', () => {
-      this.selectedFaction = faction;
-      const firstRace = RACES.find(r => r.faction === faction);
-      if (firstRace) this.selectedRace = firstRace.id;
-      this.updateFactionButtons();
-      this.updateRaceCards();
-      this.updateSkinCards();
-    });
-    return btn;
-  }
-
-  private updateFactionButtons(): void {
-    const style = (btn: HTMLButtonElement, active: boolean) => {
-      btn.style.borderColor = active ? '#c5a55a' : '#555';
-      btn.style.color       = active ? '#c5a55a' : '#999';
-      btn.style.boxShadow   = active ? '0 0 12px rgba(197, 165, 90, 0.3)' : 'none';
-    };
-    style(this.allianceBtn, this.selectedFaction === 'alliance');
-    style(this.hordeBtn,    this.selectedFaction === 'horde');
-  }
-
   private updateRaceCards(): void {
     this.raceCardsContainer.innerHTML = '';
-    for (const race of RACES.filter(r => r.faction === this.selectedFaction)) {
+    for (const race of RACES) {
       this.raceCardsContainer.appendChild(this.createRaceCard(race));
     }
   }
@@ -211,71 +189,31 @@ export class CharacterCreation {
     const isSelected = this.selectedRace === race.id;
     const card = document.createElement('div');
     Object.assign(card.style, {
-      width: '100px', height: '100px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      display: 'flex', alignItems: 'center', gap: '0.8em',
+      padding: '0.6em 1em',
       borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s ease',
-      background: isSelected ? race.color : 'rgba(26, 17, 8, 0.8)',
+      background: isSelected ? 'rgba(197, 165, 90, 0.18)' : 'rgba(26, 17, 8, 0.8)',
       border:     isSelected ? '2px solid #c5a55a' : '2px solid #555',
       boxShadow:  isSelected ? '0 0 15px rgba(197, 165, 90, 0.4)' : 'none',
     } as CSSStyleDeclaration);
     const icon = document.createElement('div');
     Object.assign(icon.style, {
-      width: '40px', height: '40px', borderRadius: '50%',
-      background: race.color, marginBottom: '8px', border: '2px solid rgba(255,255,255,0.3)',
+      width: '28px', height: '28px', borderRadius: '50%', flexShrink: '0',
+      background: race.color, border: '2px solid rgba(255,255,255,0.3)',
     } as CSSStyleDeclaration);
     card.appendChild(icon);
     const label = document.createElement('div');
     label.textContent = race.label;
     Object.assign(label.style, {
-      fontFamily: "'Cinzel', Georgia, serif", fontSize: '0.75rem', fontWeight: '700',
-      color: isSelected ? '#fff' : '#aaa', textAlign: 'center',
+      fontFamily: "'Cinzel', Georgia, serif", fontSize: '0.95rem', fontWeight: '700',
+      letterSpacing: '0.05em',
+      color: isSelected ? '#fff' : '#aaa',
     } as CSSStyleDeclaration);
     card.appendChild(label);
     card.addEventListener('click', () => {
       this.selectedRace = race.id;
       this.updateRaceCards();
-      this.updateSkinCards();
-    });
-    return card;
-  }
-
-  private updateSkinCards(): void {
-    this.skinCardsContainer.innerHTML = '';
-    for (const skin of getPlayerSkinOptions(this.selectedRace)) {
-      this.skinCardsContainer.appendChild(this.createSkinCard(skin.id, skin.label));
-    }
-  }
-
-  private createSkinCard(skinId: PlayerSkinId, labelText: string): HTMLDivElement {
-    const isSelected = this.selectedSkin === skinId;
-    const card = document.createElement('div');
-    Object.assign(card.style, {
-      width: '96px', height: '72px',
-      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      borderRadius: '6px', cursor: 'pointer', transition: 'all 0.2s ease',
-      background: isSelected ? 'rgba(197, 165, 90, 0.22)' : 'rgba(26, 17, 8, 0.8)',
-      border:    isSelected ? '2px solid #e0c872' : '2px solid #555',
-      boxShadow: isSelected ? '0 0 15px rgba(197, 165, 90, 0.35)' : 'none',
-    } as CSSStyleDeclaration);
-    const badge = document.createElement('div');
-    badge.textContent = skinId.split('-')[1] ?? '';
-    Object.assign(badge.style, {
-      width: '30px', height: '30px', borderRadius: '50%',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      color: '#fff', background: '#3b2a18', border: '1px solid rgba(255,255,255,0.2)',
-      marginBottom: '6px', fontFamily: "'Cinzel', Georgia, serif", fontSize: '0.8rem', fontWeight: '700',
-    } as CSSStyleDeclaration);
-    card.appendChild(badge);
-    const label = document.createElement('div');
-    label.textContent = labelText;
-    Object.assign(label.style, {
-      fontFamily: "'Cinzel', Georgia, serif", fontSize: '0.72rem', fontWeight: '700',
-      color: isSelected ? '#fff' : '#aaa', textAlign: 'center',
-    } as CSSStyleDeclaration);
-    card.appendChild(label);
-    card.addEventListener('click', () => {
-      this.selectedSkin = skinId;
-      this.updateSkinCards();
+      this.preview.setRace(this.selectedRace);
     });
     return card;
   }

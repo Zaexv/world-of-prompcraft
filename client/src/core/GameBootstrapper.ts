@@ -17,7 +17,6 @@ import { ZoneTracker } from '../systems/ZoneTracker';
 import { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import { DungeonSystem } from '../systems/DungeonSystem';
 import { AudioSystem } from '../audio/AudioSystem';
-import { AssetLoader } from '../utils/asset/AssetLoader';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
 import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../scene/VerticalTerrain';
@@ -33,7 +32,6 @@ export interface PlayerConfig {
   username: string;
   race: string;
   faction: string;
-  skin: string;
 }
 
 interface LoadingOverlay {
@@ -73,12 +71,9 @@ export function bootstrap(
   const playerState = PlayerState.getInstance();
   playerState.race    = config.race;
   playerState.faction = config.faction;
-  playerState.skin    = config.skin;
   const npcStateStore = new NPCStateStore();
   const worldState    = new WorldState(playerState, npcStateStore);
   void worldState; // server-authoritative; kept for future use
-
-  const assetLoader = new AssetLoader();
 
   const runtime = createRuntimeState();
 
@@ -87,12 +82,12 @@ export function bootstrap(
     return getWorldHeightAt(terrain, x, z);
   });
 
-  loadingOverlay.setMessage('Loading character skin...');
-  const player = Player.create(config.race, config.skin, assetLoader);
+  loadingOverlay.setMessage('Creating character...');
+  const player = Player.create(config.race);
   scene.add(player.group);
 
   loadingOverlay.setMessage('Loading entities...');
-  const entityManager = new EntityManager(scene, assetLoader);
+  const entityManager = new EntityManager(scene);
 
   const npcNameMap = new Map<string, string>();
   // NPC spawning removed for Tabula Rasa phase.
@@ -232,7 +227,7 @@ export function bootstrap(
       const initPos: [number, number, number] = [
         playerController.position.x, playerController.position.y, playerController.position.z,
       ];
-      ws.send({ type: 'join', username: config.username, race: config.race, faction: config.faction, skin: config.skin, position: initPos });
+      ws.send({ type: 'join', username: config.username, race: config.race, faction: config.faction, position: initPos });
     } else {
       runtime.joinedServer = false;
     }

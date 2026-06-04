@@ -1,15 +1,12 @@
 import * as THREE from 'three';
-import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
-import { addOutlineShell } from './ModelStyling';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
-import { getNPCModelPath, getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
+import { getNPCPlaceholderStyle, type NPCPlaceholderStyle } from './NPCModels';
 import { buildProceduralMesh, getPlaceholderAppearance } from './NPCAppearance';
 import { addPlaceholderAccessory, addNPCVisualOutline, applyFlatShading } from './NPCAccessories';
 import { NPCWander } from './NPCWander';
-import type { AssetLoader } from '../utils/asset/AssetLoader';
 import { Water } from '../scene/Water';
 
 export interface NPCConfig {
@@ -51,7 +48,6 @@ export class NPC {
 
   private materials: THREE.MeshStandardMaterial[] = [];
   private originalEmissives: number[] = [];
-  private gltfMode = false;
 
   constructor(config: NPCConfig) {
     this.id = config.id;
@@ -97,60 +93,8 @@ export class NPC {
     this.animator.setBaseY(y);
   }
 
-  static create(config: NPCConfig, assetLoader?: AssetLoader): NPC {
-    const npc = new NPC(config);
-    if (assetLoader) {
-      const modelPath = getNPCModelPath(config.id, config.name, config.behavior);
-      if (modelPath) {
-        assetLoader.loadGLTF(modelPath)
-          .then((gltf) => npc.replaceWithGLTF(gltf))
-          .catch(() => { /* keep procedural mesh silently */ });
-      }
-    }
-    return npc;
-  }
-
-  private replaceWithGLTF(gltf: GLTF): void {
-    const toRemove = this.mesh.children.filter((child) => !(child instanceof THREE.Sprite));
-    for (const child of toRemove) this.mesh.remove(child);
-
-    const gltfScene = gltf.scene.clone();
-    const box = new THREE.Box3().setFromObject(gltfScene);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const scale = 2.5 / Math.max(size.y, 0.001);
-    gltfScene.scale.setScalar(scale);
-    gltfScene.position.y = -box.min.y * scale;
-
-    gltfScene.traverse((child) => {
-      child.userData.npcId = this.id;
-      child.userData.npcName = this.name;
-      if (child instanceof THREE.Mesh) child.castShadow = true;
-    });
-
-    this.mesh.add(gltfScene);
-    this.materials = [];
-    this.originalEmissives = [];
-    this.gltfMode = true;
-    addOutlineShell(gltfScene, { scale: 1.03, opacity: 0.85 });
-
-    if (gltf.animations.length > 0) {
-      const mixer = new THREE.AnimationMixer(gltfScene);
-      this.animator.setMixer(mixer, gltf.animations);
-    }
-  }
-
-  private collectStdMaterials(): THREE.MeshStandardMaterial[] {
-    const result: THREE.MeshStandardMaterial[] = [];
-    this.mesh.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        const mats = Array.isArray(child.material) ? child.material : [child.material];
-        for (const mat of mats) {
-          if (mat instanceof THREE.MeshStandardMaterial) result.push(mat);
-        }
-      }
-    });
-    return result;
+  static create(config: NPCConfig): NPC {
+    return new NPC(config);
   }
 
   update(delta: number): void {
@@ -220,20 +164,6 @@ export class NPC {
   dispose(): void {
     // Only dispose unique per-instance assets.
     // Shared NPC geometries and materials are kept in a global cache (NPCAppearance.ts).
-    
-    if (this.gltfMode) {
-      // GLTF models are currently unique per NPC because they are cloned.
-      this.mesh.traverse((child) => {
-        if (child instanceof THREE.Mesh) {
-          child.geometry.dispose();
-          if (Array.isArray(child.material)) {
-            for (const mat of child.material) mat.dispose();
-          } else {
-            child.material.dispose();
-          }
-        }
-      });
-    }
 
     this.nameplate.sprite.material.dispose();
     if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
@@ -246,7 +176,7 @@ export class NPC {
   }
 
   setHighlight(on: boolean): void {
-    const mats = this.gltfMode ? this.collectStdMaterials() : this.materials;
+    const mats = this.materials;
     if (on) {
       if (this.originalEmissives.length === 0) {
         this.originalEmissives = mats.map((mat) => mat.emissive.getHex());

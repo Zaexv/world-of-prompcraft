@@ -21,9 +21,9 @@ const app = document.getElementById('app')!;
 const loginScreen = new LoginScreen();
 loginScreen.show();
 
-loginScreen.onEnterWorld = (username: string, race: string, faction: string, skin: string) => {
+loginScreen.onEnterWorld = (username: string, race: string, faction: string) => {
   const loadingOverlay = createLoadingOverlay(app);
-  const engine = bootstrap({ username, race, faction, skin }, app, loadingOverlay, loginScreen);
+  const engine = bootstrap({ username, race, faction }, app, loadingOverlay, loginScreen);
   engine.start();
 };
 

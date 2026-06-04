@@ -3,7 +3,6 @@ import { NPC, NPCConfig } from './NPC';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
 import type { CollisionSystem } from '../systems/CollisionSystem';
-import type { AssetLoader } from '../utils/asset/AssetLoader';
 
 /**
  * Central registry for all NPC entities and remote players.
@@ -14,7 +13,6 @@ export class EntityManager {
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
   private scene: THREE.Scene;
-  private assetLoader?: AssetLoader;
 
   // Interleaving & Performance
   private frameCount = 0;
@@ -22,9 +20,8 @@ export class EntityManager {
   private npcList: NPC[] = [];
   private npcIndex = 0;
 
-  constructor(scene: THREE.Scene, assetLoader?: AssetLoader) {
+  constructor(scene: THREE.Scene) {
     this.scene = scene;
-    this.assetLoader = assetLoader;
   }
 
   // ── NPC management ──────────────────────────────────────────────────────────
@@ -42,7 +39,7 @@ export class EntityManager {
     if (this.npcs.has(config.id)) {
       this.removeNPC(config.id);
     }
-    const npc = NPC.create(config, this.assetLoader);
+    const npc = NPC.create(config);
     
     // Tag for editor selection
     npc.mesh.userData.editorId = npc.id;
@@ -82,7 +79,7 @@ export class EntityManager {
     if (this.remotePlayers.has(data.playerId)) {
       this.removeRemotePlayer(data.playerId);
     }
-    const remote = new RemotePlayer(data, this.scene, this.assetLoader);
+    const remote = new RemotePlayer(data, this.scene);
     this.remotePlayers.set(data.playerId, remote);
     return remote;
   }

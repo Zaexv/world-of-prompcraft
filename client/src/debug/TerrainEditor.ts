@@ -5,7 +5,6 @@ import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition, Sculpt
 import { WebSocketClient } from '../network/WebSocketClient';
 import { buildObject } from '../systems/worldbuilder/objects';
 import { NPC } from '../entities/NPC';
-import { AssetLoader } from '../utils/asset/AssetLoader';
 
 export enum EditorMode {
   OFF,
@@ -96,7 +95,6 @@ export class TerrainEditor {
     private terrain: Terrain,
     private worldManifest: WorldManifest,
     private ws: WebSocketClient,
-    private assetLoader?: AssetLoader
   ) {
     this.cursor = new THREE.Group();
     this.cursor.visible = false;
@@ -458,7 +456,7 @@ export class TerrainEditor {
         this.previewMesh = built;
       }
     } else if (this.mode === EditorMode.PLACE_NPC) {
-      this.previewMesh = NPC.create({ id: 'preview', name: 'Preview', position: new THREE.Vector3(0, 0, 0), style: this.selectedType as any }, this.assetLoader).mesh;
+      this.previewMesh = NPC.create({ id: 'preview', name: 'Preview', position: new THREE.Vector3(0, 0, 0), style: this.selectedType as any }).mesh;
     }
     if (this.previewMesh) {
       this.previewMesh.rotation.y = this.currentRotation;

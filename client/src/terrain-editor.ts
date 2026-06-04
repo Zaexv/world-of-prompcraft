@@ -6,7 +6,6 @@ import { WorldManifest } from './state/WorldManifest';
 import { WebSocketClient } from './network/WebSocketClient';
 import { TerrainEditor, EditorMode } from './debug/TerrainEditor';
 import { TerrainEditorPanel } from './ui/TerrainEditorPanel';
-import { AssetLoader } from './utils/asset/AssetLoader';
 import { EntityManager } from './entities/EntityManager';
 import { CollisionSystem } from './systems/CollisionSystem';
 import { WorldGenerator } from './systems/WorldGenerator';
@@ -27,7 +26,7 @@ try {
     const { scene, camera, renderer, terrain } = sceneManager;
     scene.background = new THREE.Color(0x0c101c);
 
-    const terrainEditor = new TerrainEditor(scene, camera, renderer, terrain, worldManifest, null!, null!);
+    const terrainEditor = new TerrainEditor(scene, camera, renderer, terrain, worldManifest, null!);
     const terrainEditorPanel = new TerrainEditorPanel(terrainEditor);
     terrainEditorPanel.showLoading('Hydrating Manifest...');
 
@@ -36,8 +35,7 @@ try {
     setBiomeManifest(worldManifest);
     terrain.setManifest(worldManifest.toData());
 
-    const assetLoader = new AssetLoader();
-    const entityManager = new EntityManager(scene, assetLoader);
+    const entityManager = new EntityManager(scene);
     const collisionSystem = new CollisionSystem();
     const worldBuilderSystem = new WorldBuilderSystem(scene, terrain);
     const worldGenerator = new WorldGenerator(scene, terrain, entityManager, null!);
@@ -49,7 +47,6 @@ try {
     const zoneTracker = new ZoneTracker();
     const zoneAtmosphere = new ZoneAtmosphere(scene, sceneManager.lighting.sun, sceneManager.lighting.hemisphere, sceneManager.lighting.ambient);
 
-    (terrainEditor as any).assetLoader = assetLoader;
     (terrainEditor as any).entityManager = entityManager;
     (terrainEditor as any).worldBuilder = worldBuilderSystem;
     (terrainEditor as any).ws = new WebSocketClient(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}/ws`);
