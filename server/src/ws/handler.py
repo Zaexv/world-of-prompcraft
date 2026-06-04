@@ -6,7 +6,14 @@ import random
 import re
 from typing import TYPE_CHECKING, Any
 
-from ..combat.combat_resolution import CombatResolution, is_attack_prompt, resolve_combat
+from ..combat.combat_resolution import (
+    MAGIC_KEYWORDS,
+    STYLE_KEYWORDS,
+    WEAPON_KEYWORDS,
+    CombatResolution,
+    is_attack_prompt,
+    resolve_combat,
+)
 from ..config import settings
 
 if TYPE_CHECKING:
@@ -197,7 +204,7 @@ def _score_attack_quality(
         multiplier += 0.2
 
     # Weapon mention bonus (generic weapon words)
-    if words & _WEAPON_KEYWORDS:
+    if words & WEAPON_KEYWORDS:
         multiplier += 0.3
 
     # Check if player mentions an inventory item by name
@@ -208,7 +215,7 @@ def _score_attack_quality(
             break
 
     # Style keywords (creativity)
-    style_matches = words & _STYLE_KEYWORDS
+    style_matches = words & STYLE_KEYWORDS
     multiplier += min(len(style_matches) * 0.25, 0.75)
 
     # Humiliation / psychological attacks
@@ -216,7 +223,7 @@ def _score_attack_quality(
         multiplier += 0.5
 
     # Magic keywords → change damage type + higher multiplier
-    magic_matches = words & _MAGIC_KEYWORDS
+    magic_matches = words & MAGIC_KEYWORDS
     if magic_matches:
         multiplier += 0.3
         if {"fireball", "flame", "inferno", "fire", "burn", "meteor"} & magic_matches:
