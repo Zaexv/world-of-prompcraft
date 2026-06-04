@@ -160,6 +160,8 @@ describe('Minimap - field initialization', () => {
   it('clicks a waypoint and emits the selected teleport target', () => {
     const map = new Minimap();
     map.show();
+    // Switch to local mode so hit-testing uses MM_SCALE (2.0) and MM_SIZE (290)
+    (map as unknown as { _setMode(m: string): void })._setMode('local');
     map.setWaypoints([
       { id: 'origin', label: 'Origin Pavilion', x: 20, z: 0, kind: 'landmark' },
     ]);
@@ -194,6 +196,25 @@ describe('Minimap - field initialization', () => {
       z: 0,
       kind: 'landmark',
     });
+  });
+
+  it('_setMode("world") resizes canvas to 500', () => {
+    const map = new Minimap();
+    map.show();
+    // Access private method via type cast
+    (map as unknown as { _setMode(m: string): void })._setMode('world');
+    const canvas = map.element.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.width).toBe(500);
+  });
+
+  it('_setMode("local") resizes canvas to 290', () => {
+    const map = new Minimap();
+    map.show();
+    // Start in world mode, then switch to local
+    (map as unknown as { _setMode(m: string): void })._setMode('world');
+    (map as unknown as { _setMode(m: string): void })._setMode('local');
+    const canvas = map.element.querySelector('canvas') as HTMLCanvasElement;
+    expect(canvas.width).toBe(290);
   });
 });
 

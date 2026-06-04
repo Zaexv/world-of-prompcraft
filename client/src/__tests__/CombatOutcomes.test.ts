@@ -1,5 +1,70 @@
 import { describe, expect, it } from "vitest";
 
+// Mirror of the server's trimmed ATTACK_KEYWORDS set (combat_resolution.py)
+const ATTACK_KEYWORDS = new Set<string>([
+  // Direct violence
+  "attack", "hit", "strike", "slash", "stab", "punch", "kick", "fight", "kill",
+  "destroy", "smash", "swing", "cleave", "thrust", "cut", "shoot", "blast",
+  "crush", "bite", "claw", "slam", "burn", "freeze", "slay", "vanquish",
+  "obliterate", "annihilate", "impale", "shatter", "pummel", "batter",
+  "bludgeon", "gut", "rend", "tear", "mutilate", "pierce", "skewer", "decimate",
+  "devastate", "maim", "overpower", "assault", "ambush", "execute",
+  // Magical intent
+  "fireball", "lightning", "unleash", "surge", "detonate", "incinerate",
+  "electrocute", "smite", "curse", "hex", "wither", "zap", "ignite", "explode",
+  // Tactical / expressive
+  "lunge", "pounce", "tackle", "headbutt", "duel",
+]);
+
+function isAttackPrompt(prompt: string): boolean {
+  for (const word of prompt.toLowerCase().split(/\s+/)) {
+    if (ATTACK_KEYWORDS.has(word)) return true;
+  }
+  return false;
+}
+
+describe("ATTACK_KEYWORDS — trimmed set", () => {
+  it("removed ambiguous keywords no longer trigger attack detection", () => {
+    const removed = [
+      "cast", "charge", "face", "rush", "engage", "confront",
+      "invoke", "channel", "summon", "drain", "leap", "dive",
+      "challenge", "overwhelm", "hurt", "wound",
+    ];
+    for (const word of removed) {
+      expect(isAttackPrompt(word), `'${word}' should NOT trigger attack`).toBe(false);
+    }
+  });
+
+  it("kept unambiguous keywords still trigger attack detection", () => {
+    const kept = [
+      "attack", "hit", "strike", "slash", "stab", "punch", "kick",
+      "fight", "kill", "destroy", "smash", "swing", "cleave", "thrust",
+      "cut", "shoot", "blast", "crush", "bite", "claw", "slam", "burn",
+      "freeze", "slay", "vanquish", "obliterate", "annihilate", "impale",
+      "shatter", "pummel", "batter", "bludgeon", "gut", "rend", "tear",
+      "mutilate", "pierce", "skewer", "decimate", "devastate", "maim",
+      "assault", "ambush", "execute", "fireball", "lightning", "unleash",
+      "surge", "detonate", "incinerate", "electrocute", "smite", "curse",
+      "hex", "wither", "zap", "ignite", "explode", "lunge", "pounce",
+      "tackle", "headbutt", "duel",
+    ];
+    for (const word of kept) {
+      expect(isAttackPrompt(word), `'${word}' should trigger attack`).toBe(true);
+    }
+  });
+
+  it("peaceful greetings do not trigger attack", () => {
+    expect(isAttackPrompt("hello there")).toBe(false);
+    expect(isAttackPrompt("I want to trade")).toBe(false);
+    expect(isAttackPrompt("let me cast a spell")).toBe(false);
+    expect(isAttackPrompt("I challenge you to a riddle")).toBe(false);
+  });
+
+  it("attack in a sentence triggers", () => {
+    expect(isAttackPrompt("I want to attack the goblin with my sword")).toBe(true);
+  });
+});
+
 describe("Combat outcome color mapping", () => {
   function damageTypeColor(damageType: string | undefined): string {
     switch (damageType) {

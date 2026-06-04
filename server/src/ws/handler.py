@@ -778,19 +778,9 @@ async def _handle_interaction(
     if _world_state.get_npc(npc_id) is None and npc_id.startswith(("proc_", "enc_")):
         _auto_register_procedural_npc(npc_id, npc_name, personality_key)
 
-    # Bug 36: Dead players cannot interact
+    # Bug 6: Update player state under the world state lock (must happen first
+    # so the dead-check below uses the client-synced HP, not stale server HP).
     player = _world_state.get_player(player_id)
-    if player.hp <= 0:
-        return {
-            "type": "agent_response",
-            "npcId": npc_id,
-            "dialogue": "[System] You are dead and cannot interact.",
-            "actions": [],
-            "playerStateUpdate": None,
-            "npcStateUpdate": None,
-        }
-
-    # Bug 6: Update player state under the world state lock
     if player_state_raw:
         updates = {
             key: player_state_raw[key]
@@ -801,6 +791,17 @@ async def _handle_interaction(
             await _world_state.update_player(player_id, updates)
         # Re-fetch player after lock-protected update
         player = _world_state.get_player(player_id)
+
+    # Bug 36: Dead players cannot interact (checked AFTER client HP sync)
+    if player.hp <= 0:
+        return {
+            "type": "agent_response",
+            "npcId": npc_id,
+            "dialogue": "[System] You are dead and cannot interact.",
+            "actions": [],
+            "playerStateUpdate": None,
+            "npcStateUpdate": None,
+        }
 
     # ── Resolve player attack (fast path — no LLM wait) ─────────────────
     player_damage_actions: list[dict[str, Any]] = []
@@ -920,6 +921,17 @@ async def _handle_interaction(
                     world_state=_world_state,
                     exclude=player_id,
                 )
+        # Fire memory update as a background task so it doesn't block the response.
+        # Only do this when the NPC survived the hit (hp > 0) so dead NPCs don't
+        # continue generating relationship updates.
+        if _combat_resolution is not None:
+            attacked_npc_for_mem = _world_state.get_npc(npc_id)
+            if attacked_npc_for_mem is not None and attacked_npc_for_mem.hp > 0:
+                mem_task = asyncio.create_task(
+                    _update_combat_memory_async(player_id, npc_id, _combat_resolution, prompt)
+                )
+                _background_tasks.add(mem_task)
+                mem_task.add_done_callback(_background_tasks.discard)
         player_damage_actions = []
 
     # Build player state dict with quest data so agents can see quest progress
@@ -1185,7 +1197,9 @@ def _get_generated_personality(name: str, behavior: str) -> str:
             f"You are {name}, a dangerous creature lurking in Teldrassil.\n"
             f"BEHAVIOR: You are aggressive and attack on sight.\n"
             f"TOOL RULES:\n"
-            f"- ALWAYS call deal_damage targeting 'player' with {damage_range[0]}-{damage_range[1]} {damage_type} damage.\n"
+            f"- If the player is attacking you (prompt starts with [COMBAT:]), ALWAYS call deal_damage targeting 'player' with {damage_range[0]}-{damage_range[1]} {damage_type} damage.\n"
+            f"- If the player greets or talks peacefully, WARN them menacingly but do NOT deal damage yet.\n"
+            f"- Only deal_damage after the player has attacked first (prompt contains [COMBAT:]).\n"
             f"- Use spawn_effect('{effect}') when attacking.\n"
             f"- Use emote('threaten') before your first attack.\n"
             f"- Keep dialogue to 1-2 sentences of growling, snarling, or hissing.\n"

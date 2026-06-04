@@ -20,7 +20,6 @@ import type { RuntimeState } from './RuntimeState';
 import type { NPCStateStore } from '../state/NPCState';
 import { WorldDebugOverlay } from '../debug/WorldDebugOverlay';
 
-const HOSTILE_NPCS = new Set(['dragon_01', 'guard_01']);
 const MOVE_SEND_INTERVAL = 1 / 10;
 const INTRO_DURATION_SEC = 8;
 
@@ -217,8 +216,9 @@ export class GameEngine {
       }
 
       d.uiManager.showInteractionPanel(npcId, npcName);
-      if (HOSTILE_NPCS.has(npcId)) {
-        const npcState = d.npcStateStore.getState(npcId);
+      const npcState = d.npcStateStore.getState(npcId);
+      const isHostile = npcState?.archetype?.includes("hostile") || npcState?.mood === "angry";
+      if (isHostile) {
         d.uiManager.showCombatHUD(npcId, npcName, npcState?.hp ?? 100, npcState?.maxHp ?? 100);
         d.uiManager.combatHUD.updatePlayerHP(d.playerState.hp, d.playerState.maxHp);
         d.uiManager.combatHUD.updatePlayerMana(d.playerState.mana, d.playerState.maxMana);
@@ -356,12 +356,16 @@ export class GameEngine {
       this._npcDotTick++;
       if (this._npcDotTick % 10 === 0) {
         d.uiManager.minimap.setNPCDots(
-          d.entityManager.getAllNPCs().map(npc => ({
-            x: npc.position.x,
-            z: npc.position.z,
-            name: npc.name,
-            hostile: HOSTILE_NPCS.has(npc.id),
-          }))
+          d.entityManager.getAllNPCs().map(npc => {
+            const npcDotState = d.npcStateStore.getState(npc.id);
+            const hostile = npcDotState?.archetype?.includes("hostile") || npcDotState?.mood === "angry";
+            return {
+              x: npc.position.x,
+              z: npc.position.z,
+              name: npc.name,
+              hostile: hostile ?? false,
+            };
+          })
         );
       }
     }
