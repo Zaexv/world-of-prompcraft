@@ -15,9 +15,11 @@ export class InventoryPanel extends UIComponent {
   onEquipItem: ((itemName: string) => void) | null = null;
   onClose: (() => void) | null = null;
 
-  private readonly MAX_SLOTS = 24;
-  private readonly COLUMNS = 6;
-  private readonly SLOT_PX = 40;
+  // Static so they're available inside render(), which runs in the
+  // UIComponent super-constructor before instance fields initialize.
+  private static readonly MAX_SLOTS = 24;
+  private static readonly COLUMNS = 6;
+  private static readonly SLOT_PX = 40;
   declare private grid: HTMLDivElement;
   declare private itemCountLabel: HTMLSpanElement;
   declare private tooltip: HTMLDivElement;
@@ -31,7 +33,7 @@ export class InventoryPanel extends UIComponent {
   }
 
   render(): void {
-    const width = this.COLUMNS * this.SLOT_PX + (this.COLUMNS - 1) * 6 + 24;
+    const width = InventoryPanel.COLUMNS * InventoryPanel.SLOT_PX + (InventoryPanel.COLUMNS - 1) * 6 + 24;
     Object.assign(this.container.style, {
       position: "absolute",
       top: "60px",
@@ -111,7 +113,7 @@ export class InventoryPanel extends UIComponent {
     this.grid = document.createElement("div");
     Object.assign(this.grid.style, {
       display: "grid",
-      gridTemplateColumns: `repeat(${this.COLUMNS}, ${this.SLOT_PX}px)`,
+      gridTemplateColumns: `repeat(${InventoryPanel.COLUMNS}, ${InventoryPanel.SLOT_PX}px)`,
       gap: "6px",
       padding: "12px",
     } as CSSStyleDeclaration);
@@ -127,7 +129,7 @@ export class InventoryPanel extends UIComponent {
     } as CSSStyleDeclaration);
 
     this.itemCountLabel = document.createElement("span");
-    this.itemCountLabel.textContent = `0/${this.MAX_SLOTS} slots`;
+    this.itemCountLabel.textContent = `0/${InventoryPanel.MAX_SLOTS} slots`;
     footer.appendChild(this.itemCountLabel);
     this.container.appendChild(footer);
 
@@ -174,14 +176,14 @@ export class InventoryPanel extends UIComponent {
     // Sort rarest-first so the grid reads consistently regardless of pickup order.
     this.currentInventory = sortItems(inventory);
     this.renderSlots(this.currentInventory);
-    this.itemCountLabel.textContent = `${this.currentInventory.length}/${this.MAX_SLOTS} slots`;
+    this.itemCountLabel.textContent = `${this.currentInventory.length}/${InventoryPanel.MAX_SLOTS} slots`;
   }
 
   // ── Internal rendering ──────────────────────────────────────────────────────
 
   private renderSlots(items: Item[]): void {
     this.grid.innerHTML = "";
-    for (let i = 0; i < this.MAX_SLOTS; i++) {
+    for (let i = 0; i < InventoryPanel.MAX_SLOTS; i++) {
       this.grid.appendChild(this.createSlot(items[i] ?? null));
     }
   }
@@ -190,8 +192,8 @@ export class InventoryPanel extends UIComponent {
     const slot = document.createElement("div");
     const rarityColor = item ? RARITY_COLORS[item.rarity] : "rgba(197,165,90,0.25)";
     Object.assign(slot.style, {
-      width: `${this.SLOT_PX}px`,
-      height: `${this.SLOT_PX}px`,
+      width: `${InventoryPanel.SLOT_PX}px`,
+      height: `${InventoryPanel.SLOT_PX}px`,
       background: item ? "rgba(30,22,12,0.85)" : "rgba(20,14,6,0.6)",
       border: `2px solid ${rarityColor}`,
       borderRadius: "4px",
