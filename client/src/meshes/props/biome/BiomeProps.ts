@@ -18,7 +18,7 @@ export const BIOME_PROPS: Partial<Record<BiomeType, readonly string[]>> = {
     'biome_prop_glowing_stump',
     'biome_prop_mossy_rock_pile',
   ],
-  [BiomeType.EmberWastes]: [
+  [BiomeType.BlastedSuarezLands]: [
     'biome_prop_obsidian_shards',
     'biome_prop_lava_crack',
     'biome_prop_scorched_boulder',
@@ -28,18 +28,18 @@ export const BIOME_PROPS: Partial<Record<BiomeType, readonly string[]>> = {
     'biome_prop_snow_buried_rock',
     'biome_prop_frozen_stump',
   ],
-  [BiomeType.TwilightMarsh]: [
+  [BiomeType.MoinSwamps]: [
     'biome_prop_rotting_log',
     'biome_prop_wisp_lantern',
     'biome_prop_algae_boulder',
   ],
-  [BiomeType.SunlitMeadows]: [
+  [BiomeType.MalakaArea]: [
     'biome_prop_wildflowers',
     'biome_prop_hay_bale',
     'biome_prop_stone_wall',
     'biome_prop_signpost',
   ],
-  [BiomeType.Desert]: [
+  [BiomeType.TanisDesert]: [
     'biome_prop_sandstone_boulders',
     'biome_prop_cactus',
     'biome_prop_bleached_bones',

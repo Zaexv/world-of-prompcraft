@@ -13,11 +13,11 @@ import type { Rng } from '../../../systems/worldbuilder/RngTypes';
 /** Each biome's procedural building variants, in their original selection order. */
 export const BIOME_BUILDINGS: Partial<Record<BiomeType, readonly string[]>> = {
   [BiomeType.Teldrassil]: ['biome_elven_tower', 'biome_moon_shrine', 'biome_forest_sanctuary', 'biome_ruined_outpost'],
-  [BiomeType.EmberWastes]: ['biome_obsidian_spire', 'biome_forge', 'biome_fire_temple'],
+  [BiomeType.BlastedSuarezLands]: ['biome_obsidian_spire', 'biome_forge', 'biome_fire_temple'],
   [BiomeType.CrystalTundra]: ['biome_ice_castle', 'biome_frozen_caravan', 'biome_crystal_spire'],
-  [BiomeType.TwilightMarsh]: ['biome_swamp_hut', 'biome_drowned_temple', 'biome_witch_tower'],
-  [BiomeType.SunlitMeadows]: ['biome_inn', 'biome_windmill', 'biome_market_stall', 'biome_ruined_farm'],
-  [BiomeType.Desert]: ['biome_pyramid', 'biome_ancient_gate', 'biome_obelisk'],
+  [BiomeType.MoinSwamps]: ['biome_swamp_hut', 'biome_drowned_temple', 'biome_witch_tower'],
+  [BiomeType.MalakaArea]: ['biome_inn', 'biome_windmill', 'biome_market_stall', 'biome_ruined_farm'],
+  [BiomeType.TanisDesert]: ['biome_pyramid', 'biome_ancient_gate', 'biome_obelisk'],
 };
 
 /**
@@ -30,7 +30,7 @@ export function selectBiomeBuildingType(biome: BiomeType, rng: Rng, dist: number
   const variants = BIOME_BUILDINGS[biome];
   if (!variants || variants.length === 0) return null;
 
-  if (biome === BiomeType.EmberWastes) {
+  if (biome === BiomeType.BlastedSuarezLands) {
     const v = dist > 280 ? 2 : rng.nextInt(3);
     return variants[v] ?? null;
   }

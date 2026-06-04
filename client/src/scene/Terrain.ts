@@ -673,11 +673,11 @@ export class Terrain {
     // Accept pre-computed weights from the caller to avoid a redundant getBiomeWeights call.
     const weights = precomputedWeights ?? getBiomeWeights(x, z);
     for (const biome of [
-      BiomeType.EmberWastes,
+      BiomeType.BlastedSuarezLands,
       BiomeType.CrystalTundra,
-      BiomeType.TwilightMarsh,
-      BiomeType.SunlitMeadows,
-      BiomeType.Desert,
+      BiomeType.MoinSwamps,
+      BiomeType.MalakaArea,
+      BiomeType.TanisDesert,
     ]) {
       const w = weights[biome];
       if (w > 0.001) {
@@ -794,7 +794,7 @@ export class Terrain {
       const color = getBiomeColor(vx, vz, vy, t, weights);
       let r = color.r, g = color.g, b = color.b;
 
-      const emberW  = weights[BiomeType.EmberWastes];
+      const emberW  = weights[BiomeType.BlastedSuarezLands];
       const tundraW = weights[BiomeType.CrystalTundra];
       const rockR    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseR, 0x3a / 255, emberW), 0x6a / 255, tundraW);
       const rockG    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseG, 0x1a / 255, emberW), 0x88 / 255, tundraW);

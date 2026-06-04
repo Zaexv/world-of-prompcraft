@@ -9,16 +9,17 @@ interface ZoneTheme {
 }
 
 const ZONE_THEMES: Record<string, ZoneTheme> = {
-  "Blasted Suarezlands": { accent: "#cc88ff", category: "MAGE DISTRICT",        glyph: "—" },
+  "Suarez Quarter":        { accent: "#cc88ff", category: "MAGE DISTRICT",        glyph: "—" },
   "Fort Malaka":          { accent: "#ffdd88", category: "MEDITERRANEAN CITY",   glyph: "—" },
   "Elders' Village":      { accent: "#88ffcc", category: "STARTING VILLAGE",     glyph: "—" },
   "Dark Forest":          { accent: "#55dd55", category: "FORBIDDEN FOREST",     glyph: "—" },
   "Ember Peaks":          { accent: "#ff7733", category: "VOLCANIC MOUNTAINS",   glyph: "—" },
   "Crystal Lake":         { accent: "#66ddff", category: "ENCHANTED WATERS",     glyph: "—" },
-  "Ember Wastes":         { accent: "#ff3300", category: "VOLCANIC WASTELAND",   glyph: "—" },
+  "Blasted Suarezlands":  { accent: "#ff3300", category: "VOLCANIC WASTELAND",   glyph: "—" },
   "Crystal Tundra":       { accent: "#aaeeff", category: "FROZEN EXPANSE",       glyph: "—" },
-  "Twilight Marsh":       { accent: "#66bb44", category: "SWAMPLAND",            glyph: "—" },
-  "Sunlit Meadows":       { accent: "#eecc44", category: "ROLLING GRASSLANDS",   glyph: "—" },
+  "Moin Swamps":          { accent: "#66bb44", category: "SWAMPLAND",            glyph: "—" },
+  "Malaka Area":          { accent: "#eecc44", category: "ROLLING GRASSLANDS",   glyph: "—" },
+  "Tanis Desert":         { accent: "#d4a855", category: "ARID WASTELAND",       glyph: "—" },
   "Teldrassil Wilds":     { accent: "#9966ff", category: "ANCIENT FOREST",       glyph: "—" },
 };
 

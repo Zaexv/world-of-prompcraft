@@ -58,16 +58,16 @@ function preset(
 // `_applyLive` warms the fill so a blue sky never casts a cold tint on the ground.
 export const ZONE_ATMOSPHERES: Record<string, AtmospherePreset> = {
   //                           fog        density  sky        ground     ambient    aInt  sun        bloom
-  "Blasted Suarezlands":  preset(0xc8c4e0, 0.0028, 0xb9c0e8, 0x6a5a50, 0xfff0e0, 0.55, 0xffe8c8, 0.88),
+  "Suarez Quarter":  preset(0xc8c4e0, 0.0028, 0xb9c0e8, 0x6a5a50, 0xfff0e0, 0.55, 0xffe8c8, 0.88),
   "Fort Malaka":           preset(0xc6dcec, 0.0020, 0xa8cdec, 0x6a5e48, 0xfff0d8, 0.60, 0xffe6b8, 0.90),
   "Elders' Village":       preset(0xc8def0, 0.0018, 0xa6cdee, 0x6e5e44, 0xfff2dc, 0.62, 0xffe7bc, 0.90),
   "Dark Forest":           preset(0xa8c0b0, 0.0035, 0x8fb4cf, 0x4a5238, 0xeaf0d8, 0.50, 0xfff0c8, 0.85),
   "Ember Peaks":           preset(0xe8c4a0, 0.0030, 0xe0b890, 0x6a4a30, 0xfff0dc, 0.55, 0xffd9a0, 0.85),
   "Crystal Lake":          preset(0xc8e2f2, 0.0018, 0xa8d4f0, 0x6a6450, 0xfff2e0, 0.60, 0xffe8c4, 0.90),
-  "Ember Wastes":          preset(0xeac49a, 0.0035, 0xe8b888, 0x7a5230, 0xfff0d8, 0.60, 0xffce92, 0.82),
+  "Blasted Suarezlands":          preset(0xeac49a, 0.0035, 0xe8b888, 0x7a5230, 0xfff0d8, 0.60, 0xffce92, 0.82),
   "Crystal Tundra":        preset(0xd6e6f2, 0.0022, 0xc0dcf0, 0x8a8a88, 0xfff0e6, 0.62, 0xfff0d8, 0.92),
-  "Twilight Marsh":        preset(0xb0c8b8, 0.0040, 0x9cc0c0, 0x4a5840, 0xeaf0d8, 0.50, 0xfff0c0, 0.80),
-  "Sunlit Meadows":        preset(0xd0e6e0, 0.0015, 0xb8dcf0, 0x7a7045, 0xfff6e0, 0.68, 0xffeec0, 0.95),
+  "Moin Swamps":        preset(0xb0c8b8, 0.0040, 0x9cc0c0, 0x4a5840, 0xeaf0d8, 0.50, 0xfff0c0, 0.80),
+  "Malaka Area":        preset(0xd0e6e0, 0.0015, 0xb8dcf0, 0x7a7045, 0xfff6e0, 0.68, 0xffeec0, 0.95),
   "Teldrassil Wilds":      preset(0xc4def0, 0.0022, 0xa6cee8, 0x5e5e40, 0xfff0dc, 0.60, 0xffe8bc, 0.90),
 };
 

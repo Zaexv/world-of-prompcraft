@@ -67,7 +67,7 @@ const BIOME_MONSTERS: Partial<Record<BiomeType, MonsterDef[]>> = {
     mon('sentinel', 'Corrupted Sentinel',80,  1.0),
     mon('treant',   'Young Treant',      95,  1.25),
   ],
-  [BiomeType.EmberWastes]: [
+  [BiomeType.BlastedSuarezLands]: [
     mon('lava_hound',  'Lava Hound',     70,  1.0),
     mon('obs_golem',   'Obsidian Golem', 140, 1.6),
     mon('fire_sprite', 'Fire Sprite',    40,  0.75),
@@ -79,19 +79,19 @@ const BIOME_MONSTERS: Partial<Record<BiomeType, MonsterDef[]>> = {
     mon('ice_wolf',     'Ice Wolf',      55,  0.9),
     mon('snow_stalker', 'Snow Stalker',  70,  1.05),
   ],
-  [BiomeType.TwilightMarsh]: [
+  [BiomeType.MoinSwamps]: [
     mon('bog_lurker',  'Bog Lurker',     75,  1.2),
     mon('shadow_snake','Shadow Serpent', 50,  0.8),
     mon('swamp_troll', 'Swamp Troll',   120, 1.4),
     mon('marsh_wisp',  'Marsh Wisp',    35,  0.7),
   ],
-  [BiomeType.SunlitMeadows]: [
+  [BiomeType.MalakaArea]: [
     mon('stone_boar',     'Stone Boar',     60,  0.95),
     mon('sunstone_golem', 'Sunstone Golem', 130, 1.5),
     mon('giant_wasp',     'Giant Wasp',     45,  0.8),
     mon('field_stalker',  'Field Stalker',  65,  1.0),
   ],
-  [BiomeType.Desert]: [
+  [BiomeType.TanisDesert]: [
     mon('sand_wraith',  'Sand Wraith',  55,  1.05),
     mon('dune_crawler', 'Dune Crawler', 80,  1.1),
     mon('desert_golem', 'Desert Golem',110, 1.4),

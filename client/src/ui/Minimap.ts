@@ -151,7 +151,7 @@ export class Minimap extends UIComponent {
     // Compact legend: 3 dots per row, 2 rows
     const legendEntries: Array<[string, string]> = [
       ['#2d6b38', 'Forest'], ['#9c3a12', 'Lava'], ['#4a7fa8', 'Tundra'],
-      ['#1e5c3a', 'Marsh'], ['#7a9422', 'Meadow'], ['#9a7230', 'Desert'],
+      ['#1e5c3a', 'Swamps'], ['#7a9422', 'Malaka'], ['#9a7230', 'Desert'],
     ];
     const legendRow = document.createElement('div');
     Object.assign(legendRow.style, {
@@ -515,18 +515,18 @@ export class Minimap extends UIComponent {
 // Biome display colors — vivid enough to read clearly on dark canvas.
 const BIOME_COLORS: Record<BiomeType, string> = {
   [BiomeType.Teldrassil]: '#2d6b38',    // forest green
-  [BiomeType.EmberWastes]: '#9c3a12',   // lava orange-red
+  [BiomeType.BlastedSuarezLands]: '#9c3a12',   // lava orange-red
   [BiomeType.CrystalTundra]: '#4a7fa8', // icy blue
-  [BiomeType.TwilightMarsh]: '#1e5c3a', // swamp teal
-  [BiomeType.SunlitMeadows]: '#7a9422', // meadow yellow-green
-  [BiomeType.Desert]: '#9a7230',        // sandy gold
+  [BiomeType.MoinSwamps]: '#1e5c3a', // swamp teal
+  [BiomeType.MalakaArea]: '#7a9422', // meadow yellow-green
+  [BiomeType.TanisDesert]: '#9a7230',        // sandy gold
 };
 
 const BIOME_NAMES: Record<BiomeType, string> = {
   [BiomeType.Teldrassil]: 'Teldrassil',
-  [BiomeType.EmberWastes]: 'Ember Wastes',
+  [BiomeType.BlastedSuarezLands]: 'Blasted Suarezlands',
   [BiomeType.CrystalTundra]: 'Crystal Tundra',
-  [BiomeType.TwilightMarsh]: 'Twilight Marsh',
-  [BiomeType.SunlitMeadows]: 'Sunlit Meadows',
-  [BiomeType.Desert]: 'Desert',
+  [BiomeType.MoinSwamps]: 'Moin Swamps',
+  [BiomeType.MalakaArea]: 'Malaka Area',
+  [BiomeType.TanisDesert]: 'Tanis Desert',
 };

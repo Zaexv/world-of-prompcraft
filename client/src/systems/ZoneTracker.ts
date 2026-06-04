@@ -23,9 +23,10 @@ export interface ZoneData {
  * Mirror of server/src/world/zones.py ZONES list.
  *
  * Coordinate notes:
- * - Blasted Suarezlands: covers the mage district centred at (-140, -245)
- *   with outerRadius 74 → zone x ∈ [-220,-60], z ∈ [-325,-160].
- * - Fort Malaka: broader city zone containing the mage district sub-zone.
+ * - Suarez Quarter: covers the mage district centred at (-140, -245),
+ *   outerRadius 74 → zone x ∈ [-220,-60], z ∈ [-325,-160].
+ * - Fort Malaka: broader city zone. Main buildings near (-277, -299);
+ *   minX extended to -320 so the fort's western buildings are inside the zone.
  * - All others remain unchanged.
  *
  * This array is sorted by ascending finite area at module load to match
@@ -33,7 +34,7 @@ export interface ZoneData {
  */
 export const ZONES: ZoneData[] = [
   {
-    name: "Blasted Suarezlands",
+    name: "Suarez Quarter",
     description: "The mage district of Fort Malaka — crackling with arcane energy. Rogue spellcasters and eccentric wizards fill the streets between glowing pylons and runic circles.",
     // Encompasses mountain (center -140, -245; outerRadius 74) + surrounding mage structures.
     minX: -220, maxX: -60, minZ: -325, maxZ: -160,
@@ -41,7 +42,8 @@ export const ZONES: ZoneData[] = [
   {
     name: "Fort Malaka",
     description: "A fortified Mediterranean city to the south, built on ancient ley lines. White-walled buildings, palm-lined promenades, and the golden Playa de la Malagueta stretch along its southern shore.",
-    minX: -150, maxX: 150, minZ: -400, maxZ: -80,
+    // Extended west to -320 — main fort buildings cluster near (-277, -299).
+    minX: -320, maxX: 150, minZ: -400, maxZ: -80,
   },
   {
     name: "Elders' Village",
@@ -64,8 +66,8 @@ export const ZONES: ZoneData[] = [
     minX: -400, maxX: -120, minZ: -200, maxZ: 200,
   },
   {
-    name: "Ember Wastes",
-    description: "A vast volcanic wasteland stretching to the east. Rivers of lava carve through obsidian fields, and the air shimmers with scorching heat.",
+    name: "Blasted Suarezlands",
+    description: "The volcanic south lands. Rivers of lava carve through obsidian fields and the air shimmers with scorching heat. Fire elementals and magma golems roam the jagged terrain.",
     minX: 400, maxX: 99999, minZ: -99999, maxZ: 99999,
   },
   {
@@ -74,13 +76,13 @@ export const ZONES: ZoneData[] = [
     minX: -99999, maxX: 99999, minZ: 400, maxZ: 99999,
   },
   {
-    name: "Twilight Marsh",
-    description: "A sprawling swampland to the south, shrouded in perpetual mist. Bioluminescent fungi illuminate murky waters, and the air hums with strange life.",
+    name: "Moin Swamps",
+    description: "Sprawling northeastern swamplands, shrouded in perpetual mist. Bioluminescent fungi illuminate murky waters and the air hums with strange life. Ancient secrets lie submerged in the bog.",
     minX: -99999, maxX: 99999, minZ: -99999, maxZ: -400,
   },
   {
-    name: "Sunlit Meadows",
-    description: "Rolling golden grasslands extending westward to the horizon. Warm breezes carry the scent of wildflowers, and gentle creatures graze beneath a sky touched by eternal sunset.",
+    name: "Malaka Area",
+    description: "The territories surrounding Fort Malaka — sun-drenched plains and Mediterranean coastline extending east. Warm breezes carry the scent of wildflowers and sea salt.",
     minX: -99999, maxX: -400, minZ: -99999, maxZ: 99999,
   },
   {

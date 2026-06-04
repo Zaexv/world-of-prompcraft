@@ -153,7 +153,12 @@
       "Bash(rtk --version)",
       "Bash(diff .claude/skills/mesh-quality-reviewer/SKILL.md .agents/skills/mesh-quality-reviewer/SKILL.md)",
       "Bash(diff .claude/skills/mesh-from-picture/SKILL.md .agents/skills/mesh-from-picture/SKILL.md)",
-      "Bash(rtk tsc *)"
+      "Bash(rtk tsc *)",
+      "Bash(rtk grep *)",
+      "Bash(python3 .claude/skills/rpi-research/scripts/metadata.py)",
+      "Bash(ls docs/agents/research/)",
+      "Bash(rtk git *)",
+      "Bash(rtk find *)"
     ]
   },
   "hooks": {
