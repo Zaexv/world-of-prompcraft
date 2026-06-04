@@ -105,6 +105,7 @@ export class WebSocketHandler {
               hp: n.hp,
               maxHp: n.maxHp,
               personality: n.personality,
+              archetype: n.archetype,
               scale: n.scale,
               mood: n.mood,
             });

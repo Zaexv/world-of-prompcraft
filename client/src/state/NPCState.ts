@@ -22,6 +22,7 @@ export class NPCStateStore {
       relationship_score: 0,
       name: "",
       personality: "",
+      archetype: "",
       scale: 1.0,
     };
 
@@ -33,6 +34,7 @@ export class NPCStateStore {
       relationship_score: partial.relationship_score ?? existing.relationship_score,
       name: partial.name ?? existing.name,
       personality: partial.personality ?? existing.personality,
+      archetype: partial.archetype ?? existing.archetype,
       scale: partial.scale ?? existing.scale,
     };
 

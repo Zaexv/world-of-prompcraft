@@ -33,6 +33,7 @@ def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any])
                 "kind": "damage",
                 "params": {
                     "target": target,
+                    "player_id": world_state.get("player_id", ""),
                     "amount": amount,
                     "damageType": damage_type,
                 },

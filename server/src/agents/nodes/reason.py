@@ -239,8 +239,12 @@ def make_reason_node(
                 player_prompt = msg.get("content", "")
                 break
         prompt_stripped = player_prompt.strip()
-        short_social = len(prompt_stripped) <= 18 and not _ACTION_INTENT_PATTERNS.search(
-            prompt_stripped
+        archetype = state.get("world_context", {}).get("npc_archetype", "")
+        hostile_archetype = archetype in ("hostile_boss", "hostile_monster")
+        short_social = (
+            not hostile_archetype
+            and len(prompt_stripped) <= 18
+            and not _ACTION_INTENT_PATTERNS.search(prompt_stripped)
         )
         system_prompt = (
             _build_compact_system_prompt(state)
