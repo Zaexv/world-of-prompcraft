@@ -2,14 +2,17 @@ import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome, getBiomeWeights } from '../scene/Biomes';
 import { ZONES } from '../systems/ZoneTracker';
 
-// Module-level constants so they are defined when render() is called
-// (instance class fields are undefined during super() → render()).
-const MM_SIZE  = 290; // canvas pixels
-const MM_SCALE = 2.0; // world-units per canvas pixel
+const MM_SIZE  = 290;
+const MM_SCALE = 2.0; // wu/px at 1.0 zoom
 
 const WM_MAP_SIZE = 500;
 const WM_RANGE    = 600;
-const WM_SCALE    = (WM_RANGE * 2) / WM_MAP_SIZE; // 2.4 wu/px
+
+const WM_MIN_ZOOM = 0.25;
+const WM_MAX_ZOOM = 8.0;
+const MM_MIN_ZOOM = 0.5;
+const MM_MAX_ZOOM = 8.0;
+const ZOOM_STEP   = Math.sqrt(2); // ~1.414x per click
 
 export interface MinimapWaypoint {
   id: string;
@@ -26,10 +29,6 @@ export interface MinimapNPCDot {
   name: string;
 }
 
-/**
- * Canvas-based minimap overlay toggled with M key.
- * Extends UIComponent for consistent lifecycle management.
- */
 export class Minimap extends UIComponent {
   declare private canvas: HTMLCanvasElement;
   declare private ctx: CanvasRenderingContext2D;
@@ -37,10 +36,26 @@ export class Minimap extends UIComponent {
   declare private coordLabel: HTMLDivElement;
   declare private modeWorldBtn: HTMLButtonElement;
   declare private modeLocalBtn: HTMLButtonElement;
+  declare private zoomLabel: HTMLSpanElement;
 
   private viewMode: 'local' | 'world' = 'world';
   private _worldBiomeCanvas: HTMLCanvasElement | null = null;
   private _worldBiomeDirty = true;
+
+  // Zoom state
+  private worldZoom = 1.0;
+  private localZoom = 1.0;
+
+  // Pan state (world mode only, in world units)
+  private worldPanX = 0;
+  private worldPanZ = 0;
+
+  // Drag state for pan
+  private _isDragging = false;
+  private _dragStartCanvasX = 0;
+  private _dragStartCanvasY = 0;
+  private _dragStartPanX = 0;
+  private _dragStartPanZ = 0;
 
   // World waypoints and entity dots
   private waypoints: MinimapWaypoint[] = [];
@@ -61,17 +76,14 @@ export class Minimap extends UIComponent {
     this.canvas.addEventListener('pointerdown', this.handlePointerDown.bind(this));
     this.canvas.addEventListener('pointermove', this.handlePointerMove.bind(this));
     this.canvas.addEventListener('pointerleave', this.handlePointerLeave.bind(this));
+    this.canvas.addEventListener('pointerup', this.handlePointerUp.bind(this));
+    this.canvas.addEventListener('wheel', this.handleWheel.bind(this), { passive: false });
   }
 
-  /** Update NPC positions so they appear as dots on the map. */
   setNPCDots(dots: MinimapNPCDot[]): void {
     this.npcDots = dots;
   }
 
-  /**
-   * Render the component's DOM structure.
-   * Called during initialization.
-   */
   render(): void {
     Object.assign(this.container.style, {
       position: 'absolute',
@@ -141,9 +153,6 @@ export class Minimap extends UIComponent {
     modeBar.appendChild(this.modeWorldBtn);
     modeBar.appendChild(this.modeLocalBtn);
 
-    titleBar.appendChild(titleText);
-    titleBar.appendChild(modeBar);
-
     this.biomeLabel = document.createElement('div');
     Object.assign(this.biomeLabel.style, {
       color: '#888',
@@ -153,9 +162,102 @@ export class Minimap extends UIComponent {
       fontStyle: 'italic',
     } as Partial<CSSStyleDeclaration>);
     this.biomeLabel.textContent = '—';
-    titleBar.appendChild(this.biomeLabel);
 
+    titleBar.appendChild(titleText);
+    titleBar.appendChild(modeBar);
+    titleBar.appendChild(this.biomeLabel);
     this.container.appendChild(titleBar);
+
+    // ── Zoom controls ──────────────────────────────────────────────────────
+    const zoomBar = document.createElement('div');
+    Object.assign(zoomBar.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+      padding: '3px 8px',
+      borderBottom: '1px solid rgba(197,165,90,0.15)',
+      background: 'rgba(0,0,0,0.15)',
+    } as Partial<CSSStyleDeclaration>);
+
+    const btnStyle = {
+      background: 'rgba(197,165,90,0.12)',
+      border: '1px solid rgba(197,165,90,0.3)',
+      color: '#c5a55a',
+      cursor: 'pointer',
+      fontSize: '12px',
+      fontWeight: 'bold',
+      fontFamily: 'monospace',
+      width: '20px',
+      height: '20px',
+      borderRadius: '3px',
+      padding: '0',
+      lineHeight: '18px',
+      textAlign: 'center' as const,
+      userSelect: 'none' as const,
+    };
+
+    const zoomOutBtn = document.createElement('button');
+    Object.assign(zoomOutBtn.style, btnStyle);
+    zoomOutBtn.textContent = '−';
+    zoomOutBtn.title = 'Zoom out (scroll wheel also works)';
+    zoomOutBtn.addEventListener('click', () => this._zoomBy(-1));
+
+    this.zoomLabel = document.createElement('span');
+    Object.assign(this.zoomLabel.style, {
+      color: 'rgba(197,165,90,0.7)',
+      fontSize: '9px',
+      fontFamily: "'Cinzel', serif",
+      minWidth: '36px',
+      textAlign: 'center',
+      letterSpacing: '0.5px',
+    } as Partial<CSSStyleDeclaration>);
+    this.zoomLabel.textContent = '1.0×';
+
+    const zoomInBtn = document.createElement('button');
+    Object.assign(zoomInBtn.style, btnStyle);
+    zoomInBtn.textContent = '+';
+    zoomInBtn.title = 'Zoom in (scroll wheel also works)';
+    zoomInBtn.addEventListener('click', () => this._zoomBy(+1));
+
+    const resetBtn = document.createElement('button');
+    Object.assign(resetBtn.style, {
+      ...btnStyle,
+      width: 'auto',
+      padding: '0 5px',
+      fontSize: '7px',
+      fontFamily: "'Cinzel', serif",
+      letterSpacing: '0.5px',
+    });
+    resetBtn.textContent = 'Reset';
+    resetBtn.title = 'Reset zoom and pan';
+    resetBtn.addEventListener('click', () => this._resetView());
+
+    // "Center on player" button (world mode only)
+    const centerBtn = document.createElement('button');
+    Object.assign(centerBtn.style, {
+      ...btnStyle,
+      width: 'auto',
+      padding: '0 5px',
+      fontSize: '7px',
+      fontFamily: "'Cinzel', serif",
+      letterSpacing: '0.5px',
+    });
+    centerBtn.textContent = 'Center';
+    centerBtn.title = 'Center map on player';
+    centerBtn.addEventListener('click', () => {
+      this.worldPanX = this.lastDrawX;
+      this.worldPanZ = this.lastDrawZ;
+      this._worldBiomeDirty = true;
+      this.lastDrawX = NaN;
+    });
+
+    zoomBar.appendChild(zoomOutBtn);
+    zoomBar.appendChild(this.zoomLabel);
+    zoomBar.appendChild(zoomInBtn);
+    zoomBar.appendChild(resetBtn);
+    zoomBar.appendChild(centerBtn);
+    this.container.appendChild(zoomBar);
 
     // ── Canvas ─────────────────────────────────────────────────────────────
     this.canvas = document.createElement('canvas');
@@ -191,7 +293,6 @@ export class Minimap extends UIComponent {
     this.coordLabel.textContent = 'x: 0  z: 0';
     footer.appendChild(this.coordLabel);
 
-    // Compact legend: 3 dots per row, 2 rows
     const legendEntries: Array<[string, string]> = [
       ['#2d6b38', 'Forest'], ['#9c3a12', 'Lava'], ['#4a7fa8', 'Tundra'],
       ['#1e5c3a', 'Swamps'], ['#7a9422', 'Malaka'], ['#9a7230', 'Desert'],
@@ -223,22 +324,30 @@ export class Minimap extends UIComponent {
       legendRow.appendChild(entry);
     }
     footer.appendChild(legendRow);
+
+    // Hint text
+    const hint = document.createElement('div');
+    Object.assign(hint.style, {
+      color: 'rgba(197,165,90,0.3)',
+      fontSize: '8px',
+      fontFamily: "'Cinzel', serif",
+      textAlign: 'center',
+    } as Partial<CSSStyleDeclaration>);
+    hint.textContent = 'Scroll to zoom · Drag to pan';
+    footer.appendChild(hint);
+
     this.container.appendChild(footer);
 
     this.ctx = this.canvas.getContext('2d')!;
-
     this._updateModeButtons();
+    this._updateZoomLabel();
   }
 
   protected override onShow(): void {
-    // The container uses flex layout — UIComponent.show() sets display:'block'
-    // which breaks the column layout, so we correct it here.
     this.container.style.display = 'flex';
-    // Reset throttle so the canvas redraws immediately on next update() call.
     this.lastDrawX = NaN;
     this.lastDrawZ = NaN;
     this.lastDrawAngle = NaN;
-    // Defensive reset of world biome cache
     this._worldBiomeDirty = true;
   }
 
@@ -262,6 +371,50 @@ export class Minimap extends UIComponent {
     this._worldBiomeDirty = true;
   }
 
+  // ── Zoom / pan ──────────────────────────────────────────────────────────
+
+  private _zoomBy(direction: 1 | -1): void {
+    const min = this.viewMode === 'world' ? WM_MIN_ZOOM : MM_MIN_ZOOM;
+    const max = this.viewMode === 'world' ? WM_MAX_ZOOM : MM_MAX_ZOOM;
+    if (this.viewMode === 'world') {
+      this.worldZoom = Math.max(min, Math.min(max,
+        direction > 0 ? this.worldZoom * ZOOM_STEP : this.worldZoom / ZOOM_STEP
+      ));
+      this._worldBiomeDirty = true;
+    } else {
+      this.localZoom = Math.max(min, Math.min(max,
+        direction > 0 ? this.localZoom * ZOOM_STEP : this.localZoom / ZOOM_STEP
+      ));
+    }
+    this._updateZoomLabel();
+    this.lastDrawX = NaN; // force redraw
+  }
+
+  private _resetView(): void {
+    if (this.viewMode === 'world') {
+      this.worldZoom = 1.0;
+      this.worldPanX = 0;
+      this.worldPanZ = 0;
+      this._worldBiomeDirty = true;
+    } else {
+      this.localZoom = 1.0;
+    }
+    this._updateZoomLabel();
+    this.lastDrawX = NaN;
+  }
+
+  private _updateZoomLabel(): void {
+    if (!this.zoomLabel) return;
+    const mode = this.viewMode ?? 'world';
+    const zoom = (mode === 'world' ? this.worldZoom : this.localZoom) ?? 1.0;
+    this.zoomLabel.textContent = `${zoom.toFixed(zoom < 1 ? 2 : 1)}×`;
+  }
+
+  private handleWheel(event: WheelEvent): void {
+    event.preventDefault();
+    this._zoomBy(event.deltaY < 0 ? 1 : -1);
+  }
+
   private _setMode(mode: 'local' | 'world'): void {
     this.viewMode = mode;
     const size = mode === 'world' ? WM_MAP_SIZE : MM_SIZE;
@@ -271,7 +424,9 @@ export class Minimap extends UIComponent {
     this.canvas.style.height = `${size}px`;
     this.container.style.width = `${size + 8}px`;
     this.lastDrawX = NaN;
+    this._worldBiomeDirty = true;
     this._updateModeButtons();
+    this._updateZoomLabel();
   }
 
   private _updateModeButtons(): void {
@@ -281,10 +436,18 @@ export class Minimap extends UIComponent {
     this.modeLocalBtn.style.color = this.viewMode === 'local' ? activeStyle : inactiveStyle;
   }
 
+  private _worldEffectiveScale(): number {
+    const range = WM_RANGE / this.worldZoom;
+    return (range * 2) / WM_MAP_SIZE;
+  }
+
   private _prerenderWorldBiomes(): void {
-    const S = WM_MAP_SIZE;
-    const scale = WM_SCALE;
-    const step = 4;
+    const S     = WM_MAP_SIZE;
+    const scale = this._worldEffectiveScale();
+    const cx    = this.worldPanX;
+    const cz    = this.worldPanZ;
+    // Adaptive step: coarser at zoom-out (faster), finer at zoom-in (more detail)
+    const step  = Math.max(2, Math.ceil(4 / this.worldZoom));
 
     if (!this._worldBiomeCanvas) {
       this._worldBiomeCanvas = document.createElement('canvas');
@@ -297,8 +460,8 @@ export class Minimap extends UIComponent {
 
     for (let px = 0; px < S; px += step) {
       for (let py = 0; py < S; py += step) {
-        const wx = (px - S / 2) * scale;
-        const wz = (py - S / 2) * scale;
+        const wx = cx + (px - S / 2) * scale;
+        const wz = cz + (py - S / 2) * scale;
         const weights = getBiomeWeights(wx, wz);
         let r = 0, g = 0, b = 0;
         for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
@@ -312,12 +475,13 @@ export class Minimap extends UIComponent {
     this._worldBiomeDirty = false;
   }
 
-  private _drawZoneOverlays(ctx: CanvasRenderingContext2D): void {
-    const S  = WM_MAP_SIZE;
-    const sc = WM_SCALE;
-    const toCanvasX = (wx: number) => wx / sc + S / 2;
-    const toCanvasZ = (wz: number) => wz / sc + S / 2;
-    const CLAMP = WM_RANGE;
+  private _drawZoneOverlays(ctx: CanvasRenderingContext2D, scale: number, panX: number, panZ: number): void {
+    const S = WM_MAP_SIZE;
+    const halfRange = (S / 2) * scale;
+    const toCanvasX = (wx: number) => (wx - panX) / scale + S / 2;
+    const toCanvasZ = (wz: number) => (wz - panZ) / scale + S / 2;
+    const viewX0 = panX - halfRange, viewX1 = panX + halfRange;
+    const viewZ0 = panZ - halfRange, viewZ1 = panZ + halfRange;
 
     const sorted = [...ZONES].sort((a, b) =>
       (b.maxX - b.minX) * (b.maxZ - b.minZ) - (a.maxX - a.minX) * (a.maxZ - a.minZ)
@@ -325,10 +489,10 @@ export class Minimap extends UIComponent {
 
     for (const zone of sorted) {
       const accent = ZONE_ACCENT_COLORS[zone.name] ?? ZONE_DEFAULT_ACCENT;
-      const x0 = Math.max(zone.minX, -CLAMP);
-      const x1 = Math.min(zone.maxX,  CLAMP);
-      const z0 = Math.max(zone.minZ, -CLAMP);
-      const z1 = Math.min(zone.maxZ,  CLAMP);
+      const x0 = Math.max(zone.minX, viewX0);
+      const x1 = Math.min(zone.maxX, viewX1);
+      const z0 = Math.max(zone.minZ, viewZ0);
+      const z1 = Math.min(zone.maxZ, viewZ1);
       if (x1 <= x0 || z1 <= z0) continue;
 
       const cx0 = toCanvasX(x0), cx1 = toCanvasX(x1);
@@ -368,15 +532,19 @@ export class Minimap extends UIComponent {
 
   private _drawWorldView(playerX: number, playerZ: number): void {
     if (this._worldBiomeDirty) this._prerenderWorldBiomes();
-    const ctx = this.ctx;
-    const S = WM_MAP_SIZE;
+    const ctx  = this.ctx;
+    const S    = WM_MAP_SIZE;
+    const scale = this._worldEffectiveScale();
+    const panX  = this.worldPanX;
+    const panZ  = this.worldPanZ;
 
     ctx.drawImage(this._worldBiomeCanvas!, 0, 0);
-    this._drawZoneOverlays(ctx);
+    this._drawZoneOverlays(ctx, scale, panX, panZ);
 
+    // NPC dots
     for (const npc of this.npcDots) {
-      const nx = npc.x / WM_SCALE + S / 2;
-      const nz = npc.z / WM_SCALE + S / 2;
+      const nx = (npc.x - panX) / scale + S / 2;
+      const nz = (npc.z - panZ) / scale + S / 2;
       if (nx < -4 || nx > S + 4 || nz < -4 || nz > S + 4) continue;
       ctx.save();
       ctx.shadowColor = npc.hostile ? '#ff4444' : '#44ff88';
@@ -386,24 +554,33 @@ export class Minimap extends UIComponent {
       ctx.restore();
     }
 
+    // Waypoints
     for (const wp of this.waypoints) {
-      const wx = wp.x / WM_SCALE + S / 2;
-      const wy = wp.z / WM_SCALE + S / 2;
+      const wx = (wp.x - panX) / scale + S / 2;
+      const wy = (wp.z - panZ) / scale + S / 2;
       if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
       this.drawWaypointMarker(ctx, wx, wy, wp.kind, false);
     }
 
+    // Player dot (pulsing)
     const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.004);
-    const px = playerX / WM_SCALE + S / 2;
-    const pz = playerZ / WM_SCALE + S / 2;
-    ctx.save();
-    ctx.shadowColor = '#ffd966'; ctx.shadowBlur = 8 + pulse * 6;
-    ctx.fillStyle = '#ffd966';
-    ctx.beginPath(); ctx.arc(px, pz, 4, 0, Math.PI * 2); ctx.fill();
-    ctx.strokeStyle = `rgba(255,217,102,${0.3 + pulse * 0.4})`;
-    ctx.lineWidth = 1.5;
-    ctx.beginPath(); ctx.arc(px, pz, 6 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
-    ctx.restore();
+    const px = (playerX - panX) / scale + S / 2;
+    const pz = (playerZ - panZ) / scale + S / 2;
+    const inView = px >= -10 && px <= S + 10 && pz >= -10 && pz <= S + 10;
+
+    if (inView) {
+      ctx.save();
+      ctx.shadowColor = '#ffd966'; ctx.shadowBlur = 8 + pulse * 6;
+      ctx.fillStyle = '#ffd966';
+      ctx.beginPath(); ctx.arc(px, pz, 4, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = `rgba(255,217,102,${0.3 + pulse * 0.4})`;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.arc(px, pz, 6 + pulse * 3, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    } else {
+      // Off-screen indicator: arrow pointing toward player
+      this._drawOffscreenArrow(ctx, px, pz, S);
+    }
 
     // Edge vignette
     const vg = ctx.createRadialGradient(S/2, S/2, S*0.32, S/2, S/2, S*0.72);
@@ -412,7 +589,39 @@ export class Minimap extends UIComponent {
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, S, S);
 
+    // Pan indicator (shown when not centered on 0,0)
+    if (Math.abs(panX) > 10 || Math.abs(panZ) > 10) {
+      ctx.save();
+      ctx.font = '8px "Cinzel", serif';
+      ctx.fillStyle = 'rgba(197,165,90,0.5)';
+      ctx.textAlign = 'left';
+      ctx.fillText(`pan: ${Math.round(panX)}, ${Math.round(panZ)}`, 6, S - 6);
+      ctx.restore();
+    }
+
     this._drawCompass(ctx, S);
+  }
+
+  private _drawOffscreenArrow(ctx: CanvasRenderingContext2D, px: number, pz: number, S: number): void {
+    const cx = S / 2, cy = S / 2;
+    const angle = Math.atan2(pz - cy, px - cx);
+    const margin = 14;
+    const ax = cx + Math.cos(angle) * (S / 2 - margin);
+    const ay = cy + Math.sin(angle) * (S / 2 - margin);
+
+    ctx.save();
+    ctx.translate(ax, ay);
+    ctx.rotate(angle + Math.PI / 2);
+    ctx.fillStyle = 'rgba(255,217,102,0.8)';
+    ctx.shadowColor = '#ffd966';
+    ctx.shadowBlur = 6;
+    ctx.beginPath();
+    ctx.moveTo(0, -7);
+    ctx.lineTo(-4, 3);
+    ctx.lineTo(4, 3);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
   }
 
   private _drawCompass(ctx: CanvasRenderingContext2D, size: number): void {
@@ -427,16 +636,9 @@ export class Minimap extends UIComponent {
     ctx.fillText('E', size - 3, size / 2 + 3);
   }
 
-  /**
-   * Redraw the minimap. Call each frame (or throttled).
-   * @param playerX World X
-   * @param playerZ World Z
-   * @param playerAngle Camera yaw in radians (0 = +Z)
-   */
   update(playerX: number, playerZ: number, playerAngle: number): void {
     if (!this.isVisible) return;
 
-    // World mode redraws every frame for pulse animation — skip throttle
     if (this.viewMode === 'world') {
       const ctx = this.ctx;
       if (!ctx) return;
@@ -450,17 +652,16 @@ export class Minimap extends UIComponent {
       return;
     }
 
-    // Throttle: only redraw when player moves significantly or rotates
+    // Local mode — throttled
     this.frameSkip++;
     const dx = playerX - this.lastDrawX;
     const dz = playerZ - this.lastDrawZ;
-    const moved = isNaN(this.lastDrawX) || (dx * dx + dz * dz) > 9; // 3m threshold
+    const moved = isNaN(this.lastDrawX) || (dx * dx + dz * dz) > 9;
 
     let angleDiff = playerAngle - this.lastDrawAngle;
     angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-    const rotated = isNaN(this.lastDrawAngle) || Math.abs(angleDiff) > 0.1; // ~6 degrees
+    const rotated = isNaN(this.lastDrawAngle) || Math.abs(angleDiff) > 0.1;
 
-    // Always update labels, but skip heavy canvas draw
     if (!moved && !rotated && this.frameSkip < 10) {
       this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
       return;
@@ -473,17 +674,14 @@ export class Minimap extends UIComponent {
 
     const ctx = this.ctx;
     if (!ctx) return;
-    const S = MM_SIZE;
-    const scale = MM_SCALE;
+    const S     = MM_SIZE;
+    const scale = MM_SCALE / this.localZoom; // effective wu/px
     const halfWorld = (S * scale) / 2;
 
-    // ── Terrain ────────────────────────────────────────────────────────────
     ctx.fillStyle = '#12141e';
     ctx.fillRect(0, 0, S, S);
 
-    // Optimization: step=6 instead of 2. iterations: (290/6)^2 = ~2330 vs 21025.
-    // 9x performance improvement for the same visual clarity at map scale.
-    const step = 6;
+    const step = Math.max(2, Math.ceil(6 / this.localZoom));
     const dominantBiome = getDominantBiome(playerX, playerZ);
 
     for (let px = 0; px < S; px += step) {
@@ -501,14 +699,13 @@ export class Minimap extends UIComponent {
       }
     }
 
-    // ── Vignette — darken edges so the centre reads clearly ───────────────
     const vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S * 0.72);
     vg.addColorStop(0, 'rgba(0,0,0,0)');
     vg.addColorStop(1, 'rgba(0,0,0,0.55)');
     ctx.fillStyle = vg;
     ctx.fillRect(0, 0, S, S);
 
-    // ── Grid (chunk boundaries, 64 world-units) ────────────────────────────
+    // Chunk grid
     ctx.strokeStyle = 'rgba(255,255,255,0.1)';
     ctx.lineWidth = 0.5;
     const chunkSize = 64;
@@ -523,7 +720,7 @@ export class Minimap extends UIComponent {
       ctx.beginPath(); ctx.moveTo(0, cpy); ctx.lineTo(S, cpy); ctx.stroke();
     }
 
-    // ── NPC dots ───────────────────────────────────────────────────────────
+    // NPC dots
     for (const npc of this.npcDots) {
       const nx = (npc.x - playerX) / scale + S / 2;
       const nz = (npc.z - playerZ) / scale + S / 2;
@@ -538,7 +735,7 @@ export class Minimap extends UIComponent {
       ctx.restore();
     }
 
-    // ── Waypoints ──────────────────────────────────────────────────────────
+    // Waypoints
     for (const waypoint of this.waypoints) {
       const marker = this.getMarkerPoint(waypoint, playerX, playerZ, scale, S);
       if (!marker) continue;
@@ -547,11 +744,9 @@ export class Minimap extends UIComponent {
       this.drawWaypointLabel(ctx, marker.x, marker.y, waypoint.label, highlighted);
     }
 
-    // ── Player indicator ───────────────────────────────────────────────────
+    // Player indicator
     const cx = S / 2;
     const cy = S / 2;
-
-    // Outer glow ring
     ctx.save();
     ctx.shadowColor = '#44ff88';
     ctx.shadowBlur = 10;
@@ -562,7 +757,6 @@ export class Minimap extends UIComponent {
     ctx.stroke();
     ctx.restore();
 
-    // Direction chevron
     ctx.save();
     ctx.translate(cx, cy);
     ctx.rotate(playerAngle);
@@ -581,10 +775,8 @@ export class Minimap extends UIComponent {
     ctx.stroke();
     ctx.restore();
 
-    // ── Compass (corners) ──────────────────────────────────────────────────
     this._drawCompass(ctx, S);
 
-    // ── Biome label + coords (updated in DOM elements, not canvas) ─────────
     this.biomeLabel.textContent = BIOME_NAMES[dominantBiome] ?? '—';
     this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
   }
@@ -593,21 +785,58 @@ export class Minimap extends UIComponent {
     return this.container;
   }
 
+  // ── Pointer / drag / hover ─────────────────────────────────────────────
+
   private handlePointerDown(event: PointerEvent): void {
+    // Check waypoint first (only in local mode or world mode without drag intent)
     const waypoint = this.getWaypointAtEvent(event);
-    if (!waypoint) return;
-    this.onWaypointClick?.(waypoint);
+    if (waypoint && !this._isDragging) {
+      this.onWaypointClick?.(waypoint);
+      return;
+    }
+
+    // Start drag for pan (world mode)
+    if (this.viewMode === 'world') {
+      this._isDragging = true;
+      this._dragStartCanvasX = event.clientX;
+      this._dragStartCanvasY = event.clientY;
+      this._dragStartPanX = this.worldPanX;
+      this._dragStartPanZ = this.worldPanZ;
+      this.canvas.style.cursor = 'grabbing';
+      this.canvas.setPointerCapture(event.pointerId);
+    }
   }
 
   private handlePointerMove(event: PointerEvent): void {
+    if (this._isDragging && this.viewMode === 'world') {
+      const scale = this._worldEffectiveScale();
+      const dx = event.clientX - this._dragStartCanvasX;
+      const dy = event.clientY - this._dragStartCanvasY;
+      this.worldPanX = this._dragStartPanX - dx * scale;
+      this.worldPanZ = this._dragStartPanZ - dy * scale;
+      this._worldBiomeDirty = true;
+      this.lastDrawX = NaN;
+      return;
+    }
+
     const waypoint = this.getWaypointAtEvent(event);
     this.hoveredWaypointId = waypoint?.id ?? null;
-    this.canvas.style.cursor = waypoint ? 'pointer' : 'default';
+    this.canvas.style.cursor = waypoint ? 'pointer' : (this.viewMode === 'world' ? 'grab' : 'default');
+  }
+
+  private handlePointerUp(event: PointerEvent): void {
+    if (this._isDragging) {
+      this._isDragging = false;
+      this.canvas.style.cursor = this.viewMode === 'world' ? 'grab' : 'default';
+      this.canvas.releasePointerCapture(event.pointerId);
+    }
   }
 
   private handlePointerLeave(): void {
-    this.hoveredWaypointId = null;
-    this.canvas.style.cursor = 'default';
+    if (!this._isDragging) {
+      this.hoveredWaypointId = null;
+      this.canvas.style.cursor = 'default';
+    }
   }
 
   private getWaypointAtEvent(event: PointerEvent): MinimapWaypoint | null {
@@ -622,7 +851,7 @@ export class Minimap extends UIComponent {
     const markerRadius = 10;
     let closest: { waypoint: MinimapWaypoint; distanceSq: number } | null = null;
     for (const waypoint of this.waypoints) {
-      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, MM_SCALE, MM_SIZE);
+      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, MM_SCALE / this.localZoom, MM_SIZE);
       if (!marker) continue;
       const dx = x - marker.x;
       const dy = y - marker.y;
@@ -739,14 +968,13 @@ export class Minimap extends UIComponent {
   }
 }
 
-// Biome display colors — vivid enough to read clearly on dark canvas.
 const BIOME_COLORS: Record<BiomeType, string> = {
-  [BiomeType.Teldrassil]: '#2d6b38',    // forest green
-  [BiomeType.BlastedSuarezLands]: '#9c3a12',   // lava orange-red
-  [BiomeType.CrystalTundra]: '#4a7fa8', // icy blue
-  [BiomeType.MoinSwamps]: '#1e5c3a', // swamp teal
-  [BiomeType.MalakaArea]: '#7a9422', // meadow yellow-green
-  [BiomeType.TanisDesert]: '#9a7230',        // sandy gold
+  [BiomeType.Teldrassil]: '#2d6b38',
+  [BiomeType.BlastedSuarezLands]: '#9c3a12',
+  [BiomeType.CrystalTundra]: '#4a7fa8',
+  [BiomeType.MoinSwamps]: '#1e5c3a',
+  [BiomeType.MalakaArea]: '#7a9422',
+  [BiomeType.TanisDesert]: '#9a7230',
 };
 
 const BIOME_NAMES: Record<BiomeType, string> = {
@@ -776,4 +1004,5 @@ const ZONE_ACCENT_COLORS: Record<string, string> = {
   "Malaka Area":         "#eecc44",
   "Teldrassil Wilds":    "#9966ff",
 };
-const ZONE_DEFAULT_ACCENT = "#c5a55a";
+
+const ZONE_DEFAULT_ACCENT = "#aaaaff";
