@@ -28,7 +28,7 @@ export class LoginScreen {
       position: 'fixed', top: '0', left: '0', width: '100vw', height: '100vh', zIndex: '1000',
       background: '#0a0a0a', display: 'flex', flexDirection: 'column',
       alignItems: 'center', justifyContent: 'center',
-      transition: 'opacity 0.8s ease', opacity: '1',
+      overflowY: 'auto', transition: 'opacity 0.8s ease', opacity: '1',
     } as CSSStyleDeclaration);
 
     this.canvas = document.createElement('canvas');
