@@ -76,7 +76,9 @@ def create_world_builder_agent(
         for tc in getattr(last, "tool_calls", []):
             tool_fn = tool_map.get(tc["name"])
             result = tool_fn.invoke(tc["args"]) if tool_fn else f"Unknown tool: {tc['name']}"
-            tool_results.append(ToolMessage(content=str(result), tool_call_id=tc["id"]))
+            tool_results.append(
+                ToolMessage(content=str(result), tool_call_id=tc["id"], name=tc["name"])
+            )
         return {"messages": [*state["messages"], *tool_results]}
 
     def respond_node(state: NPCAgentState) -> dict[str, Any]:

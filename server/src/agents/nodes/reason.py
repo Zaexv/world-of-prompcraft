@@ -169,10 +169,23 @@ def _build_compact_system_prompt(state: NPCAgentState) -> str:
     )
 
 
+def _is_tool_message(msg: Any) -> bool:
+    """Check if a message is a tool/function response."""
+    return (hasattr(msg, "type") and msg.type == "tool") or (
+        isinstance(msg, dict) and msg.get("role") == "tool"
+    )
+
+
 def _select_reasoning_messages(state: NPCAgentState, short_social: bool) -> list[Any]:
     """Keep the active prompt bounded while preserving the current exchange."""
     max_messages = _MAX_SHORT_SOCIAL_MESSAGES if short_social else _MAX_REASON_HISTORY_MESSAGES
-    return state.get("messages", [])[-max_messages:]
+    msgs = state.get("messages", [])
+    sliced = msgs[-max_messages:]
+    # Strip orphaned ToolMessages at the start — their parent AIMessage
+    # was cut off, which would cause Gemini to reject the request.
+    while sliced and _is_tool_message(sliced[0]):
+        sliced.pop(0)
+    return sliced
 
 
 async def _run_inline_tools(
