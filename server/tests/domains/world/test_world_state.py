@@ -74,6 +74,27 @@ async def test_apply_damage_player() -> None:
 
 
 @pytest.mark.asyncio
+async def test_apply_damage_targets_correct_player_via_player_id() -> None:
+    """Verify apply_actions targets the correct player when player_id is supplied."""
+    ws = WorldState()
+    player1 = ws.get_player("player1")
+    player2 = ws.get_player("player2")
+    player1.hp = 100
+    player2.hp = 100
+    await ws.apply_actions(
+        [
+            {
+                "kind": "damage",
+                "params": {"target": "player", "player_id": "player1", "amount": 25},
+            },
+        ]
+    )
+    assert player1.hp == 75
+    # player2 must be untouched
+    assert player2.hp == 100
+
+
+@pytest.mark.asyncio
 async def test_apply_heal_player() -> None:
     ws = WorldState()
     player = ws.get_player("p1")

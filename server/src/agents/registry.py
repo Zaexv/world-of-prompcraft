@@ -163,6 +163,7 @@ class AgentRegistry:
 
         player = self._world_state.get_player(player_id)
         snapshot["player"] = player.to_dict()
+        snapshot["player_id"] = player_id
 
         npc = self._world_state.get_npc(npc_id)
         snapshot["self_npc_id"] = npc_id
@@ -198,6 +199,11 @@ class AgentRegistry:
 
         npc_config = self._world_state.get_npc_config(npc_id)
         world_context = self._world_state.get_context_for_npc(npc_id, player_id)
+
+        # Expose the NPC's archetype so reason.py can gate short_social for hostile NPCs
+        npc_data = self._world_state.get_npc(npc_id)
+        world_context["npc_archetype"] = npc_data.archetype if npc_data else ""
+
         cache_key = hashlib.sha256(
             f"{npc_id}|{player_id}|{prompt}|{player_state.get('hp')}|{world_context.get('zone')}".encode()
         ).hexdigest()

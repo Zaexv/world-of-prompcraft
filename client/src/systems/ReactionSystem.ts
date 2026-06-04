@@ -20,13 +20,21 @@ interface EffectPreset {
 }
 
 // Keywords that mark a prompt as an attack. MUST mirror the server's
-// `_ATTACK_KEYWORDS` (server/src/ws/handler.py) so the client only previews a
-// hit when the server will actually score one.
+// ATTACK_KEYWORDS (server/src/combat/combat_resolution.py) so the client only
+// previews a hit when the server will actually score one.
 const ATTACK_KEYWORDS = new Set<string>([
+  // Direct violence
   "attack", "hit", "strike", "slash", "stab", "punch", "kick", "fight", "kill",
-  "destroy", "smash", "fireball", "lightning", "swing", "cleave", "thrust",
-  "cut", "shoot", "blast", "crush", "bite", "claw", "charge", "slam", "cast",
-  "burn", "freeze",
+  "destroy", "smash", "swing", "cleave", "thrust", "cut", "shoot", "blast",
+  "crush", "bite", "claw", "slam", "burn", "freeze", "slay", "vanquish",
+  "obliterate", "annihilate", "impale", "shatter", "pummel", "batter",
+  "bludgeon", "gut", "rend", "tear", "mutilate", "pierce", "skewer", "decimate",
+  "devastate", "maim", "overpower", "assault", "ambush", "execute",
+  // Magical intent
+  "fireball", "lightning", "unleash", "surge", "detonate", "incinerate",
+  "electrocute", "smite", "curse", "hex", "wither", "zap", "ignite", "explode",
+  // Tactical / expressive
+  "lunge", "pounce", "tackle", "headbutt", "duel",
 ]);
 
 const EFFECT_PRESETS: Record<string, EffectPreset> = {

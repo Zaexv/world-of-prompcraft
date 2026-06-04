@@ -23,6 +23,99 @@ class TestIsAttackPrompt:
     def test_mixed_sentence(self) -> None:
         assert is_attack_prompt("I want to attack the goblin with my sword")
 
+    def test_removed_ambiguous_keywords_no_longer_trigger(self) -> None:
+        """Verify that removed ambiguous keywords are NOT treated as attacks."""
+        removed_keywords = [
+            "cast",
+            "charge",
+            "face",
+            "rush",
+            "engage",
+            "confront",
+            "invoke",
+            "channel",
+            "summon",
+            "drain",
+            "leap",
+            "dive",
+            "challenge",
+            "overwhelm",
+            "hurt",
+            "wound",
+        ]
+        for word in removed_keywords:
+            assert not is_attack_prompt(word), f"'{word}' should no longer be an attack keyword"
+
+    def test_kept_unambiguous_keywords_still_trigger(self) -> None:
+        """Verify that kept unambiguous combat verbs still trigger attack detection."""
+        kept_keywords = [
+            "attack",
+            "hit",
+            "strike",
+            "slash",
+            "stab",
+            "punch",
+            "kick",
+            "fight",
+            "kill",
+            "destroy",
+            "smash",
+            "swing",
+            "cleave",
+            "thrust",
+            "cut",
+            "shoot",
+            "blast",
+            "crush",
+            "bite",
+            "claw",
+            "slam",
+            "burn",
+            "freeze",
+            "slay",
+            "vanquish",
+            "obliterate",
+            "annihilate",
+            "impale",
+            "shatter",
+            "pummel",
+            "batter",
+            "bludgeon",
+            "gut",
+            "rend",
+            "tear",
+            "mutilate",
+            "pierce",
+            "skewer",
+            "decimate",
+            "devastate",
+            "maim",
+            "assault",
+            "ambush",
+            "execute",
+            "fireball",
+            "lightning",
+            "unleash",
+            "surge",
+            "detonate",
+            "incinerate",
+            "electrocute",
+            "smite",
+            "curse",
+            "hex",
+            "wither",
+            "zap",
+            "ignite",
+            "explode",
+            "lunge",
+            "pounce",
+            "tackle",
+            "headbutt",
+            "duel",
+        ]
+        for word in kept_keywords:
+            assert is_attack_prompt(word), f"'{word}' should still be an attack keyword"
+
 
 class TestScoreAttack:
     def test_basic_attack_multiplier(self) -> None:

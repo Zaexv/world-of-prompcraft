@@ -244,6 +244,7 @@ export interface NPCStateData {
   mood: string;
   relationship_score: number;
   personality?: string;
+  archetype?: string;
   name?: string;
 }
 
@@ -256,6 +257,7 @@ export interface NPCInitData {
   scale: number;
   mood: string;
   personality: string;
+  archetype?: string;
 }
 
 export interface RemotePlayerData {

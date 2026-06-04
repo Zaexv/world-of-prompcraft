@@ -37,6 +37,7 @@ class NPCData:
             "maxHp": self.max_hp,
             "position": list(self.position),
             "personality": self.personality,
+            "archetype": self.archetype,
             "mood": self.mood,
             "scale": self.scale,
         }
