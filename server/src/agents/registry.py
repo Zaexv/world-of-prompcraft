@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import HumanMessage
 
+from .nodes.constants import EMPTY_DIALOGUE
 from .npc_agent import create_npc_agent
 from .tools import get_all_tools
 
@@ -248,12 +249,13 @@ class AgentRegistry:
             }
 
         response_payload = {
-            "dialogue": result.get("response_text", "..."),
+            "dialogue": result.get("response_text", EMPTY_DIALOGUE),
             "actions": pending,
             "playerStateUpdate": player.to_dict() if player else None,
             "npcStateUpdate": npc_state_update,
         }
-        if not pending:
+        dialogue = response_payload.get("dialogue", "")
+        if not pending and dialogue and dialogue != EMPTY_DIALOGUE:
             self._response_cache[cache_key] = response_payload
             if len(self._response_cache) > 512:
                 self._response_cache.pop(next(iter(self._response_cache)), None)
