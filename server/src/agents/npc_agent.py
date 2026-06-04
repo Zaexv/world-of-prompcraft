@@ -7,6 +7,7 @@ from langgraph.graph import END, START, StateGraph
 
 from .agent_state import NPCAgentState
 from .nodes.act import make_act_node
+from .nodes.fallback import fallback_node
 from .nodes.reason import make_reason_node
 from .nodes.reflect import reflect_node
 from .nodes.respond import respond_node
@@ -40,7 +41,7 @@ def create_npc_agent(
     """Build and compile a LangGraph agent for a single NPC.
 
     Graph flow:
-        START → reason → [act loop] → respond → reflect → [summarize?] → END
+        START → reason → [act loop] → respond → fallback → reflect → [summarize?] → END
 
     Args:
         npc_id: Unique NPC identifier.
@@ -58,6 +59,7 @@ def create_npc_agent(
     graph.add_node("reason", reason_node)
     graph.add_node("act", act_node)
     graph.add_node("respond", respond_node)
+    graph.add_node("fallback", fallback_node)
     graph.add_node("reflect", reflect_node)
     graph.add_node("summarize", summarize_node)
 
@@ -68,7 +70,8 @@ def create_npc_agent(
         {"act": "act", "respond": "respond"},
     )
     graph.add_edge("act", "reason")
-    graph.add_edge("respond", "reflect")
+    graph.add_edge("respond", "fallback")
+    graph.add_edge("fallback", "reflect")
     graph.add_conditional_edges(
         "reflect",
         route_after_reflect,

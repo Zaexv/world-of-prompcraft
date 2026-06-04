@@ -13,12 +13,13 @@ from __future__ import annotations
 #    - Mountain / mage district centroid : (-140, -245)
 #    - Mountain outerRadius = 74  →  footprint ≈ x ∈ [-214, -66], z ∈ [-319, -171]
 #    - Blasted Suarezlands covers the mage district with a small safety margin.
+#    - Fort Malaka main buildings cluster near (-277, -299); zone extended west to -320.
 # ─────────────────────────────────────────────────────────────────────────────
 
 ZONES: list[dict[str, object]] = [
     # ── Specific small zones (checked first — highest priority) ─────────────
     {
-        "name": "Blasted Suarezlands",
+        "name": "Suarez Quarter",
         "description": "The mage district of Fort Malaka, a chaotic quarter crackling with arcane energy. Rogue spellcasters, eccentric wizards, and mystical scholars fill the streets. Glowing pylons hum with power and runic circles pulse underfoot.",
         # Encompasses the mountain (center -140, -245; outer radius 74) and
         # surrounding mage structures with a comfortable margin.
@@ -30,7 +31,8 @@ ZONES: list[dict[str, object]] = [
     {
         "name": "Fort Malaka",
         "description": "A fortified Mediterranean city to the south of Elders' Village, inspired by Málaga and built around ancient arcane ley lines. White-walled casitas with terracotta roofs line palm-shaded streets. The infamous Blasted Suarezlands mage district lies at its heart, and the golden Playa de la Malagueta stretches along its southern shore.",
-        "min_x": -150.0,
+        # Extended west to -320 to include the main fort buildings near (-277, -299).
+        "min_x": -320.0,
         "max_x": 150.0,
         "min_z": -400.0,
         "max_z": -80.0,
@@ -69,8 +71,8 @@ ZONES: list[dict[str, object]] = [
     },
     # ── Expanded ecosystem zones (boundless world) ──────────────────────────
     {
-        "name": "Ember Wastes",
-        "description": "A vast volcanic wasteland stretching to the east. Rivers of lava carve through obsidian fields, and the air shimmers with scorching heat. Fire elementals and magma golems roam the jagged terrain.",
+        "name": "Blasted Suarezlands",
+        "description": "The volcanic south lands. Rivers of lava carve through obsidian fields and the air shimmers with scorching heat. Fire elementals and magma golems roam the jagged terrain.",
         "min_x": 400.0,
         "max_x": 99999.0,
         "min_z": -99999.0,
@@ -85,16 +87,16 @@ ZONES: list[dict[str, object]] = [
         "max_z": 99999.0,
     },
     {
-        "name": "Twilight Marsh",
-        "description": "A sprawling swampland to the south, shrouded in perpetual mist. Bioluminescent fungi illuminate murky waters, and the air hums with strange life. Ancient secrets lie submerged in the bog.",
+        "name": "Moin Swamps",
+        "description": "Sprawling northeastern swamplands, shrouded in perpetual mist. Bioluminescent fungi illuminate murky waters and the air hums with strange life. Ancient secrets lie submerged in the bog.",
         "min_x": -99999.0,
         "max_x": 99999.0,
         "min_z": -99999.0,
         "max_z": -400.0,
     },
     {
-        "name": "Sunlit Meadows",
-        "description": "Rolling golden grasslands extending westward to the horizon. Warm breezes carry the scent of wildflowers, and gentle creatures graze beneath a sky touched by eternal sunset.",
+        "name": "Malaka Area",
+        "description": "The territories surrounding Fort Malaka — sun-drenched plains and Mediterranean coastline extending east. Warm breezes carry the scent of wildflowers and sea salt.",
         "min_x": -99999.0,
         "max_x": -400.0,
         "min_z": -99999.0,

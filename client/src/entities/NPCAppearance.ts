@@ -4,6 +4,7 @@
  */
 import { applyCharacterPBR } from '../utils/PBRMaps';
 import * as THREE from 'three';
+import { hashString } from './NPCModels';
 import type { NPCPlaceholderStyle } from './NPCModels';
 
 export const NPC_Y_LEG   = 0.44;
@@ -252,15 +253,6 @@ export function varyColor(hex: number, seed: number, amount: number): number {
     (Math.min(255, Math.max(0, g + vg * 255 * amount)) << 8) |
     Math.min(255, Math.max(0, b + vb * 255 * amount))
   );
-}
-
-export function hashString(value: string): number {
-  let hash = 2166136261;
-  for (let i = 0; i < value.length; i++) {
-    hash ^= value.charCodeAt(i);
-    hash = Math.imul(hash, 16777619);
-  }
-  return hash >>> 0;
 }
 
 function buildSpiderMesh(group: THREE.Group, a: AppearanceData): THREE.MeshStandardMaterial[] {

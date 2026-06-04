@@ -5,7 +5,7 @@ import logging
 import re
 from typing import TYPE_CHECKING, Any
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
@@ -175,6 +175,50 @@ def _select_reasoning_messages(state: NPCAgentState, short_social: bool) -> list
     return state.get("messages", [])[-max_messages:]
 
 
+async def _run_inline_tools(
+    content: str,
+    tool_map: dict[str, BaseTool],
+    params_by_tool: dict[str, list[tuple[str, str]]],
+    shared_pending_actions: list[Any],
+    llm: BaseChatModel,
+    system_prompt: str,
+    msg_tail: list[Any],
+) -> tuple[str, list[Any]] | None:
+    """Parse and execute inline (plain-text) tool calls emitted by local models.
+
+    Returns (dialogue, harvested_actions) when inline calls are found, None otherwise.
+    When the model produced no surrounding prose, a second LLM call retrieves dialogue.
+    """
+    cleaned, parsed = extract_inline_tool_calls(content, params_by_tool)
+    if not parsed:
+        return None
+
+    shared_pending_actions.clear()
+    for call in parsed:
+        tool = tool_map.get(call["name"])
+        if tool is None:
+            continue
+        try:
+            await tool.ainvoke(call["args"])
+        except Exception:
+            logger.warning("Inline tool call %s failed", call["name"], exc_info=True)
+    harvested = list(shared_pending_actions)
+    shared_pending_actions.clear()
+
+    if cleaned:
+        return cleaned, harvested
+
+    # Model emitted tool-call-only with no prose; ask for dialogue separately.
+    follow_up = await llm.ainvoke(
+        [
+            SystemMessage(content=system_prompt),
+            *msg_tail,
+            HumanMessage(content="(You just acted. Reply in character — one short sentence.)"),
+        ]
+    )
+    return getattr(follow_up, "content", "") or "", harvested
+
+
 def make_reason_node(
     llm: BaseChatModel, tools: list[BaseTool], shared_pending_actions: list[Any]
 ) -> Any:
@@ -186,7 +230,6 @@ def make_reason_node(
     }
 
     async def reason_node(state: NPCAgentState) -> dict[str, Any]:
-        # Extract latest player message for RAG retrieval
         player_prompt = ""
         for msg in reversed(state["messages"]):
             if hasattr(msg, "type") and msg.type == "human":
@@ -209,27 +252,23 @@ def make_reason_node(
         active_llm = llm if short_social else llm_with_tools
         ai_message = await active_llm.ainvoke(messages)
 
-        # Fallback: some local models emit tool calls as plain text in the
-        # content instead of structured tool_calls (which the act node and
-        # router rely on). Parse them, run the real tools so the actions fire,
-        # and strip the call syntax from the dialogue the player sees.
+        # Local models sometimes emit tool calls as plain text instead of
+        # structured tool_calls. Detect and handle that path separately.
         structured = getattr(ai_message, "tool_calls", None)
         content = getattr(ai_message, "content", "")
         if not structured and tool_map and isinstance(content, str):
-            cleaned, parsed = extract_inline_tool_calls(content, params_by_tool)
-            if parsed:
-                shared_pending_actions.clear()
-                for call in parsed:
-                    tool = tool_map.get(call["name"])
-                    if tool is None:
-                        continue
-                    try:
-                        await tool.ainvoke(call["args"])
-                    except Exception:
-                        logger.warning("Inline tool call %s failed", call["name"], exc_info=True)
-                harvested = list(shared_pending_actions)
-                shared_pending_actions.clear()
-                ai_message.content = cleaned or "..."
+            inline_result = await _run_inline_tools(
+                content,
+                tool_map,
+                params_by_tool,
+                shared_pending_actions,
+                llm,
+                system_prompt,
+                msg_tail,
+            )
+            if inline_result is not None:
+                dialogue, harvested = inline_result
+                ai_message.content = dialogue
                 return {
                     "messages": [ai_message],
                     "pending_actions": [*state.get("pending_actions", []), *harvested],

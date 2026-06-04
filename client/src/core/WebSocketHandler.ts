@@ -92,6 +92,9 @@ export class WebSocketHandler {
                 maxHp: n.maxHp,
                 personality: n.personality,
                 scale: n.scale,
+                behavior: n.behavior ?? undefined,
+                style: n.style ?? undefined,
+                appearance: n.appearance ?? undefined,
               });
             } catch (err) {
               console.error(`join_ok: failed to spawn NPC ${n.name} (${id}):`, err);

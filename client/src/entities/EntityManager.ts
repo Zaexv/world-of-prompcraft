@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { NPC, NPCConfig } from './NPC';
+import { resolveAppearance } from './npc/NPCAppearanceResolver';
+import { buildNPCMesh } from './npc/NPCMeshFactory';
 import { RemotePlayer } from './RemotePlayer';
 import type { RemotePlayerData } from '../network/MessageProtocol';
 import type { CollisionSystem } from '../systems/CollisionSystem';
@@ -39,8 +41,11 @@ export class EntityManager {
     if (this.npcs.has(config.id)) {
       this.removeNPC(config.id);
     }
-    const npc = NPC.create(config);
-    
+    const spec = resolveAppearance(config);
+    const scale = spec.scale ?? config.scale ?? 1;
+    const built = buildNPCMesh({ ...spec, scale }, config.position, config.id);
+    const npc = new NPC(config, built);
+
     // Tag for editor selection
     npc.mesh.userData.editorId = npc.id;
     npc.mesh.userData.editorType = 'npc';

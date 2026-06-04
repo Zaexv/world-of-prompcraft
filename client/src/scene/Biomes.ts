@@ -172,20 +172,20 @@ function distToSegment(x: number, z: number, startX: number, startZ: number, end
 
 export enum BiomeType {
   Teldrassil = 0,
-  EmberWastes = 1,
+  BlastedSuarezLands = 1,
   CrystalTundra = 2,
-  TwilightMarsh = 3,
-  SunlitMeadows = 4,
-  Desert = 5,
+  MoinSwamps = 3,
+  MalakaArea = 4,
+  TanisDesert = 5,
 }
 
 export interface BiomeWeights {
   [BiomeType.Teldrassil]: number;
-  [BiomeType.EmberWastes]: number;
+  [BiomeType.BlastedSuarezLands]: number;
   [BiomeType.CrystalTundra]: number;
-  [BiomeType.TwilightMarsh]: number;
-  [BiomeType.SunlitMeadows]: number;
-  [BiomeType.Desert]: number;
+  [BiomeType.MoinSwamps]: number;
+  [BiomeType.MalakaArea]: number;
+  [BiomeType.TanisDesert]: number;
 }
 
 /**
@@ -197,11 +197,11 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
 
   const weights: BiomeWeights = {
     [BiomeType.Teldrassil]: 0,
-    [BiomeType.EmberWastes]: 0,
+    [BiomeType.BlastedSuarezLands]: 0,
     [BiomeType.CrystalTundra]: 0,
-    [BiomeType.TwilightMarsh]: 0,
-    [BiomeType.SunlitMeadows]: 0,
-    [BiomeType.Desert]: 0,
+    [BiomeType.MoinSwamps]: 0,
+    [BiomeType.MalakaArea]: 0,
+    [BiomeType.TanisDesert]: 0,
   };
 
   // Distance from origin
@@ -215,40 +215,41 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
   // Directional biome strengths based on angle
   const angle = Math.atan2(z, x); // -PI..PI; 0=east, PI/2=north, -PI/2=south, PI=west
 
-  const ember = directionalWeight(angle, 0);              // east
-  const tundra = directionalWeight(angle, Math.PI / 2);   // north
-  const meadows = directionalWeight(angle, Math.PI);      // west (also handle -PI)
-  const meadowsNeg = directionalWeight(angle, -Math.PI);
-  const marsh = directionalWeight(angle, -Math.PI / 2);   // south
-  const desertMask = THREE.MathUtils.clamp(
-    ((Math.max(Math.abs(x), Math.abs(z)) - 280) / 180) * ((Math.min(Math.abs(x), Math.abs(z)) - 220) / 160),
-    0,
-    1,
-  );
+  // Directional layout — calibrated to world manifest zone positions:
+  //   CrystalTundra      = north   (+PI/2)      — crystal_tundra zone at (0, +260)
+  //   BlastedSuarezLands = east    (0)           — ember_wastes zone at (+260, 0)
+  //   MoinSwamps         = south   (-PI/2)       — twilight_marsh zone at (0, -260)
+  //   MalakaArea         = SW      (-3*PI/4)     — fort_malaka zone at (-200, -250), angle -128.7°
+  //   TanisDesert        = NW      (+3*PI/4)     — per world map, no manifest zone
+  const tundra = directionalWeight(angle, Math.PI / 2);
+  const lava   = directionalWeight(angle, 0);
+  const swamp  = directionalWeight(angle, -Math.PI / 2);
+  const malaka = directionalWeight(angle, -3 * Math.PI / 4);
+  const desert = directionalWeight(angle, 3 * Math.PI / 4);
 
-  weights[BiomeType.Teldrassil] = centerWeight;
-  weights[BiomeType.EmberWastes] = ember * outerWeight;
-  weights[BiomeType.CrystalTundra] = tundra * outerWeight;
-  weights[BiomeType.TwilightMarsh] = marsh * outerWeight;
-  weights[BiomeType.SunlitMeadows] = Math.max(meadows, meadowsNeg) * outerWeight;
-  weights[BiomeType.Desert] = desertMask * outerWeight;
+  weights[BiomeType.Teldrassil]         = centerWeight;
+  weights[BiomeType.CrystalTundra]      = tundra  * outerWeight;
+  weights[BiomeType.BlastedSuarezLands] = lava    * outerWeight;
+  weights[BiomeType.MoinSwamps]         = swamp   * outerWeight;
+  weights[BiomeType.MalakaArea]         = malaka  * outerWeight;
+  weights[BiomeType.TanisDesert]        = desert  * outerWeight;
 
   // Normalize so weights sum to 1
   const total =
     weights[BiomeType.Teldrassil] +
-    weights[BiomeType.EmberWastes] +
+    weights[BiomeType.BlastedSuarezLands] +
     weights[BiomeType.CrystalTundra] +
-    weights[BiomeType.TwilightMarsh] +
-    weights[BiomeType.SunlitMeadows] +
-    weights[BiomeType.Desert];
+    weights[BiomeType.MoinSwamps] +
+    weights[BiomeType.MalakaArea] +
+    weights[BiomeType.TanisDesert];
 
   if (total > 0.0001) {
     weights[BiomeType.Teldrassil] /= total;
-    weights[BiomeType.EmberWastes] /= total;
+    weights[BiomeType.BlastedSuarezLands] /= total;
     weights[BiomeType.CrystalTundra] /= total;
-    weights[BiomeType.TwilightMarsh] /= total;
-    weights[BiomeType.SunlitMeadows] /= total;
-    weights[BiomeType.Desert] /= total;
+    weights[BiomeType.MoinSwamps] /= total;
+    weights[BiomeType.MalakaArea] /= total;
+    weights[BiomeType.TanisDesert] /= total;
   } else {
     weights[BiomeType.Teldrassil] = 1;
   }
@@ -263,11 +264,11 @@ export function getDominantBiome(x: number, z: number): BiomeType {
   let bestVal = 0;
   for (const key of [
     BiomeType.Teldrassil,
-    BiomeType.EmberWastes,
+    BiomeType.BlastedSuarezLands,
     BiomeType.CrystalTundra,
-    BiomeType.TwilightMarsh,
-    BiomeType.SunlitMeadows,
-    BiomeType.Desert,
+    BiomeType.MoinSwamps,
+    BiomeType.MalakaArea,
+    BiomeType.TanisDesert,
   ]) {
     if (w[key] > bestVal) {
       bestVal = w[key];
@@ -287,8 +288,10 @@ function directionalWeight(angle: number, targetAngle: number): number {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
 
-  // Raised cosine over a ~110-degree half-width (slightly overlapping for smooth blends)
-  const halfWidth = Math.PI * 0.6; // ~108 degrees
+  // 90° halfWidth: covers all directions without dead zones. Biomes at 45° spacing
+  // (N/E/S) each overlap; the SW (MalakaArea) and NW (TanisDesert) at 135° gap
+  // blend cleanly at the west (180°) midpoint.
+  const halfWidth = Math.PI * 0.50; // 90 degrees
   if (Math.abs(diff) > halfWidth) return 0;
   return 0.5 + 0.5 * Math.cos((diff / halfWidth) * Math.PI);
 }
@@ -303,7 +306,7 @@ export function biomeHeightModifier(x: number, z: number, biome: BiomeType): num
   switch (biome) {
     case BiomeType.Teldrassil:
       return 0; // base terrain unchanged
-    case BiomeType.EmberWastes:
+    case BiomeType.BlastedSuarezLands:
       // Steeper, jagged volcanic terrain
       return (
         (Math.sin(x * 0.02 + 5.0) * Math.cos(z * 0.025 - 2.0) * 6 +
@@ -316,19 +319,19 @@ export function biomeHeightModifier(x: number, z: number, biome: BiomeType): num
         (Math.abs(Math.sin(x * 0.008 + 1.0) * Math.cos(z * 0.01 - 0.5)) * 12 +
           Math.sin(x * 0.03 + z * 0.02) * 3) * amplitude
       );
-    case BiomeType.TwilightMarsh:
+    case BiomeType.MoinSwamps:
       // Very flat, low terrain with slight undulation
       return (
         (-Math.abs(Math.sin(x * 0.01) * Math.cos(z * 0.012)) * 5 +
           Math.sin(x * 0.04 + z * 0.05) * 0.5 - 2) * amplitude
       );
-    case BiomeType.SunlitMeadows:
+    case BiomeType.MalakaArea:
       // Gentle rolling hills
       return (
         (Math.sin(x * 0.015 + 3.0) * Math.cos(z * 0.018 + 1.0) * 3 +
           Math.sin(x * 0.04 - 1.0) * Math.cos(z * 0.035 + 2.0) * 1.5) * amplitude
       );
-    case BiomeType.Desert:
+    case BiomeType.TanisDesert:
       // Low dunes and ridges
       return (
         (Math.sin(x * 0.012 + 1.7) * Math.cos(z * 0.014 - 0.9) * 2.5 +
@@ -341,11 +344,11 @@ export function biomeHeightModifier(x: number, z: number, biome: BiomeType): num
 function getBiomeKey(biome: BiomeType): string {
   switch (biome) {
     case BiomeType.Teldrassil: return 'teldrassil';
-    case BiomeType.EmberWastes: return 'ember_wastes';
+    case BiomeType.BlastedSuarezLands: return 'ember_wastes';
     case BiomeType.CrystalTundra: return 'crystal_tundra';
-    case BiomeType.TwilightMarsh: return 'twilight_marsh';
-    case BiomeType.SunlitMeadows: return 'sunlit_meadows';
-    case BiomeType.Desert: return 'desert';
+    case BiomeType.MoinSwamps: return 'twilight_marsh';
+    case BiomeType.MalakaArea: return 'sunlit_meadows';
+    case BiomeType.TanisDesert: return 'desert';
   }
 }
 
@@ -365,7 +368,7 @@ const DEFAULT_PALETTES: Record<BiomeType, BiomeColors> = {
     high: new THREE.Color(0x3a2e1f),
     peak: new THREE.Color(0x555566),
   },
-  [BiomeType.EmberWastes]: {
+  [BiomeType.BlastedSuarezLands]: {
     low: new THREE.Color(0x2a1008),
     mid: new THREE.Color(0x4a2010),
     high: new THREE.Color(0x3a2a1a),
@@ -377,19 +380,19 @@ const DEFAULT_PALETTES: Record<BiomeType, BiomeColors> = {
     high: new THREE.Color(0x8a9aaa),
     peak: new THREE.Color(0xc0d0e0),
   },
-  [BiomeType.TwilightMarsh]: {
+  [BiomeType.MoinSwamps]: {
     low: new THREE.Color(0x0a1a0a),
     mid: new THREE.Color(0x1a2a15),
     high: new THREE.Color(0x2a3a20),
     peak: new THREE.Color(0x3a4a30),
   },
-  [BiomeType.SunlitMeadows]: {
-    low: new THREE.Color(0x3a4a1a),
-    mid: new THREE.Color(0x5a6a2a),
-    high: new THREE.Color(0x7a7a3a),
-    peak: new THREE.Color(0x8a8a5a),
+  [BiomeType.MalakaArea]: {
+    low:  new THREE.Color(0xc4a864), // golden sand / dry coastal grass
+    mid:  new THREE.Color(0xb08c46), // terracotta / warm earth
+    high: new THREE.Color(0xc0a878), // pale sandstone
+    peak: new THREE.Color(0xdcc896), // limestone / sun-bleached rock
   },
-  [BiomeType.Desert]: {
+  [BiomeType.TanisDesert]: {
     low: new THREE.Color(0x8d6a39),
     mid: new THREE.Color(0xbb8f4f),
     high: new THREE.Color(0xe0b86c),
@@ -405,11 +408,11 @@ const _colorTemp = new THREE.Color();
 
 const _biomeKeys = [
   BiomeType.Teldrassil,
-  BiomeType.EmberWastes,
+  BiomeType.BlastedSuarezLands,
   BiomeType.CrystalTundra,
-  BiomeType.TwilightMarsh,
-  BiomeType.SunlitMeadows,
-  BiomeType.Desert,
+  BiomeType.MoinSwamps,
+  BiomeType.MalakaArea,
+  BiomeType.TanisDesert,
 ] as const;
 
 // Lazily-populated cache so manifest Color objects are allocated once, not per vertex.
@@ -576,32 +579,32 @@ export function getBiomeSurfaceNoise(
     b += spot * 0.8 * w;
   }
 
-  if (weights[BiomeType.EmberWastes] > 0.01) {
-    const w = weights[BiomeType.EmberWastes];
+  if (weights[BiomeType.BlastedSuarezLands] > 0.01) {
+    const w = weights[BiomeType.BlastedSuarezLands];
     const ember = Math.max(0, Math.sin(x * 2.3 + 0.5) * Math.cos(z * 1.9 - 1.2)) * 0.05;
     r += ember * 1.0 * w;
     g += ember * 0.25 * w;
     b += ember * 0.0 * w;
   }
 
-  if (weights[BiomeType.TwilightMarsh] > 0.01) {
-    const w = weights[BiomeType.TwilightMarsh];
+  if (weights[BiomeType.MoinSwamps] > 0.01) {
+    const w = weights[BiomeType.MoinSwamps];
     const bog = Math.sin(x * 0.7 + 2.1) * Math.sin(z * 0.8 - 0.9) * 0.04;
     r += bog * 0.3 * w;
     g += bog * 0.6 * w;
     b += bog * 0.5 * w;
   }
 
-  if (weights[BiomeType.SunlitMeadows] > 0.01) {
-    const w = weights[BiomeType.SunlitMeadows];
+  if (weights[BiomeType.MalakaArea] > 0.01) {
+    const w = weights[BiomeType.MalakaArea];
     const flower = Math.cos(x * 1.5 + 0.8) * Math.cos(z * 2.1 - 1.4) * 0.03;
     r += flower * 0.9 * w;
     g += flower * 0.7 * w;
     b += flower * 0.1 * w;
   }
 
-  if (weights[BiomeType.Desert] > 0.01) {
-    const w = weights[BiomeType.Desert];
+  if (weights[BiomeType.TanisDesert] > 0.01) {
+    const w = weights[BiomeType.TanisDesert];
     const ripple = Math.abs(Math.sin(x * 0.14 + z * 0.11)) * 0.03;
     const dune = Math.max(0, Math.sin(x * 0.05 + z * 0.04)) * 0.035;
     r += (0.03 + ripple * 0.9 + dune * 0.6) * w;
@@ -624,8 +627,8 @@ export function getBiomeEmissive(x: number, z: number, y: number, t: number, cac
   // so the floor is lit purely by the warm sun/sky. (A nocturnal magic glow
   // used to be baked in here, which read as a persistent cold blue cast.)
 
-  if (weights[BiomeType.EmberWastes] > 0.01 && t < 0.35) {
-    const str = (1.0 - t / 0.35) * 0.25 * weights[BiomeType.EmberWastes];
+  if (weights[BiomeType.BlastedSuarezLands] > 0.01 && t < 0.35) {
+    const str = (1.0 - t / 0.35) * 0.25 * weights[BiomeType.BlastedSuarezLands];
     _emissiveResult.r += 1.0 * str;
     _emissiveResult.g += 0.3 * str;
     _emissiveResult.b += 0.05 * str;
@@ -638,22 +641,22 @@ export function getBiomeEmissive(x: number, z: number, y: number, t: number, cac
     _emissiveResult.b += 1.0 * str;
   }
 
-  if (weights[BiomeType.TwilightMarsh] > 0.01 && t < 0.4) {
-    const str = (1.0 - t / 0.4) * 0.1 * weights[BiomeType.TwilightMarsh];
+  if (weights[BiomeType.MoinSwamps] > 0.01 && t < 0.4) {
+    const str = (1.0 - t / 0.4) * 0.1 * weights[BiomeType.MoinSwamps];
     _emissiveResult.r += 0.2 * str;
     _emissiveResult.g += 0.5 * str;
     _emissiveResult.b += 0.3 * str;
   }
 
-  if (weights[BiomeType.SunlitMeadows] > 0.01 && t < 0.3) {
-    const str = (1.0 - t / 0.3) * 0.08 * weights[BiomeType.SunlitMeadows];
+  if (weights[BiomeType.MalakaArea] > 0.01 && t < 0.3) {
+    const str = (1.0 - t / 0.3) * 0.08 * weights[BiomeType.MalakaArea];
     _emissiveResult.r += 0.8 * str;
     _emissiveResult.g += 0.6 * str;
     _emissiveResult.b += 0.1 * str;
   }
 
-  if (weights[BiomeType.Desert] > 0.01 && t > 0.55) {
-    const str = ((t - 0.55) / 0.45) * 0.08 * weights[BiomeType.Desert];
+  if (weights[BiomeType.TanisDesert] > 0.01 && t > 0.55) {
+    const str = ((t - 0.55) / 0.45) * 0.08 * weights[BiomeType.TanisDesert];
     _emissiveResult.r += 0.45 * str;
     _emissiveResult.g += 0.3 * str;
     _emissiveResult.b += 0.08 * str;

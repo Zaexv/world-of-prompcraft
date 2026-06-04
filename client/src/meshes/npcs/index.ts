@@ -26,7 +26,12 @@ const STYLES: NPCPlaceholderStyle[] = [
   'monster',
   'orc',
   'undead',
-  'oracle'
+  'oracle',
+  'spider',
+  'wasp',
+  'wolf',
+  'golem',
+  'boar',
 ];
 
 export function registerNPCMeshes() {
@@ -57,18 +62,19 @@ export function registerNPCMeshes() {
   }
 }
 
-function registerNPCStyle(type: string, style: NPCPlaceholderStyle, label?: string) {
+function registerNPCStyle(type: string, style: NPCPlaceholderStyle, _label?: string) {
   const NPCClass = class extends Mesh {
     static readonly type = type;
     static readonly category = 'npc' as const;
 
     build(ctx: BuildContext): THREE.Object3D {
       const group = new THREE.Group();
+      // ctx.label carries the NPC id — used by buildProceduralMesh as the variation seed
+      if (ctx.label) group.name = ctx.label;
       const appearance = getPlaceholderAppearance(style);
       buildProceduralMesh(group, appearance, style);
       group.position.copy(ctx.position);
       group.scale.setScalar(ctx.scale);
-      if (label) group.name = label;
       return group;
     }
   };

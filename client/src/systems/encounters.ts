@@ -75,7 +75,7 @@ registerEncounter({
 registerEncounter({
   id: 'bandit_camp',
   name: 'Bandit Encampment',
-  biomes: [BiomeType.Teldrassil, BiomeType.SunlitMeadows, BiomeType.TwilightMarsh],
+  biomes: [BiomeType.Teldrassil, BiomeType.MalakaArea, BiomeType.MoinSwamps],
   minDist: 120,
   chance: 0.09,
   buildFn: buildBanditCamp,
@@ -89,7 +89,7 @@ registerEncounter({
 registerEncounter({
   id: 'battlefield',
   name: 'Battlefield Remnant',
-  biomes: [BiomeType.EmberWastes, BiomeType.CrystalTundra, BiomeType.TwilightMarsh],
+  biomes: [BiomeType.BlastedSuarezLands, BiomeType.CrystalTundra, BiomeType.MoinSwamps],
   minDist: 130,
   chance: 0.08,
   buildFn: buildBattlefieldRemnant,
@@ -99,7 +99,7 @@ registerEncounter({
 registerEncounter({
   id: 'mine_entrance',
   name: 'Abandoned Mine',
-  biomes: [BiomeType.EmberWastes, BiomeType.CrystalTundra, BiomeType.Desert],
+  biomes: [BiomeType.BlastedSuarezLands, BiomeType.CrystalTundra, BiomeType.TanisDesert],
   minDist: 110,
   chance: 0.08,
   buildFn: buildMineEntrance,
@@ -113,7 +113,7 @@ registerEncounter({
 registerEncounter({
   id: 'merchant_caravan',
   name: 'Merchant Caravan',
-  biomes: [BiomeType.SunlitMeadows, BiomeType.Teldrassil],
+  biomes: [BiomeType.MalakaArea, BiomeType.Teldrassil],
   minDist: 100,
   chance: 0.07,
   buildFn: buildMerchantCaravan,
@@ -127,7 +127,7 @@ registerEncounter({
 registerEncounter({
   id: 'fishing_spot',
   name: 'Fishing Spot',
-  biomes: [BiomeType.SunlitMeadows, BiomeType.TwilightMarsh],
+  biomes: [BiomeType.MalakaArea, BiomeType.MoinSwamps],
   minDist: 80,
   chance: 0.07,
   buildFn: buildFishingSpot,
