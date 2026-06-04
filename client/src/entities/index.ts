@@ -5,7 +5,6 @@ export { NPC } from './NPC';
 export type { AnimationName } from './NPCAnimator';
 export { NPCAnimator } from './NPCAnimator';
 export { createNPCMotionProfile } from './NPCMotion';
-export { CharacterAnimator } from './CharacterAnimator';
 export { Player } from './Player';
 export { PlayerController } from './PlayerController';
 export {
@@ -17,4 +16,3 @@ export {
 } from './RaceModels';
 export { RemotePlayer } from './RemotePlayer';
 export { getPlaceholderAppearance, buildProceduralMesh, darken, type AppearanceData } from "./NPCAppearance";
-export { NPCFactory } from "./NPCFactory";

@@ -21,7 +21,6 @@ class PlayerData:
     username: str = ""
     race: str = "human"
     faction: str = "alliance"
-    skin: str = "skin-1"
     yaw: float = 0.0
 
     def to_public_dict(self) -> dict[str, Any]:
@@ -32,7 +31,6 @@ class PlayerData:
             "position": list(self.position),
             "race": self.race,
             "faction": self.faction,
-            "skin": self.skin,
             "hp": self.hp,
             "maxHp": self.max_hp,
             "yaw": self.yaw,
@@ -49,7 +47,6 @@ class PlayerData:
             "username": self.username,
             "race": self.race,
             "faction": self.faction,
-            "skin": self.skin,
             "yaw": self.yaw,
             "active_quests": [
                 {

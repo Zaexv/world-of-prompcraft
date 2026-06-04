@@ -1,23 +1,15 @@
 import * as THREE from 'three';
-import type { GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { CharacterAnimator } from './CharacterAnimator';
 import { buildRaceModel } from './RaceModels';
-import { getDefaultPlayerSkin, getPlayerSkinPath } from './PlayerSkins';
-import type { AssetLoader } from '../utils/asset/AssetLoader';
 import { lerpAngle } from '../utils/math/MathHelpers';
 import { applyCharacterPBR } from '../utils/PBRMaps';
 
 /**
- * Player character built from race-specific models, with optional rigged GLTF skins.
+ * Player character built from a procedural race-specific model.
  */
 export class Player {
   public readonly group: THREE.Group;
 
-  private readonly race: string;
-  private readonly skin: string;
   private visualRoot: THREE.Object3D;
-  private animator: CharacterAnimator | null = null;
 
   private leftLeg: THREE.Mesh | null;
   private rightLeg: THREE.Mesh | null;
@@ -44,9 +36,7 @@ export class Player {
   private prevFacingYaw = 0;
   private turnRate = 0;
 
-  constructor(race: string = 'night_elf', skin: string = getDefaultPlayerSkin()) {
-    this.race = race;
-    this.skin = skin;
+  constructor(race: string = 'night_elf') {
     this.group = new THREE.Group();
 
     this.visualRoot = buildRaceModel(race);
@@ -61,18 +51,9 @@ export class Player {
     this.head = (this.group.getObjectByName('head') as THREE.Mesh) ?? null;
   }
 
-  /**
-   * Create a player with a procedural base model and optionally upgrade to a GLTF skin in the background.
-   * Never blocks game startup.
-   */
-  static create(
-    race: string = 'night_elf',
-    skin: string = getDefaultPlayerSkin(),
-    assetLoader?: AssetLoader,
-  ): Player {
-    const player = new Player(race, skin);
-    void player.tryLoadSkin(assetLoader);
-    return player;
+  /** Create a player with a procedural race model. */
+  static create(race: string = 'night_elf'): Player {
+    return new Player(race);
   }
 
   update(
@@ -112,13 +93,7 @@ export class Player {
     this.turnRate = lerp(this.turnRate, facingDelta / Math.max(delta, 0.001), clampedT(delta, 8));
     this.prevFacingYaw = this.facingYaw;
 
-    if (this.animator) {
-      const state = isMoving ? (isRunning ? 'run' : 'walk') : 'idle';
-      this.animator.setState(state);
-      this.animator.update(delta);
-    } else {
-      this.updateProceduralAnimation(delta, isMoving, isRunning);
-    }
+    this.updateProceduralAnimation(delta, isMoving, isRunning);
 
     // --- Forward lean ---
     const targetLean = isRunning ? -0.13 : isMoving ? -0.07 : 0;
@@ -143,13 +118,11 @@ export class Player {
     if (isSwimming) {
       this.visualRoot.position.y = 0.34;
       this.visualRoot.rotation.z = this.bankLean * 0.5;
-    } else if (!this.animator) {
+    } else {
       const breath = Math.sin(this.breathPhase) * 0.012;
       const idleSway = Math.sin(this.idlePhase) * (isMoving ? 0 : 0.018);
       const moveBob = Math.sin(this.walkPhase) * (isMoving ? 0.04 : 0);
       this.visualRoot.position.y = breath + moveBob + idleSway;
-    } else {
-      this.visualRoot.position.y = 0;
     }
 
     // --- Face movement direction ---
@@ -190,82 +163,6 @@ export class Player {
       this.head.rotation.x = breathNod + idleFidget;
       this.head.rotation.y = lerp(this.head.rotation.y, isMoving ? 0 : Math.sin(this.idlePhase * 0.7) * 0.08, clampedT(delta, 2));
     }
-  }
-
-  private async tryLoadSkin(assetLoader?: AssetLoader): Promise<void> {
-    if (!assetLoader) return;
-
-    const modelPath = getPlayerSkinPath(this.race, this.skin);
-    try {
-      const gltf = await assetLoader.loadGLTF(modelPath);
-      if (gltf.animations.length === 0) {
-        console.warn(`[Player] GLTF skin ${modelPath} has no animations; keeping fallback model.`);
-        return;
-      }
-      const gltfScene = cloneSkeleton(gltf.scene) as THREE.Object3D;
-      this.replaceVisualRoot(gltfScene, gltf);
-    } catch (error) {
-      console.warn(`[Player] Failed to load GLTF skin ${modelPath}:`, error);
-    }
-  }
-
-  private replaceVisualRoot(root: THREE.Object3D, gltf: GLTF): void {
-    this.disposeVisualRoot(this.visualRoot);
-    this.group.remove(this.visualRoot);
-
-    const box = new THREE.Box3().setFromObject(root);
-    const size = new THREE.Vector3();
-    box.getSize(size);
-    const scale = 2.5 / Math.max(size.x, size.y, size.z, 0.001);
-    root.scale.setScalar(scale);
-    root.position.y = -box.min.y * scale;
-
-    root.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.castShadow = true;
-      }
-    });
-
-    this.group.add(root);
-    this.visualRoot = root;
-    this.animator = new CharacterAnimator(root, gltf.animations);
-
-    if (!this.animator.hasAnimations()) {
-      console.warn('[Player] Loaded GLTF skin without usable clips; keeping procedural animation.');
-      this.animator = null;
-      this.group.remove(root);
-      this.disposeVisualRoot(root);
-      this.visualRoot = buildRaceModel(this.race);
-      this.group.add(this.visualRoot);
-      this.leftLeg = (this.group.getObjectByName('leftLeg') as THREE.Mesh) ?? null;
-      this.rightLeg = (this.group.getObjectByName('rightLeg') as THREE.Mesh) ?? null;
-      this.leftArm = (this.group.getObjectByName('leftArm') as THREE.Mesh) ?? null;
-      this.rightArm = (this.group.getObjectByName('rightArm') as THREE.Mesh) ?? null;
-      this.cloak = (this.group.getObjectByName('cloak') as THREE.Mesh) ?? null;
-      this.head = (this.group.getObjectByName('head') as THREE.Mesh) ?? null;
-    } else {
-      this.leftLeg = null;
-      this.rightLeg = null;
-      this.leftArm = null;
-      this.rightArm = null;
-      this.cloak = null;
-      this.head = null;
-    }
-  }
-
-  private disposeVisualRoot(root: THREE.Object3D): void {
-    root.traverse((child) => {
-      if (child instanceof THREE.Mesh) {
-        child.geometry.dispose();
-        if (Array.isArray(child.material)) {
-          for (const material of child.material) {
-            material.dispose();
-          }
-        } else {
-          child.material.dispose();
-        }
-      }
-    });
   }
 }
 

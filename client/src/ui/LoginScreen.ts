@@ -10,7 +10,7 @@ interface Lightning {
 }
 
 export class LoginScreen {
-  onEnterWorld: ((username: string, race: string, faction: string, skin: string) => void) | null = null;
+  onEnterWorld: ((username: string, race: string, faction: string) => void) | null = null;
 
   private overlay: HTMLDivElement;
   private canvas: HTMLCanvasElement;
@@ -48,22 +48,12 @@ export class LoginScreen {
       textShadow: '0 0 20px rgba(197,165,90,0.6), 0 0 40px rgba(197,165,90,0.3), 0 2px 4px rgba(0,0,0,0.8)',
       marginBottom: '0.25em', userSelect: 'none', marginTop: '-5vh',
     } as CSSStyleDeclaration);
+    title.style.marginBottom = '2em';
     this.overlay.appendChild(title);
-
-    const subtitle = document.createElement('div');
-    subtitle.textContent = 'Powered by LangGraph';
-    Object.assign(subtitle.style, {
-      position: 'relative', zIndex: '1',
-      fontFamily: "'Cinzel', Georgia, serif",
-      fontSize: 'clamp(0.8rem, 1.8vw, 1.2rem)', color: '#aaaabb',
-      textAlign: 'center', letterSpacing: '0.25em',
-      textShadow: '0 0 10px rgba(170,170,187,0.3)', marginBottom: '2em', userSelect: 'none',
-    } as CSSStyleDeclaration);
-    this.overlay.appendChild(subtitle);
 
     this.charCreation = new CharacterCreation();
     this.charCreation.onSubmit = (result) => {
-      this.onEnterWorld?.(result.username, result.race, result.faction, result.skin);
+      this.onEnterWorld?.(result.username, result.race, result.faction);
     };
     this.overlay.appendChild(this.charCreation.element);
 
@@ -95,6 +85,7 @@ export class LoginScreen {
     this.running = false;
     cancelAnimationFrame(this.animationId);
     window.removeEventListener('resize', this.handleResize);
+    this.charCreation.dispose();
     setTimeout(() => {
       if (this.overlay.parentNode && this.overlay.style.opacity === '0') this.overlay.remove();
     }, 800);

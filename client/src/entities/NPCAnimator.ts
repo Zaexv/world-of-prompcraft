@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import { GLTF_CLIP_MAP } from './NPCModels';
 import type { NPCMotionProfile } from './NPCMotion';
 
 export type AnimationName = 'idle' | 'walk' | 'attack' | 'emote' | 'talk';
@@ -17,8 +16,7 @@ const EMOTE_DURATIONS: Record<string, number> = {
 
 /**
  * Animation controller for an NPC.
- * Runs procedural bone-free animations by default.
- * Call setMixer() after GLTF load to switch to skeletal AnimationMixer mode.
+ * Runs procedural bone-free animations.
  */
 export class NPCAnimator {
   private group: THREE.Group;
@@ -46,10 +44,6 @@ export class NPCAnimator {
   private updateAccumulator = 0;
   public throttleFactor = 1; // 1 = every frame, 2 = every other frame, etc.
 
-  // GLTF mode — set via setMixer()
-  private mixer: THREE.AnimationMixer | null = null;
-  private clips: Map<string, THREE.AnimationClip> = new Map();
-
   constructor(group: THREE.Group, profile: NPCMotionProfile) {
     this.group = group;
     this.profile = profile;
@@ -62,25 +56,8 @@ export class NPCAnimator {
     this.cloak = group.getObjectByName('cloak') ?? null;
   }
 
-  /**
-   * Switch to GLTF skeletal animation mode.
-   * Plays the idle clip immediately if one is found.
-   */
-  setMixer(mixer: THREE.AnimationMixer, animations: THREE.AnimationClip[]): void {
-    this.mixer = mixer;
-    this.clips.clear();
-    for (const clip of animations) {
-      this.clips.set(clip.name, clip);
-    }
-    this.mixer.timeScale = this.profile.animationRate;
-    this.playGLTFClip('idle');
-  }
-
   setProfile(profile: NPCMotionProfile): void {
     this.profile = profile;
-    if (this.mixer) {
-      this.mixer.timeScale = this.profile.animationRate;
-    }
   }
 
   /** Update the base Y position (e.g. after the NPC moves to new terrain height). */
@@ -107,10 +84,6 @@ export class NPCAnimator {
       this.attackOrigin.copy(this.group.position);
       this.attackDirection.set(0, 0, 1).applyQuaternion(this.group.quaternion).normalize();
     }
-    if (this.mixer) {
-      // GLTF NPCs have no distinct talk clip — keep their current clip running.
-      if (name !== 'talk') this.playGLTFClip(name);
-    }
   }
 
   update(delta: number): void {
@@ -123,12 +96,6 @@ export class NPCAnimator {
     
     const throttledDelta = this.updateAccumulator;
     this.updateAccumulator = 0;
-
-    if (this.mixer) {
-      this.mixer.timeScale = this.profile.animationRate;
-      this.mixer.update(throttledDelta);
-      return;
-    }
 
     this.phase += throttledDelta * this.profile.walkCycleSpeed;
     if (this.phase > 628) this.phase -= 628;
@@ -150,15 +117,6 @@ export class NPCAnimator {
         this.animateTalk(throttledDelta);
         break;
     }
-  }
-
-  private playGLTFClip(name: AnimationName): void {
-    if (!this.mixer) return;
-    const clipName = GLTF_CLIP_MAP[name] ?? name;
-    const clip = this.clips.get(clipName) ?? this.clips.values().next().value;
-    if (!clip) return;
-    this.mixer.stopAllAction();
-    this.mixer.clipAction(clip).reset().fadeIn(0.2).play();
   }
 
   // --- Idle: gentle vertical bob ---
