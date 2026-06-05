@@ -14,14 +14,14 @@ repos:
     hooks:
       - id: eslint
         name: eslint
-        entry: bash -c 'cd client && npx eslint src/'
+        entry: bash -c 'cd client && pnpm exec eslint src/'
         language: system
         files: ^client/src/.*\.ts$
         pass_filenames: false
 
       - id: tsc
         name: tsc
-        entry: bash -c 'cd client && npx tsc --noEmit'
+        entry: bash -c 'cd client && pnpm exec tsc --noEmit'
         language: system
         files: ^client/src/.*\.ts$
         pass_filenames: false
@@ -39,7 +39,7 @@ repos:
 
       - id: vitest
         name: vitest
-        entry: bash -c 'cd client && npx vitest run'
+        entry: bash -c 'cd client && pnpm exec vitest run'
         language: system
         files: ^client/src/
         pass_filenames: false

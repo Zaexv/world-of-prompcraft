@@ -12,8 +12,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "check": "npm run lint && npm run typecheck && npm run test"
+    "check": "pnpm run lint && pnpm run typecheck && pnpm run test"
   },
+  "packageManager": "pnpm@11.5.2",
   "dependencies": {
     "three": "^0.170.0",
     "three-mesh-bvh": "^0.9.10",
@@ -27,6 +28,6 @@
     "typescript": "^5.7.0",
     "typescript-eslint": "^8.0.0",
     "vite": "^6.0.0",
-    "vitest": "^3.0.0"
+    "vitest": "^3.2.4"
   }
 }

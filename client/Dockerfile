@@ -1,20 +1,23 @@
 # Multi-stage build for client
 FROM node:20-alpine AS builder
 
+# Enable pnpm via corepack (version pinned by package.json "packageManager")
+RUN corepack enable
+
 WORKDIR /app
 
-# Copy package files (from root context)
-COPY client/package*.json ./
+# Copy manifest + lockfile (from root context)
+COPY client/package.json client/pnpm-lock.yaml client/pnpm-workspace.yaml ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (frozen = reproducible; lifecycle scripts blocked by default)
+RUN pnpm install --frozen-lockfile
 
 # Copy source and shared data
 COPY client/ ./
 COPY shared/ ../shared/
 
 # Build for production
-RUN npm run build
+RUN pnpm run build
 
 # Production image
 FROM node:20-alpine

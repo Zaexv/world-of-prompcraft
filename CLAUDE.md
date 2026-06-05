@@ -17,7 +17,7 @@ Run both services in separate terminals:
 cd server && pip install -e ".[dev]" && python -m uvicorn src.main:app --reload --port 8000
 
 # Terminal 2 — frontend (http://localhost:5173)
-cd client && npm install && npm run dev
+cd client && corepack enable && pnpm install && pnpm run dev
 ```
 
 Then open **http://localhost:5173** in a browser. The client connects to the server via WebSocket on port 8000.
