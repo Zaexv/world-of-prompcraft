@@ -11,7 +11,7 @@ services:
       - ./client:/app
       - /app/node_modules
       - ./shared:/shared
-    command: npm run dev -- --host
+    command: sh -c "corepack enable && pnpm install --frozen-lockfile && pnpm run dev -- --host"
 
   server:
     build:

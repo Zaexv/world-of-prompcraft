@@ -142,8 +142,9 @@ python -m uvicorn src.main:app --reload --port 8000
 
 ```bash
 cd client
-npm install
-npm run dev
+corepack enable   # provisions pnpm (version pinned in package.json)
+pnpm install
+pnpm run dev
 ```
 
 > Runs at **http://localhost:5173**

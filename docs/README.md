@@ -5,7 +5,7 @@
 | Service | Command | URL |
 |---------|---------|-----|
 | **Backend** | `cd server && python -m uvicorn src.main:app --reload --port 8000` | http://localhost:8000 |
-| **Frontend** | `cd client && npm run dev` | http://localhost:5173 |
+| **Frontend** | `cd client && pnpm run dev` | http://localhost:5173 |
 
 Use `make check` from the repo root to run lint + typecheck + tests for both sides before committing.
 

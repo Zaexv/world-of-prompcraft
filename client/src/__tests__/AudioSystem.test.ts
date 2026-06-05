@@ -37,13 +37,28 @@ vi.mock('tone', () => {
     ...mockSynth,
     chain: vi.fn(() => chainable),
   };
+  // vitest 4 invokes a mock's implementation as a constructor under `new`,
+  // so the `new Tone.X(...)` exports must be plain functions (arrows can't
+  // construct). Returning an object from the function makes `new` yield it.
   return {
-    Gain: vi.fn(() => mockGain),
-    Synth: vi.fn(() => ({ ...mockSynth, chain: vi.fn().mockReturnThis() })),
-    MembraneSynth: vi.fn(() => ({ ...mockSynth, chain: vi.fn().mockReturnThis() })),
-    PolySynth: vi.fn(() => mockPolySynth),
-    NoiseSynth: vi.fn(() => mockWithChain),
-    Filter: vi.fn(() => mockFilter),
+    Gain: vi.fn(function () {
+      return mockGain;
+    }),
+    Synth: vi.fn(function () {
+      return { ...mockSynth, chain: vi.fn().mockReturnThis() };
+    }),
+    MembraneSynth: vi.fn(function () {
+      return { ...mockSynth, chain: vi.fn().mockReturnThis() };
+    }),
+    PolySynth: vi.fn(function () {
+      return mockPolySynth;
+    }),
+    NoiseSynth: vi.fn(function () {
+      return mockWithChain;
+    }),
+    Filter: vi.fn(function () {
+      return mockFilter;
+    }),
     Frequency: vi.fn((note: string) => ({
       transpose: vi.fn(() => ({ toNote: () => note })),
     })),

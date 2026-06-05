@@ -158,7 +158,25 @@
       "Bash(python3 .claude/skills/rpi-research/scripts/metadata.py)",
       "Bash(ls docs/agents/research/)",
       "Bash(rtk git *)",
-      "Bash(rtk find *)"
+      "Bash(rtk find *)",
+      "Bash(rtk pytest *)",
+      "Bash(rtk mypy *)",
+      "Bash(rtk ls *)",
+      "Bash(rtk read *)",
+      "Bash(pnpm --version)",
+      "Bash(corepack --version)",
+      "Bash(corepack prepare *)",
+      "Bash(corepack pnpm *)",
+      "Bash(echo \"=== EXIT $? ===\")",
+      "Bash(git check-ignore *)",
+      "Bash(echo \"exit:$?  \\(nonzero=not ignored, good\\)\")",
+      "Bash(echo \"---EXIT $?---\")",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\plugins\\\\cache\\\\caveman\\\\caveman\\\\655b7d9c5431\\\\src\\\\hooks\\\\caveman-statusline.ps1\")",
+      "Bash(xxd 'C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\.caveman-statusline-suffix')",
+      "PowerShell(powershell -ExecutionPolicy Bypass -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; & 'C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\plugins\\\\cache\\\\caveman\\\\caveman\\\\655b7d9c5431\\\\src\\\\hooks\\\\caveman-statusline.ps1'\" | Format-Hex | Select-Object -First 4)",
+      "PowerShell(Format-Hex *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(git rm *)"
     ]
   },
   "hooks": {

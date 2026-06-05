@@ -1,0 +1,12 @@
+# pnpm blocks all dependency lifecycle scripts by default (script-injection
+# mitigation). Only the packages set true here may run build scripts.
+allowBuilds:
+  esbuild: true
+# Pin vulnerable transitive deps up to their patched versions (pnpm audit --fix).
+# vitest/coverage-v8 are bumped directly in package.json instead of overridden.
+overrides:
+  brace-expansion@<1.1.13: ^1.1.13
+  picomatch@>=4.0.0 <4.0.4: ^4.0.4
+  postcss@<8.5.10: ^8.5.10
+  vite@<=6.4.1: ^6.4.2
+  vite@>=6.0.0 <=6.4.1: ^6.4.2

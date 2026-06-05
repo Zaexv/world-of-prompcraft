@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
   PYTHON_VERSION: "3.13"
 
 jobs:
@@ -28,13 +28,16 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci --prefer-offline --no-audit
-      - run: npx eslint src/ --max-warnings 0
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec eslint src/ --max-warnings 0
 
   server-lint:
     name: "📋 Server Lint & Format"
@@ -65,13 +68,16 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci --prefer-offline --no-audit
-      - run: npx tsc --noEmit --incremental
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit --incremental
 
   server-typecheck:
     name: "✓ Server Typecheck"
@@ -106,13 +112,16 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: npm
-          cache-dependency-path: client/package-lock.json
-      - run: npm ci --prefer-offline --no-audit
-      - run: npx vitest run --coverage
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec vitest run --coverage
       - uses: codecov/codecov-action@v4
         with:
           files: ./client/coverage/coverage-final.json
