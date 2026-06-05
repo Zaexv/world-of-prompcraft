@@ -89,6 +89,27 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         parts.append("")
         parts.append(f"## Personal Notes: {notes}")
 
+    # ── Player's Journey (shared story across all NPCs) ──────────────────
+    player_backstory = world.get("player_backstory", "")
+    player_story = world.get("player_story", [])
+    if player_backstory:
+        parts.append("")
+        parts.append("## Your Knowledge of This Traveler")
+        parts.append(
+            "Below is what is known about this player's journey. "
+            "Decide naturally whether YOU would know about these events "
+            "based on who you are, where you live, and your role in the world. "
+            "You may recognize the player, reference their deeds, or treat them "
+            "as a complete stranger — whatever fits your character."
+        )
+        parts.append("")
+        parts.append(f"Origin: {player_backstory}")
+        if player_story:
+            story_window = player_story[-8:]
+            parts.append("Known events (most recent first):")
+            for event in reversed(story_window):
+                parts.append(f"  - {event}")
+
     # RAG: retrieve relevant lore based on the player's prompt. Resolve this
     # before writing the instructions so the length budget can adapt: a plain
     # reply stays terse, a lore-bearing reply earns more room.
@@ -143,10 +164,23 @@ def _build_compact_system_prompt(state: NPCAgentState) -> str:
     )
 
 
+def _is_tool_message(msg: Any) -> bool:
+    """Check if a message is a tool/function response."""
+    return (hasattr(msg, "type") and msg.type == "tool") or (
+        isinstance(msg, dict) and msg.get("role") == "tool"
+    )
+
+
 def _select_reasoning_messages(state: NPCAgentState, short_social: bool) -> list[Any]:
     """Keep the active prompt bounded while preserving the current exchange."""
     max_messages = _MAX_SHORT_SOCIAL_MESSAGES if short_social else _MAX_REASON_HISTORY_MESSAGES
-    return state.get("messages", [])[-max_messages:]
+    msgs = state.get("messages", [])
+    sliced = msgs[-max_messages:]
+    # Strip orphaned ToolMessages at the start — their parent AIMessage
+    # was cut off, which would cause Gemini to reject the request.
+    while sliced and _is_tool_message(sliced[0]):
+        sliced.pop(0)
+    return sliced
 
 
 async def _run_inline_tools(

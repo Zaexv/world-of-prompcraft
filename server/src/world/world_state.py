@@ -206,6 +206,7 @@ class WorldState:
             if dist < 50.0:
                 nearby.append({"name": other_npc.name, "distance": round(dist, 1)})
 
+        player = self.get_player(player_id)
         return {
             "zone": zone_name,
             "zone_description": get_zone_description(zone_name),
@@ -214,7 +215,19 @@ class WorldState:
             "nearby_entities": nearby,
             "recent_chat": self.get_recent_chat(10),
             "recent_events": list(self.recent_events)[-5:],
+            "player_backstory": player.player_backstory,
+            "player_story": list(player.player_story),
+            "has_backstory": player.has_backstory,
         }
+
+    # ---- Player Story ----
+
+    def append_player_story(self, player_id: str, event: str) -> None:
+        """Append a canonical event to the player's persistent story."""
+        player = self.get_player(player_id)
+        time_label = self.environment.get("time_of_day", "day")
+        player.player_story.append(f"[{time_label}] {event}")
+        self.recent_events.append(f"{player_id}: {event}")
 
     # ---- Actions ----
 
@@ -239,6 +252,7 @@ class WorldState:
                         target_npc.hp = max(0, target_npc.hp - amount)
                         if target_npc.hp <= 0:
                             self.recent_events.append(f"{target_npc.name} was defeated")
+                            self.append_player_story(pid, f"Defeated {target_npc.name}")
                     else:
                         player = self.get_player(pid or "default")
                         player.hp = max(0, player.hp - amount)
@@ -257,6 +271,7 @@ class WorldState:
                     if item:
                         player = self.get_player(pid)
                         player.inventory.append(item)
+                        self.append_player_story(pid, f"Received {item}")
 
                 elif kind == "give_gold":
                     pid = params.get("player_id", "")
@@ -318,6 +333,7 @@ class WorldState:
                         player = self.get_player(pid)
                         player.start_quest(quest_id)
                         self.recent_events.append(f"{pid} started quest {quest_id}")
+                        self.append_player_story(pid, f"Began quest {quest_id}")
 
                 elif kind == "complete_quest":
                     pid = params.get("player_id", "")
@@ -332,6 +348,7 @@ class WorldState:
                         if quest_def and quest_def.reward_item:
                             player.inventory.append(quest_def.reward_item)
                         self.recent_events.append(f"{pid} completed quest {quest_id}")
+                        self.append_player_story(pid, f"Completed quest {quest_id}")
 
                 elif kind == "move_npc":
                     # Sync NPC position server-side
@@ -340,5 +357,14 @@ class WorldState:
                     npc = self.npcs.get(nid)
                     if npc and isinstance(position, list) and len(position) >= 3:
                         npc.position = [float(position[0]), float(position[1]), float(position[2])]
+
+                elif kind == "set_backstory":
+                    pid = params.get("player_id", "")
+                    backstory = params.get("backstory", "")
+                    if backstory and pid:
+                        player = self.get_player(pid)
+                        player.player_backstory = backstory
+                        player.has_backstory = True
+                        self.recent_events.append(f"{pid}'s story began")
 
                 # spawn_effect, emote are purely visual — client only
