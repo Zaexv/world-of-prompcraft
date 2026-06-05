@@ -170,8 +170,7 @@ def make_respond_node(llm: BaseChatModel, tools: list[BaseTool] | None = None) -
         # clean dialogue (already inline-tool-stripped), so action turns —
         # trade, quest, heal, combat — cost no extra LLM round-trip.
         if raw and raw != EMPTY_DIALOGUE:
-            cleaned = _clean_speak_text(raw, params_by_tool)
-            return {"response_text": cleaned or EMPTY_DIALOGUE, "pending_actions": pending}
+            return {"response_text": raw, "pending_actions": pending}
 
         # Speak path: only when reason came back empty/"..." → dedicated call.
         tail = [m for m in messages[-_RECENT_TAIL:] if getattr(m, "content", "")]

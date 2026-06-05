@@ -50,49 +50,6 @@ def _make_star_pattern(names: set[str]) -> re.Pattern[str]:
     return re.compile(rf"\*\s*({alternation})\s+(.*?)\s*\*", re.IGNORECASE | re.DOTALL)
 
 
-# ── Generic leak cleanup (model-agnostic, not tied to the bound tool list) ──
-#
-# Harmony/channel control tokens some models (e.g. gpt-oss) leak into content.
-# Tokenizers mangle the pipes, so the bracket/pipe combo is matched loosely:
-# ``<|channel|>``, ``<channel|>``, ``<|message|>``, ``<|start|>``, ``<|end|>``.
-_CHANNEL_NAMES = r"channel|message|start|end|return|assistant|user|system"
-_CHANNEL_MARKER = re.compile(rf"<\|?\s*(?:{_CHANNEL_NAMES})\s*\|?>", re.IGNORECASE)
-# A channel-name word glued to a marker (``thought <channel|>``,
-# ``<|channel|>analysis``). Only stripped next to a marker so the plain English
-# words survive everywhere else.
-_CHANNEL_WORD = re.compile(
-    rf"\b(?:thought|analysis|commentary|assistantfinal|final)\b\s*"
-    rf"(?=<\|?\s*(?:{_CHANNEL_NAMES})\s*\|?>)",
-    re.IGNORECASE,
-)
-# A bare channel word left at the very start once the marker itself is gone.
-_LEADING_CHANNEL_WORD = re.compile(
-    r"^\s*(?:thought|analysis|commentary|assistantfinal)\b[\s:]*", re.IGNORECASE
-)
-# Leftover call syntax for tools the model *hallucinated* (not in the bound set),
-# e.g. ``own_item('jamon')``. Matched conservatively — a name glued to parens
-# around a *quoted* argument — so natural prose like ``apples(red)`` and bare
-# numeric forms like ``cast_spell(3)`` are left alone.
-_LEFTOVER_CALL = re.compile(r"\b[a-z][a-z0-9_]*\(\s*['\"][^()]*['\"]\s*\)", re.IGNORECASE)
-# Empty enclosure left behind once a wrapped call is stripped: a model writes
-# ``[give_gold(50)]`` or ``(emote('wave'))`` and removing the call leaves ``[ ]``
-# / ``( )``. Drop brackets/parens/braces that now hold only whitespace. Mismatched
-# pairs (``[ )``) are residue too, so they are matched as well.
-_EMPTY_ENCLOSURE = re.compile(r"[\[\(\{]\s*[\]\)\}]")
-
-
-def _strip_leaked_markup(text: str) -> str:
-    """Remove channel-control tokens and hallucinated call syntax from prose."""
-    text = _CHANNEL_WORD.sub(" ", text)
-    text = _CHANNEL_MARKER.sub(" ", text)
-    text = _LEADING_CHANNEL_WORD.sub("", text)
-    text = _LEFTOVER_CALL.sub(" ", text)
-    # Repeat until stable so nested residue (``[( )]`` → ``[ ]`` → ``") collapses.
-    while _EMPTY_ENCLOSURE.search(text):
-        text = _EMPTY_ENCLOSURE.sub(" ", text)
-    return text
-
-
 def _json_type(value: Any) -> str:
     if isinstance(value, bool):
         return "boolean"
@@ -201,7 +158,7 @@ def extract_inline_tool_calls(
         ``{"name": str, "args": dict}`` dicts and ``cleaned_text`` has the call
         syntax removed.
     """
-    if not text:
+    if not text or not params_by_tool:
         return text, []
 
     names = set(params_by_tool)
@@ -227,17 +184,13 @@ def extract_inline_tool_calls(
         calls.append({"name": name, "args": _assign_args(params_by_tool[name], tokens)})
         return " "
 
-    cleaned = text
-    if params_by_tool:
-        cleaned = _make_tag_pattern(names).sub(_consume_body, cleaned)
-        cleaned = _make_call_pattern(names).sub(_consume_call, cleaned)
-        cleaned = _make_paren_colon_pattern(names).sub(_consume_body, cleaned)
-        cleaned = _make_star_pattern(names).sub(_consume_body, cleaned)
+    cleaned = _make_tag_pattern(names).sub(_consume_body, text)
+    cleaned = _make_call_pattern(names).sub(_consume_call, cleaned)
+    cleaned = _make_paren_colon_pattern(names).sub(_consume_body, cleaned)
+    cleaned = _make_star_pattern(names).sub(_consume_body, cleaned)
     # Strip <em> tags — keep inner text, discard markup.
     cleaned = re.sub(r"<em>\s*</em>", " ", cleaned, flags=re.DOTALL)
     cleaned = re.sub(r"<em>(.*?)</em>", r"\1", cleaned, flags=re.DOTALL)
-    # Drop channel-control tokens and hallucinated (unknown-tool) call syntax.
-    cleaned = _strip_leaked_markup(cleaned)
     # Collapse whitespace left behind and trim stray wrapping quotes/space.
     cleaned = re.sub(r"\s+", " ", cleaned).strip().strip("\"'").strip()
     return cleaned, calls
