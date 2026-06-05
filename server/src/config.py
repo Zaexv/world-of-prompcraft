@@ -57,6 +57,16 @@ class Settings(BaseSettings):
     agent_invoke_timeout_seconds: float = 60.0
     ws_port: int = 8000
 
+    # World-wide directive injected into every NPC prompt (reasoning + speaking),
+    # on top of each NPC's own personality. Use it for rules that must hold for
+    # all characters. Override via the NPC_GLOBAL_DIRECTIVE env var; set empty to
+    # disable. Default: mirror the player's language.
+    npc_global_directive: str = (
+        "Always reply in the SAME language the player used in their latest message "
+        "(e.g. Spanish to Spanish, English to English). Never switch languages "
+        "unless the player does. Stay fully in character while doing so."
+    )
+
     model_config = {"env_file": ["../.env", ".env"], "env_file_encoding": "utf-8"}
 
     @model_validator(mode="after")

@@ -22,7 +22,11 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 from .constants import EMPTY_DIALOGUE
 from .inline_tools import extract_inline_tool_calls
-from .prompt_parts import length_budget_instruction, relationship_tier
+from .prompt_parts import (
+    global_directive_section,
+    length_budget_instruction,
+    relationship_tier,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -172,6 +176,7 @@ def build_speak_prompt(state: NPCAgentState) -> str:
             "Your mood, relationship, and memories should naturally colour your dialogue.",
         ]
     )
+    parts.extend(global_directive_section())
     return "\n".join(parts)
 
 
