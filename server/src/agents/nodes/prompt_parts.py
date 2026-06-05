@@ -6,6 +6,25 @@ length budget are defined once here and imported by ``reason`` and ``respond``.
 
 from __future__ import annotations
 
+from ...config import settings
+
+
+def global_npc_directive() -> str:
+    """World-wide rules applied to every NPC, on top of its own personality.
+
+    Sourced from ``settings.npc_global_directive`` (env: ``NPC_GLOBAL_DIRECTIVE``)
+    so a single switch governs all characters. Returns ``""`` when disabled.
+    """
+    return (settings.npc_global_directive or "").strip()
+
+
+def global_directive_section() -> list[str]:
+    """The global directive as prompt lines (a ``## Global Rules`` block), or []."""
+    directive = global_npc_directive()
+    if not directive:
+        return []
+    return ["", "## Global Rules (apply to every NPC)", directive]
+
 
 def relationship_tier(score: int) -> str:
     """Return the relationship-tier instruction line for a cumulative score."""

@@ -10,7 +10,12 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 from .inline_tools import extract_inline_tool_calls
-from .prompt_parts import length_budget_instruction, relationship_tier
+from .prompt_parts import (
+    global_directive_section,
+    global_npc_directive,
+    length_budget_instruction,
+    relationship_tier,
+)
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -106,6 +111,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
             "Your mood, relationship, and memories should naturally colour your dialogue.",
         ]
     )
+    parts.extend(global_directive_section())
 
     # Include recent chat from other players so NPCs are aware of world conversations
     recent_chat = world.get("recent_chat", [])
@@ -126,12 +132,14 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
 
 def _build_compact_system_prompt(state: NPCAgentState) -> str:
     world = state.get("world_context", {})
+    directive = global_npc_directive()
+    suffix = f" {directive}" if directive else ""
     return (
         f"You are {state.get('npc_name', 'an NPC')} in {world.get('zone', 'the area')} in a fantasy RPG world. "
         f"Personality: {state.get('npc_personality', 'helpful villager')}. "
         f"Mood: {state.get('mood', 'neutral')}. "
         "Reply naturally in character, but keep it under 200 characters — one short "
-        "sentence is plenty. Do not mention being an AI."
+        f"sentence is plenty. Do not mention being an AI.{suffix}"
     )
 
 

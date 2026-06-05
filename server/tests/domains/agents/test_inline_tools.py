@@ -167,3 +167,96 @@ def test_full_mixed_input() -> None:
     assert "I... have... nothing... to... trade... stranger..." in cleaned
     assert "You speak with the arrogance of fools!" in cleaned
     assert "<em>" not in cleaned
+
+
+def test_hallucinated_call_with_quoted_arg_stripped() -> None:
+    # ``own_item`` is not a bound tool, but the quoted-arg call syntax is a clear
+    # leak and must not reach the player.
+    text = "¡Me encantaría probarlo! own_item('jamon') (Wait, I'll take it!)"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "own_item" not in cleaned
+    assert "¡Me encantaría probarlo!" in cleaned
+    assert "(Wait, I'll take it!)" in cleaned
+
+
+def test_hallucinated_call_multiple_args_stripped() -> None:
+    # Multi-arg hallucinated call with an escaped quote and a trailing number.
+    text = "¡Nada malo! own_item('Beginner\\'s Guide', 0) ¡Aquí tienes tu manual!"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "own_item" not in cleaned
+    assert cleaned == "¡Nada malo! ¡Aquí tienes tu manual!"
+
+
+def test_known_tool_escaped_quote_arg_is_unescaped() -> None:
+    # A *known* tool call written inline with an escaped apostrophe: the parsed
+    # arg value must not keep the backslash (it would show up in the combat log).
+    text = "offer_item('Beginner\\'s Guide')"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert cleaned == ""
+    assert calls == [{"name": "offer_item", "args": {"item_name": "Beginner's Guide"}}]
+
+
+def test_numeric_only_call_preserved() -> None:
+    # No quote in the body → not a clear leak; leave it (matches unknown-tool rule).
+    cleaned, _ = extract_inline_tool_calls("Cast it! cast_spell(3)", PARAMS)
+    assert "cast_spell(3)" in cleaned
+
+
+def test_channel_marker_only_collapses_to_empty() -> None:
+    cleaned, calls = extract_inline_tool_calls("thought <channel|>", PARAMS)
+    assert calls == []
+    assert cleaned == ""
+
+
+def test_channel_marker_strips_keeps_dialogue() -> None:
+    text = 'thought <channel|>"A stray soul wanders into my muck! Who dares disturb the Bog Witch?"'
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "channel" not in cleaned
+    assert "thought" not in cleaned
+    assert cleaned == "A stray soul wanders into my muck! Who dares disturb the Bog Witch?"
+
+
+def test_bracket_wrapped_call_leaves_no_empty_enclosure() -> None:
+    # A real tool call wrapped in brackets must not leave ``[ ]`` behind.
+    text = "¡Te daré un poco de oro para empezar tu travesía. [start_quest('q1')]"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == [{"name": "start_quest", "args": {"quest_id": "q1"}}]
+    assert "[" not in cleaned and "]" not in cleaned
+    assert cleaned == "¡Te daré un poco de oro para empezar tu travesía."
+
+
+def test_paren_and_bracket_residue_removed() -> None:
+    text = "(emote('wave')) \"¡Aquí tienes tu manual!\" [start_quest('q1')]"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert {c["name"] for c in calls} == {"emote", "start_quest"}
+    assert "(" not in cleaned and ")" not in cleaned
+    assert "[" not in cleaned and "]" not in cleaned
+    assert cleaned == "¡Aquí tienes tu manual!"
+
+
+def test_real_parentheses_in_prose_kept() -> None:
+    # Non-empty enclosures (real asides) must survive.
+    text = "Take this (it is a gift) traveller."
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert cleaned == "Take this (it is a gift) traveller."
+
+
+def test_closed_reasoning_block_removed_dialogue_kept() -> None:
+    text = "<think>I should greet warmly. No tool needed.</think> ¡Bienvenido, viajero!"
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert cleaned == "¡Bienvenido, viajero!"
+
+
+def test_unclosed_reasoning_block_drops_to_end() -> None:
+    # An unclosed reasoning opener means the rest is chain-of-thought — drop it.
+    text = "¡Hola! <thought > // No tool calls needed. The user is asking..."
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "thought" not in cleaned
+    assert "No tool calls" not in cleaned
+    assert cleaned == "¡Hola!"
