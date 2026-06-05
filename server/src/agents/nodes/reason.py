@@ -10,6 +10,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 from .inline_tools import extract_inline_tool_calls
+from .prompt_parts import length_budget_instruction, relationship_tier
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -76,25 +77,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     parts.append("Let this mood subtly influence your tone and word choice.")
 
     score = state.get("relationship_score", 0) or 0
-    if score <= -50:
-        rel_tier = (
-            "ENEMY — This player is your sworn foe. Attack on sight. "
-            "NEVER trade, give items, or help them in any way."
-        )
-    elif score <= -20:
-        rel_tier = (
-            "HOSTILE — This player has attacked you. Be aggressive and defensive. "
-            "REFUSE all trade and quest requests. Do not offer items."
-        )
-    elif score <= -10:
-        rel_tier = "DISTRUSTFUL — You distrust this player. Be wary and curt."
-    elif score <= 10:
-        rel_tier = "STRANGER — You have no strong feelings. Be polite but reserved."
-    elif score <= 50:
-        rel_tier = "FRIEND — You like this player. Be warm and helpful."
-    else:
-        rel_tier = "TRUSTED ALLY — This player is your trusted companion. Share secrets, offer rare items and quests."
-    parts.append(f"## Your Relationship with This Player ({score}): {rel_tier}")
+    parts.append(f"## Your Relationship with This Player ({score}): {relationship_tier(score)}")
 
     notes = state.get("personality_notes", "")
     if notes:
@@ -119,7 +102,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
             "## Instructions",
             "Respond to the player's prompt. Use tools to take actions in the world.",
             "Be creative and stay in character.",
-            _length_budget_instruction(lore_used),
+            length_budget_instruction(lore_used),
             "Your mood, relationship, and memories should naturally colour your dialogue.",
         ]
     )
@@ -139,23 +122,6 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
             parts.append(f"[{entry['topic']}]: {entry['content']}")
 
     return "\n".join(parts)
-
-
-def _length_budget_instruction(lore_used: bool) -> str:
-    """Hard character budget for the spoken reply, tighter when there is no lore.
-
-    Prompt-only enforcement: the dialogue is never truncated server-side, so the
-    instruction must be explicit. Lore-bearing replies earn extra room to share it.
-    """
-    if lore_used:
-        return (
-            "LENGTH: Keep your reply under 500 characters since you are sharing lore. "
-            "Stay tight — only the lore that answers the prompt, no rambling."
-        )
-    return (
-        "LENGTH: Keep your reply under 200 characters. One or two punchy sentences. "
-        "No exposition, no lists, no lore dumps."
-    )
 
 
 def _build_compact_system_prompt(state: NPCAgentState) -> str:

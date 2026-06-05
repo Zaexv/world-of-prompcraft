@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from langchain_core.messages import SystemMessage
+from langchain_core.messages import RemoveMessage, SystemMessage
 
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 
@@ -16,6 +16,9 @@ _SUMMARIZE_THRESHOLD = 10
 _SUMMARIZE_INTERVAL = 3
 _SUMMARY_WINDOW_SIZE = 12
 _SUMMARY_MAX_CHARS = 500
+# After folding older turns into the summary, keep only this many recent messages
+# in the checkpointed channel so per-NPC memory stays bounded over long chats.
+_KEEP_RECENT_MESSAGES = 6
 
 _SUMMARIZE_PROMPT = (
     "You are a memory summarizer for an NPC in a fantasy game. "
@@ -63,11 +66,27 @@ def _build_recent_conversation(state: NPCAgentState) -> str:
     return "\n".join(lines)
 
 
+def _prune_messages(messages: list[Any]) -> list[Any]:
+    """RemoveMessage entries trimming the channel to the most recent tail.
+
+    Only messages carrying a stable ``id`` can be deleted via the add_messages
+    reducer; any without one are left in place.
+    """
+    if len(messages) <= _KEEP_RECENT_MESSAGES:
+        return []
+    removals: list[Any] = []
+    for msg in messages[:-_KEEP_RECENT_MESSAGES]:
+        mid = getattr(msg, "id", None)
+        if mid:
+            removals.append(RemoveMessage(id=mid))
+    return removals
+
+
 def make_summarize_node(llm: BaseChatModel) -> Any:
     """Return a summarize node function closed over the given LLM."""
 
     async def summarize_node(state: NPCAgentState) -> dict[str, Any]:
-        """Generate a rolling conversation summary using the LLM."""
+        """Fold older turns into a rolling summary, then prune the transcript."""
         previous_summary = state.get("conversation_summary", "") or ""
         conversation_text = _build_recent_conversation(state)
         if not conversation_text:
@@ -81,11 +100,18 @@ def make_summarize_node(llm: BaseChatModel) -> Any:
         try:
             result = await llm.ainvoke([SystemMessage(content=prompt)])
             summary = getattr(result, "content", "")
-            if summary:
-                return {"conversation_summary": summary[:_SUMMARY_MAX_CHARS]}
         except Exception:
             logger.warning("Summarize node failed; keeping existing summary", exc_info=True)
+            return {}
 
-        return {}
+        if not summary:
+            return {}
+
+        # Only prune once the older turns are safely captured in the summary.
+        out: dict[str, Any] = {"conversation_summary": summary[:_SUMMARY_MAX_CHARS]}
+        removals = _prune_messages(state.get("messages", []))
+        if removals:
+            out["messages"] = removals
+        return out
 
     return summarize_node

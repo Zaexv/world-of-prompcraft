@@ -5,10 +5,14 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from langchain_core.messages import AIMessage, HumanMessage
+from langchain_core.messages import AIMessage, HumanMessage, RemoveMessage
 
 from src.agents.nodes.reason import make_reason_node
-from src.agents.nodes.summarize import make_summarize_node, route_after_reflect
+from src.agents.nodes.summarize import (
+    _KEEP_RECENT_MESSAGES,
+    make_summarize_node,
+    route_after_reflect,
+)
 from src.agents.registry import _build_input_state
 
 
@@ -114,3 +118,61 @@ async def test_summarize_node_uses_recent_window() -> None:
     assert "The player is looking for a tower key." in prompt
     assert "And the final clue is in the tower." in prompt
     assert "Player turn 0" not in prompt
+
+
+def _build_identified_messages(turns: int) -> list[object]:
+    """Conversation history where every message carries a stable id (prunable)."""
+    messages: list[object] = []
+    for turn in range(turns):
+        messages.append(HumanMessage(content=f"Player turn {turn}.", id=f"h{turn}"))
+        messages.append(AIMessage(content=f"NPC reply {turn}.", id=f"a{turn}"))
+    return messages
+
+
+@pytest.mark.asyncio
+async def test_summarize_node_prunes_to_recent_tail() -> None:
+    model = _RecorderModel("Updated summary")
+    summarize_node = make_summarize_node(model)
+    messages = _build_identified_messages(10)  # 20 messages, all with ids
+    state = {"messages": messages, "npc_name": "Aster", "conversation_summary": ""}
+
+    result = await summarize_node(state)  # type: ignore[arg-type]
+
+    removals = result["messages"]
+    assert all(isinstance(m, RemoveMessage) for m in removals)
+    # 20 total, keep the last _KEEP_RECENT_MESSAGES → the rest are removed.
+    assert len(removals) == len(messages) - _KEEP_RECENT_MESSAGES
+    removed_ids = {m.id for m in removals}
+    kept_ids = {getattr(m, "id", None) for m in messages[-_KEEP_RECENT_MESSAGES:]}
+    assert removed_ids.isdisjoint(kept_ids)
+
+
+@pytest.mark.asyncio
+async def test_summarize_node_no_prune_when_history_short() -> None:
+    model = _RecorderModel("Updated summary")
+    summarize_node = make_summarize_node(model)
+    state = {
+        "messages": _build_identified_messages(2),  # 4 messages ≤ keep threshold
+        "npc_name": "Aster",
+        "conversation_summary": "",
+    }
+
+    result = await summarize_node(state)  # type: ignore[arg-type]
+
+    assert "messages" not in result  # nothing pruned
+    assert result["conversation_summary"] == "Updated summary"
+
+
+@pytest.mark.asyncio
+async def test_summarize_node_skips_messages_without_ids() -> None:
+    model = _RecorderModel("Updated summary")
+    summarize_node = make_summarize_node(model)
+    state = {
+        "messages": _build_messages(10),  # no ids → not prunable
+        "npc_name": "Aster",
+        "conversation_summary": "",
+    }
+
+    result = await summarize_node(state)  # type: ignore[arg-type]
+
+    assert "messages" not in result

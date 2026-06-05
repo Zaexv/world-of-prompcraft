@@ -10,7 +10,7 @@ from .nodes.act import make_act_node
 from .nodes.fallback import fallback_node
 from .nodes.reason import make_reason_node
 from .nodes.reflect import reflect_node
-from .nodes.respond import respond_node
+from .nodes.respond import make_respond_node
 from .nodes.summarize import make_summarize_node, route_after_reflect
 
 if TYPE_CHECKING:
@@ -58,7 +58,7 @@ def create_npc_agent(
     graph = StateGraph(NPCAgentState)
     graph.add_node("reason", reason_node)
     graph.add_node("act", act_node)
-    graph.add_node("respond", respond_node)
+    graph.add_node("respond", make_respond_node(llm))
     graph.add_node("fallback", fallback_node)
     graph.add_node("reflect", reflect_node)
     graph.add_node("summarize", summarize_node)
