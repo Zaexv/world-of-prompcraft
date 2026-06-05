@@ -3240,6 +3240,33 @@
       "architecture": {
         "landmarks": [
           {
+            "id": "bunker_01",
+            "type": "bunker",
+            "transform": {
+              "position": [
+                -38,
+                0,
+                -34
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0.6,
+                0
+              ]
+            },
+            "visual": {
+              "label": "Abandoned Bunker",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 8.6,
+                  "depth": 6.6
+                }
+              }
+            }
+          },
+          {
             "id": "nireg_campfire",
             "type": "campfire",
             "transform": {
