@@ -22,6 +22,7 @@ export class InventoryPanel extends UIComponent {
   private static readonly SLOT_PX = 40;
   declare private grid: HTMLDivElement;
   declare private itemCountLabel: HTMLSpanElement;
+  declare private goldLabel: HTMLSpanElement;
   declare private tooltip: HTMLDivElement;
   private currentInventory: Item[] = [];
 
@@ -123,7 +124,9 @@ export class InventoryPanel extends UIComponent {
     Object.assign(footer.style, {
       padding: "8px 14px",
       borderTop: "1px solid rgba(197,165,90,0.3)",
-      textAlign: "center",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
       fontSize: "12px",
       color: "#c5a55a",
     } as CSSStyleDeclaration);
@@ -131,6 +134,15 @@ export class InventoryPanel extends UIComponent {
     this.itemCountLabel = document.createElement("span");
     this.itemCountLabel.textContent = `0/${InventoryPanel.MAX_SLOTS} slots`;
     footer.appendChild(this.itemCountLabel);
+
+    this.goldLabel = document.createElement("span");
+    Object.assign(this.goldLabel.style, {
+      fontWeight: "700",
+      color: "#ffcc33",
+      textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+    } as CSSStyleDeclaration);
+    this.goldLabel.textContent = "🪙 0";
+    footer.appendChild(this.goldLabel);
     this.container.appendChild(footer);
 
     this.tooltip = document.createElement("div");
@@ -172,11 +184,12 @@ export class InventoryPanel extends UIComponent {
     }
   }
 
-  update(inventory: Item[]): void {
+  update(inventory: Item[], gold = 0): void {
     // Sort rarest-first so the grid reads consistently regardless of pickup order.
     this.currentInventory = sortItems(inventory);
     this.renderSlots(this.currentInventory);
     this.itemCountLabel.textContent = `${this.currentInventory.length}/${InventoryPanel.MAX_SLOTS} slots`;
+    this.goldLabel.textContent = `🪙 ${gold}`;
   }
 
   // ── Internal rendering ──────────────────────────────────────────────────────
@@ -262,16 +275,39 @@ export class InventoryPanel extends UIComponent {
   private showTooltip(slot: HTMLDivElement, item: Item, isEquipment: boolean): void {
     const rarityColor = RARITY_COLORS[item.rarity];
     const action = isEquipment ? "Click to equip" : "Click to use";
+    const effectsHtml = InventoryPanel.formatEffects(item.effects);
+    const valueHtml =
+      item.value > 0
+        ? `<br><span style="color:#ffcc33;font-size:10px">🪙 Sells for ${item.value} gold</span>`
+        : "";
     this.tooltip.innerHTML =
       `<strong style="color:${rarityColor};font-size:13px">${item.name}</strong>` +
       `<br><span style="color:${rarityColor};font-size:10px;text-transform:capitalize">${item.rarity}</span>` +
       `<br><span style="color:#cbb890;font-size:11px">${item.description}</span>` +
+      effectsHtml +
+      valueHtml +
       `<br><span style="color:#8a7a55;font-size:10px;font-style:italic">${action}</span>`;
     this.tooltip.style.display = "block";
     const rect = slot.getBoundingClientRect();
     this.tooltip.style.left = `${rect.left}px`;
     this.tooltip.style.top = `${rect.top - 8}px`;
     this.tooltip.style.transform = "translate(-100%, -100%)";
+  }
+
+  /** Human-readable effect lines (e.g. "+30 HP") for the tooltip, or "". */
+  private static readonly EFFECT_LABELS: Record<string, (n: number) => string> = {
+    heal_hp: (n) => `+${n} HP`,
+    restore_mana: (n) => `+${n} Mana`,
+    max_hp: (n) => `+${n} Max HP`,
+    level: (n) => `+${n} Level`,
+  };
+
+  private static formatEffects(effects: Record<string, number>): string {
+    const lines = Object.entries(effects)
+      .filter(([, value]) => value)
+      .map(([key, value]) => InventoryPanel.EFFECT_LABELS[key]?.(value) ?? `${key}: ${value}`);
+    if (lines.length === 0) return "";
+    return `<br><span style="color:#6ad06a;font-size:11px">${lines.join(", ")}</span>`;
   }
 
   private flashSlot(slot: HTMLDivElement, color: string): void {

@@ -272,6 +272,18 @@ export class UIManager {
     this.combatLog.addEntry(text, color);
   }
 
+  /**
+   * Single entry point for all combat/loot/quest log messages. Always writes
+   * to the persistent bottom-right combat log (so its position never jumps),
+   * and mirrors into the combat HUD's inline log while a fight is on screen.
+   */
+  logCombat(text: string, color?: string): void {
+    this.combatLog.addEntry(text, color);
+    if (this.combatHUD.isVisible) {
+      this.combatHUD.addLogEntry(text, color);
+    }
+  }
+
   // ── Death screen helpers ──────────────────────────────────────────────────
 
   showDeathScreen(killerName?: string): void {

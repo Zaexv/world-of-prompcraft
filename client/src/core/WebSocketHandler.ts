@@ -294,10 +294,7 @@ export class WebSocketHandler {
       });
       const itemMessage: string = data.message ?? '';
       if (itemMessage) {
-        this.d.uiManager.addCombatLog(itemMessage, '#44ff44');
-        if (this.d.uiManager.combatHUD.isVisible) {
-          this.d.uiManager.combatHUD.addLogEntry(itemMessage, '#44ff44');
-        }
+        this.d.uiManager.logCombat(itemMessage, '#44ff44');
       }
       return;
     }
@@ -337,11 +334,7 @@ export class WebSocketHandler {
       this.d.entityManager.getNPC(npcId)?.name ??
       npcId;
     const logCombat = (msg: string, color: string) => {
-      if (this.d.uiManager.combatHUD.isVisible) {
-        this.d.uiManager.combatHUD.addLogEntry(msg, color);
-      } else {
-        this.d.uiManager.addCombatLog(msg, color);
-      }
+      this.d.uiManager.logCombat(msg, color);
     };
 
     for (const action of actions) {
@@ -386,6 +379,18 @@ export class WebSocketHandler {
         }
       } else if (action.kind === 'give_item') {
         logCombat(`Received: ${action.params.item ?? 'Unknown Item'}`, '#c5a55a');
+      } else if (action.kind === 'give_gold') {
+        logCombat(`Looted ${action.params.amount ?? 0} gold`, '#ffcc33');
+      } else if (action.kind === 'complete_purchase') {
+        logCombat(
+          `Bought ${action.params.item ?? 'item'} for ${action.params.price ?? 0} gold`,
+          '#ffcc33',
+        );
+      } else if (action.kind === 'sell_item') {
+        logCombat(
+          `Sold ${action.params.item ?? 'item'} for ${action.params.price ?? 0} gold`,
+          '#ffcc33',
+        );
       } else if (action.kind === 'start_quest') {
         const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
         logCombat(`Quest Started: ${quest}`, '#c5a55a');

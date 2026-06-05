@@ -13,6 +13,10 @@ export interface Item {
   rarity: Rarity;
   icon: string;
   quantity: number;
+  /** Structured use-effects (heal_hp, restore_mana, max_hp, level). */
+  effects: Record<string, number>;
+  /** Merchant sell value in gold. */
+  value: number;
 }
 
 /** Loose item shape as it arrives from the wire (rarity not yet validated). */
@@ -22,6 +26,8 @@ export interface RawItem {
   rarity?: string;
   icon?: string;
   quantity?: number;
+  effects?: Record<string, number>;
+  value?: number;
 }
 
 /** WoW-style rarity palette (slot border + name color). */
@@ -42,6 +48,15 @@ export const RARITY_RANK: Record<Rarity, number> = {
   rare: 2,
   uncommon: 1,
   common: 0,
+};
+
+/** Default merchant sell value per rarity. Mirrors the server's _RARITY_VALUE. */
+export const RARITY_VALUE: Record<Rarity, number> = {
+  common: 5,
+  uncommon: 15,
+  rare: 40,
+  epic: 100,
+  legendary: 250,
 };
 
 /** Sort items rarest-first, then alphabetically. Returns a new array. */
@@ -79,15 +94,20 @@ export function toItem(raw: string | RawItem): Item {
       rarity: "common",
       icon: guessIcon(lower),
       quantity: 1,
+      effects: {},
+      value: RARITY_VALUE.common,
     };
   }
   const name = raw.name ?? "Unknown Item";
   const lower = name.toLowerCase();
+  const rarity: Rarity = isRarity(raw.rarity) ? raw.rarity : "common";
   return {
     name,
     description: raw.description ?? `An ordinary ${lower}.`,
-    rarity: isRarity(raw.rarity) ? raw.rarity : "common",
+    rarity,
     icon: raw.icon ?? guessIcon(lower),
     quantity: raw.quantity ?? 1,
+    effects: raw.effects ?? {},
+    value: raw.value && raw.value > 0 ? raw.value : RARITY_VALUE[rarity],
   };
 }
