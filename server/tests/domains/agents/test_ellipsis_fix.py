@@ -118,6 +118,20 @@ async def test_respond_speak_path_on_action_turn() -> None:
 
 
 @pytest.mark.asyncio
+async def test_respond_speak_strips_inline_tool_syntax() -> None:
+    # Local models leak tool calls as prose; the speak channel must clean them.
+    emote_tool = MagicMock()
+    emote_tool.name = "emote"
+    emote_tool.args = {"animation": {"type": "string"}}
+    llm = _speak_llm("*emote('wave')* Well met, traveller!")
+    node = make_respond_node(llm, [emote_tool])
+    result = await node(_make_state(""))
+    assert result["response_text"] == "Well met, traveller!"
+    assert "emote" not in result["response_text"]
+    assert "*" not in result["response_text"]
+
+
+@pytest.mark.asyncio
 async def test_respond_speak_empty_reply_defers_to_fallback() -> None:
     llm = _speak_llm("")
     node = make_respond_node(llm)

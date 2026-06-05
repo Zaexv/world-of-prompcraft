@@ -58,7 +58,7 @@ def create_npc_agent(
     graph = StateGraph(NPCAgentState)
     graph.add_node("reason", reason_node)
     graph.add_node("act", act_node)
-    graph.add_node("respond", make_respond_node(llm))
+    graph.add_node("respond", make_respond_node(llm, tools))
     graph.add_node("fallback", fallback_node)
     graph.add_node("reflect", reflect_node)
     graph.add_node("summarize", summarize_node)

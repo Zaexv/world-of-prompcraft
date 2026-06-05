@@ -14,18 +14,39 @@ turns or empty completions pay for the extra speak call.
 from __future__ import annotations
 
 import logging
+import re
 from typing import TYPE_CHECKING, Any
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
 from .constants import EMPTY_DIALOGUE
+from .inline_tools import extract_inline_tool_calls
 from .prompt_parts import length_budget_instruction, relationship_tier
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
+    from langchain_core.tools import BaseTool
 
 logger = logging.getLogger(__name__)
+
+# Empty emphasis left behind after an inline tool call (e.g. ``*emote('wave')*``)
+# is stripped: the ``emote('wave')`` is removed, leaving ``* *``.
+_EMPTY_EMPHASIS = re.compile(r"\*\s*\*")
+
+
+def _clean_speak_text(text: str, params_by_tool: dict[str, list[tuple[str, str]]]) -> str:
+    """Strip inline tool-call syntax local models leak into spoken prose.
+
+    The speaking channel binds no tools, but some models still write calls as
+    text (``emote('wave')``, ``*deal_damage target=player*``). The real actions
+    were already executed in the reason/act phase, so here we only discard the
+    leaked syntax and keep clean dialogue.
+    """
+    cleaned, _ = extract_inline_tool_calls(text, params_by_tool)
+    cleaned = _EMPTY_EMPHASIS.sub(" ", cleaned)
+    return re.sub(r"\s+", " ", cleaned).strip()
+
 
 _RECENT_TAIL = 4
 _SPEAK_DIRECTIVE = (
@@ -131,8 +152,12 @@ def build_speak_prompt(state: NPCAgentState) -> str:
     return "\n".join(parts)
 
 
-def make_respond_node(llm: BaseChatModel) -> Any:
+def make_respond_node(llm: BaseChatModel, tools: list[BaseTool] | None = None) -> Any:
     """Return a respond node that speaks via a dedicated, tool-free LLM call."""
+    params_by_tool: dict[str, list[tuple[str, str]]] = {
+        t.name: [(name, info.get("type", "string")) for name, info in t.args.items()]
+        for t in (tools or [])
+    }
 
     async def respond_node(state: NPCAgentState) -> dict[str, Any]:
         pending = state.get("pending_actions", [])
@@ -155,7 +180,7 @@ def make_respond_node(llm: BaseChatModel) -> Any:
                     HumanMessage(content=_SPEAK_DIRECTIVE),
                 ]
             )
-            text = getattr(result, "content", "") or ""
+            text = _clean_speak_text(getattr(result, "content", "") or "", params_by_tool)
         except Exception:
             logger.warning("Speak call failed; deferring to fallback_node", exc_info=True)
             text = ""
