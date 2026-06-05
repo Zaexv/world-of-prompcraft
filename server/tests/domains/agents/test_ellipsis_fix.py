@@ -2,7 +2,8 @@
 
 Covers:
 - dialogue_fallback.fallback_line   — action-kind → short in-character line
-- respond_node                      — raw extraction only, passes EMPTY_DIALOGUE through
+- respond_node (speaking channel)   — fast-path reuse vs dedicated speak call
+- action_digest                     — describes executed actions for the speak prompt
 - fallback_node                     — replaces EMPTY_DIALOGUE with action-derived line
 - reason_node (inline tool path)    — second LLM call when no prose surrounds tool call
 - registry cache                    — does not cache EMPTY_DIALOGUE or empty dialogue
@@ -20,7 +21,7 @@ from src.agents.nodes.constants import EMPTY_DIALOGUE
 from src.agents.nodes.dialogue_fallback import fallback_line
 from src.agents.nodes.fallback import fallback_node
 from src.agents.nodes.reason import make_reason_node
-from src.agents.nodes.respond import respond_node
+from src.agents.nodes.respond import action_digest, make_respond_node
 
 # ── fallback_line ─────────────────────────────────────────────────────────────
 
@@ -51,7 +52,7 @@ def test_fallback_line_unknown_kind() -> None:
     assert fallback_line([{"kind": "some_unknown_action"}]) == ""
 
 
-# ── respond_node — raw extraction only ───────────────────────────────────────
+# ── respond_node — dedicated speaking channel ────────────────────────────────
 
 
 def _make_state(content: str, pending: list[dict[str, Any]] | None = None) -> Any:
@@ -61,37 +62,134 @@ def _make_state(content: str, pending: list[dict[str, Any]] | None = None) -> An
     }
 
 
+def _speak_llm(reply: str) -> MagicMock:
+    """A respond LLM whose ainvoke returns a fixed line; tracks call count."""
+    mock = MagicMock()
+    mock.ainvoke = AsyncMock(return_value=AIMessage(content=reply))
+    return mock
+
+
+def _exploding_llm() -> MagicMock:
+    """A respond LLM that fails the test if its ainvoke is ever awaited."""
+    mock = MagicMock()
+    mock.ainvoke = AsyncMock(side_effect=AssertionError("LLM should not be called on fast path"))
+    return mock
+
+
 @pytest.mark.asyncio
-async def test_respond_node_normal_dialogue() -> None:
-    result = await respond_node(_make_state("Hello adventurer!"))
+async def test_respond_fast_path_reuses_reason_prose() -> None:
+    # Clean prose + no actions → reuse verbatim, no speak call.
+    node = make_respond_node(_exploding_llm())
+    result = await node(_make_state("Hello adventurer!"))
     assert result["response_text"] == "Hello adventurer!"
 
 
 @pytest.mark.asyncio
-async def test_respond_node_empty_content_returns_empty_dialogue() -> None:
-    result = await respond_node(_make_state(""))
+async def test_respond_speak_path_on_empty_content() -> None:
+    llm = _speak_llm("Well met, traveller.")
+    node = make_respond_node(llm)
+    result = await node(_make_state(""))
+    assert result["response_text"] == "Well met, traveller."
+    assert llm.ainvoke.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_respond_speak_path_on_ellipsis() -> None:
+    llm = _speak_llm("Speak up, friend.")
+    node = make_respond_node(llm)
+    result = await node(_make_state("..."))
+    assert result["response_text"] == "Speak up, friend."
+    assert llm.ainvoke.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_respond_action_turn_with_prose_reuses_it() -> None:
+    # An action turn whose reason pass produced prose reuses it — no extra call,
+    # so trade/quest/heal/combat stay single-round-trip.
+    node = make_respond_node(_exploding_llm())
+    result = await node(
+        _make_state(
+            "Here, take this blade!", pending=[{"kind": "give_item", "params": {"item": "sword"}}]
+        )
+    )
+    assert result["response_text"] == "Here, take this blade!"
+
+
+@pytest.mark.asyncio
+async def test_respond_action_turn_empty_prose_speaks_with_digest() -> None:
+    # Only when reason came back empty does the action turn pay the speak call;
+    # the action digest reaches the prompt so the line matches what was done.
+    llm = _speak_llm("Here, take this blade!")
+    node = make_respond_node(llm)
+    result = await node(
+        _make_state("", pending=[{"kind": "give_item", "params": {"item": "sword"}}])
+    )
+    assert result["response_text"] == "Here, take this blade!"
+    assert llm.ainvoke.call_count == 1
+    system_prompt = llm.ainvoke.call_args[0][0][0].content
+    assert "sword" in system_prompt
+
+
+@pytest.mark.asyncio
+async def test_respond_speak_strips_inline_tool_syntax() -> None:
+    # Local models leak tool calls as prose; the speak channel must clean them.
+    emote_tool = MagicMock()
+    emote_tool.name = "emote"
+    emote_tool.args = {"animation": {"type": "string"}}
+    llm = _speak_llm("*emote('wave')* Well met, traveller!")
+    node = make_respond_node(llm, [emote_tool])
+    result = await node(_make_state(""))
+    assert result["response_text"] == "Well met, traveller!"
+    assert "emote" not in result["response_text"]
+    assert "*" not in result["response_text"]
+
+
+@pytest.mark.asyncio
+async def test_respond_speak_empty_reply_defers_to_fallback() -> None:
+    llm = _speak_llm("")
+    node = make_respond_node(llm)
+    result = await node(_make_state(""))
     assert result["response_text"] == EMPTY_DIALOGUE
 
 
 @pytest.mark.asyncio
-async def test_respond_node_passes_ellipsis_through() -> None:
-    # respond_node no longer replaces "..." — fallback_node does that
-    result = await respond_node(_make_state("..."))
-    assert result["response_text"] == EMPTY_DIALOGUE
+async def test_respond_empty_messages() -> None:
+    llm = _speak_llm("Hm?")
+    node = make_respond_node(llm)
+    result = await node({"messages": [], "pending_actions": []})
+    # No prose to reuse → speak path produces a line.
+    assert result["response_text"] == "Hm?"
 
 
 @pytest.mark.asyncio
-async def test_respond_node_empty_messages() -> None:
-    state: dict[str, Any] = {"messages": [], "pending_actions": []}
-    result = await respond_node(state)
-    assert result["response_text"] == EMPTY_DIALOGUE
-
-
-@pytest.mark.asyncio
-async def test_respond_node_pending_actions_forwarded() -> None:
-    pending = [{"kind": "give_item"}]
-    result = await respond_node(_make_state("Take this!", pending=pending))
+async def test_respond_pending_actions_forwarded() -> None:
+    pending = [{"kind": "give_item", "params": {"item": "sword"}}]
+    node = make_respond_node(_speak_llm("Take this!"))
+    result = await node(_make_state("Take this!", pending=pending))
     assert result["pending_actions"] == pending
+
+
+# ── action_digest ─────────────────────────────────────────────────────────────
+
+
+def test_action_digest_empty() -> None:
+    assert action_digest([]) == ""
+    assert action_digest(None) == ""
+
+
+def test_action_digest_visual_only_kinds_omitted() -> None:
+    assert action_digest([{"kind": "emote"}, {"kind": "move_npc"}]) == ""
+
+
+def test_action_digest_describes_known_kinds() -> None:
+    digest = action_digest(
+        [
+            {"kind": "give_item", "params": {"item": "Health Potion"}},
+            {"kind": "give_gold", "params": {"amount": 10}},
+        ]
+    )
+    assert "Health Potion" in digest
+    assert "10 gold" in digest
 
 
 # ── fallback_node — action-derived replacement ───────────────────────────────
