@@ -103,13 +103,26 @@ async def test_respond_speak_path_on_ellipsis() -> None:
 
 
 @pytest.mark.asyncio
-async def test_respond_speak_path_on_action_turn() -> None:
-    # Even with prose, a turn that fired tools goes through the speak channel so
-    # the line is consistent with the action; the digest reaches the prompt.
+async def test_respond_action_turn_with_prose_reuses_it() -> None:
+    # An action turn whose reason pass produced prose reuses it — no extra call,
+    # so trade/quest/heal/combat stay single-round-trip.
+    node = make_respond_node(_exploding_llm())
+    result = await node(
+        _make_state(
+            "Here, take this blade!", pending=[{"kind": "give_item", "params": {"item": "sword"}}]
+        )
+    )
+    assert result["response_text"] == "Here, take this blade!"
+
+
+@pytest.mark.asyncio
+async def test_respond_action_turn_empty_prose_speaks_with_digest() -> None:
+    # Only when reason came back empty does the action turn pay the speak call;
+    # the action digest reaches the prompt so the line matches what was done.
     llm = _speak_llm("Here, take this blade!")
     node = make_respond_node(llm)
     result = await node(
-        _make_state("ok", pending=[{"kind": "give_item", "params": {"item": "sword"}}])
+        _make_state("", pending=[{"kind": "give_item", "params": {"item": "sword"}}])
     )
     assert result["response_text"] == "Here, take this blade!"
     assert llm.ainvoke.call_count == 1

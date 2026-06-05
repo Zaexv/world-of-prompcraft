@@ -164,13 +164,15 @@ def make_respond_node(llm: BaseChatModel, tools: list[BaseTool] | None = None) -
         messages = state.get("messages", [])
         last = messages[-1] if messages else None
         raw = (getattr(last, "content", "") if last is not None else "") or ""
-        tools_fired = bool(pending)
 
-        # Fast path: reason already produced clean prose on a pure-chat turn.
-        if raw and raw != EMPTY_DIALOGUE and not tools_fired:
+        # Fast path: reuse reason's prose whenever it produced any. After the
+        # act → reason loop, reason runs again and its final pass is usually
+        # clean dialogue (already inline-tool-stripped), so action turns —
+        # trade, quest, heal, combat — cost no extra LLM round-trip.
+        if raw and raw != EMPTY_DIALOGUE:
             return {"response_text": raw, "pending_actions": pending}
 
-        # Speak path: action turn, or reason returned empty/"..." → dedicated call.
+        # Speak path: only when reason came back empty/"..." → dedicated call.
         tail = [m for m in messages[-_RECENT_TAIL:] if getattr(m, "content", "")]
         try:
             result = await llm.ainvoke(
