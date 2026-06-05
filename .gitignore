@@ -14,6 +14,13 @@ venv/
 client/dist/
 *.egg-info/
 
+# Coverage (test artifacts — generated locally and in CI, never committed)
+client/coverage/
+server/htmlcov/
+server/coverage.xml
+server/.coverage
+server/.coverage.*
+
 # IDE
 .vscode/
 .idea/
