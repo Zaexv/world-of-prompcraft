@@ -276,11 +276,16 @@ export class InventoryPanel extends UIComponent {
     const rarityColor = RARITY_COLORS[item.rarity];
     const action = isEquipment ? "Click to equip" : "Click to use";
     const effectsHtml = InventoryPanel.formatEffects(item.effects);
+    const valueHtml =
+      item.value > 0
+        ? `<br><span style="color:#ffcc33;font-size:10px">🪙 Sells for ${item.value} gold</span>`
+        : "";
     this.tooltip.innerHTML =
       `<strong style="color:${rarityColor};font-size:13px">${item.name}</strong>` +
       `<br><span style="color:${rarityColor};font-size:10px;text-transform:capitalize">${item.rarity}</span>` +
       `<br><span style="color:#cbb890;font-size:11px">${item.description}</span>` +
       effectsHtml +
+      valueHtml +
       `<br><span style="color:#8a7a55;font-size:10px;font-style:italic">${action}</span>`;
     this.tooltip.style.display = "block";
     const rect = slot.getBoundingClientRect();

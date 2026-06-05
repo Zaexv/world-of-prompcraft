@@ -275,6 +275,16 @@ class WorldState:
                         if item:
                             player.inventory.append(item)
 
+                elif kind == "sell_item":
+                    # Player sells an item to a merchant: remove item, gain gold.
+                    pid = params.get("player_id", "")
+                    item = params.get("item", "")
+                    price = params.get("price", 0)
+                    player = self.get_player(pid)
+                    if item in player.inventory:
+                        player.inventory.remove(item)
+                        player.gold = max(0, player.gold + price)
+
                 elif kind in ("remove_item", "take_item"):
                     pid = params.get("player_id", "")
                     item = params.get("item", "")

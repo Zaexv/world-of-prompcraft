@@ -52,3 +52,28 @@ def test_complete_purchase_insufficient_gold_rejected() -> None:
     # No action emitted, gold untouched.
     assert t["pending"] == []
     assert world["player"]["gold"] == 5
+
+
+def test_buy_item_from_player_pays_value_and_emits_sell_item() -> None:
+    world: dict[str, Any] = {
+        "player": {"gold": 0, "inventory": [{"name": "Health Potion", "quantity": 1}]},
+        "player_id": "alice",
+    }
+    t = _tools(world)
+    msg = t["buy_item_from_player"].invoke({"item_name": "Health Potion"})
+    assert "bought" in msg.lower()
+    action = t["pending"][0]
+    assert action["kind"] == "sell_item"
+    assert action["params"]["item"] == "Health Potion"
+    assert action["params"]["price"] == 5  # common rarity default
+    assert action["params"]["player_id"] == "alice"
+    assert world["player"]["gold"] == 5
+
+
+def test_buy_item_from_player_rejects_unowned_item() -> None:
+    world: dict[str, Any] = {"player": {"gold": 0, "inventory": []}, "player_id": "alice"}
+    t = _tools(world)
+    msg = t["buy_item_from_player"].invoke({"item_name": "Dragon Scale"})
+    assert "does not have" in msg.lower()
+    assert t["pending"] == []
+    assert world["player"]["gold"] == 0

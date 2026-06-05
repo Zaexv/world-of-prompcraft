@@ -126,6 +126,7 @@ export interface GiveItemParams {
   rarity?: string;
   icon?: string;
   effects?: Record<string, number>;
+  value?: number;
 }
 
 export interface GiveGoldParams {
@@ -139,6 +140,12 @@ export interface CompletePurchaseParams {
   rarity?: string;
   icon?: string;
   effects?: Record<string, number>;
+  value?: number;
+}
+
+export interface SellItemParams {
+  item: string;
+  price: number;
 }
 
 export interface TakeItemParams {
@@ -219,6 +226,7 @@ export type Action =
   | { kind: "give_item"; params: GiveItemParams }
   | { kind: "give_gold"; params: GiveGoldParams }
   | { kind: "complete_purchase"; params: CompletePurchaseParams }
+  | { kind: "sell_item"; params: SellItemParams }
   | { kind: "take_item"; params: TakeItemParams }
   | { kind: "emote"; params: EmoteParams }
   | { kind: "move_npc"; params: MoveNpcParams }
@@ -242,6 +250,7 @@ export interface ItemData {
   quantity: number;
   stackable?: boolean;
   effects?: Record<string, number>;
+  value?: number;
 }
 
 export interface PlayerStateData {

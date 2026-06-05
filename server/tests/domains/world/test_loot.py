@@ -5,6 +5,19 @@ from __future__ import annotations
 import pytest
 
 from src.combat.loot import LootItem, _fallback_loot, generate_loot
+from src.world.items import ItemDef, resolve
+
+
+def test_sell_value_defaults_by_rarity() -> None:
+    assert ItemDef("X", "d", rarity="common").sell_value == 5
+    assert ItemDef("X", "d", rarity="legendary").sell_value == 250
+    # Explicit value overrides the rarity default.
+    assert ItemDef("X", "d", rarity="common", value=99).sell_value == 99
+
+
+def test_resolved_item_to_dict_has_value() -> None:
+    d = resolve("Health Potion").to_dict()
+    assert d["value"] >= 1
 
 
 def test_loot_item_to_params_filters_zero_effects() -> None:

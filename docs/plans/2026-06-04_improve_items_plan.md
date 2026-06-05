@@ -76,7 +76,41 @@ The current item system relies on a static catalog and keyword-based heuristics 
 **File**: `server/src/ws/handler.py`
 **Changes**: Inside the NPC death block of `_handle_interaction`, call `generate_loot`, add the generated item to the player's inventory, and emit a `give_item` action to the client so the player receives the loot immediately.
 
+### Phase 4: Selling, Item Value, and Combat-Log Polish (follow-up)
+Addresses player feedback after Phases 1–3 shipped.
+
+#### [ ] 4.1 Stable Combat Log Position
+**Files**: `client/src/ui/UIManager.ts`, `client/src/core/WebSocketHandler.ts`
+**Problem**: Log entries were routed to the `CombatHUD`'s inline log when a fight
+was on screen and to the global bottom-right `CombatLog` otherwise, so the log
+appeared to "move" when talking to NPCs vs. fighting.
+**Changes**: Add `UIManager.logCombat(text, color)` as the single entry point. It
+always writes to the persistent bottom-right `CombatLog` (position never jumps)
+and mirrors into the `CombatHUD` log only while the HUD is visible. Route all
+call sites (combat feedback, `use_item_result`) through it.
+
+#### [ ] 4.2 Log Gold / Purchase / Sale / Loot Events
+**File**: `client/src/core/WebSocketHandler.ts`
+**Changes**: Extend `applyCombatFeedback` to log `give_gold`, `complete_purchase`,
+and `sell_item` actions (item gains already logged via `give_item`).
+
+#### [ ] 4.3 Item Sell Value
+**Files**: `server/src/world/items.py`, `client/src/state/itemModel.ts`
+**Changes**: Add `value` to `ItemDef` with a rarity-based default (`sell_value`
+property), serialized in `to_dict`. Mirror `RARITY_VALUE` on the client and
+default each item's value from its rarity so every item is always worth gold.
+Show "Sells for X gold" in the inventory tooltip.
+
+#### [ ] 4.4 Sell-to-Merchant Flow
+**Files**: `server/src/agents/tools/trade.py`, `server/src/world/world_state.py`,
+`server/src/agents/personalities/templates.py`, client protocol + `ReactionSystem`
+**Changes**: New `buy_item_from_player(item_name)` tool: verifies the player owns
+the item, pays its `sell_value`, and emits a `sell_item` action. `apply_actions`
+handles `sell_item` (remove item, add gold). Client `ReactionSystem` mirrors it
+(remove item, add gold, popup). Merchant prompts teach the buy-from-player flow;
+non-merchants decline.
+
 ## Verification & Testing
-- **Unit Tests**: Add tests verifying gold transactions in `trade.py` and structured JSON generation in `loot.py`.
+- **Unit Tests**: Add tests verifying gold transactions in `trade.py` and structured JSON generation in `loot.py`. Add tests for `buy_item_from_player` (pays value, rejects unowned items) and `ItemDef.sell_value`.
 - **Integration Tests**: Simulate combat until NPC death to ensure gold and LLM loot are awarded successfully.
-- **Manual Verification**: Defeat an enemy to see the gold and custom loot popup. Use the item to confirm stats apply correctly. Attempt to purchase an item without sufficient gold.
+- **Manual Verification**: Defeat an enemy to see the gold and custom loot popup. Use the item to confirm stats apply correctly. Attempt to purchase an item without sufficient gold. Sell an item to a merchant and confirm the gold counter rises and the combat log records it.

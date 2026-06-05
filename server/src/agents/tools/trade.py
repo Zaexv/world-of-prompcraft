@@ -130,4 +130,47 @@ def create_trade_tools(pending_actions: list[Any], world_state: dict[str, Any]) 
 
         return f"Took {item_name} from player"
 
-    return [offer_item, complete_purchase, take_item]
+    def _player_has_item(item_name: str) -> bool:
+        """True if the player's snapshot inventory contains the named item.
+
+        The snapshot inventory is a list of stacked item dicts (``{"name": ...}``)
+        from PlayerData.to_dict, so match on the ``name`` field case-insensitively.
+        """
+        target = item_name.strip().lower()
+        for entry in world_state.get("player", {}).get("inventory", []):
+            name = entry.get("name", "") if isinstance(entry, dict) else str(entry)
+            if name.strip().lower() == target:
+                return True
+        return False
+
+    @tool
+    def buy_item_from_player(item_name: str) -> str:
+        """Buy an item FROM the player, paying gold for it. Use when the player
+        wants to sell something to you. The price is the item's standard value;
+        you pay it automatically and the item moves to you.
+
+        Args:
+            item_name: The name of the item the player wants to sell.
+        """
+        if not _player_has_item(item_name):
+            return f"The player does not have a {item_name} to sell."
+
+        item_def = resolve(item_name)
+        price = item_def.sell_value
+        player_id = world_state.get("player_id", "")
+
+        pending_actions.append(
+            {
+                "kind": "sell_item",
+                "params": {"item": item_def.name, "price": price, "player_id": player_id},
+            }
+        )
+
+        # Keep snapshot in sync for later tool calls this turn.
+        player = world_state.get("player", {})
+        player["gold"] = int(player.get("gold", 0)) + price
+        world_state["player"] = player
+
+        return f"Bought {item_def.name} from player for {price} gold."
+
+    return [offer_item, complete_purchase, take_item, buy_item_from_player]

@@ -15,6 +15,16 @@ from typing import Any
 # Rarity tiers, ordered low → high. Mirrored by the client palette.
 RARITIES = ("common", "uncommon", "rare", "epic", "legendary")
 
+# Default merchant sell value per rarity, used when an item defines no explicit
+# value. Guarantees every item is worth *something* so it can always be sold.
+_RARITY_VALUE: dict[str, int] = {
+    "common": 5,
+    "uncommon": 15,
+    "rare": 40,
+    "epic": 100,
+    "legendary": 250,
+}
+
 
 @dataclass(frozen=True)
 class ItemDef:
@@ -32,6 +42,16 @@ class ItemDef:
     icon: str = "📦"
     stackable: bool = True
     effects: dict[str, int] = field(default_factory=dict)
+    # Explicit merchant sell value in gold. 0 → derive from rarity via
+    # ``sell_value`` so every item is always worth something.
+    value: int = 0
+
+    @property
+    def sell_value(self) -> int:
+        """Gold a merchant pays the player for this item (always >= 1)."""
+        if self.value > 0:
+            return self.value
+        return _RARITY_VALUE.get(self.rarity, 5)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -41,6 +61,7 @@ class ItemDef:
             "icon": self.icon,
             "stackable": self.stackable,
             "effects": dict(self.effects),
+            "value": self.sell_value,
         }
 
 
