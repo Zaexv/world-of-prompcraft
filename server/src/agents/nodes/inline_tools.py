@@ -50,6 +50,60 @@ def _make_star_pattern(names: set[str]) -> re.Pattern[str]:
     return re.compile(rf"\*\s*({alternation})\s+(.*?)\s*\*", re.IGNORECASE | re.DOTALL)
 
 
+# ── Generic leak cleanup (model-agnostic, not tied to the bound tool list) ──
+#
+# Reasoning/think blocks some local models emit into content despite a
+# ``reasoning_effort=none`` request. Closed form is removed entirely; an
+# *unclosed* opener means the rest of the message is reasoning, so everything
+# from the tag to the end is dropped.
+_REASON_TAGS = r"thought|think|thinking|reasoning|analysis|scratchpad"
+_REASONING_BLOCK = re.compile(
+    rf"<\s*(?:{_REASON_TAGS})\s*>[\s\S]*?<\s*/\s*(?:{_REASON_TAGS})\s*>", re.IGNORECASE
+)
+_REASONING_OPEN_TO_END = re.compile(rf"<\s*(?:{_REASON_TAGS})\b[\s\S]*$", re.IGNORECASE)
+
+# Harmony/channel control tokens some models (e.g. gpt-oss) leak into content.
+# Tokenizers mangle the pipes, so the bracket/pipe combo is matched loosely:
+# ``<|channel|>``, ``<channel|>``, ``<|message|>``, ``<|start|>``, ``<|end|>``.
+_CHANNEL_NAMES = r"channel|message|start|end|return|assistant|user|system"
+_CHANNEL_MARKER = re.compile(rf"<\|?\s*(?:{_CHANNEL_NAMES})\s*\|?>", re.IGNORECASE)
+# A channel-name word glued to a marker (``thought <channel|>``). Only stripped
+# next to a marker so the plain English words survive everywhere else.
+_CHANNEL_WORD = re.compile(
+    rf"\b(?:thought|analysis|commentary|assistantfinal|final)\b\s*"
+    rf"(?=<\|?\s*(?:{_CHANNEL_NAMES})\s*\|?>)",
+    re.IGNORECASE,
+)
+# A bare channel word left at the very start once the marker itself is gone.
+_LEADING_CHANNEL_WORD = re.compile(
+    r"^\s*(?:thought|analysis|commentary|assistantfinal)\b[\s:]*", re.IGNORECASE
+)
+# Leftover call syntax for tools the model *hallucinated* (not in the bound set),
+# e.g. ``own_item('jamon')`` or ``own_item('Beginner\'s Guide', 0)``. Matched
+# conservatively — a name glued to parens whose body contains a *quoted* argument
+# (any arg count) — so natural prose like ``apples(red)`` and bare numeric forms
+# like ``cast_spell(3)`` are left alone.
+_LEFTOVER_CALL = re.compile(r"\b[a-z][a-z0-9_]*\([^()]*['\"][^()]*\)", re.IGNORECASE)
+# Empty enclosure left once a wrapped call is stripped: ``[give_gold(50)]`` or
+# ``(emote('wave'))`` becomes ``[ ]`` / ``( )``. Drop brackets/parens/braces that
+# now hold only whitespace; mismatched pairs (``[ )``) are residue too.
+_EMPTY_ENCLOSURE = re.compile(r"[\[\(\{]\s*[\]\)\}]")
+
+
+def _strip_leaked_markup(text: str) -> str:
+    """Remove reasoning blocks, channel tokens, and stray call/enclosure residue."""
+    text = _REASONING_BLOCK.sub(" ", text)
+    text = _REASONING_OPEN_TO_END.sub(" ", text)
+    text = _CHANNEL_WORD.sub(" ", text)
+    text = _CHANNEL_MARKER.sub(" ", text)
+    text = _LEADING_CHANNEL_WORD.sub("", text)
+    text = _LEFTOVER_CALL.sub(" ", text)
+    # Repeat until stable so nested residue (``[( )]`` → ``[ ]`` → empty) collapses.
+    while _EMPTY_ENCLOSURE.search(text):
+        text = _EMPTY_ENCLOSURE.sub(" ", text)
+    return text
+
+
 def _json_type(value: Any) -> str:
     if isinstance(value, bool):
         return "boolean"
@@ -77,11 +131,16 @@ def _split_on(arg_str: str, sep: str) -> list[str]:
     args: list[str] = []
     buf: list[str] = []
     quote: str | None = None
+    escaped = False
     for ch in arg_str:
         is_sep = ch.isspace() if on_ws else ch == sep
         if quote:
             buf.append(ch)
-            if ch == quote:
+            if escaped:  # previous char was a backslash → this char is literal
+                escaped = False
+            elif ch == "\\":
+                escaped = True
+            elif ch == quote:
                 quote = None
         elif ch in "\"'":
             quote = ch
@@ -101,7 +160,10 @@ def _split_on(arg_str: str, sep: str) -> list[str]:
 def _coerce(token: str) -> Any:
     t = token.strip()
     if len(t) >= 2 and t[0] in "\"'" and t[-1] == t[0]:
-        return t[1:-1]
+        # Drop the wrapping quotes, then unescape inline backslash escapes the
+        # model wrote (``Beginner\'s Guide`` → ``Beginner's Guide``) so the raw
+        # backslash never reaches inventory/combat-log display.
+        return re.sub(r"\\(['\"\\])", r"\1", t[1:-1])
     if re.fullmatch(r"-?\d+", t):
         return int(t)
     if re.fullmatch(r"-?\d+\.\d+", t):
@@ -158,7 +220,7 @@ def extract_inline_tool_calls(
         ``{"name": str, "args": dict}`` dicts and ``cleaned_text`` has the call
         syntax removed.
     """
-    if not text or not params_by_tool:
+    if not text:
         return text, []
 
     names = set(params_by_tool)
@@ -184,13 +246,17 @@ def extract_inline_tool_calls(
         calls.append({"name": name, "args": _assign_args(params_by_tool[name], tokens)})
         return " "
 
-    cleaned = _make_tag_pattern(names).sub(_consume_body, text)
-    cleaned = _make_call_pattern(names).sub(_consume_call, cleaned)
-    cleaned = _make_paren_colon_pattern(names).sub(_consume_body, cleaned)
-    cleaned = _make_star_pattern(names).sub(_consume_body, cleaned)
+    cleaned = text
+    if params_by_tool:
+        cleaned = _make_tag_pattern(names).sub(_consume_body, cleaned)
+        cleaned = _make_call_pattern(names).sub(_consume_call, cleaned)
+        cleaned = _make_paren_colon_pattern(names).sub(_consume_body, cleaned)
+        cleaned = _make_star_pattern(names).sub(_consume_body, cleaned)
     # Strip <em> tags — keep inner text, discard markup.
     cleaned = re.sub(r"<em>\s*</em>", " ", cleaned, flags=re.DOTALL)
     cleaned = re.sub(r"<em>(.*?)</em>", r"\1", cleaned, flags=re.DOTALL)
+    # Drop reasoning/channel tokens and hallucinated (unknown-tool) call residue.
+    cleaned = _strip_leaked_markup(cleaned)
     # Collapse whitespace left behind and trim stray wrapping quotes/space.
     cleaned = re.sub(r"\s+", " ", cleaned).strip().strip("\"'").strip()
     return cleaned, calls

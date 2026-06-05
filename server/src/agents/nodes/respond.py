@@ -48,6 +48,29 @@ def _clean_speak_text(text: str, params_by_tool: dict[str, list[tuple[str, str]]
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+# Markers/heuristics that a turn's raw content is leaked chain-of-thought rather
+# than dialogue: an open reasoning tag, harmony channel words, or telltale
+# meta-talk. Such content must NOT be reused verbatim — it routes to the
+# dedicated, tool-free speak call instead.
+_REASONING_HINT = re.compile(
+    r"<\s*(?:thought|think|thinking|reasoning|analysis|channel)\b"
+    r"|no tool calls?\s+(?:needed|required)"
+    r"|looking at (?:my|the) (?:instructions|tool)",
+    re.IGNORECASE,
+)
+
+
+def _looks_like_leaked_reasoning(text: str) -> bool:
+    """True when raw content is a reasoning dump or a degenerate repetition loop."""
+    if _REASONING_HINT.search(text):
+        return True
+    if len(text) > 1000:  # dialogue budget is ~180 tokens; this is runaway
+        return True
+    words = text.split()
+    # A loop ("Wait, I'll use ` `." repeated) has very low lexical diversity.
+    return len(words) >= 60 and len(set(words)) / len(words) < 0.25
+
+
 _RECENT_TAIL = 4
 _SPEAK_DIRECTIVE = (
     "(Reply to the player now, in character — one short spoken line. "
@@ -165,14 +188,17 @@ def make_respond_node(llm: BaseChatModel, tools: list[BaseTool] | None = None) -
         last = messages[-1] if messages else None
         raw = (getattr(last, "content", "") if last is not None else "") or ""
 
-        # Fast path: reuse reason's prose whenever it produced any. After the
-        # act → reason loop, reason runs again and its final pass is usually
-        # clean dialogue (already inline-tool-stripped), so action turns —
-        # trade, quest, heal, combat — cost no extra LLM round-trip.
-        if raw and raw != EMPTY_DIALOGUE:
-            return {"response_text": raw, "pending_actions": pending}
+        # Fast path: reuse reason's prose whenever it produced clean dialogue.
+        # After the act → reason loop, reason's final pass is usually clean
+        # dialogue, so action turns — trade, quest, heal, combat — cost no extra
+        # LLM round-trip. Skip the reuse when the content is leaked reasoning or
+        # empties out after stripping; those fall through to the speak call.
+        if raw and raw != EMPTY_DIALOGUE and not _looks_like_leaked_reasoning(raw):
+            cleaned = _clean_speak_text(raw, params_by_tool)
+            if cleaned:
+                return {"response_text": cleaned, "pending_actions": pending}
 
-        # Speak path: only when reason came back empty/"..." → dedicated call.
+        # Speak path: reason came back empty/"..."/leaked → dedicated tool-free call.
         tail = [m for m in messages[-_RECENT_TAIL:] if getattr(m, "content", "")]
         try:
             result = await llm.ainvoke(
@@ -183,6 +209,10 @@ def make_respond_node(llm: BaseChatModel, tools: list[BaseTool] | None = None) -
                 ]
             )
             text = _clean_speak_text(getattr(result, "content", "") or "", params_by_tool)
+            # Last-resort guard: if even the dedicated call loops/leaks, drop it so
+            # fallback_node substitutes a clean action line rather than a wall of CoT.
+            if _looks_like_leaked_reasoning(text):
+                text = ""
         except Exception:
             logger.warning("Speak call failed; deferring to fallback_node", exc_info=True)
             text = ""
