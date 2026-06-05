@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  NODE_VERSION: "20"
+  NODE_VERSION: "22"
   PYTHON_VERSION: "3.13"
 
 jobs:
@@ -28,14 +28,14 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: client/package.json
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec eslint src/ --max-warnings 0
 
@@ -68,14 +68,14 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: client/package.json
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec tsc --noEmit --incremental
 
@@ -112,14 +112,14 @@ jobs:
         working-directory: client
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          package_json_file: client/package.json
+      # setup-node must run before pnpm/action-setup so pnpm 11's self-installer
+      # runs on Node 22 (it needs node:sqlite; the runner default Node 20 fails).
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
-          cache-dependency-path: client/pnpm-lock.yaml
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: client/package.json
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec vitest run --coverage
       - uses: codecov/codecov-action@v4

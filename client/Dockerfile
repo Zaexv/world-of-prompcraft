@@ -1,5 +1,5 @@
 # Multi-stage build for client
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 
 # Enable pnpm via corepack (version pinned by package.json "packageManager")
 RUN corepack enable
@@ -20,7 +20,7 @@ COPY shared/ ../shared/
 RUN pnpm run build
 
 # Production image
-FROM node:20-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
