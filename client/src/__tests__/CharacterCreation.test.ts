@@ -4,12 +4,16 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 // CharacterPreview spins up a Three.js WebGLRenderer, which happy-dom can't
 // provide. Stub it with a lightweight double exposing the same surface.
 vi.mock('../ui/screens/CharacterPreview', () => ({
-  CharacterPreview: vi.fn().mockImplementation(() => ({
-    canvas: document.createElement('canvas'),
-    setRace: vi.fn(),
-    start: vi.fn(),
-    dispose: vi.fn(),
-  })),
+  // `new CharacterPreview()` runs this impl as a constructor under vitest 4, so
+  // it must be a function expression (an arrow can't be constructed).
+  CharacterPreview: vi.fn().mockImplementation(function () {
+    return {
+      canvas: document.createElement('canvas'),
+      setRace: vi.fn(),
+      start: vi.fn(),
+      dispose: vi.fn(),
+    };
+  }),
 }));
 
 import { CharacterCreation, type CharacterSelectionResult } from '../ui/screens/CharacterCreation';

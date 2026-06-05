@@ -174,7 +174,9 @@
       "Bash(powershell -ExecutionPolicy Bypass -File \"C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\plugins\\\\cache\\\\caveman\\\\caveman\\\\655b7d9c5431\\\\src\\\\hooks\\\\caveman-statusline.ps1\")",
       "Bash(xxd 'C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\.caveman-statusline-suffix')",
       "PowerShell(powershell -ExecutionPolicy Bypass -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; & 'C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\plugins\\\\cache\\\\caveman\\\\caveman\\\\655b7d9c5431\\\\src\\\\hooks\\\\caveman-statusline.ps1'\" | Format-Hex | Select-Object -First 4)",
-      "PowerShell(Format-Hex *)"
+      "PowerShell(Format-Hex *)",
+      "Bash(echo \"exit:$?\")",
+      "Bash(git rm *)"
     ]
   },
   "hooks": {
