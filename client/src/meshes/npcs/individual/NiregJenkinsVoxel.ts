@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { NPC_Y_TORSO } from '../../../entities/NPCAppearance';
-import { buildLowPolyCharacter, addCloak, finishCharacter, box, vmat } from './_LowPolyKit';
+import { buildVoxelCharacter, addCloak, finishCharacter, box, vmat } from './_VoxelKit';
 
 // Reference: docs/assets/characters/nireg.png — reimagined as a desert sage.
 // Green-and-gold robe with bright-gold pauldrons, trim and bands, a heavy brown
@@ -16,15 +16,15 @@ const TURBAN_SHADE = 0xd6c39c;
 const GEM = 0x1f8a4c;        // emerald, echoing the robe
 const BOOT = 0x4a3018;
 
-export class NiregJenkins extends Mesh {
-  static readonly type = 'npc_individual_nireg_jenkins';
+export class NiregJenkinsVoxel extends Mesh {
+  static readonly type = 'npc_individual_nireg_jenkins_voxel';
   static readonly category = 'npc' as const;
 
   build(ctx: BuildContext): THREE.Object3D {
     const group = new THREE.Group();
     group.name = 'Nireg Jenkins';
 
-    const rig = buildLowPolyCharacter(group, {
+    const rig = buildVoxelCharacter(group, {
       torsoW: 0.62, torsoD: 0.40, torsoColor: ROBE,
       headW: 0.50, headD: 0.48, skinColor: SKIN,
       armW: 0.20, armD: 0.22, armColor: ROBE,
@@ -111,4 +111,4 @@ export class NiregJenkins extends Mesh {
   }
 }
 
-registerMesh(NiregJenkins);
+registerMesh(NiregJenkinsVoxel);

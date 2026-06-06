@@ -3105,7 +3105,7 @@
             "transform": {
               "position": [
                 3.365240353930777,
-                0.13679795354837956,
+                1.0648231090994613,
                 8.634603791869226
               ],
               "rotation": [
@@ -3122,6 +3122,34 @@
             "ai": {
               "personality_key": "tutorial_01",
               "wander_radius": 15
+            }
+          },
+          {
+            "id": "eltito_01",
+            "identity": {
+              "name": "El Tito",
+              "role": "mage"
+            },
+            "transform": {
+              "position": [
+                -4.5,
+                1.0787373817905854,
+                7.5
+              ],
+              "rotation": [
+                0,
+                2.2,
+                0
+              ],
+              "scale": 1
+            },
+            "stats": {
+              "max_hp": 420,
+              "level": 10
+            },
+            "ai": {
+              "personality_key": "eltito_01",
+              "wander_radius": 2
             }
           },
           {
@@ -3245,7 +3273,7 @@
             "transform": {
               "position": [
                 -38,
-                0,
+                -1.5841530060836326,
                 -34
               ],
               "scale": 1,
@@ -3576,6 +3604,33 @@
             },
             "visual": {
               "label": "tower"
+            }
+          },
+          {
+            "id": "mage_tower_1780751318419",
+            "type": "mage_tower",
+            "transform": {
+              "position": [
+                -10.23123672783116,
+                1.0758559515731174,
+                20.207024122969322
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "mage_tower",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 25.3,
+                  "depth": 23
+                }
+              }
             }
           }
         ],
