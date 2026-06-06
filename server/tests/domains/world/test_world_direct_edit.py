@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import pytest
-
-from pathlib import Path
 
 from src.world import world_state as world_state_module
 from src.world.world_state import WorldState
 from src.ws import handler
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 class _FakeWebSocket:

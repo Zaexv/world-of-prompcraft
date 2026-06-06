@@ -233,9 +233,7 @@ class WorldState:
             data = json.loads(path.read_text())
             objects = data.get("objects", []) if isinstance(data, dict) else data
             self.world_objects = {
-                str(o["objectId"]): o
-                for o in objects
-                if isinstance(o, dict) and o.get("objectId")
+                str(o["objectId"]): o for o in objects if isinstance(o, dict) and o.get("objectId")
             }
             logger.info("Loaded %d persisted world objects", len(self.world_objects))
         except Exception:

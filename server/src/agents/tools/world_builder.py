@@ -115,7 +115,8 @@ def create_world_builder_tools(pending_actions: list[Any]) -> list[Any]:
             part: dict[str, Any] = {
                 "shape": shape,
                 "size": [float(v) for v in raw.get("size", [1, 1, 1])][:3] or [1.0, 1.0, 1.0],
-                "position": [float(v) for v in raw.get("position", [0, 0, 0])][:3] or [0.0, 0.0, 0.0],
+                "position": [float(v) for v in raw.get("position", [0, 0, 0])][:3]
+                or [0.0, 0.0, 0.0],
                 "color": str(raw.get("color", "#aaaaaa")),
             }
             rot = raw.get("rotation")
