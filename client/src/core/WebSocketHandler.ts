@@ -11,7 +11,9 @@ import type { UIManager } from '../ui/UIManager';
 import type { PlayerState } from '../state/PlayerState';
 import type { NPCStateStore } from '../state/NPCState';
 import type { ReactionSystem } from '../systems/ReactionSystem';
+import type { WorldBuilder } from '../systems/WorldBuilder';
 import type { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
+import type { WorldSpawnParams, Action } from '../network/MessageProtocol';
 import type { PlayerController } from '../entities/PlayerController';
 import type { LoginScreen } from '../ui/LoginScreen';
 import { DamagePopup } from '../ui/DamagePopup';
@@ -31,6 +33,7 @@ export interface WSHandlerDeps {
   playerState: PlayerState;
   npcStateStore: NPCStateStore;
   reactionSystem: ReactionSystem;
+  worldBuilder: WorldBuilder;
   worldBuilderPanel: WorldBuilderPanel;
   playerController: PlayerController;
   camera: THREE.PerspectiveCamera;
@@ -112,6 +115,19 @@ export class WebSocketHandler {
           }
         } else {
           console.warn('No NPCs received in join_ok message.');
+        }
+
+        // Player-built objects already in the shared world (placed by anyone).
+        // Spawn without touching the local undo stack — these aren't our edits.
+        if (Array.isArray(data.worldObjects)) {
+          for (const params of data.worldObjects as WorldSpawnParams[]) {
+            try {
+              this.d.worldBuilder.spawnObject(params, false);
+            } catch (err) {
+              console.error('join_ok: failed to spawn world object', params?.objectId, err);
+            }
+          }
+          this.d.worldBuilderPanel.refreshPlaced();
         }
       } catch (err) {
         console.error('join_ok: unexpected error during world setup:', err);
@@ -303,6 +319,7 @@ export class WebSocketHandler {
       this.d.worldBuilderPanel.setResponse(data.dialogue ?? '');
       this.d.worldBuilderPanel.setReady();
       this.d.reactionSystem.processActions(data.actions ?? []);
+      this.d.worldBuilderPanel.refreshPlaced();
       return;
     }
 
@@ -318,6 +335,21 @@ export class WebSocketHandler {
 
     if (data.type === 'world_modify_end') {
       this.d.worldBuilderPanel.endStreaming(data.blueprintId);
+      return;
+    }
+
+    if (data.type === 'world_objects_update') {
+      // A build/remove made by another player (or our own manual edit echoed
+      // back). Apply directly without touching the local undo stack.
+      const actions = (data.actions as Action[]) ?? [];
+      for (const action of actions) {
+        if (action.kind === 'world_spawn') {
+          this.d.worldBuilder.spawnObject(action.params, false);
+        } else if (action.kind === 'world_remove') {
+          this.d.worldBuilder.removeObject(action.params.objectId, false);
+        }
+      }
+      this.d.worldBuilderPanel.refreshPlaced();
       return;
     }
   }

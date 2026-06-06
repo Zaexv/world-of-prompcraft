@@ -1,4 +1,5 @@
 import { PlacedObject } from '../WorldBuilder';
+import type { MeshSpec } from '../../network/MessageProtocol';
 
 export interface PersistedObject {
   id: string;
@@ -6,6 +7,7 @@ export interface PersistedObject {
   position: [number, number, number];
   scale: number;
   label?: string;
+  spec?: MeshSpec;
 }
 
 /**
@@ -22,6 +24,7 @@ export class WorldBuilderPersistence {
       position: obj.position,
       scale: obj.scale,
       label: obj.label,
+      spec: obj.spec,
     }));
 
     try {

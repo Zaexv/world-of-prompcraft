@@ -27,6 +27,8 @@ export interface JoinRequest {
   race: string;
   faction: string;
   position: [number, number, number];
+  /** Full list of registered mesh type ids, so the server agent can place any of them. */
+  meshCatalog?: string[];
 }
 
 export interface ChatMessage {
@@ -87,6 +89,27 @@ export interface WorldModifyRequest {
   position: [number, number, number];
 }
 
+/** A single primitive in a generated custom mesh. */
+export interface MeshSpecPart {
+  shape: "box" | "cylinder" | "sphere" | "cone" | "pyramid";
+  size: number[];
+  position: [number, number, number];
+  color: string;
+  rotation?: [number, number, number];
+}
+
+/** A brand-new mesh composed of primitives, produced by the create_custom_mesh tool. */
+export interface MeshSpec {
+  parts: MeshSpecPart[];
+}
+
+/** Manual (non-LLM) world edit from the UI — palette spawn or delete. */
+export interface WorldDirectEdit {
+  type: "world_direct_edit";
+  action: "spawn" | "remove";
+  params: WorldSpawnParams | WorldRemoveParams;
+}
+
 export type ClientMessage =
   | PlayerInteraction
   | PlayerMove
@@ -99,7 +122,8 @@ export type ClientMessage =
   | DungeonExit
   | QuestUpdate
   | PingMessage
-  | WorldModifyRequest;
+  | WorldModifyRequest
+  | WorldDirectEdit;
 
 // ── Action Params (discriminated by kind) ────────────────────────────────────
 // Each action kind carries a typed params object. This makes the client-server
@@ -217,6 +241,8 @@ export interface WorldSpawnParams {
   position: [number, number, number];
   scale?: number;
   label?: string;
+  /** Present for objectType === "custom": primitives to build the mesh from. */
+  spec?: MeshSpec;
 }
 
 export interface WorldRemoveParams {
@@ -346,6 +372,14 @@ export interface JoinOk {
   playerId: string;
   players: RemotePlayerData[];
   npcs: NPCInitData[];
+  /** Player-built objects already in the shared world (placed by anyone). */
+  worldObjects?: WorldSpawnParams[];
+}
+
+/** Broadcast when any player builds or removes a shared world object. */
+export interface WorldObjectsUpdate {
+  type: "world_objects_update";
+  actions: Action[];
 }
 
 export interface JoinError {
@@ -428,4 +462,5 @@ export type ServerMessage =
   | WorldModifyResponse
   | WorldModifyStart
   | WorldModifyChunk
-  | WorldModifyEnd;
+  | WorldModifyEnd
+  | WorldObjectsUpdate;

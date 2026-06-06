@@ -6,6 +6,7 @@ import random
 import re
 from typing import TYPE_CHECKING, Any
 
+from ..agents.tools.world_builder import KNOWN_MESH_TYPES, set_known_mesh_types
 from ..combat.combat_resolution import (
     MAGIC_KEYWORDS,
     STYLE_KEYWORDS,
@@ -441,6 +442,9 @@ async def handle_message(
     if msg_type == "world_modify":
         return await _handle_world_modify(data, websocket)
 
+    if msg_type == "world_direct_edit":
+        return await _handle_world_direct_edit(data, websocket)
+
     if msg_type == "world_manifest_update":
         return await _handle_world_manifest_update(data)
 
@@ -483,6 +487,13 @@ async def _handle_join(
     # Register websocket with manager
     await manager.register(websocket, username)
     logger.info(f"WebSocket registered for player: {username}")
+
+    # Learn the client's mesh catalog so the WorldBuilder agent can place any
+    # registered mesh (not a hardcoded subset). Clients share one registry, so
+    # the last join's catalog is authoritative.
+    catalog = data.get("meshCatalog")
+    if isinstance(catalog, list) and catalog:
+        set_known_mesh_types([str(t) for t in catalog])
 
     # BUG-3: Accept initial position from client so player isn't broadcast at [0,0,0]
     initial_position = data.get("position")
@@ -531,12 +542,18 @@ async def _handle_join(
             exclude=username,
         )
 
+    # Player-built objects placed by anyone, so the joiner sees the shared world.
+    world_objects: list[dict[str, Any]] = []
+    if _world_state is not None:
+        world_objects = _world_state.get_world_objects()
+
     logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
     return {
         "type": "join_ok",
         "playerId": username,
         "players": current_players,
         "npcs": current_npcs,
+        "worldObjects": world_objects,
     }
 
 
@@ -1552,6 +1569,8 @@ async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> di
         "player_position": f"x={float(position[0]):.1f}, z={float(position[2]):.1f}",
         "nearby_objects": nearby_str,
     }
+    if KNOWN_MESH_TYPES:
+        context["available_types"] = ", ".join(sorted(KNOWN_MESH_TYPES))
 
     input_state: _NPCAgentState = {
         "messages": [_HumanMessage(content=prompt)],
@@ -1580,11 +1599,63 @@ async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> di
         actions = []
         dialogue = "The world spirit is dormant..."
 
+    # Persist + share the new objects so every player sees them and they survive
+    # restarts. The requester gets them via this response; everyone else via the
+    # broadcast below.
+    await _persist_and_broadcast_world_actions(actions, exclude=manager_player_id(websocket))
+
     return {
         "type": "world_modify_response",
         "dialogue": dialogue,
         "actions": actions,
     }
+
+
+def manager_player_id(websocket: WebSocket) -> str | None:
+    """Helper: resolve the player id for a websocket, tolerating a missing manager."""
+    if _manager is None:
+        return None
+    return _manager.get_player_id(websocket)
+
+
+async def _persist_and_broadcast_world_actions(
+    actions: list[dict[str, Any]], exclude: str | None
+) -> None:
+    """Apply world_spawn/world_remove actions to the store, persist, and broadcast."""
+    if not actions:
+        return
+    world_actions = [a for a in actions if a.get("kind") in ("world_spawn", "world_remove")]
+    if not world_actions:
+        return
+    if _world_state is not None:
+        for action in world_actions:
+            _world_state.apply_world_action(action)
+        _world_state.save_world_objects()
+    if _manager is not None:
+        await _manager.broadcast(
+            {"type": "world_objects_update", "actions": world_actions},
+            exclude=exclude,
+        )
+
+
+async def _handle_world_direct_edit(
+    data: dict[str, Any], websocket: WebSocket
+) -> dict[str, Any] | None:
+    """Handle a manual (non-LLM) world edit from the UI: palette spawn or delete.
+
+    Persists to the shared store and broadcasts to all players (including the
+    sender — spawnObject is idempotent by id, so a single broadcast path keeps
+    every client consistent).
+    """
+    action_name = data.get("action")
+    params = data.get("params")
+    if action_name not in ("spawn", "remove") or not isinstance(params, dict):
+        return {"type": "error", "message": "Invalid world_direct_edit"}
+
+    kind = "world_spawn" if action_name == "spawn" else "world_remove"
+    action = {"kind": kind, "params": params}
+    await _persist_and_broadcast_world_actions([action], exclude=None)
+    return None
 
 
 async def _handle_world_manifest_update(data: dict[str, Any]) -> dict[str, Any]:

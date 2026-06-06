@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 import asyncio
+import json
+import logging
 import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from ..agents.personalities.templates import NPC_PERSONALITIES
 from .npc_definitions import get_npc_definitions
 from .player_state import PlayerData
 from .zones import get_zone, get_zone_description
+
+logger = logging.getLogger(__name__)
+
+
+def _world_objects_path() -> Path:
+    """Disk location for persisted player-built world objects (shared with the manifest)."""
+    base_dir = Path(__file__).resolve().parents[3]
+    return base_dir / "shared" / "data" / "world_objects.json"
 
 
 @dataclass
@@ -76,7 +87,11 @@ class WorldState:
         }
         self.chat_history: deque[dict[str, Any]] = deque(maxlen=50)
         self.recent_events: deque[str] = deque(maxlen=20)
+        # Player-built world objects, keyed by object id. Each value is the full
+        # spawn params dict (objectId, objectType, position, scale, label, spec?).
+        self.world_objects: dict[str, dict[str, Any]] = {}
         self.refresh_npcs()
+        self.load_world_objects()
 
     def refresh_npcs(self) -> None:
         """Synchronize in-memory NPCs with the manifest definitions."""
@@ -184,6 +199,56 @@ class WorldState:
             if dist <= radius and npc.hp > 0:
                 result.append(npc)
         return result
+
+    # ---- World objects (player-built, shared + persisted) ----
+
+    def add_world_object(self, params: dict[str, Any]) -> None:
+        """Insert or replace a player-built object, keyed by its objectId."""
+        object_id = params.get("objectId")
+        if not object_id:
+            return
+        self.world_objects[str(object_id)] = params
+
+    def remove_world_object(self, object_id: str) -> None:
+        self.world_objects.pop(object_id, None)
+
+    def get_world_objects(self) -> list[dict[str, Any]]:
+        return list(self.world_objects.values())
+
+    def apply_world_action(self, action: dict[str, Any]) -> None:
+        """Mutate the world-object store from a world_spawn / world_remove action."""
+        kind = action.get("kind")
+        params = action.get("params", {})
+        if kind == "world_spawn":
+            self.add_world_object(params)
+        elif kind == "world_remove":
+            self.remove_world_object(str(params.get("objectId", "")))
+
+    def load_world_objects(self) -> None:
+        """Load persisted world objects from disk (best-effort)."""
+        path = _world_objects_path()
+        try:
+            if not path.exists():
+                return
+            data = json.loads(path.read_text())
+            objects = data.get("objects", []) if isinstance(data, dict) else data
+            self.world_objects = {
+                str(o["objectId"]): o
+                for o in objects
+                if isinstance(o, dict) and o.get("objectId")
+            }
+            logger.info("Loaded %d persisted world objects", len(self.world_objects))
+        except Exception:
+            logger.exception("Failed loading world objects from %s", path)
+
+    def save_world_objects(self) -> None:
+        """Persist world objects to disk (best-effort)."""
+        path = _world_objects_path()
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"objects": self.get_world_objects()}, indent=2))
+        except Exception:
+            logger.exception("Failed saving world objects to %s", path)
 
     # ---- Context ----
 

@@ -4,6 +4,7 @@ import type { CollisionSystem } from './CollisionSystem';
 import { buildObject } from './worldbuilder/objects';
 import { WorldBuilderPersistence, PersistedObject } from './worldbuilder/WorldBuilderPersistence';
 import { tagDebugInfo } from '../debug/DebugInfo';
+import type { MeshSpec } from '../network/MessageProtocol';
 
 /** A world object placed by the WorldBuilder agent */
 export interface PlacedObject {
@@ -14,6 +15,8 @@ export interface PlacedObject {
   rotation: [number, number, number];
   scale: number;
   label?: string;
+  /** Present for generative ("custom") meshes built from a primitive spec. */
+  spec?: MeshSpec;
 }
 
 export class WorldBuilder {
@@ -54,6 +57,7 @@ export class WorldBuilder {
     rotation?: [number, number, number];
     scale?: number;
     label?: string;
+    spec?: MeshSpec;
     persist?: boolean;
   }, pushToUndo = true): THREE.Object3D | undefined {
     const persist = params.persist ?? true;
@@ -63,6 +67,7 @@ export class WorldBuilder {
     const rotation: [number, number, number] = params.rotation ?? placed?.rotation ?? [0, 0, 0];
     const scale = params.scale ?? placed?.scale ?? 1;
     const label = params.label ?? placed?.label;
+    const spec = params.spec ?? placed?.spec;
     let undoRecorded = false;
 
     if (placed && !this.matchesPlacement(placed, params.objectType, snappedPosition, rotation, scale, label)) {
@@ -82,6 +87,7 @@ export class WorldBuilder {
       placed.rotation = rotation;
       placed.scale = scale;
       placed.label = label;
+      placed.spec = spec;
     } else {
       if (pushToUndo && !undoRecorded && persist) {
         this.pushUndoState();
@@ -89,7 +95,7 @@ export class WorldBuilder {
 
       const pos = new THREE.Vector3(snappedPosition[0], snappedPosition[1], snappedPosition[2]);
 
-      const builtGroup = buildObject(params.objectType, pos, scale, label);
+      const builtGroup = buildObject(params.objectType, pos, scale, label, spec);
       if (!builtGroup) return undefined;
       group = builtGroup;
       
@@ -112,6 +118,7 @@ export class WorldBuilder {
           rotation,
           scale,
           label,
+          spec,
         };
         this.objects.set(params.objectId, placed);
       }
@@ -164,6 +171,15 @@ export class WorldBuilder {
     return Array.from(this.objects.keys());
   }
 
+  /** Lightweight list of placed objects for UI (the placed-objects panel). */
+  getPlacedObjects(): { id: string; type: string; label: string }[] {
+    return Array.from(this.objects.values()).map((obj) => ({
+      id: obj.id,
+      type: obj.type,
+      label: obj.label ?? obj.type,
+    }));
+  }
+
   getNearbyObjects(pos: THREE.Vector3, radius: number): { id: string, type: string, label: string, position: [number, number, number] }[] {
     const nearby: { id: string, type: string, label: string, position: [number, number, number] }[] = [];
     for (const obj of this.objects.values()) {
@@ -191,6 +207,7 @@ export class WorldBuilder {
       position: obj.position,
       scale: obj.scale,
       label: obj.label,
+      spec: obj.spec,
     }));
   }
 
@@ -249,6 +266,7 @@ export class WorldBuilder {
         position: obj.position,
         scale: obj.scale,
         label: obj.label,
+        spec: obj.spec,
       }, false);
     }
   }
