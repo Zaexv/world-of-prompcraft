@@ -28,6 +28,7 @@ import './structures/WoodenFence';
 import './structures/Pavilion';
 import './structures/PortalArch';
 import './structures/Road';
+import './structures/Bunker';
 
 // Procedural biome buildings (selected per-biome by ProceduralPopulator)
 import './biome/ElvenTower';
