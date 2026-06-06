@@ -37,3 +37,4 @@ server/.coverage.*
 
 # Logs
 *.log
+shared/data/world_objects.json

@@ -19,6 +19,7 @@ import { DungeonSystem } from '../systems/DungeonSystem';
 import { AudioSystem } from '../audio/AudioSystem';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
+import { meshTypes } from '../meshes';
 import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../scene/VerticalTerrain';
 import { setWorldManifest as setBiomeManifest } from '../scene/Biomes';
 import { warmUpTextures } from '../utils/PBRMaps';
@@ -183,7 +184,7 @@ export function bootstrap(
 
   const wsHandler = new WebSocketHandler({
     runtime, entityManager, uiManager, playerState, npcStateStore,
-    reactionSystem, worldBuilderPanel: null!, playerController, camera, scene,
+    reactionSystem, worldBuilder, worldBuilderPanel: null!, playerController, camera, scene,
     loginScreen, loadingOverlay, username: config.username, npcNameMap,
     HOSTILE_NPCS: new Set(['dragon_01', 'guard_01']),
     startIntroCinematic: () => {
@@ -209,7 +210,32 @@ export function bootstrap(
       });
     },
     () => worldBuilder.undo(),
-    () => worldBuilder.redo()
+    () => worldBuilder.redo(),
+    {
+      catalog: meshTypes(),
+      // Manual palette spawn: place locally right away for instant feedback, then
+      // tell the server so it persists and syncs to every player. The server echo
+      // (world_objects_update) re-applies the same objectId — spawnObject is
+      // idempotent by id, so there's no duplicate.
+      onPaletteSpawn: (type: string) => {
+        const pos = playerController.position;
+        const objectId = `wb_${Math.random().toString(16).slice(2, 10)}`;
+        const params = { objectId, objectType: type, position: [pos.x, pos.y, pos.z] as [number, number, number], scale: 1, label: type };
+        worldBuilder.spawnObject(params);
+        worldBuilderPanel.refreshPlaced();
+        if (runtime.joinedServer) {
+          ws.send({ type: 'world_direct_edit', action: 'spawn', params });
+        }
+      },
+      onDelete: (id: string) => {
+        worldBuilder.removeObject(id);
+        worldBuilderPanel.refreshPlaced();
+        if (runtime.joinedServer) {
+          ws.send({ type: 'world_direct_edit', action: 'remove', params: { objectId: id } });
+        }
+      },
+      getPlaced: () => worldBuilder.getPlacedObjects(),
+    }
   );
   // Patch worldBuilderPanel ref into handler (created after wsHandler to avoid circular dep)
   (wsHandler as unknown as { d: { worldBuilderPanel: WorldBuilderPanel } }).d.worldBuilderPanel = worldBuilderPanel;
@@ -228,7 +254,7 @@ export function bootstrap(
       const initPos: [number, number, number] = [
         playerController.position.x, playerController.position.y, playerController.position.z,
       ];
-      ws.send({ type: 'join', username: config.username, race: config.race, faction: config.faction, position: initPos });
+      ws.send({ type: 'join', username: config.username, race: config.race, faction: config.faction, position: initPos, meshCatalog: meshTypes() });
     } else {
       runtime.joinedServer = false;
     }
