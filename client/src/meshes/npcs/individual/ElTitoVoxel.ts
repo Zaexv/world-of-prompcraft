@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import { NPC_Y_TORSO, NPC_Y_HEAD } from '../../../entities/NPCAppearance';
-import { buildLowPolyCharacter, addCloak, finishCharacter, box, vmat } from './_LowPolyKit';
+import { buildVoxelCharacter, addCloak, finishCharacter, box, vmat } from './_VoxelKit';
 
 // Reference: docs/assets/characters/tito.png
 // Classic sorcerer: royal-blue robe + tall floppy hat covered in golden stars,
@@ -33,16 +33,16 @@ function moon(r: number): THREE.Mesh {
   return m;
 }
 
-export class ElTito extends Mesh {
+export class ElTitoVoxel extends Mesh {
   // Must match manifest NPC id `eltito_01` (resolver keys on npc_individual_<id>).
-  static readonly type = 'npc_individual_eltito_01';
+  static readonly type = 'npc_individual_eltito_01_voxel';
   static readonly category = 'npc' as const;
 
   build(ctx: BuildContext): THREE.Object3D {
     const group = new THREE.Group();
     group.name = 'El Tito';
 
-    const rig = buildLowPolyCharacter(group, {
+    const rig = buildVoxelCharacter(group, {
       torsoW: 0.60, torsoD: 0.40, torsoColor: ROBE,
       headW: 0.50, headD: 0.48, skinColor: SKIN,
       armW: 0.20, armD: 0.22, armColor: ROBE,
@@ -168,4 +168,4 @@ export class ElTito extends Mesh {
   }
 }
 
-registerMesh(ElTito);
+registerMesh(ElTitoVoxel);

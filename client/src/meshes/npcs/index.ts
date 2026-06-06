@@ -9,6 +9,11 @@ import { hasMesh } from '../core/MeshRegistry';
 import './individual/NiregJenkins';
 import './individual/AureliaTrader';
 import './individual/ElTito';
+import './individual/Zaex';
+// Original blocky voxel skins, kept selectable via appearance.mesh = npc_individual_<id>_voxel
+import './individual/NiregJenkinsVoxel';
+import './individual/ElTitoVoxel';
+import './individual/ZaexVoxel';
 
 // We import the manifest to get individual NPCs
 import manifest from '../../../../shared/data/world_manifest.json';
