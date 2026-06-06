@@ -193,7 +193,7 @@ def _compute_relationship_delta(
             delta += 8
         elif kind in ("give_item", "offer_item"):
             delta += 5
-        elif kind == "start_quest":
+        elif kind in ("accept_quest", "start_quest", "offer_quest"):
             delta += 3
         elif kind == "complete_quest":
             delta += 10
@@ -220,7 +220,10 @@ def _build_personality_note(
         a.get("kind") == "damage" and a.get("params", {}).get("target") != "player" for a in actions
     )
     has_gifts = any(a.get("kind") in ("give_item", "offer_item") for a in actions)
-    has_quests = any(a.get("kind") in ("start_quest", "complete_quest") for a in actions)
+    has_quests = any(
+        a.get("kind") in ("accept_quest", "start_quest", "offer_quest", "complete_quest")
+        for a in actions
+    )
 
     new_observations: list[str] = []
     if has_attacks and "attacked" not in notes:

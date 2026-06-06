@@ -1,7 +1,6 @@
 import { UIComponent } from "./core/UIComponent";
 import type { PlayerState } from "../state/PlayerState";
 import type { ActiveQuest } from "../state/QuestDefinitions";
-import { QUEST_DEFINITIONS } from "../state/QuestDefinitions";
 
 /**
  * WoW-style quest log overlay panel — toggled with L key.
@@ -173,7 +172,7 @@ export class QuestLog extends UIComponent {
       this.contentContainer.appendChild(empty);
     } else {
       for (const questId of playerState.completedQuests) {
-        const card = this.createCompletedQuestCard(questId);
+        const card = this.createCompletedQuestCard(playerState.getQuestName(questId));
         this.contentContainer.appendChild(card);
       }
     }
@@ -242,18 +241,36 @@ export class QuestLog extends UIComponent {
         lineHeight: "1.4",
       } as CSSStyleDeclaration);
 
+      // Show a (progress/required) counter for multi-step objectives.
+      const counter = obj.required > 1 ? ` (${obj.progress}/${obj.required})` : "";
       if (obj.completed) {
         objLine.style.color = "#66cc66";
         objLine.style.textDecoration = "line-through";
-        objLine.textContent = `\u25CF ${obj.description}`;
+        objLine.textContent = `\u25CF ${obj.description}${counter}`;
       } else {
         objLine.style.color = "#888";
-        objLine.textContent = `\u25CB ${obj.description}`;
+        objLine.textContent = `\u25CB ${obj.description}${counter}`;
       }
 
       objList.appendChild(objLine);
     }
     card.appendChild(objList);
+
+    // Reward line (gold + items)
+    const rewardParts: string[] = [];
+    if (quest.reward.gold > 0) rewardParts.push(`${quest.reward.gold} gold`);
+    rewardParts.push(...quest.reward.items);
+    if (quest.reward.xp > 0) rewardParts.push(`${quest.reward.xp} XP`);
+    if (rewardParts.length > 0) {
+      const rewardLine = document.createElement("div");
+      Object.assign(rewardLine.style, {
+        color: "#c5a55a",
+        fontSize: "12px",
+        marginTop: "8px",
+      } as CSSStyleDeclaration);
+      rewardLine.textContent = `Reward: ${rewardParts.join(", ")}`;
+      card.appendChild(rewardLine);
+    }
 
     // Giver footer
     const footer = document.createElement("div");
@@ -268,7 +285,7 @@ export class QuestLog extends UIComponent {
     return card;
   }
 
-  private createCompletedQuestCard(questId: string): HTMLDivElement {
+  private createCompletedQuestCard(questName: string): HTMLDivElement {
     const card = document.createElement("div");
     Object.assign(card.style, {
       background: "rgba(197,165,90,0.04)",
@@ -278,9 +295,6 @@ export class QuestLog extends UIComponent {
       marginBottom: "10px",
       opacity: "0.6",
     } as CSSStyleDeclaration);
-
-    const def = QUEST_DEFINITIONS[questId];
-    const questName = def ? def.name : questId;
 
     // Quest name with checkmark prefix
     const name = document.createElement("div");

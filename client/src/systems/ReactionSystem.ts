@@ -455,36 +455,40 @@ export class ReactionSystem {
         break;
       }
 
+      case "accept_quest":
       case "start_quest": {
-        const { questId, quest, questName, description } = action.params;
         this.audio?.playSfx("quest_start");
         if (actingNpc?.showAction) actingNpc.showAction("start_quest", 3.0);
         actingNpc?.playGesture?.("bow"); // present the quest with a gesture
-        const id = questId ?? "";
-        const name = quest ?? questName ?? description ?? "Unknown Quest";
-        if (id) this.playerState.startQuest(id);
-        this.showQuestBanner(`Quest Started: ${name}`);
+        const raw = action.params.quest;
+        if (raw && typeof raw === "object") {
+          this.playerState.acceptQuest(raw as Record<string, unknown>);
+          const name = this.playerState.getQuestName(String((raw as Record<string, unknown>).id ?? ""));
+          this.showQuestBanner(`Quest Started: ${name}`);
+        } else if ("questId" in action.params && action.params.questId) {
+          // Legacy id-only path.
+          this.showQuestBanner(`Quest Started: ${this.playerState.getQuestName(action.params.questId)}`);
+        }
         break;
       }
 
       case "advance_objective": {
-        const { questId = "", objectiveId = "" } = action.params;
+        const { questId = "", objectiveId = "", description = "", progress } = action.params;
         if (actingNpc?.showAction) actingNpc.showAction("advance_objective", 3.0);
-        if (questId && objectiveId) this.playerState.advanceObjective(questId, objectiveId);
-        this.showQuestBanner(`Objective Complete: ${objectiveId}`);
+        if (questId && objectiveId) this.playerState.advanceObjective(questId, objectiveId, progress);
+        this.showQuestBanner(`Objective: ${description || objectiveId}`);
         break;
       }
 
       case "complete_quest": {
-        const { questId, questName, reward } = action.params;
+        const { questId, quest_id } = action.params;
         this.audio?.playSfx("quest_complete");
         if (actingNpc?.showAction) actingNpc.showAction("complete_quest", 3.0);
         actingNpc?.playGesture?.("cheer");
-        const id = questId ?? questName ?? "";
-        const name = questName ?? questId ?? "Quest";
+        const id = questId ?? quest_id ?? "";
+        const name = id ? this.playerState.getQuestName(id) : "Quest";
         if (id) this.playerState.completeQuest(id);
-        const banner = reward ? `Quest Complete: ${name} — Reward: ${reward}` : `Quest Complete: ${name}`;
-        this.showQuestBanner(banner);
+        this.showQuestBanner(`Quest Complete: ${name}`);
         break;
       }
 

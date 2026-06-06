@@ -131,8 +131,16 @@ export function highlightsFromActions(actions: readonly Action[]): Highlight[] {
       push(action.params.item, "item");
     } else if (action.kind === "complete_purchase" || action.kind === "sell_item") {
       push(action.params.item, "item");
-    } else if (action.kind === "start_quest") {
-      push(action.params.quest ?? action.params.questName, "quest");
+    } else if (action.kind === "accept_quest" || action.kind === "start_quest") {
+      const raw = action.params.quest;
+      if (raw && typeof raw === "object") {
+        const r = raw as Record<string, unknown>;
+        push(String(r.title ?? r.name ?? ""), "quest");
+      } else if (typeof raw === "string") {
+        push(raw, "quest");
+      } else if ("questName" in action.params) {
+        push(action.params.questName, "quest");
+      }
     } else if (action.kind === "complete_quest") {
       push(action.params.questName ?? action.params.questId, "quest");
       push(action.params.reward, "item");

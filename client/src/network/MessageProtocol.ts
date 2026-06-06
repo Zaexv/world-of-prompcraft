@@ -173,30 +173,42 @@ export interface ChangeWeatherParams {
   weather: string;
 }
 
+/** Raw quest instance as sent by the server (storage or client shape). */
+export type RawServerQuest = Record<string, unknown>;
+
+/** accept_quest carries a full, server-authoritative quest instance. */
+export interface AcceptQuestParams {
+  player_id?: string;
+  quest: RawServerQuest;
+}
+
+/** Legacy start_quest (kept for backward compatibility). */
 export interface StartQuestParams {
-  // From predefined quest tool (quest.py)
+  player_id?: string;
+  quest?: RawServerQuest | string;
   questId?: string;
-  quest?: string;
-  // From give_quest dialogue tool (dialogue.py)
   questName?: string;
   description?: string;
-  objectives?: Array<{
-    id: string;
-    description: string;
-    target: number;
-  }>;
 }
 
 export interface CompleteQuestParams {
+  player_id?: string;
   questId?: string;
+  quest_id?: string;
   questName?: string;
   reward?: string;
 }
 
 export interface AdvanceObjectiveParams {
-  questId: string;
-  objectiveId: string;
+  questId?: string;
+  objectiveId?: string;
+  description?: string;
   progress?: number;
+  required?: number;
+}
+
+export interface GrantXpParams {
+  amount: number;
 }
 
 export interface WorldSpawnParams {
@@ -232,9 +244,11 @@ export type Action =
   | { kind: "move_npc"; params: MoveNpcParams }
   | { kind: "spawn_effect"; params: SpawnEffectParams }
   | { kind: "change_weather"; params: ChangeWeatherParams }
+  | { kind: "accept_quest"; params: AcceptQuestParams }
   | { kind: "start_quest"; params: StartQuestParams }
   | { kind: "complete_quest"; params: CompleteQuestParams }
   | { kind: "advance_objective"; params: AdvanceObjectiveParams }
+  | { kind: "grant_xp"; params: GrantXpParams }
   | { kind: "world_spawn"; params: WorldSpawnParams }
   | { kind: "world_remove"; params: WorldRemoveParams }
   | { kind: "play_music"; params: PlayMusicParams };

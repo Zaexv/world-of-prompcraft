@@ -311,26 +311,43 @@ class WorldState:
                     self.environment["weather"] = weather
                     self.recent_events.append(f"Weather changed to {weather}")
 
-                elif kind == "start_quest":
+                elif kind in ("accept_quest", "start_quest"):
+                    # Full server-authoritative instance offered by an NPC.
+                    pid = params.get("player_id", "")
+                    quest = params.get("quest")
+                    if isinstance(quest, dict):
+                        player = self.get_player(pid)
+                        if player.accept_quest(quest):
+                            self.recent_events.append(f"{pid} started quest {quest.get('id', '')}")
+                    else:
+                        # Legacy curated-by-id path.
+                        quest_id = params.get("quest_id", "")
+                        if quest_id:
+                            player = self.get_player(pid)
+                            if player.accept_template(quest_id):
+                                self.recent_events.append(f"{pid} started quest {quest_id}")
+
+                elif kind == "advance_objective":
                     pid = params.get("player_id", "")
                     quest_id = params.get("quest_id", "")
-                    if quest_id:
+                    objective_id = params.get("objective_id", "")
+                    if quest_id and objective_id:
                         player = self.get_player(pid)
-                        player.start_quest(quest_id)
-                        self.recent_events.append(f"{pid} started quest {quest_id}")
+                        player.advance_objective(quest_id, objective_id)
+                        # Auto-complete + pay out if this finished the quest.
+                        if player.all_objectives_complete(quest_id):
+                            from .quest_progress import complete_and_reward
+
+                            complete_and_reward(player, quest_id)
 
                 elif kind == "complete_quest":
                     pid = params.get("player_id", "")
                     quest_id = params.get("quest_id", "")
                     if quest_id:
-                        player = self.get_player(pid)
-                        player.complete_quest(quest_id)
-                        # Grant quest reward item to the player
-                        from .quest_definitions import QUEST_DEFINITIONS
+                        from .quest_progress import complete_and_reward
 
-                        quest_def = QUEST_DEFINITIONS.get(quest_id)
-                        if quest_def and quest_def.reward_item:
-                            player.inventory.append(quest_def.reward_item)
+                        player = self.get_player(pid)
+                        complete_and_reward(player, quest_id)
                         self.recent_events.append(f"{pid} completed quest {quest_id}")
 
                 elif kind == "move_npc":

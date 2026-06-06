@@ -80,7 +80,8 @@ export class QuestTracker extends UIComponent {
           marginTop: "2px",
           lineHeight: "1.3",
         } as CSSStyleDeclaration);
-        objEl.textContent = `\u25CB ${obj.description}`;
+        const counter = obj.required > 1 ? ` (${obj.progress}/${obj.required})` : "";
+        objEl.textContent = `\u25CB ${obj.description}${counter}`;
         this.container.appendChild(objEl);
       }
 
