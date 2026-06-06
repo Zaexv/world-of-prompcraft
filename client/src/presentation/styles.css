@@ -1,0 +1,347 @@
+/* World of Promptcraft — LLMdays deck
+   Formal in-game fantasy style (gold on dark, Cinzel headings), glass panels
+   layered over the live game world. Companion to backdrop.ts + deck.ts. */
+
+:root {
+  --ink:        #ece2d0;   /* parchment text */
+  --muted:      #a99a80;
+  --gold:       #c5a55a;   /* primary accent (matches in-game UI) */
+  --gold-soft:  #e3c987;
+  --gold-bright:#e8b84b;
+  --ember:      #cc8844;
+  --line:       rgba(197, 165, 90, 0.30);
+  --line-soft:  rgba(197, 165, 90, 0.16);
+  --glass:      rgba(12, 9, 20, 0.62);   /* keep transparency */
+  --glass-2:    rgba(8, 6, 14, 0.74);
+  --serif:      "Cinzel", Georgia, "Times New Roman", serif;
+  --sans:       "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono:       "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; }
+
+body {
+  font-family: var(--sans);
+  color: var(--ink);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ---------- live 3D world (canvas appended by SceneManager) ---------- */
+#bg { position: fixed; inset: 0; z-index: 0; }
+#bg canvas {
+  position: fixed !important;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+/* soft vignette so panels keep contrast — no scanlines, kept subtle */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: radial-gradient(130% 100% at 50% 35%, transparent 45%, rgba(6, 4, 10, 0.66) 100%);
+}
+
+/* ---------- slide deck ---------- */
+.deck { position: fixed; inset: 0; z-index: 2; }
+
+.slide {
+  position: absolute;
+  inset: 0;
+  display: none;
+  flex-direction: column;
+  justify-content: center;
+  padding: 7vh 9vw;
+  opacity: 0;
+  transform: translateY(14px);
+  transition: opacity 0.55s ease, transform 0.55s ease;
+}
+.slide.active { display: flex; opacity: 1; transform: none; }
+.slide.center { align-items: center; text-align: center; }
+
+/* glass panel with a thin gilt frame — formal, transparent */
+.panel {
+  position: relative;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 2.6rem 3rem;
+  background: var(--glass);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  backdrop-filter: blur(9px) saturate(115%);
+  -webkit-backdrop-filter: blur(9px) saturate(115%);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+}
+/* inner gilt hairline */
+.panel::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border: 1px solid var(--line-soft);
+  border-radius: 6px;
+  pointer-events: none;
+}
+.slide.center .panel { max-width: 880px; text-align: center; }
+
+/* ---------- typography ---------- */
+.kicker {
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin-bottom: 1rem;
+}
+.kicker::after {
+  content: "";
+  display: block;
+  width: 54px;
+  height: 2px;
+  margin-top: 0.7rem;
+  background: linear-gradient(90deg, var(--gold), transparent);
+}
+.slide.center .kicker::after { margin-left: auto; margin-right: auto; }
+
+h1 {
+  font-family: var(--serif);
+  font-size: clamp(2.4rem, 5.6vw, 4.6rem);
+  line-height: 1.05;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+h2 {
+  font-family: var(--serif);
+  font-size: clamp(1.7rem, 3.2vw, 2.7rem);
+  line-height: 1.12;
+  font-weight: 700;
+  margin-bottom: 1.3rem;
+}
+.grad {
+  background: linear-gradient(100deg, var(--gold-soft), var(--gold-bright) 55%, var(--ember));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.lead {
+  font-size: clamp(1.02rem, 1.6vw, 1.4rem);
+  color: var(--muted);
+  max-width: 62ch;
+  line-height: 1.6;
+  margin-top: 1.1rem;
+}
+.slide.center .lead { margin-left: auto; margin-right: auto; }
+p.body {
+  font-size: clamp(0.98rem, 1.4vw, 1.18rem);
+  color: var(--muted);
+  max-width: 70ch;
+  line-height: 1.6;
+}
+b.hl, .hl { color: var(--ink); font-weight: 700; }
+code, .mono { font-family: var(--mono); color: var(--gold-soft); font-size: 0.92em; }
+.cy { color: var(--gold-bright); }
+.am { color: var(--ember); }
+.mg { color: var(--gold-soft); }
+.green { color: var(--gold-soft); }
+
+/* ---------- bullet points ---------- */
+ul.points { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.4rem; }
+ul.points li {
+  font-size: clamp(0.98rem, 1.5vw, 1.26rem);
+  padding-left: 1.6rem;
+  position: relative;
+  line-height: 1.5;
+  max-width: 78ch;
+  color: var(--muted);
+}
+ul.points li::before {
+  content: "✦";
+  color: var(--gold);
+  position: absolute;
+  left: 0;
+  top: 0.05em;
+  font-size: 0.8em;
+}
+ul.points li b { color: var(--ink); font-weight: 700; }
+
+/* ---------- card grids ---------- */
+.grid { display: grid; gap: 1rem; margin-top: 0.4rem; }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.card {
+  background: rgba(197, 165, 90, 0.05);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 1.2rem 1.3rem;
+}
+.card h3 { font-family: var(--serif); font-size: 1.06rem; font-weight: 600; margin-bottom: 0.45rem; color: var(--gold-soft); }
+.card p { color: var(--muted); font-size: 0.96rem; line-height: 1.55; }
+.card .tagline {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  margin-bottom: 0.5rem;
+}
+.card.center { text-align: center; }
+.card.center .tagline { font-size: 1.6rem; color: var(--gold-soft); margin-bottom: 0.2rem; }
+.card.center h3 { justify-content: center; }
+
+/* ---------- pillar badge ---------- */
+.pilar {
+  font-family: var(--serif);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--gold-bright);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  padding: 0.25rem 0.75rem;
+  font-weight: 600;
+  display: inline-block;
+  margin-bottom: 0.85rem;
+}
+
+/* ---------- architecture split: text on left, diagram on right ---------- */
+.split { display: grid; grid-template-columns: 1fr 1.15fr; gap: 1.6rem; align-items: center; }
+
+/* Pan/zoom viewport: SVG is absolutely placed and transformed by deck.ts. */
+.diagram {
+  margin: 0;
+  position: relative;
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  height: 52vh;
+  overflow: hidden;
+  touch-action: none;
+  cursor: grab;
+}
+.diagram .mermaid { position: absolute; top: 0; left: 0; }
+.diagram svg { position: absolute; top: 0; left: 0; max-width: none; will-change: transform; }
+.diagram figcaption {
+  position: absolute;
+  bottom: 0.5rem;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--muted);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ---------- chrome ---------- */
+.progress {
+  position: fixed;
+  top: 0; left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--gold), var(--gold-bright));
+  z-index: 5;
+  transition: width 0.5s ease;
+}
+.chrome {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.9rem 1.8rem;
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  pointer-events: none;
+}
+.brand { color: var(--gold); font-weight: 600; }
+.section {
+  flex: 1;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+.counter { font-variant-numeric: tabular-nums; color: var(--gold-soft); font-family: var(--mono); }
+
+/* ---------- speaker help overlay ---------- */
+.help {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(6, 4, 10, 0.72);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.help[hidden] { display: none; }
+.help-card {
+  background: var(--glass-2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 2rem 2.4rem;
+  max-width: 460px;
+  width: 90%;
+}
+.help-card h3 {
+  font-family: var(--serif);
+  color: var(--gold-soft);
+  font-size: 1.4rem;
+  margin-bottom: 1.2rem;
+}
+.help-card dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.7rem 1.2rem;
+  align-items: baseline;
+}
+.help-card dt { font-family: var(--mono); color: var(--gold); white-space: nowrap; }
+.help-card dd { color: var(--muted); }
+.hint {
+  position: fixed;
+  bottom: 0.7rem; left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+  opacity: 0.5;
+}
+kbd {
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 0.05rem 0.4rem;
+  font-family: var(--mono);
+  color: var(--gold-soft);
+}
+
+.title-deco {
+  font-family: var(--serif);
+  font-size: clamp(0.8rem, 1.3vw, 1rem);
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 1.3rem;
+}
+
+/* ---------- responsive ---------- */
+@media (max-width: 900px) {
+  .split { grid-template-columns: 1fr; }
+  .g3 { grid-template-columns: repeat(2, 1fr); }
+  .slide { padding: 6vh 5vw; }
+  .panel { padding: 1.8rem 1.4rem; }
+  .diagram { height: 40vh; }
+}
+@media (max-width: 600px) {
+  .g2, .g3 { grid-template-columns: 1fr; }
+}

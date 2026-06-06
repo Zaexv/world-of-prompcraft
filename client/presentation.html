@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>World of Promptcraft — LLMdays</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
+<!-- Mermaid is loaded at runtime (ESM) by deck.ts, then made pan/zoom. -->
+</head>
+<body>
+
+<!-- The real game world (SceneManager + WorldGenerator) renders here, behind everything -->
+<div id="bg"></div>
+<div class="scrim"></div>
+
+<div class="deck" id="deck">
+
+  <!-- 1 — TITLE -->
+  <section class="slide center">
+    <div class="panel">
+      <div class="title-deco">Presented at the LLMdays</div>
+      <h1>World of <span class="grad">Promptcraft</span></h1>
+      <p class="lead">A 3D RPG with no buttons. You type — and an AI-generated world of agents answers.</p>
+    </div>
+  </section>
+
+  <!-- 2 — WHAT IS IT -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">What is World of Promptcraft?</div>
+      <h2>A world generated <span class="grad">entirely by AI</span></h2>
+      <ul class="points">
+        <li><b>Procedural and agentic</b> — terrain, meshes and gameplay are produced by LLMs, never hand-authored.</li>
+        <li><b>NPCs are autonomous agents</b> — each with its own personality, memory, and combat &amp; trade behaviour.</li>
+        <li><b>The prompt is the only interface</b> — no menus, no dialogue trees; you simply write.</li>
+        <li><b>Endless play</b> — uncover stories, fight, or generate new items and textures on demand.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 3 — HOW THE IDEA STARTED -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">How did the idea start?</div>
+      <h2>From the <span class="grad">state of the art</span> to a living 3D world</h2>
+      <ul class="points">
+        <li><b>Skyrim</b> and <b>Minecraft</b> have AI mods — but no <b>fully agentic</b> game had shipped, built end-to-end with agentic coding (Claude, Copilot, Gemini).</li>
+        <li>Inspired by Stanford's <b>Generative Agents</b> — <a href="https://arxiv.org/abs/2304.03442" class="cy" target="_blank" rel="noreferrer">arxiv.org/abs/2304.03442</a>.</li>
+        <li>It began as a proof of concept and grew into a complete, explorable 3D world.</li>
+        <li class="am">And it runs entirely in the browser.</li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- 4 — ARCHITECTURE OVERVIEW -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">System Architecture</div>
+      <h2>One round trip, <span class="grad">three pillars</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>Your browser is just a window.</b> It draws the world but never decides what happens — the server is the single source of truth.</li>
+          <li><b>One always-open line</b> carries messages both ways: your words go out; a reply comes back with what the character says <i>and</i> a list of changes to make.</li>
+          <li><b>Each character has its own small "brain"</b> that turns your words into concrete in-game changes. The server applies them, and the world updates.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  UI[You type] --> WSC[Your browser]
+  WSC -->|your words| HND[Server]
+  HND --> GR[Character's brain]
+  GR --> WST[The world<br/>source of truth]
+  WST -->|list of changes| RSY[Browser updates]
+  RSY --> SCN[You see it happen]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5 — PILLAR 1: 3D CLI -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">Pillar 1 — Generative 3D</div>
+      <h2>A generative 3D CLI with <span class="grad">Three.js</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>The whole world is drawn live in the browser</b> from simple 3D shapes — nothing to download or install.</li>
+          <li><b>The AI makes the shapes</b> — they're generated on the fly, not placed by a level designer.</li>
+          <li>The <b class="cy">"DOOM" idea</b> — the land comes from math formulas, so it can be endless and still run <span class="am">"even on a toaster"</span>.</li>
+          <li><span class="mg">Special thanks</span> to Rafael Pernil for the visual craft and his GPU.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  P[You type] --> WS[Sent to server]
+  WS --> SRV[Server decides]
+  SRV --> R[Changes come back]
+  R --> SM[Drawing engine]
+  SM --> G[Shapes and landscapes appear]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6 — 3D DEEP DIVE: RENDERING PIPELINE -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">A Closer Look — The Picture</div>
+      <h2>How each <span class="grad">frame is drawn</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>The image is built in layers</b> — first the scene, then a pass that smooths jagged edges, then a pass that makes bright things glow. If a layer can't run, it quietly skips it.</li>
+          <li><b>Soft shadows and film-like color</b> make it look less "computer-generated."</li>
+          <li><b>The sky lights the world</b> — a snapshot of the sky is used to light everything realistically, added a moment after the game starts.</li>
+          <li><b>It watches its own speed</b> — if the frame rate dips, it lowers detail a touch to stay smooth.</li>
+          <li><b>Less effort on far-away things</b> — distant objects switch to simpler versions and stop casting shadows.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  SC[The scene] --> RP[Draw it]
+  RP --> TAA[Smooth the edges]
+  TAA --> BL[Add the glow]
+  BL --> CV[Final picture]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7 — 3D DEEP DIVE: TERRAIN & CHUNKS -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">A Closer Look — The World</div>
+      <h2>An endless land, <span class="grad">built as you walk</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>The land is made of square tiles</b> (about 64 metres each) that appear around you as you move — so the world is effectively endless.</li>
+          <li><b>Each tile's hills and valleys come from a formula</b>, not a saved map. Mixing "recipes" gives forests, snow, lava and more.</li>
+          <li><b>Ground flattens under buildings</b> automatically, so nothing floats or sinks.</li>
+          <li><b>As a tile appears, the game fills it</b> with trees, rocks and buildings.</li>
+          <li><b>Every object is a small reusable recipe</b> — defined once, dropped in anywhere with a single line.</li>
+          <li><b>You can't walk through walls</b> — a fast "bumping" check keeps you on the ground and out of solid things.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  T[You move] --> CL[A new tile appears]
+  CL --> WG[Game fills the tile]
+  WG --> PP[Picks trees and buildings]
+  PP --> BM[Builds each object]
+  BM --> SC[Shows up in the world]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 8 — PILLAR 2: AGENTIC BACKEND -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">Pillar 2 — Agentic Backend</div>
+      <h2>An agentic backend on <span class="grad">LangGraph</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>Every character thinks on its own</b> — each has a private decision loop and its own memory; new characters can be added while the game runs.</li>
+          <li><b>The thinking happens in small steps</b> on the server and is sent back over the live connection.</li>
+          <li><b>"Guardrails" keep it on track</b> so the AI stays in character and the story stays consistent.</li>
+          <li><b>A quick "lore lookup"</b> feeds each character the facts it needs, so it can reason in the moment, change mood, and remember.</li>
+        </ul>
+        <figure class="diagram">
+          <!-- The per-character decision loop -->
+          <pre class="mermaid">
+flowchart TD
+  S([You speak]) --> R[Think]
+  R -->|needs to act| A[Do it]
+  R -->|just talk| RESP[Reply]
+  A --> R
+  RESP --> FB[Fill gaps]
+  FB --> REF[Update feelings]
+  REF -->|now and then| SUM[Trim memory]
+  REF --> E([Done])
+  SUM --> E
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 9 — AGENT DEEP DIVE: THE GRAPH NODES -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">A Closer Look — Thinking</div>
+      <h2>Six steps, <span class="grad">but only one or two AI calls</span></h2>
+      <ul class="points">
+        <li><b>Think</b> — the character gathers who it is, what's nearby, your shared history, its mood, and any relevant lore, then decides what to say and do. Plain "hellos" take a quick shortcut to save effort.</li>
+        <li><b>Do it</b> — it carries out the chosen actions (attack, give an item…), sees the result, and loops back to think if there's more to do.</li>
+        <li><b>Reply</b> — it writes the actual in-character line, reusing what it already worked out when that text is clean.</li>
+        <li><b>Fill gaps</b> — if it somehow says nothing, a sensible line is built from what it just did.</li>
+        <li><b>Update feelings</b> — <b class="cy">no AI here</b>: simple rules adjust its mood and how much it likes you (a score from −100 to +100).</li>
+        <li><b>Trim memory</b> — once in a while it compresses old chat into a short note, so a character's memory never grows out of control.</li>
+      </ul>
+      <p class="body" style="margin-top:1rem">Only the first two steps may call the AI — the rest is cheap, ordinary code. That keeps each reply fast and the cost predictable.</p>
+    </div>
+  </section>
+
+  <!-- 10 — AGENT DEEP DIVE: STATE & MEMORY -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">A Closer Look — Memory</div>
+      <h2>Characters remember you — <span class="grad">no database needed</span></h2>
+      <ul class="points">
+        <li><b>A private notebook per pair</b> — each character keeps a separate memory for each player it has met.</li>
+        <li><b>What it keeps</b> — a short summary of your chats, its current mood, how much it likes you, and notes it has formed about you.</li>
+        <li><b>No wasted thinking</b> — if you ask the exact same thing again, it reuses the previous answer instead of asking the AI twice.</li>
+      </ul>
+      <div class="grid g3" style="margin-top:1.6rem">
+        <div class="card center"><div class="tagline">−100</div><h3 class="am">Enemy</h3></div>
+        <div class="card center"><div class="tagline">0</div><h3>Stranger</h3></div>
+        <div class="card center"><div class="tagline">+100</div><h3 class="green">Trusted Ally</h3></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 11 — TOOL SYSTEM -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">A Closer Look — Safety</div>
+      <h2>Characters act through a <span class="grad">fixed set of verbs</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>A limited menu of actions</b> — attack, heal, trade, give a quest, change the weather, and a few more. A character can't do anything outside that list. That's the safety net.</li>
+          <li><b>Nothing happens immediately</b> — each verb just writes down "what should change." The server then applies the whole list at once, in one clean step.</li>
+          <li><b>The money is real</b> — offering an item only proposes a price; a sale only goes through if you can actually pay; quest rewards are capped so nothing breaks the economy.</li>
+          <li><b>One place changes the world</b> — keeping every update in a single, guarded step avoids glitches when many things happen at once.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  RE[AI picks a verb] --> TC[Attack / give / trade...]
+  TC --> AC[Write down the change]
+  AC --> PA[Collect all changes]
+  PA --> AA[Apply them all at once]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 12 — CONCURRENCY & AUTHORITY -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">Keeping it fast &amp; fair</div>
+      <h2>One source of truth, <span class="grad">never overloaded</span></h2>
+      <div class="grid g2">
+        <div class="card">
+          <div class="tagline">fairness</div>
+          <h3>The server owns the world</h3>
+          <p>Every hit point, coin and weather change is decided in one place. Your browser only shows the result — so two players always see the same thing.</p>
+        </div>
+        <div class="card">
+          <div class="tagline">responsiveness</div>
+          <h3>Slow thinking never freezes you</h3>
+          <p>While a character is thinking, you can still walk around freely. Rapid clicks are queued, only a handful of AI requests run at once, and each has a time limit — so it never gets swamped.</p>
+        </div>
+        <div class="card">
+          <div class="tagline">speed</div>
+          <h3>Instant for the simple stuff</h3>
+          <p>Ordinary hits are settled instantly by simple rules. The AI is saved for the moments that actually need thought.</p>
+        </div>
+        <div class="card">
+          <div class="tagline">cost</div>
+          <h3>Cheap way to recall lore</h3>
+          <p>Background facts are found by matching keywords, not by heavy AI search — so each reply stays low-cost and predictable.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 13 — PILLAR 3: AGENTIC CODING -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">Pillar 3 — Agentic Coding</div>
+      <h2>Agentic coding <span class="grad">as the way of building</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>One shared rulebook</b> — a couple of guide documents tell every AI coding assistant how things are built here, so the style stays consistent.</li>
+          <li><b>Nothing ships untested</b> — automated checks and tests must pass before any change is accepted; problems are caught before they reach the project.</li>
+          <li><b>Two working habits</b> — research first then build, and repeat-until-right loops.</li>
+          <li><b>Draw it first</b> — sketch the design as simple diagrams before writing any code.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  RES[Research] --> PLAN[Sketch the design]
+  PLAN --> IMPL[Build it]
+  IMPL --> GATE{Checks pass?}
+  GATE -->|no| IMPL
+  GATE -->|yes| GH[Ships]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 — TAKEAWAYS & FEATURES -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">Takeaways &amp; features</div>
+      <h2>Lessons learnt &amp; <span class="grad">cool features</span></h2>
+      <div class="grid g2">
+        <div class="card">
+          <div class="tagline">lessons learnt</div>
+          <h3>Lessons</h3>
+          <p>Guardrails beat raw randomness. Giving each character its own brain adds personality without adding complexity. And by using the AI sparingly — only where real thinking is needed — the cost stays low and predictable.</p>
+        </div>
+        <div class="card">
+          <div class="tagline">cool features</div>
+          <h3>Tooling</h3>
+          <p><b class="cy">Terrain Builder</b> · <b class="cy">Mesh Viewer</b> · <b class="cy">World Builder</b> — author and edit the world, all AI-driven.</p>
+        </div>
+      </div>
+      <p class="lead" style="margin-top:1.4rem">Type anything — the world answers.</p>
+    </div>
+  </section>
+
+</div>
+
+<div class="progress" id="progress"></div>
+<div class="chrome">
+  <span class="brand">World of Promptcraft</span>
+  <span class="section" id="section"></span>
+  <span class="counter"><span id="cur">1</span> / <span id="total">14</span></span>
+</div>
+<div class="hint">Navigate with <kbd>←</kbd> <kbd>→</kbd> or scroll · <kbd>F</kbd> fullscreen · <kbd>?</kbd> help</div>
+
+<!-- Speaker help overlay (toggled with ? / h) -->
+<div class="help" id="help" hidden>
+  <div class="help-card">
+    <h3>Controls</h3>
+    <dl>
+      <dt><kbd>←</kbd> <kbd>→</kbd></dt><dd>Previous / next slide</dd>
+      <dt><kbd>↑</kbd> <kbd>↓</kbd> · scroll</dt><dd>Previous / next slide</dd>
+      <dt><kbd>Home</kbd> <kbd>End</kbd></dt><dd>First / last slide</dd>
+      <dt><kbd>F</kbd></dt><dd>Toggle fullscreen</dd>
+      <dt>drag · scroll</dt><dd>Pan / zoom a diagram</dd>
+      <dt>double-click</dt><dd>Reset a diagram to fit</dd>
+      <dt><kbd>?</kbd> <kbd>Esc</kbd></dt><dd>Toggle / close this help</dd>
+    </dl>
+  </div>
+</div>
+
+<script type="module" src="/src/presentation/main.ts"></script>
+</body>
+</html>
