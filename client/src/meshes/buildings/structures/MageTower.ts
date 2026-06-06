@@ -144,7 +144,7 @@ function cornerRibs(g: THREE.Group, mats: Mats, top: number): void {
 const STAIR_R = 2.4;          // tread centre radius
 const TREAD_W = 1.7, TREAD_D = 1.0;
 const WELL_INNER = 3.5;       // oculus / balcony inner radius — wide, easily passable
-const STEP_RISE = 0.5;        // gentle rise the capsule step-detector can climb
+const STEP_RISE = 0.4;        // below the capsule step-detector's 0.5 limit, so it always climbs
 
 /**
  * Spiral staircase, clear of the walls, winding around a central newel.
@@ -218,8 +218,9 @@ function crown(g: THREE.Group, mats: Mats, deckY: number, landingAngle: number):
   // Annular deck — open oculus in the middle, solid ring to walk on. Top at deckY.
   solid(g, new THREE.RingGeometry(WELL_INNER, PLAT_R, SEGS, 1), mats.stone,
     0, deckY, 0, -Math.PI / 2, 0, 0);
-  // Thin lip under the deck so it reads as solid floor.
-  solid(g, new THREE.CylinderGeometry(PLAT_R, PLAT_R + 0.3, 0.5, SEGS), mats.stone, 0, deckY - 0.25, 0);
+  // Thin rim skirt under the deck edge — OPEN-ENDED (no caps) so it never seals
+  // the oculus. A capped cylinder here would be a circular ceiling over the well.
+  solid(g, new THREE.CylinderGeometry(PLAT_R, PLAT_R + 0.3, 0.5, SEGS, 1, true), mats.stone, 0, deckY - 0.25, 0);
 
   // Landing slab: bridges the oculus → deck at the stair's exit, flush with deckY.
   const landR = (1.4 + PLAT_R) / 2;
