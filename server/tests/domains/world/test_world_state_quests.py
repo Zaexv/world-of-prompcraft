@@ -1,0 +1,78 @@
+"""Tests for quest actions flowing through WorldState.apply_actions."""
+
+from __future__ import annotations
+
+import pytest
+
+from src.world.quests import instantiate
+from src.world.world_state import WorldState
+
+
+@pytest.fixture(autouse=True)
+def _reset_world_state() -> None:
+    WorldState._instance = None
+
+
+@pytest.mark.asyncio
+async def test_accept_quest_action_adds_full_instance() -> None:
+    ws = WorldState()
+    inst = instantiate("crystal_tear", "Elyria")
+    assert inst is not None
+    await ws.apply_actions(
+        [
+            {
+                "kind": "accept_quest",
+                "params": {"player_id": "alice", "quest": inst.to_storage_dict()},
+            }
+        ]
+    )
+    player = ws.get_player("alice")
+    assert player.has_active_quest("crystal_tear")
+
+
+@pytest.mark.asyncio
+async def test_legacy_start_quest_by_id_still_works() -> None:
+    ws = WorldState()
+    await ws.apply_actions(
+        [{"kind": "start_quest", "params": {"player_id": "bob", "quest_id": "village_patrol"}}]
+    )
+    assert ws.get_player("bob").has_active_quest("village_patrol")
+
+
+@pytest.mark.asyncio
+async def test_advance_objective_action_auto_completes_and_pays() -> None:
+    ws = WorldState()
+    player = ws.get_player("carol")
+    player.accept_template("crystal_tear")
+    # Force the first two objectives complete; advancing the last finishes it.
+    quest = player.get_quest("crystal_tear")
+    assert quest is not None
+    quest["objectives"][0]["completed"] = True
+    quest["objectives"][1]["completed"] = True
+    await ws.apply_actions(
+        [
+            {
+                "kind": "advance_objective",
+                "params": {
+                    "player_id": "carol",
+                    "quest_id": "crystal_tear",
+                    "objective_id": "return_elyria",
+                },
+            }
+        ]
+    )
+    assert player.has_completed_quest("crystal_tear")
+    assert "Amulet of Clarity" in player.inventory
+    assert player.gold > 0
+
+
+@pytest.mark.asyncio
+async def test_complete_quest_action_grants_reward() -> None:
+    ws = WorldState()
+    player = ws.get_player("dave")
+    player.accept_template("village_patrol")
+    await ws.apply_actions(
+        [{"kind": "complete_quest", "params": {"player_id": "dave", "quest_id": "village_patrol"}}]
+    )
+    assert player.has_completed_quest("village_patrol")
+    assert "Guard's Badge of Honor" in player.inventory

@@ -105,7 +105,7 @@ def _action_phrase(action: dict[str, Any]) -> str:
         return "healed the player"
     if kind == "apply_status":
         return "cast a spell"
-    if kind == "start_quest":
+    if kind in ("accept_quest", "start_quest", "offer_quest"):
         return "offered a quest"
     if kind == "complete_quest":
         return "completed a quest"

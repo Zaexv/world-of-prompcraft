@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .items import stacked_inventory
-from .quest_definitions import QUEST_DEFINITIONS
+from .quests import QuestInstance, QuestReward, instantiate
 
 
 @dataclass
@@ -40,6 +40,9 @@ class PlayerData:
         }
 
     def to_dict(self) -> dict[str, Any]:
+        client_quests = [
+            QuestInstance.from_storage_dict(q).to_client_dict() for q in self.active_quests
+        ]
         return {
             "hp": self.hp,
             "maxHp": self.max_hp,
@@ -52,87 +55,76 @@ class PlayerData:
             "race": self.race,
             "faction": self.faction,
             "yaw": self.yaw,
-            "active_quests": [
-                {
-                    "id": q["id"],
-                    "name": q.get("name", ""),
-                    "description": q.get("description", ""),
-                    "giverNpc": q.get("giver_npc", ""),
-                    "giverName": q.get("giver_name", ""),
-                    "rewardItem": q.get("reward_item", ""),
-                    "rewardDescription": q.get("reward_description", ""),
-                    "objectives": [
-                        {
-                            "id": obj["id"],
-                            "description": obj.get("description", ""),
-                            "type": obj.get("type", ""),
-                            "target": obj.get("target", ""),
-                            "completed": obj.get("completed", False),
-                        }
-                        for obj in q.get("objectives", [])
-                    ],
-                }
-                for q in self.active_quests
-            ],
+            # Client-facing (camelCase) — what PlayerState.merge consumes.
+            "activeQuests": client_quests,
+            "completedQuests": list(self.completed_quests),
+            # Internal/agent-context (snake) consumers still read these.
+            "active_quests": list(self.active_quests),
             "completed_quests": list(self.completed_quests),
             "kill_count": self.kill_count,
         }
 
-    def start_quest(self, quest_id: str) -> None:
-        """Add a quest to active_quests from QUEST_DEFINITIONS."""
-        if self.has_active_quest(quest_id) or self.has_completed_quest(quest_id):
-            return
-        quest_def = QUEST_DEFINITIONS.get(quest_id)
-        if quest_def is None:
-            return
+    # ── Quest API (instance-based, server-authoritative) ───────────────────
 
-        # Dynamically fetch NPC name from manifest
-        from .npc_definitions import get_npc_definitions
+    def accept_quest(self, instance: dict[str, Any]) -> bool:
+        """Store a full quest instance (offered→active). Returns False if dupe/invalid."""
+        quest_id = str(instance.get("id", ""))
+        if not quest_id or self.has_active_quest(quest_id) or self.has_completed_quest(quest_id):
+            return False
+        normalized = QuestInstance.from_storage_dict(instance)
+        normalized.status = "active"
+        self.active_quests.append(normalized.to_storage_dict())
+        return True
 
-        npc_defs = get_npc_definitions()
-        npc_def = npc_defs.get(quest_def.giver_npc)
-
-        giver_name = npc_def["name"] if npc_def else quest_def.giver_npc
-        quest_entry: dict[str, Any] = {
-            "id": quest_def.id,
-            "name": quest_def.name,
-            "description": quest_def.description,
-            "giver_npc": quest_def.giver_npc,
-            "giver_name": giver_name,
-            "reward_item": quest_def.reward_item,
-            "reward_description": quest_def.reward_description,
-            "objectives": [
-                {
-                    "id": obj.id,
-                    "description": obj.description,
-                    "type": obj.type,
-                    "target": obj.target,
-                    "completed": False,
-                }
-                for obj in quest_def.objectives
-            ],
-        }
-        self.active_quests.append(quest_entry)
+    def accept_template(self, template_id: str, giver_name: str | None = None) -> bool:
+        """Accept a curated quest by template id."""
+        inst = instantiate(template_id, giver_name)
+        if inst is None:
+            return False
+        return self.accept_quest(inst.to_storage_dict())
 
     def advance_objective(self, quest_id: str, objective_id: str) -> None:
-        """Mark a specific objective as completed."""
+        """Mark a specific objective completed (used by the LLM 'report back' path)."""
         for quest in self.active_quests:
-            if quest["id"] == quest_id:
-                for obj in quest.get("objectives", []):
-                    if obj["id"] == objective_id:
-                        obj["completed"] = True
-                        return
+            if quest.get("id") != quest_id:
+                continue
+            for obj in quest.get("objectives", []):
+                if obj.get("id") == objective_id:
+                    obj["progress"] = obj.get("required", 1)
+                    obj["completed"] = True
+                    return
 
-    def complete_quest(self, quest_id: str) -> None:
-        """Move quest from active to completed."""
-        self.active_quests = [q for q in self.active_quests if q["id"] != quest_id]
+    def get_quest(self, quest_id: str) -> dict[str, Any] | None:
+        for quest in self.active_quests:
+            if quest.get("id") == quest_id:
+                return quest
+        return None
+
+    def all_objectives_complete(self, quest_id: str) -> bool:
+        quest = self.get_quest(quest_id)
+        if quest is None:
+            return False
+        objectives = quest.get("objectives", [])
+        return bool(objectives) and all(o.get("completed") for o in objectives)
+
+    def complete_quest(self, quest_id: str) -> QuestReward | None:
+        """Move quest active→completed and return its reward (or None if absent)."""
+        reward: QuestReward | None = None
+        remaining: list[dict[str, Any]] = []
+        for quest in self.active_quests:
+            if quest.get("id") == quest_id:
+                reward = QuestReward.from_dict(quest.get("reward"))
+            else:
+                remaining.append(quest)
+        if reward is None:
+            return None
+        self.active_quests = remaining
         if quest_id not in self.completed_quests:
             self.completed_quests.append(quest_id)
+        return reward
 
     def has_active_quest(self, quest_id: str) -> bool:
-        """Check if a quest is currently active."""
-        return any(q["id"] == quest_id for q in self.active_quests)
+        return any(q.get("id") == quest_id for q in self.active_quests)
 
     def has_completed_quest(self, quest_id: str) -> bool:
-        """Check if a quest has been completed."""
         return quest_id in self.completed_quests

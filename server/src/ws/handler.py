@@ -16,6 +16,7 @@ from ..combat.combat_resolution import (
 )
 from ..combat.loot import generate_loot
 from ..config import settings
+from ..world import quest_progress
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -174,6 +175,18 @@ async def _build_kill_rewards(npc: NPCData, player_id: str) -> list[dict[str, An
             logger.warning("Loot generation timed out for %s", npc.npc_id)
 
     await _world_state.apply_actions(actions)
+
+    # Advance any kill objectives across the player's active quests. on_event
+    # mutates the player (progress + reward payout) directly, so its actions are
+    # appended for client feedback rather than re-applied via apply_actions.
+    async with _world_state._lock:
+        player = _world_state.get_player(player_id)
+        player.kill_count += 1
+        quest_actions = quest_progress.on_event(
+            player,
+            {"type": "enemy_killed", "archetype": npc.archetype, "name": npc.name},
+        )
+    actions.extend(quest_actions)
     return actions
 
 
@@ -1051,6 +1064,13 @@ async def _handle_interaction(
     # Merge player damage actions before agent actions
     all_actions = player_damage_actions + result.get("actions", [])
 
+    # Talking to an NPC advances "talk"/"return to giver" objectives automatically.
+    async with _world_state._lock:
+        talker = _world_state.get_player(player_id)
+        all_actions.extend(
+            quest_progress.on_event(talker, {"type": "npc_talked", "target": npc_id})
+        )
+
     # Check for NPC death
     npc = _world_state.get_npc(npc_id)
     # Bug 11: Merge agent's npcStateUpdate with server HP instead of overwriting
@@ -1428,148 +1448,76 @@ async def _handle_equip_item(data: dict[str, Any]) -> dict[str, Any]:
 
 
 async def _handle_dungeon_enter(data: dict[str, Any]) -> dict[str, Any]:
-    """Handle a player entering a dungeon — advance enter_dungeon quest objectives."""
+    """Handle a player entering a dungeon — advance enter_dungeon objectives."""
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
 
     player_id = data.get("playerId", data.get("player_id", "default"))
     dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
-    player = _world_state.get_player(player_id)
-    actions: list[dict[str, Any]] = []
+    async with _world_state._lock:
+        player = _world_state.get_player(player_id)
+        actions = quest_progress.on_event(player, {"type": "dungeon_entered", "target": dungeon_id})
+        snapshot = player.to_dict()
 
-    # Check active quests for "enter_dungeon" objectives matching this dungeon
-    for quest in player.active_quests:
-        for obj in quest.get("objectives", []):
-            if (
-                obj.get("type") == "enter_dungeon"
-                and obj.get("target") == dungeon_id
-                and not obj.get("completed", False)
-            ):
-                player.advance_objective(quest["id"], obj["id"])
-                actions.append(
-                    {
-                        "kind": "advance_objective",
-                        "params": {
-                            "questId": quest["id"],
-                            "objectiveId": obj["id"],
-                            "description": obj.get("description", ""),
-                        },
-                    }
-                )
-
-    return {
-        "type": "quest_update",
-        "actions": actions,
-        "playerStateUpdate": player.to_dict(),
-    }
+    return {"type": "quest_update", "actions": actions, "playerStateUpdate": snapshot}
 
 
 async def _handle_dungeon_exit(data: dict[str, Any]) -> dict[str, Any]:
-    """Handle a player exiting a dungeon — add loot and advance collect_item objectives."""
+    """Handle a player exiting a dungeon — add loot and advance collect objectives."""
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
 
     player_id = data.get("playerId", data.get("player_id", "default"))
     dungeon_id = data.get("dungeonId", data.get("dungeon_id", ""))
     loot: list[str] = data.get("loot", [])
-    player = _world_state.get_player(player_id)
     actions: list[dict[str, Any]] = []
+    async with _world_state._lock:
+        player = _world_state.get_player(player_id)
+        # Add loot items, then fire one collect event per item.
+        for item in loot:
+            player.inventory.append(item)
+            actions.extend(
+                quest_progress.on_event(player, {"type": "item_collected", "target": item})
+            )
+        snapshot = player.to_dict()
 
-    # Add loot items to player inventory
-    for item in loot:
-        player.inventory.append(item)
-
-    # Check active quests for "collect_item" objectives matching loot items
-    loot_set = set(loot)
-    for quest in player.active_quests:
-        for obj in quest.get("objectives", []):
-            if (
-                obj.get("type") == "collect_item"
-                and obj.get("target") in loot_set
-                and not obj.get("completed", False)
-            ):
-                player.advance_objective(quest["id"], obj["id"])
-                actions.append(
-                    {
-                        "kind": "advance_objective",
-                        "params": {
-                            "questId": quest["id"],
-                            "objectiveId": obj["id"],
-                            "description": obj.get("description", ""),
-                        },
-                    }
-                )
-
-    logger.info(
-        "Player %s exited dungeon %s with loot: %s",
-        player_id,
-        dungeon_id,
-        loot,
-    )
-
-    return {
-        "type": "quest_update",
-        "actions": actions,
-        "playerStateUpdate": player.to_dict(),
-    }
+    logger.info("Player %s exited dungeon %s with loot: %s", player_id, dungeon_id, loot)
+    return {"type": "quest_update", "actions": actions, "playerStateUpdate": snapshot}
 
 
 async def _handle_quest_update(data: dict[str, Any]) -> dict[str, Any]:
-    """Handle generic quest objective advancement (e.g. kill tracking)."""
+    """Handle a generic typed game event routed through the quest-progress service.
+
+    Accepts either an explicit ``event`` ({"type": ..., "target": ...}) or the
+    legacy ``{questId, objectiveId}`` advance shape.
+    """
     if _world_state is None:
         return {"type": "quest_update", "actions": [], "playerStateUpdate": None}
 
     player_id = data.get("playerId", data.get("player_id", "default"))
-    quest_id = data.get("questId", data.get("quest_id", ""))
-    objective_id = data.get("objectiveId", data.get("objective_id", ""))
-    player = _world_state.get_player(player_id)
-    actions: list[dict[str, Any]] = []
-
-    # Find the matching quest and objective
-    for quest in player.active_quests:
-        if quest["id"] != quest_id:
-            continue
-        for obj in quest.get("objectives", []):
-            if obj["id"] != objective_id or obj.get("completed", False):
-                continue
-
-            # Handle kill_enemies type: increment kill_count and check threshold
-            if obj.get("type") == "kill_enemies":
-                player.kill_count += 1
-                threshold = int(obj.get("target", "1"))
-                if player.kill_count >= threshold:
-                    player.advance_objective(quest_id, objective_id)
-                    actions.append(
-                        {
-                            "kind": "advance_objective",
-                            "params": {
-                                "questId": quest_id,
-                                "objectiveId": objective_id,
-                                "description": obj.get("description", ""),
-                            },
-                        }
-                    )
-            else:
-                # Generic advancement for other objective types
+    async with _world_state._lock:
+        player = _world_state.get_player(player_id)
+        event = data.get("event")
+        if isinstance(event, dict) and event.get("type"):
+            actions = quest_progress.on_event(player, event)
+        else:
+            # Legacy direct objective advance.
+            quest_id = data.get("questId", data.get("quest_id", ""))
+            objective_id = data.get("objectiveId", data.get("objective_id", ""))
+            actions = []
+            if quest_id and objective_id:
                 player.advance_objective(quest_id, objective_id)
                 actions.append(
                     {
                         "kind": "advance_objective",
-                        "params": {
-                            "questId": quest_id,
-                            "objectiveId": objective_id,
-                            "description": obj.get("description", ""),
-                        },
+                        "params": {"questId": quest_id, "objectiveId": objective_id},
                     }
                 )
-            break
-        break
+                if player.all_objectives_complete(quest_id):
+                    actions.extend(quest_progress.complete_and_reward(player, quest_id))
+        snapshot = player.to_dict()
 
-    return {
-        "type": "quest_update",
-        "actions": actions,
-        "playerStateUpdate": player.to_dict(),
-    }
+    return {"type": "quest_update", "actions": actions, "playerStateUpdate": snapshot}
 
 
 async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> dict[str, Any]:

@@ -391,14 +391,20 @@ export class WebSocketHandler {
           `Sold ${action.params.item ?? 'item'} for ${action.params.price ?? 0} gold`,
           '#ffcc33',
         );
-      } else if (action.kind === 'start_quest') {
-        const quest = action.params.quest ?? action.params.questName ?? 'Unknown Quest';
-        logCombat(`Quest Started: ${quest}`, '#c5a55a');
+      } else if (action.kind === 'accept_quest' || action.kind === 'start_quest') {
+        const raw = action.params.quest;
+        const title =
+          raw && typeof raw === 'object'
+            ? String((raw as Record<string, unknown>).title ?? (raw as Record<string, unknown>).name ?? 'a quest')
+            : 'a quest';
+        logCombat(`Quest Started: ${title}`, '#c5a55a');
       } else if (action.kind === 'complete_quest') {
-        const quest = action.params.questName ?? action.params.questId ?? 'Unknown Quest';
+        const quest = action.params.questId ?? action.params.quest_id ?? 'Quest';
         logCombat(`Quest Complete: ${quest}`, '#c5a55a');
       } else if (action.kind === 'advance_objective') {
-        logCombat(`Objective Complete: ${action.params.objectiveId ?? 'objective'}`, '#c5a55a');
+        logCombat(`Objective: ${action.params.description ?? action.params.objectiveId ?? 'objective'}`, '#c5a55a');
+      } else if (action.kind === 'grant_xp') {
+        logCombat(`Gained ${action.params.amount ?? 0} XP`, '#c5a55a');
       } else if (action.kind === 'emote') {
         logCombat(`${npcName} performs ${action.params.animation ?? 'gesture'}`, '#aaaaaa');
       }

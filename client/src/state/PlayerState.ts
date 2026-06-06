@@ -1,6 +1,6 @@
 import type { PlayerStateData } from "../network/MessageProtocol";
 import type { ActiveQuest } from "./QuestDefinitions";
-import { QUEST_DEFINITIONS } from "./QuestDefinitions";
+import { toActiveQuest } from "./QuestDefinitions";
 import type { Item, RawItem } from "./itemModel";
 import { toItem } from "./itemModel";
 
@@ -45,6 +45,9 @@ export class PlayerState {
   /** IDs of quests the player has completed. */
   completedQuests: string[] = [];
 
+  /** id → display name, retained so completed quests (id-only) still show a name. */
+  private questNameCache: Map<string, string> = new Map();
+
   /** Called whenever any property changes. */
   onChange: ((state: PlayerState) => void) | null = null;
 
@@ -87,10 +90,10 @@ export class PlayerState {
     }
     let questChanged = false;
     if (update.activeQuests !== undefined) {
-      this.activeQuests = update.activeQuests.map((q) => ({
-        ...q,
-        objectives: q.objectives.map((o) => ({ ...o })),
-      }));
+      this.activeQuests = update.activeQuests.map((q) =>
+        toActiveQuest(q as unknown as Record<string, unknown>),
+      );
+      for (const q of this.activeQuests) this.questNameCache.set(q.id, q.name);
       questChanged = true;
     }
     if (update.completedQuests !== undefined) {
@@ -214,33 +217,38 @@ export class PlayerState {
 
   // ── Quest Methods ─────────────────────────────────────────────────────────
 
-  /** Accept a quest by ID. Skips if already active or completed. */
-  startQuest(questId: string): void {
-    if (this.isQuestActive(questId) || this.isQuestComplete(questId)) return;
-    const def = QUEST_DEFINITIONS[questId];
-    if (!def) return;
-    const quest: ActiveQuest = {
-      id: def.id,
-      name: def.name,
-      description: def.description,
-      giverNpc: def.giverNpc,
-      giverName: def.giverName,
-      objectives: def.objectives.map((o) => ({ ...o, completed: false })),
-      rewardItem: def.rewardItem,
-      rewardDescription: def.rewardDescription,
-    };
+  /**
+   * Accept a full server-sent quest instance. Skips if already active or
+   * completed. `raw` may be the server storage (snake) or client (camel) shape.
+   */
+  acceptQuest(raw: Record<string, unknown>): void {
+    const quest = toActiveQuest(raw);
+    if (!quest.id || this.isQuestActive(quest.id) || this.isQuestComplete(quest.id)) return;
     this.activeQuests.push(quest);
+    this.questNameCache.set(quest.id, quest.name);
     this.notify();
     this.onQuestChange?.();
   }
 
-  /** Mark a specific objective as completed within an active quest. */
-  advanceObjective(questId: string, objectiveId: string): void {
+  /** Best-effort display name for a quest id (falls back to the id). */
+  getQuestName(questId: string): string {
+    return this.questNameCache.get(questId) ?? questId;
+  }
+
+  /** Advance a specific objective within an active quest (server-authoritative). */
+  advanceObjective(questId: string, objectiveId: string, progress?: number): void {
     const quest = this.getActiveQuest(questId);
     if (!quest) return;
     const objective = quest.objectives.find((o) => o.id === objectiveId);
-    if (!objective || objective.completed) return;
-    objective.completed = true;
+    if (!objective) return;
+    if (progress !== undefined) {
+      objective.progress = Math.min(objective.required, progress);
+    } else {
+      objective.progress = objective.required;
+    }
+    if (objective.progress >= objective.required) {
+      objective.completed = true;
+    }
     this.notify();
     this.onQuestChange?.();
   }
