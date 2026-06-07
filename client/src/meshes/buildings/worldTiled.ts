@@ -30,7 +30,13 @@ function clone1x1(tex: THREE.Texture | null): THREE.Texture | null {
   if (!tex) return null;
   const t = tex.clone();
   t.repeat.set(1, 1);
-  t.needsUpdate = true;
+  // Only flag the clone for GPU upload if the source has pixels. Cloning a
+  // still-loading or missing (404) texture leaves image === null; forcing
+  // needsUpdate then bumps version > 0 with no image, which makes three spam
+  // "Texture marked for update but no image data found" every frame the
+  // material renders (WebGLTextures setTexture2D). Image-less clones just
+  // render untextured, same as the un-tiled source would.
+  if (tex.image) t.needsUpdate = true;
   return t;
 }
 

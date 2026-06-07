@@ -555,7 +555,7 @@ export function applyFlatShading(mesh: THREE.Group): void {
       for (const material of materials) {
         if (material instanceof THREE.MeshStandardMaterial) {
           material.flatShading = true;
-          material.needsUpdate = true;
+          material.needsUpdate = true; // flatShading change requires a shader recompile
         }
       }
     }

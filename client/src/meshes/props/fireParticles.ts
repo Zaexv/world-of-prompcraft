@@ -25,7 +25,6 @@ function emberSprite(): THREE.Texture {
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, s, s);
   sharedSprite = new THREE.CanvasTexture(canvas);
-  sharedSprite.needsUpdate = true;
   return sharedSprite;
 }
 

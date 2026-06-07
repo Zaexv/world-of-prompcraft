@@ -23,13 +23,35 @@ export function hasLiftInBounds(minX: number, maxX: number, minZ: number, maxZ: 
   return false;
 }
 
-export function getVerticalLiftAt(x: number, z: number): number {
-  if (!worldManifest) return 0;
-  
+/**
+ * Terrain features whose influence overlaps the given AABB.
+ * Lets chunk generation filter the full feature list ONCE per chunk so the
+ * per-vertex `getVerticalLiftAt` loop iterates only the 1–3 relevant features
+ * instead of every feature in the world.
+ */
+export function getTerrainFeaturesInBounds(
+  minX: number, maxX: number, minZ: number, maxZ: number,
+): ReturnType<WorldManifest['getTerrainFeatures']> {
+  if (!worldManifest) return [];
+  return worldManifest.getTerrainFeatures().filter((place) => {
+    const outerRadius = place.radii.outer;
+    const dx = Math.max(0, Math.max(minX - place.transform.x, place.transform.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - place.transform.z, place.transform.z - maxZ));
+    return dx * dx + dz * dz < outerRadius * outerRadius;
+  });
+}
+
+export function getVerticalLiftAt(
+  x: number,
+  z: number,
+  places?: ReturnType<WorldManifest['getTerrainFeatures']>,
+): number {
+  if (!places && !worldManifest) return 0;
+
   let lift = 0;
-  const places = worldManifest.getTerrainFeatures();
-  
-  for (const place of places) {
+  const feats = places ?? worldManifest!.getTerrainFeatures();
+
+  for (const place of feats) {
     const shape = place.shape ?? 'circle';
     
     if (shape === 'circle') {

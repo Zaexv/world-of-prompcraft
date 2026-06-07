@@ -22,13 +22,23 @@ export class CharacterPreview {
   private animationId = 0;
   private lastTime = 0;
 
+  // Mouse-drag rotation (locked to the Y axis).
+  private dragging = false;
+  private lastPointerX = 0;
+
   constructor(width = 340, height = 460) {
     this.canvas = document.createElement('canvas');
     Object.assign(this.canvas.style, {
       width: `${width}px`,
       height: `${height}px`,
       display: 'block',
+      cursor: 'grab',
+      touchAction: 'none',
     } as CSSStyleDeclaration);
+
+    this.canvas.addEventListener('pointerdown', this.onPointerDown);
+    window.addEventListener('pointermove', this.onPointerMove);
+    window.addEventListener('pointerup', this.onPointerUp);
 
     this.renderer = new THREE.WebGLRenderer({
       canvas: this.canvas,
@@ -91,6 +101,9 @@ export class CharacterPreview {
   dispose(): void {
     this.running = false;
     cancelAnimationFrame(this.animationId);
+    this.canvas.removeEventListener('pointerdown', this.onPointerDown);
+    window.removeEventListener('pointermove', this.onPointerMove);
+    window.removeEventListener('pointerup', this.onPointerUp);
     if (this.current) {
       this.disposeObject(this.current);
       this.current = null;
@@ -104,9 +117,30 @@ export class CharacterPreview {
     const delta = (now - this.lastTime) / 1000;
     this.lastTime = now;
 
-    this.modelRoot.rotation.y += delta * 0.6;
+    // Auto-rotate only while the user is not dragging.
+    if (!this.dragging) this.modelRoot.rotation.y += delta * 0.6;
     this.renderer.render(this.scene, this.camera);
     this.animationId = requestAnimationFrame(this.tick);
+  };
+
+  private onPointerDown = (e: PointerEvent): void => {
+    this.dragging = true;
+    this.lastPointerX = e.clientX;
+    this.canvas.style.cursor = 'grabbing';
+  };
+
+  private onPointerMove = (e: PointerEvent): void => {
+    if (!this.dragging) return;
+    const dx = e.clientX - this.lastPointerX;
+    this.lastPointerX = e.clientX;
+    // Horizontal drag spins the model around the vertical (Y) axis only.
+    this.modelRoot.rotation.y += dx * 0.01;
+  };
+
+  private onPointerUp = (): void => {
+    if (!this.dragging) return;
+    this.dragging = false;
+    this.canvas.style.cursor = 'grab';
   };
 
   private disposeObject(root: THREE.Object3D): void {

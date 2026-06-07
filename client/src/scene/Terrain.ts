@@ -9,7 +9,7 @@ import {
   getBiomeEmissive,
   getBiomeSurfaceNoise,
 } from './Biomes';
-import { getVerticalLiftAt, hasLiftInBounds } from './VerticalTerrain';
+import { getVerticalLiftAt, hasLiftInBounds, getTerrainFeaturesInBounds } from './VerticalTerrain';
 
 // ── Flat building pads ───────────────────────────────────────────────────────
 // A building placed at a single `getHeightAt(center)` floats/tilts when the
@@ -75,8 +75,118 @@ const LEGACY_BUILDING_PADS: BuildingPad[] = [
 
 let _manifestPads: BuildingPad[] = [];
 
+// Combined LEGACY + manifest pads, rebuilt only when the manifest changes.
+// Previously this spread a fresh array on EVERY call — and it's called per
+// terrain vertex during chunk generation, so a feature-dense chunk allocated
+// hundreds of throwaway arrays (GC churn → frametime spikes).
+let _allPadsCache: BuildingPad[] | null = null;
+
 function getBuildingPads(): BuildingPad[] {
-  return [...LEGACY_BUILDING_PADS, ..._manifestPads];
+  if (!_allPadsCache) _allPadsCache = [...LEGACY_BUILDING_PADS, ..._manifestPads];
+  return _allPadsCache;
+}
+
+// ── Static stroke spatial index ───────────────────────────────────────────────
+// Pads, sculpt strokes and paint strokes are static (set once from the manifest).
+// `getHeightAt` runs every frame for player physics, the camera collision binary
+// search and NPC grounding — each call looped ALL pads + ALL sculpt strokes
+// (83 + 192 here), and dense chunks did the same per vertex. This grid buckets
+// each stroke into the cells its radius covers, so a query touches only the
+// handful near a point/region instead of the whole world. Each item is inserted
+// into every cell its bounding box spans, so a point query on its own cell
+// returns every stroke that could possibly reach that point.
+const _EMPTY: readonly never[] = [];
+
+class StrokeGrid<T> {
+  private readonly cell = 96;
+  private readonly grid = new Map<string, T[]>();
+
+  constructor(
+    items: readonly T[],
+    px: (t: T) => number,
+    pz: (t: T) => number,
+    pr: (t: T) => number,
+  ) {
+    for (const it of items) {
+      const x = px(it), z = pz(it), r = pr(it);
+      const minCX = Math.floor((x - r) / this.cell), maxCX = Math.floor((x + r) / this.cell);
+      const minCZ = Math.floor((z - r) / this.cell), maxCZ = Math.floor((z + r) / this.cell);
+      for (let cx = minCX; cx <= maxCX; cx++) {
+        for (let cz = minCZ; cz <= maxCZ; cz++) {
+          const key = `${cx},${cz}`;
+          let bucket = this.grid.get(key);
+          if (!bucket) { bucket = []; this.grid.set(key, bucket); }
+          bucket.push(it);
+        }
+      }
+    }
+  }
+
+  /** Candidates whose bbox covers (x, z) — superset of those that reach the point. */
+  queryPoint(x: number, z: number): readonly T[] {
+    const key = `${Math.floor(x / this.cell)},${Math.floor(z / this.cell)}`;
+    return this.grid.get(key) ?? _EMPTY;
+  }
+
+  /** Candidates whose bbox overlaps the AABB (deduped). */
+  queryBounds(minX: number, maxX: number, minZ: number, maxZ: number): T[] {
+    const minCX = Math.floor(minX / this.cell), maxCX = Math.floor(maxX / this.cell);
+    const minCZ = Math.floor(minZ / this.cell), maxCZ = Math.floor(maxZ / this.cell);
+    const out = new Set<T>();
+    for (let cx = minCX; cx <= maxCX; cx++) {
+      for (let cz = minCZ; cz <= maxCZ; cz++) {
+        const bucket = this.grid.get(`${cx},${cz}`);
+        if (bucket) for (const it of bucket) out.add(it);
+      }
+    }
+    return Array.from(out);
+  }
+}
+
+let _padGrid: StrokeGrid<BuildingPad> | null = null;
+let _sculptGrid: StrokeGrid<SculptStroke> | null = null;
+let _paintGrid: StrokeGrid<PaintStroke> | null = null;
+
+function rebuildStrokeGrids(): void {
+  _padGrid = new StrokeGrid(getBuildingPads(), (p) => p.x, (p) => p.z, (p) => p.outer);
+  _sculptGrid = new StrokeGrid(_sculptStrokes, (s) => s.x, (s) => s.z, (s) => s.radius);
+  _paintGrid = new StrokeGrid(_paintStrokes, (s) => s.x, (s) => s.z, (s) => s.radius);
+}
+
+/** Building pads whose footprint+blend overlaps the given AABB. */
+function getBuildingPadsInBounds(
+  minX: number, maxX: number, minZ: number, maxZ: number,
+): BuildingPad[] {
+  const candidates = _padGrid ? _padGrid.queryBounds(minX, maxX, minZ, maxZ) : getBuildingPads();
+  return candidates.filter((p) => {
+    const dx = Math.max(0, Math.max(minX - p.x, p.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - p.z, p.z - maxZ));
+    return dx * dx + dz * dz < p.outer * p.outer;
+  });
+}
+
+/** Sculpt strokes overlapping the given AABB. */
+function getSculptInBounds(
+  minX: number, maxX: number, minZ: number, maxZ: number,
+): SculptStroke[] {
+  const candidates = _sculptGrid ? _sculptGrid.queryBounds(minX, maxX, minZ, maxZ) : _sculptStrokes;
+  return candidates.filter((s) => {
+    const dx = Math.max(0, Math.max(minX - s.x, s.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - s.z, s.z - maxZ));
+    return dx * dx + dz * dz < s.radius * s.radius;
+  });
+}
+
+/** Paint strokes overlapping the given AABB. */
+function getPaintInBounds(
+  minX: number, maxX: number, minZ: number, maxZ: number,
+): PaintStroke[] {
+  const candidates = _paintGrid ? _paintGrid.queryBounds(minX, maxX, minZ, maxZ) : _paintStrokes;
+  return candidates.filter((s) => {
+    const dx = Math.max(0, Math.max(minX - s.x, s.x - maxX));
+    const dz = Math.max(0, Math.max(minZ - s.z, s.z - maxZ));
+    return dx * dx + dz * dz < s.radius * s.radius;
+  });
 }
 
 // ── Ground paint layer ────────────────────────────────────────────────────────
@@ -115,11 +225,13 @@ function paintInBounds(minX: number, maxX: number, minZ: number, maxZ: number): 
 }
 
 /** Strongest overlapping paint stroke at (x,z): its colour + blend weight, or null. */
-function sampleGroundPaint(x: number, z: number): { r: number; g: number; b: number; w: number } | null {
-  if (_paintStrokes.length === 0) return null;
+function sampleGroundPaint(
+  x: number, z: number, strokes: readonly PaintStroke[] = _paintStrokes,
+): { r: number; g: number; b: number; w: number } | null {
+  if (strokes.length === 0) return null;
   let bestW = 0;
   let col: [number, number, number] | null = null;
-  for (const s of _paintStrokes) {
+  for (const s of strokes) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d >= s.radius) continue;
     const t = d / s.radius;
@@ -156,10 +268,12 @@ function sculptInBounds(minX: number, maxX: number, minZ: number, maxZ: number):
 }
 
 /** Sum smooth radial height deltas from all overlapping sculpt strokes. */
-function applySculpt(x: number, z: number, h: number): number {
-  if (_sculptStrokes.length === 0) return h;
+function applySculpt(
+  x: number, z: number, h: number, strokes: readonly SculptStroke[] = _sculptStrokes,
+): number {
+  if (strokes.length === 0) return h;
   let finalH = h;
-  for (const s of _sculptStrokes) {
+  for (const s of strokes) {
     const d = Math.hypot(x - s.x, z - s.z);
     if (d >= s.radius) continue;
     const t = d / s.radius;
@@ -196,11 +310,13 @@ function padTarget(p: BuildingPad): number {
  * Level a sample toward the strongest overlapping building pad. 
  * Supports both circular and oriented rectangular (OBB) footprints.
  */
-function applyBuildingPads(x: number, z: number, h: number): number {
+function applyBuildingPads(
+  x: number, z: number, h: number, pads: readonly BuildingPad[] = getBuildingPads(),
+): number {
   let bestFlat = 0;
   let bestTarget = 0;
-  
-  for (const p of getBuildingPads()) {
+
+  for (const p of pads) {
     let flat = 0;
     
     if (p.shape === 'circle') {
@@ -342,6 +458,35 @@ interface ChunkData {
   cz: number;
 }
 
+// ── Incremental chunk build job ───────────────────────────────────────────────
+// A dense chunk's vertex passes (height/normal/colour) can alone exceed the
+// per-frame budget. Instead of building a chunk in one synchronous call, build
+// state is carried in a job and advanced in vertex-batches across frames until
+// the frame's time budget is spent — so no single chunk can blow a frame.
+enum BuildPhase { Height = 0, Normals = 1, Colors = 2, UV = 3, Finalize = 4, Done = 5 }
+/** Vertices processed between time-budget checks. Keeps `performance.now()` cheap. */
+const BUILD_BATCH = 64;
+
+interface ChunkBuildJob {
+  cx: number; cz: number; key: string;
+  worldX: number; worldZ: number;
+  segments: number; COLS: number; STEP: number;
+  geometry: THREE.PlaneGeometry;
+  positions: THREE.BufferAttribute;
+  vertexCount: number;
+  chunkHasPaint: boolean;
+  localPaint: readonly PaintStroke[];
+  sampleHeight: (sx: number, sz: number, weights?: BiomeWeights) => number;
+  biomeWeightsCache: BiomeWeights[];
+  heightCache: Float32Array;
+  normalValues: Float32Array;
+  colors: Float32Array;
+  emissiveColors: Float32Array;
+  uvArray: Float32Array;
+  phase: BuildPhase;
+  index: number;
+}
+
 // ── Worker manifest serialisation ────────────────────────────────────────────
 
 export interface TerrainManifestData {
@@ -365,6 +510,8 @@ export class Terrain {
   private chunkLoadQueue: Array<{ cx: number; cz: number; key: string }> = [];
   private queuedChunkKeys: Set<string> = new Set();
   private chunkUnloadQueue: string[] = [];
+  /** In-progress incremental chunk build, advanced across frames in update(). */
+  private activeJob: ChunkBuildJob | null = null;
 
   /** Called whenever a new chunk is created. Args: (chunkX, chunkZ, worldX, worldZ). */
   public onChunkLoaded: ((chunkX: number, chunkZ: number, worldX: number, worldZ: number) => void) | null = null;
@@ -401,7 +548,11 @@ export class Terrain {
    */
   getHeightAt(x: number, z: number): number {
     const h = Terrain.computeHeight(x, z) + getVerticalLiftAt(x, z);
-    return applySculpt(x, z, applyBuildingPads(x, z, h));
+    // Point queries hit only the strokes whose cell covers (x, z) instead of
+    // looping every pad/sculpt stroke — this runs every frame for physics.
+    const pads = _padGrid ? _padGrid.queryPoint(x, z) : getBuildingPads();
+    const sculpt = _sculptGrid ? _sculptGrid.queryPoint(x, z) : _sculptStrokes;
+    return applySculpt(x, z, applyBuildingPads(x, z, h, pads), sculpt);
   }
 
   /**
@@ -432,6 +583,7 @@ export class Terrain {
     _manifestPads = [];
     _sculptStrokes = [];
     _paintStrokes = [];
+    _allPadsCache = null; // pads changed — drop combined-array cache
 
     // 0b. Ground paint strokes (surface-type colour tint)
     if (data?.world?.topology?.paint) {
@@ -547,6 +699,9 @@ export class Terrain {
         }
       }
     }
+
+    // Build spatial indexes now that all pads/sculpt/paint strokes are loaded.
+    rebuildStrokeGrids();
   }
 
   // ── Per-frame update ─────────────────────────────────────────────────────
@@ -581,17 +736,25 @@ export class Terrain {
       }
     }
 
-    // ── Time-budgeted chunk loading ────────────────────────────────────────
-    // Load at most CHUNK_BUDGET_MS of chunks per frame so a single expensive
-    // chunk cannot blow the full frame budget.  The nearest chunks (sorted by
-    // queueChunksAround) always appear first.
-    if (this.chunkLoadQueue.length > 0) {
-      const loadStart = performance.now();
-      while (this.chunkLoadQueue.length > 0 && (performance.now() - loadStart) < CHUNK_BUDGET_MS) {
-        const next = this.chunkLoadQueue.shift();
-        if (!next) break;
-        this.queuedChunkKeys.delete(next.key);
-        if (!this.chunks.has(next.key)) this.loadChunk(next.cx, next.cz);
+    // ── Time-budgeted, frame-split chunk loading ───────────────────────────
+    // Spend at most CHUNK_BUDGET_MS per frame building chunks. Each chunk is
+    // built incrementally (in vertex-batches) so a single dense chunk — e.g.
+    // the heavily sculpted/painted tower hill — is spread over several frames
+    // instead of stalling one. The nearest chunks (sorted by queueChunksAround)
+    // always build first.
+    if (this.activeJob || this.chunkLoadQueue.length > 0) {
+      const deadline = performance.now() + CHUNK_BUDGET_MS;
+      while (performance.now() < deadline) {
+        if (!this.activeJob) {
+          const next = this.chunkLoadQueue.shift();
+          if (!next) break;
+          this.queuedChunkKeys.delete(next.key);
+          if (this.chunks.has(next.key)) continue;
+          this.activeJob = this.beginChunkBuild(next.cx, next.cz);
+        }
+        if (this.stepChunkBuild(this.activeJob, deadline)) {
+          this.activeJob = null;
+        }
       }
     }
 
@@ -692,12 +855,20 @@ export class Terrain {
   //  Chunk lifecycle
   // ────────────────────────────────────────────────────────────────────────────
 
+  /** Build a chunk synchronously (used for the bootstrap preload + refreshAt). */
   public loadChunk(cx: number, cz: number): void {
+    const job = this.beginChunkBuild(cx, cz);
+    // Infinity deadline → stepChunkBuild runs every phase to completion in one go.
+    this.stepChunkBuild(job, Infinity);
+  }
+
+  /** Allocate geometry + caches and snapshot the chunk-local feature/stroke lists. */
+  private beginChunkBuild(cx: number, cz: number): ChunkBuildJob {
     const worldX = cx * CHUNK_SIZE;
     const worldZ = cz * CHUNK_SIZE;
     const segments = CHUNK_SEGMENTS;
-    const COLS = segments + 1;               // 33 — vertices per row
-    const STEP = CHUNK_SIZE / segments;      // 2 world units — vertex spacing
+    const COLS = segments + 1;               // vertices per row
+    const STEP = CHUNK_SIZE / segments;      // world units — vertex spacing
 
     const geometry = new THREE.PlaneGeometry(CHUNK_SIZE, CHUNK_SIZE, segments, segments);
     geometry.rotateX(-Math.PI / 2);
@@ -707,151 +878,232 @@ export class Terrain {
 
     // Fast pre-check: if no terrain feature overlaps this chunk, getVerticalLiftAt
     // returns 0 for every vertex and we can skip calling it entirely.
+    // Filter each feature/pad/stroke list to this chunk's AABB ONCE here, so the
+    // per-vertex sample loops below iterate only the handful that actually overlap
+    // (typically 1–3) instead of every feature/pad in the whole world. In dense
+    // areas (Suarez Quarter / the tower hill) this turns an O(verts × all-pads)
+    // chunk into O(verts × local-pads). Margin of STEP covers the one-cell-outside
+    // neighbour samples used for edge normals in the Normals phase.
+    const fMinX = worldX - STEP, fMaxX = worldX + CHUNK_SIZE + STEP;
+    const fMinZ = worldZ - STEP, fMaxZ = worldZ + CHUNK_SIZE + STEP;
+
     const chunkHasLift = hasLiftInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasPad = padsInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasSculpt = sculptInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
     const chunkHasPaint = paintInBounds(worldX, worldX + CHUNK_SIZE, worldZ, worldZ + CHUNK_SIZE);
 
+    const localFeatures = chunkHasLift ? getTerrainFeaturesInBounds(fMinX, fMaxX, fMinZ, fMaxZ) : [];
+    const localPads = chunkHasPad ? getBuildingPadsInBounds(fMinX, fMaxX, fMinZ, fMaxZ) : [];
+    const localSculpt = chunkHasSculpt ? getSculptInBounds(fMinX, fMaxX, fMinZ, fMaxZ) : [];
+    const localPaint = chunkHasPaint ? getPaintInBounds(fMinX, fMaxX, fMinZ, fMaxZ) : [];
+
     // Full world height for a sample point, matching getHeightAt (noise + lift +
-    // building-pad levelling + sculpt). Used for edge-neighbour normals below too.
+    // building-pad levelling + sculpt). Used for edge-neighbour normals too.
     const sampleHeight = (sx: number, sz: number, weights?: BiomeWeights): number => {
-      const h = Terrain.computeHeight(sx, sz, weights) + (chunkHasLift ? getVerticalLiftAt(sx, sz) : 0);
-      const padded = chunkHasPad ? applyBuildingPads(sx, sz, h) : h;
-      return chunkHasSculpt ? applySculpt(sx, sz, padded) : padded;
+      const h = Terrain.computeHeight(sx, sz, weights) + (chunkHasLift ? getVerticalLiftAt(sx, sz, localFeatures) : 0);
+      const padded = chunkHasPad ? applyBuildingPads(sx, sz, h, localPads) : h;
+      return chunkHasSculpt ? applySculpt(sx, sz, padded, localSculpt) : padded;
     };
 
-    // ── Pass 1: world-space positions + biome weights + heights ───────────────
-    // getBiomeWeights (sqrt + atan2 + 5 cos) is called ONCE per vertex here and
-    // cached.  All later passes reuse the cache, eliminating the previous 8× redundancy.
-    const biomeWeightsCache: BiomeWeights[] = new Array(vertexCount);
-    const heightCache = new Float32Array(vertexCount);
+    return {
+      cx, cz, key: `${cx},${cz}`, worldX, worldZ, segments, COLS, STEP,
+      geometry, positions, vertexCount, chunkHasPaint, localPaint, sampleHeight,
+      biomeWeightsCache: new Array(vertexCount),
+      heightCache: new Float32Array(vertexCount),
+      normalValues: new Float32Array(vertexCount * 3),
+      colors: new Float32Array(vertexCount * 3),
+      emissiveColors: new Float32Array(vertexCount * 3),
+      uvArray: new Float32Array(vertexCount * 2),
+      phase: BuildPhase.Height,
+      index: 0,
+    };
+  }
 
-    for (let i = 0; i < vertexCount; i++) {
-      const lx = positions.getX(i) + worldX + CHUNK_SIZE * 0.5;
-      const lz = positions.getZ(i) + worldZ + CHUNK_SIZE * 0.5;
-      positions.setX(i, lx);
-      positions.setZ(i, lz);
-
-      const weights = getBiomeWeights(lx, lz);
-      biomeWeightsCache[i] = weights;
-
-      // Pass cached weights so computeHeight skips its own getBiomeWeights call.
-      const h = sampleHeight(lx, lz, weights);
-      heightCache[i] = h;
-      positions.setY(i, h);
-    }
-    positions.needsUpdate = true;
-
-    // ── Pass 2: normals via height cache ──────────────────────────────────────
-    // Interior vertices (31×31 = 961 of 1089) use adjacent cached heights — zero
-    // extra height queries.  Only the ~132 edge vertices that need an outside-chunk
-    // neighbour call computeHeight (cheap: no separate biome weight lookup).
-    const normalValues = new Float32Array(vertexCount * 3);
-
-    for (let i = 0; i < vertexCount; i++) {
-      const ix = i % COLS;
-      const iy = Math.floor(i / COLS);
-      const vx = positions.getX(i);
-      const vz = positions.getZ(i);
-
-      const hL = ix > 0       ? heightCache[i - 1]!    : sampleHeight(vx - STEP, vz);
-      const hR = ix < segments ? heightCache[i + 1]!    : sampleHeight(vx + STEP, vz);
-      const hD = iy > 0       ? heightCache[i - COLS]! : sampleHeight(vx, vz - STEP);
-      const hU = iy < segments ? heightCache[i + COLS]! : sampleHeight(vx, vz + STEP);
-
-      const dX = (hR - hL) / (2 * STEP);
-      const dZ = (hU - hD) / (2 * STEP);
-      let nx = -dX, ny = 1.0, nz = -dZ;
-      const invLen = 1 / Math.hypot(nx, ny, nz);
-      nx *= invLen; ny *= invLen; nz *= invLen;
-
-      normalValues[i * 3]     = nx;
-      normalValues[i * 3 + 1] = ny;
-      normalValues[i * 3 + 2] = nz;
-    }
-    geometry.setAttribute('normal', new THREE.BufferAttribute(normalValues, 3));
-
-    // ── Pass 3: vertex colors using cached biome weights ─────────────────────
-    const colors        = new Float32Array(vertexCount * 3);
-    const emissiveColors = new Float32Array(vertexCount * 3);
-    const normals = geometry.attributes.normal as THREE.BufferAttribute;
+  /**
+   * Advance a chunk build in vertex-batches until `deadline` (ms timestamp) or
+   * completion. Returns true once the chunk has been finalised and added.
+   * Pass `Infinity` to build the whole chunk in one call.
+   */
+  private stepChunkBuild(job: ChunkBuildJob, deadline: number): boolean {
+    const {
+      positions, vertexCount, COLS, STEP, segments, sampleHeight,
+      biomeWeightsCache, heightCache, normalValues, colors, emissiveColors,
+      uvArray, worldX, worldZ,
+    } = job;
 
     const rockBaseR = 0x52 / 255;
     const rockBaseG = 0x4a / 255;
     const rockBaseB = 0x42 / 255;
 
-    for (let i = 0; i < vertexCount; i++) {
-      const vx = positions.getX(i);
-      const vy = heightCache[i]!;
-      const vz = positions.getZ(i);
-      const t = THREE.MathUtils.clamp((vy + 3) / 25, 0, 1);
+    while (job.phase !== BuildPhase.Done && performance.now() < deadline) {
+      switch (job.phase) {
+        // ── Phase: world-space positions + biome weights + heights ────────────
+        // getBiomeWeights (sqrt + atan2 + 5 cos) is called ONCE per vertex here
+        // and cached; later phases reuse the cache.
+        case BuildPhase.Height: {
+          const end = Math.min(job.index + BUILD_BATCH, vertexCount);
+          for (let i = job.index; i < end; i++) {
+            const lx = positions.getX(i) + worldX + CHUNK_SIZE * 0.5;
+            const lz = positions.getZ(i) + worldZ + CHUNK_SIZE * 0.5;
+            positions.setX(i, lx);
+            positions.setZ(i, lz);
 
-      const normalY  = normals.getY(i);
-      const steepness = THREE.MathUtils.clamp((0.7 - normalY) / 0.5, 0, 1);
+            const weights = getBiomeWeights(lx, lz);
+            biomeWeightsCache[i] = weights;
 
-      const weights = biomeWeightsCache[i]!;
+            const h = sampleHeight(lx, lz, weights);
+            heightCache[i] = h;
+            positions.setY(i, h);
+          }
+          job.index = end;
+          if (end >= vertexCount) {
+            positions.needsUpdate = true;
+            job.phase = BuildPhase.Normals;
+            job.index = 0;
+          }
+          break;
+        }
 
-      const color = getBiomeColor(vx, vz, vy, t, weights);
-      let r = color.r, g = color.g, b = color.b;
+        // ── Phase: normals via height cache ───────────────────────────────────
+        // Interior vertices use adjacent cached heights — zero extra queries.
+        // Only edge vertices needing an outside-chunk neighbour call sampleHeight.
+        case BuildPhase.Normals: {
+          const end = Math.min(job.index + BUILD_BATCH, vertexCount);
+          for (let i = job.index; i < end; i++) {
+            const ix = i % COLS;
+            const iy = Math.floor(i / COLS);
+            const vx = positions.getX(i);
+            const vz = positions.getZ(i);
 
-      const emberW  = weights[BiomeType.BlastedSuarezLands];
-      const tundraW = weights[BiomeType.CrystalTundra];
-      const rockR    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseR, 0x3a / 255, emberW), 0x6a / 255, tundraW);
-      const rockG    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseG, 0x1a / 255, emberW), 0x88 / 255, tundraW);
-      const rockBCol = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseB, 0x08 / 255, emberW), 0x98 / 255, tundraW);
+            const hL = ix > 0        ? heightCache[i - 1]!    : sampleHeight(vx - STEP, vz);
+            const hR = ix < segments ? heightCache[i + 1]!    : sampleHeight(vx + STEP, vz);
+            const hD = iy > 0        ? heightCache[i - COLS]! : sampleHeight(vx, vz - STEP);
+            const hU = iy < segments ? heightCache[i + COLS]! : sampleHeight(vx, vz + STEP);
 
-      r += (rockR    - r) * steepness;
-      g += (rockG    - g) * steepness;
-      b += (rockBCol - b) * steepness;
+            const dX = (hR - hL) / (2 * STEP);
+            const dZ = (hU - hD) / (2 * STEP);
+            let nx = -dX, ny = 1.0, nz = -dZ;
+            const invLen = 1 / Math.hypot(nx, ny, nz);
+            nx *= invLen; ny *= invLen; nz *= invLen;
 
-      const ao = 1.0 - THREE.MathUtils.clamp((-vy - 2) / 8, 0, 0.20);
-      r *= ao; g *= ao; b *= ao;
+            normalValues[i * 3]     = nx;
+            normalValues[i * 3 + 1] = ny;
+            normalValues[i * 3 + 2] = nz;
+          }
+          job.index = end;
+          if (end >= vertexCount) {
+            job.phase = BuildPhase.Colors;
+            job.index = 0;
+          }
+          break;
+        }
 
-      const noise =
-        (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02 +
-        (Math.sin(vx * 4.3 - vz * 3.7) + Math.cos(vx * 2.9 + vz * 5.1)) * 0.015;
-      const medNoise =
-        (Math.sin(vx * 0.23 + vz * 0.31) + Math.cos(vx * 0.37 - vz * 0.27)) * 0.025;
+        // ── Phase: vertex colours + emissive using cached weights ─────────────
+        case BuildPhase.Colors: {
+          const end = Math.min(job.index + BUILD_BATCH, vertexCount);
+          for (let i = job.index; i < end; i++) {
+            const vx = positions.getX(i);
+            const vy = heightCache[i]!;
+            const vz = positions.getZ(i);
+            const t = THREE.MathUtils.clamp((vy + 3) / 25, 0, 1);
 
-      r = THREE.MathUtils.clamp(r + noise + medNoise,        0, 1);
-      g = THREE.MathUtils.clamp(g + noise * 0.8 + medNoise * 0.9, 0, 1);
-      b = THREE.MathUtils.clamp(b + noise * 0.6 + medNoise * 0.7, 0, 1);
+            const normalY = normalValues[i * 3 + 1]!;
+            const steepness = THREE.MathUtils.clamp((0.7 - normalY) / 0.5, 0, 1);
 
-      const surfNoise = getBiomeSurfaceNoise(vx, vz, weights);
-      r = THREE.MathUtils.clamp(r + surfNoise.r, 0, 1);
-      g = THREE.MathUtils.clamp(g + surfNoise.g, 0, 1);
-      b = THREE.MathUtils.clamp(b + surfNoise.b, 0, 1);
+            const weights = biomeWeightsCache[i]!;
 
-      // Editor ground paint overrides the biome colour toward the chosen surface
-      // type, keeping a little of the underlying noise so it doesn't read flat.
-      if (chunkHasPaint) {
-        const paint = sampleGroundPaint(vx, vz);
-        if (paint) {
-          r = r * (1 - paint.w) + paint.r * paint.w;
-          g = g * (1 - paint.w) + paint.g * paint.w;
-          b = b * (1 - paint.w) + paint.b * paint.w;
+            const color = getBiomeColor(vx, vz, vy, t, weights);
+            let r = color.r, g = color.g, b = color.b;
+
+            const emberW  = weights[BiomeType.BlastedSuarezLands];
+            const tundraW = weights[BiomeType.CrystalTundra];
+            const rockR    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseR, 0x3a / 255, emberW), 0x6a / 255, tundraW);
+            const rockG    = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseG, 0x1a / 255, emberW), 0x88 / 255, tundraW);
+            const rockBCol = THREE.MathUtils.lerp(THREE.MathUtils.lerp(rockBaseB, 0x08 / 255, emberW), 0x98 / 255, tundraW);
+
+            r += (rockR    - r) * steepness;
+            g += (rockG    - g) * steepness;
+            b += (rockBCol - b) * steepness;
+
+            const ao = 1.0 - THREE.MathUtils.clamp((-vy - 2) / 8, 0, 0.20);
+            r *= ao; g *= ao; b *= ao;
+
+            const noise =
+              (Math.sin(vx * 1.7 + vz * 2.3) + Math.cos(vx * 3.1 - vz * 1.9)) * 0.02 +
+              (Math.sin(vx * 4.3 - vz * 3.7) + Math.cos(vx * 2.9 + vz * 5.1)) * 0.015;
+            const medNoise =
+              (Math.sin(vx * 0.23 + vz * 0.31) + Math.cos(vx * 0.37 - vz * 0.27)) * 0.025;
+
+            r = THREE.MathUtils.clamp(r + noise + medNoise,        0, 1);
+            g = THREE.MathUtils.clamp(g + noise * 0.8 + medNoise * 0.9, 0, 1);
+            b = THREE.MathUtils.clamp(b + noise * 0.6 + medNoise * 0.7, 0, 1);
+
+            const surfNoise = getBiomeSurfaceNoise(vx, vz, weights);
+            r = THREE.MathUtils.clamp(r + surfNoise.r, 0, 1);
+            g = THREE.MathUtils.clamp(g + surfNoise.g, 0, 1);
+            b = THREE.MathUtils.clamp(b + surfNoise.b, 0, 1);
+
+            // Editor ground paint overrides the biome colour toward the chosen
+            // surface type, keeping a little noise so it doesn't read flat.
+            if (job.chunkHasPaint) {
+              const paint = sampleGroundPaint(vx, vz, job.localPaint);
+              if (paint) {
+                r = r * (1 - paint.w) + paint.r * paint.w;
+                g = g * (1 - paint.w) + paint.g * paint.w;
+                b = b * (1 - paint.w) + paint.b * paint.w;
+              }
+            }
+
+            colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
+
+            const emissive = getBiomeEmissive(vx, vz, vy, t, weights);
+            const emissiveScale = 1.0 - steepness;
+            emissiveColors[i * 3]     = emissive.r * emissiveScale;
+            emissiveColors[i * 3 + 1] = emissive.g * emissiveScale;
+            emissiveColors[i * 3 + 2] = emissive.b * emissiveScale;
+          }
+          job.index = end;
+          if (end >= vertexCount) {
+            job.phase = BuildPhase.UV;
+            job.index = 0;
+          }
+          break;
+        }
+
+        // ── Phase: world-space tiling UVs ─────────────────────────────────────
+        case BuildPhase.UV: {
+          const end = Math.min(job.index + BUILD_BATCH, vertexCount);
+          for (let i = job.index; i < end; i++) {
+            uvArray[i * 2]     = positions.getX(i) * 0.5;
+            uvArray[i * 2 + 1] = positions.getZ(i) * 0.5;
+          }
+          job.index = end;
+          if (end >= vertexCount) {
+            job.phase = BuildPhase.Finalize;
+            job.index = 0;
+          }
+          break;
+        }
+
+        // ── Phase: attributes + mesh + scene insertion ────────────────────────
+        case BuildPhase.Finalize: {
+          this.finalizeChunkBuild(job);
+          job.phase = BuildPhase.Done;
+          break;
         }
       }
-
-      colors[i * 3] = r; colors[i * 3 + 1] = g; colors[i * 3 + 2] = b;
-
-      const emissive = getBiomeEmissive(vx, vz, vy, t, weights);
-      const emissiveScale = 1.0 - steepness;
-      emissiveColors[i * 3]     = emissive.r * emissiveScale;
-      emissiveColors[i * 3 + 1] = emissive.g * emissiveScale;
-      emissiveColors[i * 3 + 2] = emissive.b * emissiveScale;
     }
 
+    return job.phase === BuildPhase.Done;
+  }
+
+  private finalizeChunkBuild(job: ChunkBuildJob): void {
+    const { geometry, normalValues, colors, emissiveColors, uvArray, cx, cz, worldX, worldZ, key } = job;
+
+    geometry.setAttribute('normal',   new THREE.BufferAttribute(normalValues, 3));
     geometry.setAttribute('color',    new THREE.BufferAttribute(colors, 3));
     geometry.setAttribute('aEmissive', new THREE.BufferAttribute(emissiveColors, 3));
-
-    // World-space tiling UVs — unchanged.
-    const uvArray = new Float32Array(vertexCount * 2);
-    for (let i = 0; i < vertexCount; i++) {
-      uvArray[i * 2]     = positions.getX(i) * 0.5;
-      uvArray[i * 2 + 1] = positions.getZ(i) * 0.5;
-    }
-    geometry.setAttribute('uv', new THREE.BufferAttribute(uvArray, 2));
+    geometry.setAttribute('uv',       new THREE.BufferAttribute(uvArray, 2));
 
     geometry.computeBoundingBox();
     geometry.computeBoundingSphere();
@@ -860,7 +1112,6 @@ export class Terrain {
     mesh.receiveShadow = true;
     this.scene.add(mesh);
 
-    const key = `${cx},${cz}`;
     this.chunks.set(key, { mesh, cx, cz });
 
     if (this.onChunkLoaded) {

@@ -79,6 +79,8 @@ export interface SculptStroke {
   radius: number;
   delta: number;
   flatten?: boolean;
+  /** Water-carve stroke — flattens a lakebed below sea level; no sculpt gizmo. */
+  water?: boolean;
 }
 
 /** A single ground-type paint deposit (grass/sand/mud/… tint brush). */
@@ -214,10 +216,10 @@ export class WorldManifest {
    * radius are merged so holding the brush deepens one stroke instead of
    * appending hundreds of near-duplicates to the manifest.
    */
-  public addSculptStroke(x: number, z: number, radius: number, delta: number, flatten?: boolean): void {
+  public addSculptStroke(x: number, z: number, radius: number, delta: number, flatten?: boolean, water?: boolean): void {
     const MERGE_DIST = 1.5;
     for (const s of this.sculpt) {
-      if (s.flatten === flatten && Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
+      if (s.flatten === flatten && !!s.water === !!water && Math.abs(s.radius - radius) < 0.01 && Math.hypot(s.x - x, s.z - z) < MERGE_DIST) {
         if (flatten) {
            s.delta = delta; // target height
         } else {
@@ -226,7 +228,7 @@ export class WorldManifest {
         return;
       }
     }
-    this.sculpt.push({ x, z, radius, delta, flatten });
+    this.sculpt.push({ x, z, radius, delta, flatten, water });
   }
 
   public getPaint(): GroundPaintStroke[] {

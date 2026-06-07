@@ -25,10 +25,6 @@ let _materials: MedMaterials | null = null;
 
 export function getMaterials(): MedMaterials {
   if (!_materials) {
-    const texLoader = new THREE.TextureLoader();
-    const doorTex = texLoader.load('/textures/andalusian_door.jpg');
-    doorTex.wrapS = doorTex.wrapT = THREE.RepeatWrapping;
-
     _materials = {
       stucco: (() => {
         const m = new THREE.MeshStandardMaterial({ roughness: 0.95 });
@@ -92,13 +88,16 @@ export function getMaterials(): MedMaterials {
         m.userData.flatColor = 0x4488ff;
         return m;
       })(),
-      door: new THREE.MeshStandardMaterial({
-        map: doorTex,
-        roughness: 0.7,
-        metalness: 0.0,
-        color: 0xffffff,
-        userData: { flatColor: 0x3d2b1f }
-      }),
+      door: (() => {
+        // Dark-wood door planks. Reuses the Poly Haven CC0 wood albedo+normal
+        // already warmed onto the GPU at boot (warmUpTextures), so it has pixels
+        // before any world-tiling clones it — unlike the old lazily-loaded
+        // andalusian_door.jpg, which 404'd and spammed "no image data found".
+        const m = new THREE.MeshStandardMaterial({ roughness: 0.7, metalness: 0.0 });
+        applyMalakaPBR(m, 'wood');
+        m.userData.flatColor = 0x3d2b1f;
+        return m;
+      })(),
     };
   }
   return _materials;
@@ -125,7 +124,6 @@ function makeWindowTexture(size: number): THREE.Texture {
 
   const tex = new THREE.CanvasTexture(canvas);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.needsUpdate = true;
   return tex;
 }
 

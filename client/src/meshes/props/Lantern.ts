@@ -16,10 +16,10 @@ function makeLanternGlowTex(): THREE.Texture {
   grad.addColorStop(1.0, 'rgba(0,0,0,0)');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
+
   const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
   return tex;
-}
+  }
 
 export class Lantern extends Mesh {
   static readonly type = 'lantern';
@@ -72,12 +72,6 @@ export class Lantern extends Mesh {
     glow.position.y = 3.25 * scale;
     glow.userData.noCollision = true;
     g.add(glow);
-
-    // Point light — illuminates surroundings in all directions
-    const light = new THREE.PointLight(0xffcc44, 4.0, 9 * scale, 2);
-    light.position.y = 3.25 * scale;
-    light.castShadow = false;
-    g.add(light);
 
     return g;
   }

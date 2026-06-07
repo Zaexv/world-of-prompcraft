@@ -31,7 +31,7 @@ import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
 import { buildMesh, selectBiomePropType, selectBiomeVegetationType, selectBiomeBuildingType } from '../meshes';
 import { getBiomeEntry } from './BiomeRegistry';
-import { tagDebugInfo } from '../debug/DebugInfo';
+import { tagDebugInfo, type DebugInfo } from '../debug/DebugInfo';
 
 // ── Seeded PRNG ───────────────────────────────────────────────────────────────
 
@@ -139,8 +139,12 @@ export class ProceduralPopulator {
   private _sortPX = 0;
   private _sortPZ = 0;
 
-  // Reusable scratch Vector3 — avoids per-chunk allocation (GC pressure)
-  private static _v = new THREE.Vector3();
+  // Deferred per-object spawn tasks. A chunk is *planned* (cheap RNG decisions)
+  // immediately, but the expensive mesh builds + collision registration are
+  // drained a few per frame under a time budget so one dense chunk can't stall a
+  // whole frame (the 60-70ms hitch when entering far/dense zones).
+  private spawnTasks: Array<{ key: string; run: () => void }> = [];
+  private readonly SPAWN_BUDGET_MS = 3;
 
   // Small margin above the sea surface: anything whose ground sits at or below
   // this never spawns, so props/buildings/monsters don't end up submerged (or
@@ -207,32 +211,48 @@ export class ProceduralPopulator {
     // Remove from queue if still pending (no need to mark dirty — removing doesn't change sort order)
     const qi = this.queue.findIndex((c) => c.chunkX === chunkX && c.chunkZ === chunkZ);
     if (qi !== -1) this.queue.splice(qi, 1);
+
+    // Cancel any not-yet-built spawn tasks for this chunk.
+    if (this.spawnTasks.length > 0) {
+      this.spawnTasks = this.spawnTasks.filter((t) => t.key !== key);
+    }
   }
 
   /** Call once per frame from the game loop. */
   update(playerX: number, playerZ: number): void {
-    if (this.queue.length === 0 || !this.scene) return;
+    if (!this.scene) return;
 
-    const r2 = this.SPAWN_RADIUS * this.SPAWN_RADIUS;
+    // ── Plan up to CHUNKS_PER_FRAME chunks (cheap — RNG + height sampling) ──
+    if (this.queue.length > 0) {
+      const r2 = this.SPAWN_RADIUS * this.SPAWN_RADIUS;
 
-    // Re-sort only when new chunks have been queued — avoid per-frame sort cost.
-    if (this._queueDirty) {
-      this._sortPX = playerX; this._sortPZ = playerZ;
-      this.queue.sort(this._distSort);
-      this._queueDirty = false;
+      // Re-sort only when new chunks have been queued — avoid per-frame sort cost.
+      if (this._queueDirty) {
+        this._sortPX = playerX; this._sortPZ = playerZ;
+        this.queue.sort(this._distSort);
+        this._queueDirty = false;
+      }
+
+      let done = 0;
+      while (done < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
+        const next = this.queue[0]!;
+        const dx = next.cx - playerX, dz = next.cz - playerZ;
+        if (dx * dx + dz * dz > r2) break;
+        this.queue.shift();
+        const key = `${next.chunkX},${next.chunkZ}`;
+        if (!this.populated.has(key)) {
+          this.populated.add(key);
+          this._planChunk(next, key);
+          done++;
+        }
+      }
     }
 
-    let done = 0;
-    while (done < this.CHUNKS_PER_FRAME && this.queue.length > 0) {
-      const next = this.queue[0]!;
-      const dx = next.cx - playerX, dz = next.cz - playerZ;
-      if (dx * dx + dz * dz > r2) break;
-      this.queue.shift();
-      const key = `${next.chunkX},${next.chunkZ}`;
-      if (!this.populated.has(key)) {
-        this.populated.add(key);
-        this._populate(next, key);
-        done++;
+    // ── Drain expensive spawn builds under a frame-time budget ──
+    if (this.spawnTasks.length > 0) {
+      const start = performance.now();
+      while (this.spawnTasks.length > 0 && performance.now() - start < this.SPAWN_BUDGET_MS) {
+        this.spawnTasks.shift()!.run();
       }
     }
   }
@@ -244,25 +264,28 @@ export class ProceduralPopulator {
     return ((a.cx - px) ** 2 + (a.cz - pz) ** 2) - ((b.cx - px) ** 2 + (b.cz - pz) ** 2);
   };
 
-  private _populate(chunk: PendingChunk, key: string): void {
+  /**
+   * Plan a chunk's procedural content. ALL RNG decisions + height sampling happen
+   * here (cheap), and the expensive parts — `buildMesh` / NPC mesh construction /
+   * collision registration — are pushed as tasks drained under a frame budget in
+   * `update()`. Build variation uses a per-object derived seed so the result stays
+   * deterministic regardless of when the task drains.
+   */
+  private _planChunk(chunk: PendingChunk, key: string): void {
     const { worldX, worldZ, chunkX, chunkZ, cx, cz } = chunk;
     const SIZE = 64;
     const dist = Math.sqrt(cx * cx + cz * cz);
     const biome = getDominantBiome(cx, cz);
     const rng = new SeededRng(chunkX, chunkZ, 0xdeadbeef);
     const registryEntry = getBiomeEntry(biome);
+    const zone = BiomeType[biome];
 
-    const objs: THREE.Object3D[] = [];
-    const npcIds: string[] = [];
-
-    // NOTE: Procedural buildings and encounters (camps, caravans, mines, etc.)
-    // were intentionally removed — all buildings/structures now come solely from
-    // the authored world manifest. Only natural content (monsters, vegetation,
-    // ambient props) is generated procedurally here.
+    // NOTE: Only natural content (monsters, vegetation, ambient props) and biome
+    // buildings/encounters are generated here — authored structures come from the
+    // world manifest.
 
     // ── Monsters (density scales with distance from origin) ────────────
     // Hard cap on total NPCs: prevents the EntityManager loop growing unbounded.
-    // 36 server NPCs + up to ~44 procedural = comfortable 80 total.
     const MAX_NPCS = 80;
     const monsterChance = Math.min(0.45, 0.08 + dist * 0.0006);
     if (rng.chance(monsterChance) && this.entityManager &&
@@ -278,16 +301,19 @@ export class ProceduralPopulator {
         const my = this.terrain.getHeightAt(mx, mz);
         const def = rng.pick(defs);
         const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
-        this.entityManager.addNPC({
-          id: npcId, name: def.name,
-          personalityKey: def.id,
-          position: new THREE.Vector3(mx, my, mz),
-          hp: def.maxHp, maxHp: def.maxHp,
-          personality: `Hostile creature — attack on sight.`,
-          scale: def.scale,
-          behavior: 'hostile',
-        });
-        npcIds.push(npcId);
+        this.spawnTasks.push({ key, run: () => {
+          if (!this.entityManager || this.entityManager.npcs.size >= MAX_NPCS) return;
+          this.entityManager.addNPC({
+            id: npcId, name: def.name,
+            personalityKey: def.id,
+            position: new THREE.Vector3(mx, my, mz),
+            hp: def.maxHp, maxHp: def.maxHp,
+            personality: 'Hostile creature — attack on sight.',
+            scale: def.scale,
+            behavior: 'hostile',
+          });
+          this._trackNpc(key, npcId);
+        } });
       }
     }
 
@@ -298,26 +324,18 @@ export class ProceduralPopulator {
       if (!this.isUnderwater(bx, bz)) {
         const by = this.terrain.getHeightAt(bx, bz);
         const bPos = new THREE.Vector3(bx, by, bz);
-
-        let building: THREE.Object3D | null = null;
+        const rotationY = rng.nextRange(0, Math.PI * 2);
         let buildingType = 'biome_building';
+        let buildFn: (r: SeededRng) => THREE.Object3D | null;
         if (registryEntry) {
-          building = registryEntry.buildingFn(bPos, rng, dist);
+          buildFn = (r) => registryEntry.buildingFn(bPos.clone(), r, dist);
         } else {
           const bType = selectBiomeBuildingType(biome, rng, dist);
-          if (bType) {
-            buildingType = bType;
-            building = buildMesh(bType, { position: bPos, scale: 1, rng }) ?? null;
-          }
+          if (bType) buildingType = bType;
+          buildFn = (r) => (bType ? buildMesh(bType, { position: bPos.clone(), scale: 1, rng: r }) ?? null : null);
         }
-
-        if (building && this.scene) {
-          building.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(building);
-          void this.collisionSystem?.addCollidableFiltered(building);
-          tagDebugInfo(building, { type: buildingType, category: 'building', zone: BiomeType[biome] });
-          objs.push(building);
-        }
+        const seed = rng.nextInt(0x40000000);
+        this._pushObjectTask(key, buildFn, seed, rotationY, true, { type: buildingType, category: 'building', zone });
       }
     }
 
@@ -333,15 +351,14 @@ export class ProceduralPopulator {
       if (!this.isUnderwater(ex, ez)) {
         const ey = this.terrain.getHeightAt(ex, ez);
         const ePos = new THREE.Vector3(ex, ey, ez);
+        const rotationY = rng.nextRange(0, Math.PI * 2);
         const encType = rng.pick(ENCOUNTERS);
-        const enc = buildMesh(encType, { position: ePos, scale: 1, rng }) ?? null;
-        if (enc && this.scene) {
-          enc.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(enc);
-          void this.collisionSystem?.addCollidableFiltered(enc);
-          tagDebugInfo(enc, { type: encType, category: 'prop', zone: BiomeType[biome] });
-          objs.push(enc);
-        }
+        const seed = rng.nextInt(0x40000000);
+        this._pushObjectTask(
+          key,
+          (r) => buildMesh(encType, { position: ePos.clone(), scale: 1, rng: r }) ?? null,
+          seed, rotationY, true, { type: encType, category: 'prop', zone },
+        );
       }
     }
 
@@ -353,22 +370,17 @@ export class ProceduralPopulator {
         const pz = worldZ + rng.nextRange(2, SIZE - 2);
         if (this.isUnderwater(px, pz)) continue;
         const py = this.terrain.getHeightAt(px, pz);
-        const pos = ProceduralPopulator._v.set(px, py, pz);
         const scale = rng.nextRange(0.6, 1.5);
-
-        // BiomeRegistry doesn't currently specify a vegFn, so we rely on the internal selector
+        const rotationY = rng.nextRange(0, Math.PI * 2);
         const type = selectBiomeVegetationType(biome, rng);
-        const veg = type ? buildMesh(type, { position: pos, scale, rng }) ?? null : null;
-
-        if (veg && this.scene) {
-          veg.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(veg);
-          if (veg.userData.isCollider || veg.children.some(c => c.userData.isCollider)) {
-            void this.collisionSystem?.addCollidableFiltered(veg);
-          }
-          tagDebugInfo(veg, { type: type ?? 'vegetation', category: 'vegetation', zone: BiomeType[biome] });
-          objs.push(veg);
-        }
+        const seed = rng.nextInt(0x40000000);
+        if (!type) continue;
+        const pos = new THREE.Vector3(px, py, pz);
+        this._pushObjectTask(
+          key,
+          (r) => buildMesh(type, { position: pos.clone(), scale, rng: r }) ?? null,
+          seed, rotationY, false, { type, category: 'vegetation', zone },
+        );
       }
     }
 
@@ -380,37 +392,57 @@ export class ProceduralPopulator {
         const pz = worldZ + rng.nextRange(3, SIZE - 3);
         if (this.isUnderwater(px, pz)) continue;
         const py = this.terrain.getHeightAt(px, pz);
-        const pos = ProceduralPopulator._v.set(px, py, pz);
         const scale = rng.nextRange(0.7, 1.35);
-
-        let prop: THREE.Object3D | null;
-        let propType = BiomeType[biome] + '_prop';
+        const rotationY = rng.nextRange(0, Math.PI * 2);
+        const pos = new THREE.Vector3(px, py, pz);
+        let propType = zone + '_prop';
+        let buildFn: (r: SeededRng) => THREE.Object3D | null;
         if (registryEntry) {
-          prop = registryEntry.propFn(pos, scale, rng);
+          buildFn = (r) => registryEntry.propFn(pos.clone(), scale, r);
         } else {
           const pType = selectBiomePropType(biome, rng);
           if (pType) propType = pType;
-          prop = pType ? buildMesh(pType, { position: pos, scale, rng }) ?? null : null;
+          buildFn = (r) => (pType ? buildMesh(pType, { position: pos.clone(), scale, rng: r }) ?? null : null);
         }
-
-        if (prop && this.scene) {
-          prop.rotation.y = rng.nextRange(0, Math.PI * 2);
-          this.scene.add(prop);
-          // Register collision for props that declare solid geometry (fences,
-          // bonfires, runic stones, towers…). Purely decorative clutter has no
-          // isCollider tag and stays walk-through. Without this, ambient props
-          // were spawned with no collision at all — you could walk through them.
-          if (prop.userData.isCollider || prop.children.some(c => c.userData.isCollider)) {
-            void this.collisionSystem?.addCollidableFiltered(prop);
-          }
-          tagDebugInfo(prop, { type: propType, category: 'prop', zone: BiomeType[biome] });
-          objs.push(prop);
-        }
+        const seed = rng.nextInt(0x40000000);
+        this._pushObjectTask(key, buildFn, seed, rotationY, false, { type: propType, category: 'prop', zone });
       }
     }
+  }
 
-    // Track for cleanup
-    if (objs.length > 0) this.spawnedObjects.set(key, objs);
-    if (npcIds.length > 0) this.spawnedNpcs.set(key, npcIds);
+  /** Enqueue an object build. `collideAlways` forces collision registration;
+   *  otherwise it's registered only if the built object declares a collider. */
+  private _pushObjectTask(
+    key: string,
+    buildFn: (rng: SeededRng) => THREE.Object3D | null,
+    seed: number,
+    rotationY: number,
+    collideAlways: boolean,
+    debug: DebugInfo,
+  ): void {
+    this.spawnTasks.push({ key, run: () => {
+      if (!this.scene) return;
+      const obj = buildFn(new SeededRng(seed, 0));
+      if (!obj) return;
+      obj.rotation.y = rotationY;
+      this.scene.add(obj);
+      const collide = collideAlways || obj.userData.isCollider ||
+        obj.children.some((c) => c.userData.isCollider);
+      if (collide) void this.collisionSystem?.addCollidableFiltered(obj);
+      tagDebugInfo(obj, debug);
+      this._trackObj(key, obj);
+    } });
+  }
+
+  private _trackObj(key: string, obj: THREE.Object3D): void {
+    let arr = this.spawnedObjects.get(key);
+    if (!arr) { arr = []; this.spawnedObjects.set(key, arr); }
+    arr.push(obj);
+  }
+
+  private _trackNpc(key: string, id: string): void {
+    let arr = this.spawnedNpcs.get(key);
+    if (!arr) { arr = []; this.spawnedNpcs.set(key, arr); }
+    arr.push(id);
   }
 }
