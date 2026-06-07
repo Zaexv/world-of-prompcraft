@@ -49,14 +49,13 @@ constructor(scene: THREE.Scene) {
         }
       }
     }
-    
     const cloudTex = new THREE.CanvasTexture(canvas);
     cloudTex.magFilter = THREE.NearestFilter; 
     cloudTex.minFilter = THREE.NearestFilter;
     cloudTex.wrapS = THREE.RepeatWrapping;
     cloudTex.wrapT = THREE.RepeatWrapping;
     cloudTex.repeat.set(12, 12); 
-    
+
     const cloudMat = new THREE.MeshBasicMaterial({
       map: cloudTex,
       transparent: true,

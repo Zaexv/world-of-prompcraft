@@ -303,6 +303,11 @@ try {
         const btn = document.querySelector('.te-mode[data-mode="flatten"]') as HTMLElement;
         if (btn) btn.click();
       }
+      if (e.code === 'Digit7') {
+        e.preventDefault();
+        const btn = document.querySelector('.te-mode[data-mode="water"]') as HTMLElement;
+        if (btn) btn.click();
+      }
 
       // 6. Camera & UI
       if (e.code === 'KeyT') terrainEditorPanel.toggle();

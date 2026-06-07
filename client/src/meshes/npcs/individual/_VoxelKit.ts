@@ -11,6 +11,7 @@
  */
 import * as THREE from 'three';
 import { applyCharacterPBR } from '../../../utils/PBRMaps';
+import type { CharMatKind } from '../../../utils/PBRMaps';
 import {
   NPC_Y_LEG,
   NPC_Y_TORSO,
@@ -32,6 +33,12 @@ export interface MatOpts {
   emissiveIntensity?: number;
   transparent?: boolean;
   opacity?: number;
+  /**
+   * Surface intent read by `applyCharacterPBR` in `finishCharacter` — e.g.
+   * 'gold' for reflective metal, 'silk'/'velvet'/'wool' for cloth. When omitted
+   * the finish is inferred (skin/metal/leather) for backward compatibility.
+   */
+  kind?: CharMatKind;
 }
 
 /** Flat-shaded standard material — the house style for all characters. */
@@ -50,7 +57,9 @@ export function vmat(color: number, opts: MatOpts = {}): THREE.MeshStandardMater
     params.transparent = true;
     params.opacity = opts.opacity ?? 1;
   }
-  return new THREE.MeshStandardMaterial(params);
+  const material = new THREE.MeshStandardMaterial(params);
+  if (opts.kind !== undefined) material.userData.charMatKind = opts.kind;
+  return material;
 }
 
 /** Convenience box mesh. */
@@ -82,6 +91,12 @@ export interface VoxelDims {
   handColor?: number;
   /** Feet default to leg colour; override for boots. */
   footColor?: number;
+  /**
+   * Cloth weave for the garment body (torso + arm/leg sleeves). 'silk' / 'velvet'
+   * / 'wool' give the robe a real fabric finish instead of the leather default.
+   * Hands and feet keep their own defaults so gloves/boots stay leather.
+   */
+  clothKind?: CharMatKind;
 }
 
 export interface VoxelRig {
@@ -105,7 +120,7 @@ export function buildVoxelCharacter(group: THREE.Group, d: VoxelDims): VoxelRig 
   const footColor = d.footColor ?? d.legColor;
 
   // ── Torso ──
-  const body = box(d.torsoW, TORSO_H, d.torsoD, vmat(d.torsoColor), 0, NPC_Y_TORSO, 0);
+  const body = box(d.torsoW, TORSO_H, d.torsoD, vmat(d.torsoColor, { kind: d.clothKind }), 0, NPC_Y_TORSO, 0);
   body.name = 'body';
   group.add(body);
 
@@ -121,7 +136,7 @@ export function buildVoxelCharacter(group: THREE.Group, d: VoxelDims): VoxelRig 
     const pivot = new THREE.Group();
     pivot.name = side < 0 ? 'leftArm' : 'rightArm';
     pivot.position.set(side * armX, shoulderY, 0);
-    pivot.add(box(d.armW, ARM_H, d.armD, vmat(d.armColor), 0, -ARM_H / 2, 0));
+    pivot.add(box(d.armW, ARM_H, d.armD, vmat(d.armColor, { kind: d.clothKind }), 0, -ARM_H / 2, 0));
     pivot.add(box(d.armW * 1.02, HAND_H, d.armD * 1.02, vmat(handColor, { roughness: 0.55 }), 0, -ARM_H - HAND_H / 2 + 0.02, 0));
     group.add(pivot);
     return pivot;
@@ -136,7 +151,7 @@ export function buildVoxelCharacter(group: THREE.Group, d: VoxelDims): VoxelRig 
     const pivot = new THREE.Group();
     pivot.name = side < 0 ? 'leftLeg' : 'rightLeg';
     pivot.position.set(side * legX, hipY, 0);
-    pivot.add(box(d.legW, LEG_H, d.legD, vmat(d.legColor), 0, -LEG_H / 2, 0));
+    pivot.add(box(d.legW, LEG_H, d.legD, vmat(d.legColor, { kind: d.clothKind }), 0, -LEG_H / 2, 0));
     pivot.add(box(d.legW * 1.12, FOOT_H, d.legD * 1.5, vmat(footColor), 0, -LEG_H + FOOT_H / 2 - 0.02, d.legD * 0.22));
     group.add(pivot);
     return pivot;
@@ -157,6 +172,7 @@ export function addCloak(
   width: number,
   height: number,
   color: number,
+  kind?: CharMatKind,
 ): THREE.Group {
   const pivot = new THREE.Group();
   pivot.name = 'cloak';
@@ -164,6 +180,7 @@ export function addCloak(
   const mat = new THREE.MeshStandardMaterial({
     color, roughness: 0.85, flatShading: true, side: THREE.DoubleSide,
   });
+  if (kind !== undefined) mat.userData.charMatKind = kind;
   const plane = new THREE.Mesh(new THREE.PlaneGeometry(width, height, 1, 4), mat);
   plane.position.y = -height / 2;
   pivot.add(plane);

@@ -16,8 +16,11 @@ export class AureliaTrader extends Mesh {
     buildProceduralMesh(group, appearance, 'merchant');
     addPlaceholderAccessory(group, 'merchant');
 
-    // Unique Aurelia Additions: Large Golden Satchel
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xffd700, metalness: 0.8, roughness: 0.2 });
+    // Unique Aurelia Additions: Large Golden Satchel — polished metal that
+    // mirrors the scene's PMREM sky (envMapIntensity boost) for a real gold gleam.
+    const goldMat = new THREE.MeshStandardMaterial({
+      color: 0xffd700, metalness: 1.0, roughness: 0.22, envMapIntensity: 1.9,
+    });
     const satchel = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.2), goldMat);
     satchel.position.set(0.3, 1.2, 0.1);
     satchel.rotation.z = 0.2;

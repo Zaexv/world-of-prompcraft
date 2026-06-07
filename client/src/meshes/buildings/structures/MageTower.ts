@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import type { Rng } from '../../../systems/worldbuilder/RngTypes';
@@ -247,6 +248,55 @@ function crown(g: THREE.Group, mats: Mats, deckY: number, landingAngle: number):
   }
 }
 
+/**
+ * Collapse the tower's ~250 individual pieces into one mesh per (material,
+ * collider-flag) bucket. The tower built one `BoxGeometry`/etc. per wall slab,
+ * stair tread, rib and merlon — ~200 of them tagged `isCollider`. Being *inside*
+ * the tower put all ~200 within the player capsule's + camera's 20 m broadphase,
+ * so they were shapecast EVERY frame (the sustained CPU hit), plus ~250 draw
+ * calls and ~200 BVH builds on spawn. Merging keeps the exact triangles (so the
+ * door/window openings and walkable stairs are unchanged) but leaves ~2 collider
+ * meshes (one BVH each) and ~7 draw calls. Done in local space, before the
+ * group's scale is applied.
+ */
+function mergeByMaterial(g: THREE.Group): void {
+  const meshes: THREE.Mesh[] = [];
+  for (const c of g.children) if (c instanceof THREE.Mesh) meshes.push(c);
+  if (meshes.length === 0) return;
+
+  const buckets = new Map<string, { mat: THREE.Material; collider: boolean; geos: THREE.BufferGeometry[] }>();
+  for (const mesh of meshes) {
+    const mat = mesh.material as THREE.Material;
+    const collider = mesh.userData.isCollider === true;
+    const key = `${mat.uuid}|${collider ? 1 : 0}`;
+    let b = buckets.get(key);
+    if (!b) { b = { mat, collider, geos: [] }; buckets.set(key, b); }
+    mesh.updateMatrix();
+    let geo = mesh.geometry.clone().applyMatrix4(mesh.matrix);
+    // THREE primitives mix indexed (Box/Cylinder/Torus/Ring/Cone) and non-indexed
+    // (Octahedron/Icosahedron/Tetrahedron). mergeGeometries requires uniform
+    // indexing, so flatten everything to non-indexed before bucketing.
+    if (geo.index) { const ni = geo.toNonIndexed(); geo.dispose(); geo = ni; }
+    b.geos.push(geo);
+  }
+
+  const merged: THREE.Mesh[] = [];
+  for (const b of buckets.values()) {
+    const geo = mergeGeometries(b.geos, false);
+    b.geos.forEach((x) => x.dispose());
+    if (!geo) return; // incompatible attributes — bail, leave originals untouched
+    const mesh = new THREE.Mesh(geo, b.mat);
+    mesh.castShadow = true;
+    mesh.receiveShadow = b.collider;
+    mesh.userData[b.collider ? 'isCollider' : 'noCollision'] = true;
+    merged.push(mesh);
+  }
+
+  for (const mesh of meshes) mesh.geometry.dispose();
+  g.clear();
+  for (const mesh of merged) g.add(mesh);
+}
+
 function buildFull(scale: number, rng?: Rng): THREE.Group {
   const g = new THREE.Group();
   const mats = makeMaterials();
@@ -270,6 +320,9 @@ function buildFull(scale: number, rng?: Rng): THREE.Group {
   const landingAngle = spiralStairs(g, mats, deckY);  // stairs climb flush to the deck
   crown(g, mats, deckY, landingAngle);
   floatingItems(g, mats, rng);
+
+  // Collapse the ~250 pieces into ~7 meshes (≈2 colliders) before scaling.
+  mergeByMaterial(g);
 
   g.scale.setScalar(scale);
   // NPC stands on the deck ring opposite the landing, clear of the oculus.

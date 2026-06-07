@@ -63,7 +63,7 @@ export class Zaex extends Mesh {
     const strapMat = (): THREE.MeshStandardMaterial => vmat(STRAP, { roughness: 0.6 });
 
     // ── Broad-shouldered chest plate (V-taper over the kit torso) ──
-    const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.30, 0.42, 8), vmat(ARMOR, { roughness: 0.55 }));
+    const chest = new THREE.Mesh(new THREE.CylinderGeometry(0.40, 0.30, 0.42, 8), vmat(ARMOR, { roughness: 0.55, kind: 'velvet' }));
     chest.rotation.y = Math.PI / 8;
     chest.scale.z = 0.62;
     chest.position.y = NPC_Y_TORSO + 0.16;
@@ -111,8 +111,8 @@ export class Zaex extends Mesh {
 
     // ── Belt + long layered crimson kilt that fully hides the legs ──
     group.add(box(0.7, 0.1, 0.46, leather(), 0, NPC_Y_TORSO - 0.40, 0));
-    const skirtMat = vmat(SKIRT, { roughness: 0.7 });
-    const skirtDarkMat = vmat(SKIRT_DARK, { roughness: 0.7 });
+    const skirtMat = vmat(SKIRT, { roughness: 0.7, kind: 'wool' });
+    const skirtDarkMat = vmat(SKIRT_DARK, { roughness: 0.7, kind: 'wool' });
     // Ten overlapping panels hang nearly to the ankles, draped vertically so the
     // legs stay covered while walking.
     const panelCount = 10;
@@ -187,7 +187,7 @@ export class Zaex extends Mesh {
 
     // Glowing honey-coloured eyes. The emissive is driven well past the
     // renderer's UnrealBloom threshold (0.9), so the engine's bloom pass produces
-    // the glow; a small PointLight makes the eyes cast real honey light too.
+    // the glow.
     const eyeMat = vmat(0xffcf73, { emissive: 0xffb733, emissiveIntensity: 4.5 });
     const browMat = vmat(0x6e4a4a, { roughness: 0.6 });
     for (const sx of [-1, 1]) {
@@ -196,9 +196,6 @@ export class Zaex extends Mesh {
       rig.head.add(eye);
       rig.head.add(box(0.14, 0.025, 0.03, browMat, sx * 0.12, 0.12, 0.245));
     }
-    const eyeLight = new THREE.PointLight(0xffb733, 0.7, 1.6, 2);
-    eyeLight.position.set(0, 0.03, 0.32);
-    rig.head.add(eyeLight);
 
     // ── A dagger in each hand, blades pointing forward (swing with the arms) ──
     for (const arm of [rig.leftArm, rig.rightArm]) {

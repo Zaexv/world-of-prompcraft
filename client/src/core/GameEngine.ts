@@ -19,6 +19,7 @@ import { getWorldHeightAt } from '../scene/VerticalTerrain';
 import type { RuntimeState } from './RuntimeState';
 import type { NPCStateStore } from '../state/NPCState';
 import { WorldDebugOverlay } from '../debug/WorldDebugOverlay';
+import { PerfHUD } from '../debug/PerfHUD';
 
 const MOVE_SEND_INTERVAL = 1 / 10;
 const INTRO_DURATION_SEC = 8;
@@ -74,6 +75,7 @@ export class GameEngine {
   private readonly _idleVelocity = new THREE.Vector3();
 
   private debugOverlay: WorldDebugOverlay | null = null;
+  private perfHUD: PerfHUD | null = null;
 
   constructor(private readonly d: GameEngineDeps) {
     this.wireCallbacks();
@@ -83,6 +85,18 @@ export class GameEngine {
         appContainer,
         d.sceneManager.scene,
         d.sceneManager.camera,
+      );
+      this.perfHUD = new PerfHUD(
+        appContainer,
+        d.sceneManager.renderer,
+        () => ({
+          collidables: d.collisionSystem.getCollidableCount(),
+          npcs: d.entityManager.npcs.size,
+          sceneChildren: d.sceneManager.scene.children.length,
+          x: d.playerController.position.x,
+          z: d.playerController.position.z,
+          zone: d.zoneTracker.getCurrentZone() || 'Wilderness',
+        }),
       );
     }
   }
@@ -287,6 +301,9 @@ export class GameEngine {
       if (e.key === 'F3') {
         e.preventDefault();
         this.debugOverlay?.toggle();
+      } else if (e.key === 'F4') {
+        e.preventDefault();
+        this.perfHUD?.toggle();
       }
     });
   }
@@ -384,6 +401,7 @@ export class GameEngine {
     }
 
     this.debugOverlay?.update(d.playerController.position);
+    this.perfHUD?.update(delta);
   }
 
   private getTerrainHeight(x: number, z: number): number {

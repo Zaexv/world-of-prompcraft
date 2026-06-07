@@ -32,7 +32,6 @@ export function getMaterials(): MedMaterials {
         m.map = null;
         m.color.set(0xf4f1eb);
         m.userData.flatColor = 0xf4f1eb; // already flat — distance LOD matches exactly
-        m.needsUpdate = true;
         return m;
       })(),
       roof: (() => {

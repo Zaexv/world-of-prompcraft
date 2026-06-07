@@ -52,7 +52,7 @@ export class ZaexVoxel extends Mesh {
     }
 
     // ── Crimson skirt + belt over the hips ──
-    group.add(box(0.84, 0.40, 0.52, vmat(SKIRT, { roughness: 0.75 }), 0, NPC_Y_TORSO - 0.58, 0));
+    group.add(box(0.84, 0.40, 0.52, vmat(SKIRT, { roughness: 0.75, kind: 'wool' }), 0, NPC_Y_TORSO - 0.58, 0));
     group.add(box(0.82, 0.12, 0.50, leatherMat(), 0, NPC_Y_TORSO - 0.36, 0));
 
     // ── Heavy boots (cover the lower legs, swing with them) ──

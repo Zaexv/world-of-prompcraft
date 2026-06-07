@@ -18,6 +18,8 @@ const _invMatrixCache = new WeakMap<THREE.Mesh, THREE.Matrix4>();
  */
 class SpatialGrid {
   private grid: Map<string, Set<THREE.Mesh>> = new Map();
+  /** Reverse index: which cell keys each mesh was inserted into. */
+  private meshCells: Map<THREE.Mesh, string[]> = new Map();
   private readonly cellSize = 32;
 
   public add(mesh: THREE.Mesh): void {
@@ -27,19 +29,31 @@ class SpatialGrid {
     const minCZ = Math.floor(box.min.z / this.cellSize);
     const maxCZ = Math.floor(box.max.z / this.cellSize);
 
+    const keys: string[] = [];
     for (let cx = minCX; cx <= maxCX; cx++) {
       for (let cz = minCZ; cz <= maxCZ; cz++) {
         const key = `${cx},${cz}`;
-        if (!this.grid.has(key)) this.grid.set(key, new Set());
-        this.grid.get(key)!.add(mesh);
+        let set = this.grid.get(key);
+        if (!set) { set = new Set(); this.grid.set(key, set); }
+        set.add(mesh);
+        keys.push(key);
       }
     }
+    this.meshCells.set(mesh, keys);
   }
 
   public remove(mesh: THREE.Mesh): void {
-    for (const set of this.grid.values()) {
+    // O(cells-of-mesh) instead of O(all cells): only touch the cells this mesh
+    // was inserted into, and prune emptied cells so the grid never grows unbounded.
+    const keys = this.meshCells.get(mesh);
+    if (!keys) return;
+    for (const key of keys) {
+      const set = this.grid.get(key);
+      if (!set) continue;
       set.delete(mesh);
+      if (set.size === 0) this.grid.delete(key);
     }
+    this.meshCells.delete(mesh);
   }
 
   public query(x: number, z: number, radius: number): THREE.Mesh[] {
@@ -63,6 +77,7 @@ class SpatialGrid {
 
   public clear(): void {
     this.grid.clear();
+    this.meshCells.clear();
   }
 }
 
@@ -168,17 +183,14 @@ export class CollisionSystem {
       return;
     }
 
+    // The arg is usually a spawned group whose child meshes are the registered
+    // statics. Traverse the group's own subtree (O(group size)) instead of
+    // scanning every static in the world (O(statics) per call — a movement spike
+    // when many chunks unload at once).
     const toRemove: THREE.Object3D[] = [];
-    for (const [mesh] of this.statics) {
-      let ancestor = mesh.parent;
-      while (ancestor) {
-        if (ancestor === obj) {
-          toRemove.push(mesh);
-          break;
-        }
-        ancestor = ancestor.parent;
-      }
-    }
+    obj.traverse((child) => {
+      if (this.statics.has(child)) toRemove.push(child);
+    });
 
     for (const mesh of toRemove) {
       const body = this.statics.get(mesh);

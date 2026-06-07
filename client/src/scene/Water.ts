@@ -214,12 +214,7 @@ export class Water {
   }
 
   private generateNormalMap(size: number): THREE.Texture {
-    const canvas = document.createElement('canvas');
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d')!;
-    const imageData = ctx.createImageData(size, size);
-    const data = imageData.data;
+    const data = new Uint8Array(size * size * 4);
 
     for (let y = 0; y < size; y++) {
       for (let x = 0; x < size; x++) {
@@ -240,7 +235,8 @@ export class Water {
         data[idx + 3] = 255;
       }
     }
-    ctx.putImageData(imageData, 0, 0);
-    return new THREE.CanvasTexture(canvas);
+    const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
+    tex.needsUpdate = true; // DataTexture ctor (unlike CanvasTexture) doesn't set this; without it the texture never uploads
+    return tex;
   }
 }

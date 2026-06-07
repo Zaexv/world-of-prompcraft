@@ -5,6 +5,7 @@ import { WorldManifest, LandmarkDefinition, VerticalPlace, NPCDefinition, Sculpt
 import { WebSocketClient } from '../network/WebSocketClient';
 import { buildObject } from '../systems/worldbuilder/objects';
 import { NPC } from '../entities/NPC';
+import { Water } from '../scene/Water';
 
 export enum EditorMode {
   OFF,
@@ -17,8 +18,12 @@ export enum EditorMode {
   PLACE_NPC,
   PLACE_PATH,
   PAINT_GROUND,
-  ERASE_TERRAIN
+  ERASE_TERRAIN,
+  WATER
 }
+
+/** Depth (below the global water plane) the WATER brush carves the lakebed to. */
+const WATER_CARVE_DEPTH = 2.0;
 
 /** Themed accent colour per mode — drives the cursor, brush and helpers. */
 const MODE_COLORS: Record<number, number> = {
@@ -32,6 +37,7 @@ const MODE_COLORS: Record<number, number> = {
   [EditorMode.PLACE_PATH]: 0xffaa55,
   [EditorMode.PAINT_GROUND]: 0x88dd66,
   [EditorMode.ERASE_TERRAIN]: 0xff44aa,  // Magenta — strips manual sculpt back to procedural
+  [EditorMode.WATER]: 0x3a8fd0,          // Blue — carves a basin below sea level to make ponds
 };
 
 const SELECT_COLOR = 0xffe08a;  // warm gold — selected
@@ -256,7 +262,7 @@ export class TerrainEditor {
     (this.cursorAxis.material as THREE.LineBasicMaterial).color.set(color);
 
     // The radius footprint only reads as a "brush" while sculpting.
-    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN || mode === EditorMode.PAINT_GROUND || mode === EditorMode.ERASE_TERRAIN;
+    this.brushGroup.visible = mode === EditorMode.SCULPT_RAISE || mode === EditorMode.SCULPT_LOWER || mode === EditorMode.SCULPT_FLATTEN || mode === EditorMode.PAINT_GROUND || mode === EditorMode.ERASE_TERRAIN || mode === EditorMode.WATER;
   }
 
   public setLayerVisibility(layer: string, visible: boolean): void {
@@ -311,6 +317,8 @@ export class TerrainEditor {
     this.clearLayer(this.layerSculpt);
 
     for (const s of this.worldManifest.getSculpt()) {
+      // Water-carve strokes read as actual water in-scene — no sculpt gizmo circle.
+      if (s.water) continue;
       this.layerSculpt.add(this.createSculptGizmo(s));
     }
 
@@ -512,7 +520,7 @@ export class TerrainEditor {
           if (npc) { npc.position.copy(p); npc.homePosition.copy(p); npc.isBeingMoved = true; }
         }
       }
-      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN || this.mode === EditorMode.PAINT_GROUND || this.mode === EditorMode.ERASE_TERRAIN)) this.handleAction();
+      if (this.isMouseDown && (this.mode === EditorMode.SCULPT_RAISE || this.mode === EditorMode.SCULPT_LOWER || this.mode === EditorMode.SCULPT_FLATTEN || this.mode === EditorMode.PAINT_GROUND || this.mode === EditorMode.ERASE_TERRAIN || this.mode === EditorMode.WATER)) this.handleAction();
     } else {
       this.lastIntersection = null; this.cursor.visible = false;
     }
@@ -529,6 +537,8 @@ export class TerrainEditor {
     if (now - this.lastSculptTime > this.SCULPT_INTERVAL) {
       if (this.mode === EditorMode.PAINT_GROUND) {
         this.paintGround(this.lastIntersection.point);
+      } else if (this.mode === EditorMode.WATER) {
+        this.carveWater(this.lastIntersection.point);
       } else if (this.mode === EditorMode.ERASE_TERRAIN) {
         this.eraseTerrainAt(this.lastIntersection.point);
       } else if (this.mode === EditorMode.SCULPT_FLATTEN) {
@@ -799,6 +809,20 @@ export class TerrainEditor {
       const delta = dir * (this.brushIntensity / 10);
       this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, delta);
     }
+    this.terrain.setManifest(this.getManifestData());
+    this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
+    this.refreshVisualization();
+  }
+
+  /**
+   * Carve a water basin: flatten the terrain under the brush down to a fixed
+   * lakebed below the global water plane (Water.LEVEL). The infinite water plane
+   * already covers the whole map, so dropping the ground beneath it makes the
+   * water show through as a pond/lake — no per-body water mesh required.
+   */
+  private carveWater(pos: THREE.Vector3): void {
+    const lakebed = Water.LEVEL - WATER_CARVE_DEPTH;
+    this.worldManifest.addSculptStroke(pos.x, pos.z, this.brushRadius, lakebed, true, true);
     this.terrain.setManifest(this.getManifestData());
     this.terrain.refreshAt(pos.x, pos.z, this.brushRadius + 20);
     this.refreshVisualization();

@@ -22,11 +22,11 @@ import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
 import { meshTypes } from '../meshes';
 import { getWorldHeightAt, setWorldManifest as setTerrainManifest } from '../scene/VerticalTerrain';
 import { setWorldManifest as setBiomeManifest } from '../scene/Biomes';
-import { warmUpTextures } from '../utils/PBRMaps';
 import { setWorldManifest as setDungeonManifest } from '../scene/DungeonConfig';
 import { GameEngine } from './GameEngine';
 import { WebSocketHandler } from './WebSocketHandler';
 import { createRuntimeState } from './RuntimeState';
+import { warmUpShaders } from './ShaderWarmup';
 import type { LoginScreen } from '../ui/LoginScreen';
 
 export interface PlayerConfig {
@@ -348,9 +348,11 @@ export function bootstrap(
 
   // Compile every shader program and upload every texture while the loading
   // screen is still visible. Shader compilation on first frustum entry causes
-  // the deterministic freeze the player experiences a few meters from spawn.
-  renderer.compile(scene, camera);
-  warmUpTextures(renderer);
+  // the deterministic freeze the player experiences a few meters from spawn —
+  // and 100–600ms stalls when far biomes introduce new monster/prop/building
+  // types. warmUpShaders builds one of EVERY registered mesh type and compiles
+  // them all up-front (it calls renderer.compile internally).
+  warmUpShaders(renderer, scene, camera);
 
   return engine;
 }

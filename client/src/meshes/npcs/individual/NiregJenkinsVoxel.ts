@@ -30,10 +30,12 @@ export class NiregJenkinsVoxel extends Mesh {
       armW: 0.20, armD: 0.22, armColor: ROBE,
       legW: 0.22, legD: 0.26, legColor: ROBE,
       footColor: BOOT,
+      clothKind: 'silk', // rich green sage robe — silk, not leather
     });
 
-    const gold = vmat(GOLD, { roughness: 0.45, metalness: 0.35 });
-    const goldFn = (): THREE.MeshStandardMaterial => vmat(GOLD, { roughness: 0.45, metalness: 0.35 });
+    const gold = vmat(GOLD, { roughness: 0.45, metalness: 0.35, kind: 'gold' });
+    const goldFn = (): THREE.MeshStandardMaterial =>
+      vmat(GOLD, { roughness: 0.45, metalness: 0.35, kind: 'gold' });
 
     // ── Robe trim (gold) ──
     // Vertical centre band + V-collar on the chest.
@@ -57,8 +59,8 @@ export class NiregJenkinsVoxel extends Mesh {
     }
 
     // ── Head: wrapped desert turban (nods with the head) ──
-    const clothMat = vmat(TURBAN, { roughness: 0.85 });
-    const clothShade = vmat(TURBAN_SHADE, { roughness: 0.85 });
+    const clothMat = vmat(TURBAN, { roughness: 0.85, kind: 'wool' });
+    const clothShade = vmat(TURBAN_SHADE, { roughness: 0.85, kind: 'wool' });
     // Stacked, slightly-rotated wrap rings give the layered cloth look.
     const wraps: Array<{ r: number; y: number; tilt: number; mat: THREE.MeshStandardMaterial }> = [
       { r: 0.30, y: 0.20, tilt: 0.06, mat: clothMat },
@@ -82,7 +84,7 @@ export class NiregJenkinsVoxel extends Mesh {
     tail.rotation.z = 0.12;
     rig.head.add(tail);
     // Front band + emerald jewel.
-    rig.head.add(box(0.30, 0.07, 0.06, vmat(GOLD, { roughness: 0.45, metalness: 0.35 }), 0, 0.22, 0.255));
+    rig.head.add(box(0.30, 0.07, 0.06, vmat(GOLD, { roughness: 0.45, metalness: 0.35, kind: 'gold' }), 0, 0.22, 0.255));
     const jewel = new THREE.Mesh(
       new THREE.OctahedronGeometry(0.055, 0),
       vmat(GEM, { roughness: 0.15, metalness: 0.2, emissive: GEM, emissiveIntensity: 0.4 }),
@@ -102,7 +104,7 @@ export class NiregJenkinsVoxel extends Mesh {
     }
 
     // Trailing robe.
-    addCloak(group, 0.40, 0.52, 0.98, ROBE);
+    addCloak(group, 0.40, 0.52, 0.98, ROBE, 'silk');
 
     finishCharacter(group);
     group.position.copy(ctx.position);
