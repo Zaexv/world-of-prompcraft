@@ -65,7 +65,13 @@ _REASONING_OPEN_TO_END = re.compile(rf"<\s*(?:{_REASON_TAGS})\b[\s\S]*$", re.IGN
 # Harmony/channel control tokens some models (e.g. gpt-oss) leak into content.
 # Tokenizers mangle the pipes, so the bracket/pipe combo is matched loosely:
 # ``<|channel|>``, ``<channel|>``, ``<|message|>``, ``<|start|>``, ``<|end|>``.
-_CHANNEL_NAMES = r"channel|message|start|end|return|assistant|user|system"
+# ``tool_call``/``tool_response`` cover chat-template tool tokens (e.g. Qwen's
+# ``<tool_call|>``) the serving layer's parser failed to strip. Compound names
+# first so the alternation prefers ``tool_call`` over bare ``tool``.
+_CHANNEL_NAMES = (
+    r"tool_calls|tool_call|tool_response|tool_result|tool"
+    r"|channel|message|start|end|return|assistant|user|system"
+)
 _CHANNEL_MARKER = re.compile(rf"<\|?\s*(?:{_CHANNEL_NAMES})\s*\|?>", re.IGNORECASE)
 # A channel-name word glued to a marker (``thought <channel|>``). Only stripped
 # next to a marker so the plain English words survive everywhere else.
@@ -77,6 +83,15 @@ _CHANNEL_WORD = re.compile(
 # A bare channel word left at the very start once the marker itself is gone.
 _LEADING_CHANNEL_WORD = re.compile(
     r"^\s*(?:thought|analysis|commentary|assistantfinal)\b[\s:]*", re.IGNORECASE
+)
+# Compound reasoning labels some models prefix to leaked content, e.g.
+# ``own_thought "..."`` or ``inner_monologue: ...``. The underscore-compound
+# form is never natural prose, so it is always stripped (anywhere in the text).
+_COMPOUND_LABEL = re.compile(
+    r"\b(?:own|my|self|inner|internal)_"
+    r"(?:thoughts?|thinking|reasoning|analysis|response|reply|dialogue|"
+    r"monologue|speech|answer|notes?)\b",
+    re.IGNORECASE,
 )
 # Leftover call syntax for tools the model *hallucinated* (not in the bound set),
 # e.g. ``own_item('jamon')`` or ``own_item('Beginner\'s Guide', 0)``. Matched
@@ -96,6 +111,7 @@ def _strip_leaked_markup(text: str) -> str:
     text = _REASONING_OPEN_TO_END.sub(" ", text)
     text = _CHANNEL_WORD.sub(" ", text)
     text = _CHANNEL_MARKER.sub(" ", text)
+    text = _COMPOUND_LABEL.sub(" ", text)
     text = _LEADING_CHANNEL_WORD.sub("", text)
     text = _LEFTOVER_CALL.sub(" ", text)
     # Repeat until stable so nested residue (``[( )]`` → ``[ ]`` → empty) collapses.
