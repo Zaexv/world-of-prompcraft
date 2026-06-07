@@ -219,6 +219,36 @@ def test_channel_marker_strips_keeps_dialogue() -> None:
     assert cleaned == "A stray soul wanders into my muck! Who dares disturb the Bog Witch?"
 
 
+def test_tool_call_marker_with_compound_label_stripped() -> None:
+    # Qwen-style: a ``<tool_call|>`` template token plus an ``own_thought`` label
+    # the serving parser failed to strip. Only the quoted dialogue must survive.
+    text = (
+        '<tool_call|> own_thought "¡Aquí estoy! No hay necesidad de buscar más, '
+        'me tienes justo enfrente."'
+    )
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert "tool_call" not in cleaned
+    assert "own_thought" not in cleaned
+    assert cleaned == "¡Aquí estoy! No hay necesidad de buscar más, me tienes justo enfrente."
+
+
+def test_compound_label_stripped_keeps_prose() -> None:
+    # The underscore-compound label is leak residue; surrounding prose stays.
+    cleaned, calls = extract_inline_tool_calls("inner_monologue: Welcome, traveller!", PARAMS)
+    assert calls == []
+    assert "inner_monologue" not in cleaned
+    assert "Welcome, traveller!" in cleaned
+
+
+def test_plain_thought_in_prose_is_kept() -> None:
+    # Natural prose containing "thought" (not a compound label) must survive.
+    text = "I thought you would never come, friend."
+    cleaned, calls = extract_inline_tool_calls(text, PARAMS)
+    assert calls == []
+    assert cleaned == text
+
+
 def test_bracket_wrapped_call_leaves_no_empty_enclosure() -> None:
     # A real tool call wrapped in brackets must not leave ``[ ]`` behind.
     text = "¡Te daré un poco de oro para empezar tu travesía. [start_quest('q1')]"
