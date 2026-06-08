@@ -509,6 +509,77 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   opacity: 0.6;
 }
 
+/* ---------- cinematic "endless world" slide ---------- */
+.slide.cinema { justify-content: flex-start; padding: 5vh 6vw; gap: 1rem; }
+.cinema-head { max-width: 70ch; }
+.cinema-sum {
+  font-size: clamp(0.98rem, 1.5vw, 1.3rem);
+  color: var(--muted);
+  line-height: 1.55;
+  margin-top: 0.8rem;
+  max-width: 64ch;
+}
+.cinema-sum b { color: var(--ink); }
+
+/* A film frame whose interior is transparent — the live world plays inside. */
+.movie-frame {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  margin-top: 1.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  /* dark vignette only at the edges, clear centre so the world reads */
+  box-shadow:
+    inset 0 0 120px 20px rgba(4, 3, 8, 0.6),
+    0 18px 50px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Letterbox bars. */
+.mf-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 7%;
+  background: rgba(0, 0, 0, 0.82);
+}
+.mf-top { top: 0; }
+.mf-bottom { bottom: 0; }
+/* Corner crop marks. */
+.mf-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--gold);
+  opacity: 0.85;
+}
+.mf-corner.tl { top: 12px; left: 12px; border-right: none; border-bottom: none; }
+.mf-corner.tr { top: 12px; right: 12px; border-left: none; border-bottom: none; }
+.mf-corner.bl { bottom: 12px; left: 12px; border-right: none; border-top: none; }
+.mf-corner.br { bottom: 12px; right: 12px; border-left: none; border-top: none; }
+/* HUD overlays (REC + timecode), sit on the letterbox bars. */
+.mf-hud-tl, .mf-hud-br {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--gold-soft);
+}
+.mf-hud-tl { top: calc(7% + 14px); left: 22px; display: flex; align-items: center; gap: 0.45rem; }
+.mf-hud-br { bottom: calc(7% + 14px); right: 22px; }
+.mf-rec { display: flex; align-items: center; gap: 0.4rem; color: #ff6b5a; }
+.mf-rec::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5a48;
+  box-shadow: 0 0 8px #ff5a48;
+  animation: rec-blink 1.4s steps(1) infinite;
+}
+@keyframes rec-blink { 0%, 60% { opacity: 1; } 60.01%, 100% { opacity: 0.15; } }
+
 /* ---------- chrome ---------- */
 .progress {
   position: fixed;

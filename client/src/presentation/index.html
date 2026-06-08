@@ -231,45 +231,58 @@ flowchart LR
         <figure class="diagram">
           <pre class="mermaid">
 flowchart TB
-  MAN[("World Manifest<br/>zones · landmarks · biomes")]
-  BIO["Biome builder<br/>noise · weights · colors"]
-  TER["Terrain<br/>64×64 chunks · height + sculpt"]
-  POP["Procedural Populator<br/>spawn per biome · 1 chunk/frame"]
-  REG["Mesh Registry<br/>buildMesh() · 200+ types"]
-  subgraph CAT["Mesh catalog"]
+  CORE["core<br/>GameBootstrapper · GameEngine"]
+
+  subgraph IO["I/O"]
     direction LR
-    B["Buildings"]
-    P["Props"]
-    V["Vegetation"]
-    N["NPCs"]
+    UIM["ui<br/>panels · HUD · prompt"]
+    NET["network<br/>WebSocketClient · Protocol"]
   end
-  SCN["SceneManager<br/>TAA · Bloom · IBL · Water · Sky · LOD"]
-  TOOLS["Authoring CLIs<br/>Terrain Builder · Mesh Viewer · World Builder"]
 
-  MAN --> TER
-  BIO --> TER
-  MAN --> POP
-  TER -->|"onChunkLoaded"| POP
-  POP --> REG
-  REG --> CAT
-  CAT --> SCN
-  TER --> SCN
-  TOOLS -. "edit · preview" .-> MAN
+  subgraph DATA["state"]
+    direction LR
+    ST["PlayerState · WorldState"]
+    MAN["WorldManifest"]
+  end
 
-  classDef shared fill:#15251a,stroke:#c5a55a,color:#ecdcb4,stroke-width:2px
-  classDef world fill:#2a1810,stroke:#cc8844,color:#f2dcc4,stroke-width:1.5px
-  classDef mesh fill:#1b1330,stroke:#9a6fc5,color:#e7dcf4,stroke-width:1.5px
-  classDef render fill:#0f231c,stroke:#56b89a,color:#cdeede,stroke-width:1.5px
-  classDef tools fill:#0f1d2b,stroke:#5aa0c5,color:#dce8f2,stroke-width:1.5px
+  subgraph WORLD["render &amp; world"]
+    direction LR
+    SCN["scene<br/>SceneManager · Terrain · Water · Sky"]
+    SYS["systems<br/>WorldGenerator · Populator · Reaction"]
+    MSH["meshes<br/>MeshRegistry · catalog"]
+    ENT["entities<br/>Player · NPC · EntityManager"]
+  end
 
-  class MAN shared
-  class BIO,TER,POP world
-  class REG,B,P,V,N mesh
-  class SCN render
-  class TOOLS tools
-  style CAT fill:#140e20,stroke:#6f4f95,color:#bfa6dc
+  CORE --> IO
+  CORE --> DATA
+  CORE --> WORLD
+
+  UIM --> NET
+  NET --> ST
+  MAN --> SCN
+  MAN --> SYS
+  SCN -->|"chunk loaded"| SYS
+  SYS --> MSH
+  SYS --> ENT
+  MSH --> SCN
+  ENT --> SCN
+  NET --> ENT
+
+  classDef core fill:#2a1f10,stroke:#e8b84b,color:#ffe9b0,stroke-width:2px
+  classDef io fill:#0f1d2b,stroke:#5aa0c5,color:#dce8f2,stroke-width:1.5px
+  classDef data fill:#15251a,stroke:#c5a55a,color:#ecdcb4,stroke-width:1.5px
+  classDef world fill:#1b1330,stroke:#9a6fc5,color:#e7dcf4,stroke-width:1.5px
+
+  class CORE core
+  class UIM,NET io
+  class ST,MAN data
+  class SCN,SYS,MSH,ENT world
+
+  style IO fill:#0a1420,stroke:#3f7596,color:#9fc4dc
+  style DATA fill:#101c12,stroke:#6f5f2f,color:#ccbf90
+  style WORLD fill:#120c1f,stroke:#6f4f95,color:#bfa6dc
           </pre>
-          <figcaption>front-end world-generation pipeline · drag · scroll · double-click</figcaption>
+          <figcaption>front-end module structure — one folder per concern · drag · scroll · double-click</figcaption>
         </figure>
       </div>
     </div>
@@ -328,32 +341,22 @@ flowchart TD
     </div>
   </section>
 
-  <!-- 7 — 3D DEEP DIVE: TERRAIN & CHUNKS -->
-  <section class="slide">
-    <div class="panel">
+  <!-- 7 — 3D DEEP DIVE: TERRAIN & CHUNKS (cinematic close of the 3D pillar) -->
+  <section class="slide cinema">
+    <div class="cinema-head">
       <div class="pilar">A Closer Look — The World</div>
       <h2>An endless land, <span class="grad">built as you walk</span></h2>
-      <div class="split">
-        <ul class="points">
-          <li><b>The land is made of square tiles</b> (about 64 metres each) that appear around you as you move — so the world is <span class="key">effectively endless</span>.</li>
-          <li><b>Each tile's hills and valleys come from a formula</b>, not a saved map. Mixing "recipes" gives forests, snow, lava and more.</li>
-          <li><b>Ground flattens under buildings</b> automatically, so nothing floats or sinks.</li>
-          <li><b>As a tile appears, the game fills it</b> with trees, rocks and buildings.</li>
-          <li><b>Every object is a small reusable recipe</b> — defined once, dropped in anywhere with a single line.</li>
-          <li><b>You can't walk through walls</b> — a fast "bumping" check keeps you on the ground and out of solid things.</li>
-        </ul>
-        <figure class="diagram">
-          <pre class="mermaid">
-flowchart TD
-  T[You move] --> CL[A new tile appears]
-  CL --> WG[Game fills the tile]
-  WG --> PP[Picks trees and buildings]
-  PP --> BM[Builds each object]
-  BM --> SC[Shows up in the world]
-          </pre>
-          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
-        </figure>
-      </div>
+      <p class="cinema-sum">Infinite <b class="key">64 m tiles</b> shaped by formulas, <b class="key">filled with props</b> as you explore, kept solid by collision — <b class="key">seamless and endless</b>.</p>
+    </div>
+    <div class="movie-frame">
+      <div class="mf-bar mf-top"></div>
+      <div class="mf-bar mf-bottom"></div>
+      <span class="mf-corner tl"></span>
+      <span class="mf-corner tr"></span>
+      <span class="mf-corner bl"></span>
+      <span class="mf-corner br"></span>
+      <div class="mf-hud-tl"><span class="mf-rec">REC</span></div>
+      <div class="mf-hud-br">∞ · the living world</div>
     </div>
   </section>
 
