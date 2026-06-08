@@ -26,6 +26,13 @@ body {
   color: var(--ink);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  /* Reuse the in-game Fantasy Golden Cursor (from client/index.html). */
+  cursor: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23fff6cc'/%3E%3Cstop offset='50%25' stop-color='%23ffb700'/%3E%3Cstop offset='100%25' stop-color='%23805b00'/%3E%3C/linearGradient%3E%3Cfilter id='s'%3E%3CfeDropShadow dx='1' dy='2' stdDeviation='2' flood-color='%23000' flood-opacity='0.8'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M3 2 L14 30 L17 19 L28 16 Z' fill='url(%23g)' stroke='%234a3200' stroke-width='1' filter='url(%23s)'/%3E%3Cpath d='M4 4 L13 26 L16 17 L25 14 Z' fill='none' stroke='%23ffee99' stroke-width='1'/%3E%3C/svg%3E") 3 2, auto;
+}
+
+/* In-game cyan pointer cursor on clickable elements (from client/index.html). */
+a, button, [role="button"], kbd {
+  cursor: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0%25' y1='0%25' x2='100%25' y2='100%25'%3E%3Cstop offset='0%25' stop-color='%23ccf6ff'/%3E%3Cstop offset='50%25' stop-color='%2300b7ff'/%3E%3Cstop offset='100%25' stop-color='%23005b80'/%3E%3C/linearGradient%3E%3Cfilter id='s'%3E%3CfeDropShadow dx='1' dy='2' stdDeviation='2' flood-color='%23000' flood-opacity='0.8'/%3E%3C/filter%3E%3C/defs%3E%3Cpath d='M3 2 L14 30 L17 19 L28 16 Z' fill='url(%23g)' stroke='%2300324a' stroke-width='1' filter='url(%23s)'/%3E%3Cpath d='M4 4 L13 26 L16 17 L25 14 Z' fill='none' stroke='%2399eeff' stroke-width='1'/%3E%3C/svg%3E") 3 2, pointer;
 }
 
 /* ---------- live 3D world (canvas appended by SceneManager) ---------- */
@@ -143,11 +150,80 @@ p.body {
   line-height: 1.6;
 }
 b.hl, .hl { color: var(--ink); font-weight: 700; }
+/* Marker-pen highlight for the single most relevant phrase on a slide. */
+.key {
+  color: var(--gold-bright);
+  font-weight: 700;
+  background: linear-gradient(transparent 56%, rgba(232, 184, 75, 0.24) 0);
+  padding: 0 0.14em;
+  border-radius: 2px;
+}
 code, .mono { font-family: var(--mono); color: var(--gold-soft); font-size: 0.92em; }
 .cy { color: var(--gold-bright); }
 .am { color: var(--ember); }
 .mg { color: var(--gold-soft); }
 .green { color: var(--gold-soft); }
+
+/* ---------- title slide speaker block ---------- */
+.speaker {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  margin-top: 2rem;
+}
+.speaker-photo {
+  width: 116px;
+  height: 116px;
+  border-radius: 50%;
+  /* The source is a square with white corners; cover + a slight upward crop
+     centres the face inside the circle and clips the corners away cleanly. */
+  object-fit: cover;
+  object-position: center 28%;
+  background: #f3efe6;
+  border: 2px solid var(--gold);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.45), 0 0 0 4px var(--line-soft);
+}
+.speaker-meta { text-align: left; }
+.speaker-name {
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 1.7vw, 1.45rem);
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+.speaker-link {
+  font-family: var(--mono);
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+}
+
+/* "Who am I" slide — live 3D avatar (Zaex) beside the bio. */
+.avatar-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.avatar-stage {
+  position: relative;
+  width: 100%;
+  height: 50vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: radial-gradient(
+    ellipse at 50% 40%,
+    rgba(197, 165, 90, 0.12),
+    rgba(8, 6, 18, 0.34) 70%
+  );
+  overflow: hidden;
+}
+.avatar-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.avatar-figure figcaption {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
 
 /* ---------- bullet points ---------- */
 ul.points { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.4rem; }
@@ -236,6 +312,59 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   color: var(--muted);
   opacity: 0.6;
   pointer-events: none;
+}
+
+/* ---------- slide-2 mesh showcase (prompt → live mesh) ---------- */
+.showcase {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.prompt-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: rgba(8, 6, 18, 0.88);
+  border: 1px solid rgba(197, 165, 90, 0.35);
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-family: var(--mono);
+  font-size: clamp(0.78rem, 1.05vw, 0.96rem);
+  color: var(--ink);
+  min-height: 1.4em;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.4);
+}
+.prompt-caret { color: var(--gold-bright); font-weight: 600; }
+.prompt-text { white-space: nowrap; overflow: hidden; }
+.prompt-cursor {
+  width: 0.55em;
+  height: 1.05em;
+  margin-left: 1px;
+  background: var(--gold-bright);
+  display: inline-block;
+  animation: prompt-blink 1s steps(1) infinite;
+}
+@keyframes prompt-blink { 0%, 50% { opacity: 1; } 50.01%, 100% { opacity: 0; } }
+.mesh-stage {
+  position: relative;
+  height: 46vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: radial-gradient(
+    ellipse at 50% 38%,
+    rgba(197, 165, 90, 0.10),
+    rgba(8, 6, 18, 0.34) 70%
+  );
+  overflow: hidden;
+}
+.mesh-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.showcase figcaption {
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--muted);
+  opacity: 0.6;
 }
 
 /* ---------- chrome ---------- */

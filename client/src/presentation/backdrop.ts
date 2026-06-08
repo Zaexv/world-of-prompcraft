@@ -5,11 +5,10 @@ import { WorldGenerator } from '../systems/WorldGenerator';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldManifest } from '../state/WorldManifest';
 import { getWorldHeightAt } from '../scene/VerticalTerrain';
-import { buildMesh } from '../meshes/index';
+import { Water } from '../scene/Water';
 import type { WebSocketClient } from '../network/WebSocketClient';
 
-/** A camera viewpoint for a slide. Either a wide vista over the procedural
- *  world, or a gentle frame on one of the two named NPCs. */
+/** A camera viewpoint for a slide — a wide vista over the procedural world. */
 interface Anchor {
   pos: THREE.Vector3; // where the world streams + what we orbit
   radius: number;
@@ -17,19 +16,16 @@ interface Anchor {
   look: THREE.Vector3;
 }
 
-type Spec =
-  | { kind: 'vista'; x: number; z: number; radius: number; height: number }
-  | { kind: 'npc'; type: string; x: number; z: number };
+type Spec = { kind: 'vista'; x: number; z: number; radius: number; height: number };
 
 /**
  * Live 3D backdrop for the LLMdays deck — the **real procedural world**.
  *
  * Boots {@link SceneManager} and wires the full {@link WorldGenerator} streaming
  * pipeline exactly as the game does (terrain chunk callbacks → per-biome
- * buildings, props, vegetation, monsters). Nothing decorative is injected except
- * the two requested characters — **Nireg Jenkins** and **El Tito** — placed as
- * points of interest. The camera drifts very slowly so it never distracts from
- * the talk; each slide eases it to a different viewpoint.
+ * buildings, props, vegetation, monsters). Nothing decorative is injected — the
+ * world is shown exactly as it is. The camera drifts very slowly so it never
+ * distracts from the talk; each slide eases it to a different vista.
  */
 export class Backdrop {
   private readonly sceneManager: SceneManager;
@@ -38,33 +34,41 @@ export class Backdrop {
   private readonly anchors: Anchor[] = [];
 
   private readonly streamCenter = new THREE.Vector3();
-  private readonly camGoal = new THREE.Vector3(0, 70, 130);
-  private readonly look = new THREE.Vector3(0, 6, 0);
-  private readonly lookGoal = new THREE.Vector3(0, 6, 0);
+  private readonly camGoal = new THREE.Vector3(0, 2.6, 26);
+  private readonly look = new THREE.Vector3(0, 2.6, 0);
+  private readonly lookGoal = new THREE.Vector3(0, 2.6, 0);
   private orbitAngle = 0;
-  private orbitRadius = 130;
-  private orbitHeight = 70;
+  private orbitRadius = 26;
+  private orbitHeight = 2.6;
   private elapsed = 0;
   private raf = 0;
   private running = false;
 
-  // Viewpoints — wide vistas over the procedural world + the two NPCs.
-  // Order follows the slide sequence (deck maps slide index → anchor; wraps).
+  // Roam mode: instead of orbiting one spot, the camera walks forward through
+  // the world (slowly wandering its heading), streaming terrain as it goes.
+  private roaming = false;
+  private roamHeading = 0;
+
+  // Viewpoints — a slow walk-through of the procedural world at eye level.
+  // `radius` = how far the camera orbits its focus; `height` = eye height above
+  // the ground (a person, not a drone). Order follows the slide sequence (deck
+  // maps slide index → anchor; wraps).
   private static readonly SPECS: Spec[] = [
-    { kind: 'vista', x: 0, z: 0, radius: 155, height: 90 },      // 1  title — establishing
-    { kind: 'vista', x: 120, z: 80, radius: 130, height: 70 },   // 2  what is it
-    { kind: 'vista', x: -110, z: 70, radius: 125, height: 66 },  // 3  the idea
-    { kind: 'vista', x: 90, z: -120, radius: 140, height: 80 },  // 4  architecture overview
-    { kind: 'vista', x: -150, z: -40, radius: 120, height: 64 }, // 5  pillar 1 (3D CLI)
-    { kind: 'vista', x: 160, z: 30, radius: 130, height: 72 },   // 6  rendering pipeline
-    { kind: 'vista', x: -60, z: 150, radius: 145, height: 78 },  // 7  terrain / chunks
-    { kind: 'npc', type: 'npc_individual_eltito_01', x: -20, z: 16 },     // 8  pillar 2 (backend)
-    { kind: 'npc', type: 'npc_individual_nireg_jenkins', x: 24, z: -18 }, // 9  agent graph
-    { kind: 'vista', x: 130, z: -70, radius: 120, height: 66 },  // 10 state & memory
-    { kind: 'vista', x: -130, z: -110, radius: 125, height: 68 },// 11 tool system
-    { kind: 'vista', x: 70, z: 120, radius: 130, height: 70 },   // 12 concurrency & authority
-    { kind: 'vista', x: -90, z: -30, radius: 120, height: 64 },  // 13 pillar 3 (coding)
-    { kind: 'vista', x: 0, z: 0, radius: 165, height: 96 },      // 14 takeaways — wide
+    { kind: 'vista', x: 0, z: 0, radius: 26, height: 2.6 },      // 1  title — establishing
+    { kind: 'vista', x: 60, z: 40, radius: 24, height: 2.6 },    // 2  who am I
+    { kind: 'vista', x: 120, z: 80, radius: 22, height: 2.5 },   // 3  what is it (roam)
+    { kind: 'vista', x: -110, z: 70, radius: 24, height: 2.6 },  // 3  the idea
+    { kind: 'vista', x: 90, z: -120, radius: 22, height: 2.5 },  // 4  architecture overview
+    { kind: 'vista', x: -150, z: -40, radius: 24, height: 2.6 }, // 5  pillar 1 (3D CLI)
+    { kind: 'vista', x: 160, z: 30, radius: 22, height: 2.5 },   // 6  rendering pipeline
+    { kind: 'vista', x: -60, z: 150, radius: 26, height: 2.6 },  // 7  terrain / chunks
+    { kind: 'vista', x: -120, z: 110, radius: 22, height: 2.5 }, // 8  pillar 2 (backend)
+    { kind: 'vista', x: 100, z: -150, radius: 24, height: 2.6 }, // 9  agent graph
+    { kind: 'vista', x: 130, z: -70, radius: 22, height: 2.5 },  // 10 state & memory
+    { kind: 'vista', x: -130, z: -110, radius: 24, height: 2.6 },// 11 tool system
+    { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 12 concurrency & authority
+    { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 13 pillar 3 (coding)
+    { kind: 'vista', x: 0, z: 0, radius: 28, height: 2.7 },      // 14 takeaways
   ];
 
   constructor(container: HTMLElement) {
@@ -100,39 +104,43 @@ export class Backdrop {
 
   /** Builds viewpoints; places the two NPC characters on the terrain. */
   private buildAnchors(): void {
-    const { scene, terrain } = this.sceneManager;
-    const size = new THREE.Vector3();
-    const centre = new THREE.Vector3();
-
+    const { terrain } = this.sceneManager;
     for (const s of Backdrop.SPECS) {
-      const y = getWorldHeightAt(terrain, s.x, s.z);
-      if (s.kind === 'vista') {
-        this.anchors.push({
-          pos: new THREE.Vector3(s.x, y, s.z),
-          radius: s.radius,
-          height: y + s.height,
-          look: new THREE.Vector3(s.x, y + 6, s.z),
-        });
-        continue;
-      }
-      // NPC: build the real catalog character and frame it closely.
-      const obj = buildMesh(s.type, { position: new THREE.Vector3(s.x, y, s.z), scale: 2.2 });
-      if (obj) scene.add(obj);
-      const maxDim = obj
-        ? (() => {
-            const box = new THREE.Box3().setFromObject(obj);
-            box.getSize(size);
-            box.getCenter(centre);
-            return Math.max(size.x, size.y, size.z) || 6;
-          })()
-        : 6;
+      // Relocate the viewpoint to dry land if the authored point is underwater,
+      // so no slide ever sits below the waterline.
+      const { x, z, y } = Backdrop.nearestDry(terrain, s.x, s.z);
       this.anchors.push({
-        pos: new THREE.Vector3(s.x, y, s.z),
-        radius: Math.max(10, maxDim * 2.6),
-        height: y + Math.max(4, maxDim * 1.1),
-        look: obj ? centre.clone() : new THREE.Vector3(s.x, y + 3, s.z),
+        pos: new THREE.Vector3(x, y, z),
+        radius: s.radius,
+        height: y + s.height,
+        // Look horizontally at eye level (same height as the camera) so the
+        // gaze sweeps across the scenery, not down at the ground.
+        look: new THREE.Vector3(x, y + s.height, z),
       });
     }
+  }
+
+  /** Spiral-search outward for the nearest spot that is above the waterline.
+   *  Falls back to the original point if nothing dry is found in range. */
+  private static nearestDry(
+    terrain: SceneManager['terrain'],
+    x: number,
+    z: number,
+  ): { x: number; z: number; y: number } {
+    const DRY = Water.getWaterLevel() + 0.6;
+    const y0 = getWorldHeightAt(terrain, x, z);
+    if (y0 >= DRY) return { x, z, y: y0 };
+    // Rings of increasing radius; 12 samples per ring.
+    for (let r = 12; r <= 180; r += 12) {
+      for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2;
+        const sx = x + Math.cos(a) * r;
+        const sz = z + Math.sin(a) * r;
+        const sy = getWorldHeightAt(terrain, sx, sz);
+        if (sy >= DRY) return { x: sx, z: sz, y: sy };
+      }
+    }
+    return { x, z, y: Math.max(y0, DRY) }; // last resort: lift above water
   }
 
   /** Number of viewpoints (deck maps slides onto these). */
@@ -155,6 +163,19 @@ export class Backdrop {
     );
   }
 
+  /** Toggle free-roam: the camera walks forward through the world (vs orbiting
+   *  the current anchor). Seeds the heading from the current camera direction. */
+  setRoam(on: boolean): void {
+    if (on && !this.roaming) {
+      // Head outward from wherever we're looking now.
+      this.roamHeading = Math.atan2(
+        this.lookGoal.z - this.sceneManager.camera.position.z,
+        this.lookGoal.x - this.sceneManager.camera.position.x,
+      );
+    }
+    this.roaming = on;
+  }
+
   start(): void {
     if (this.running) return;
     this.running = true;
@@ -172,16 +193,61 @@ export class Backdrop {
     const delta = Math.min(this.sceneManager.tick(), 0.05);
     this.elapsed += delta;
 
-    // Very slow orbit + faint vertical drift — calm, non-distracting.
-    this.orbitAngle += delta * 0.012;
-    this.camGoal.set(
-      this.lookGoal.x + Math.cos(this.orbitAngle) * this.orbitRadius,
-      this.orbitHeight + Math.sin(this.elapsed * 0.12) * 1.2,
-      this.lookGoal.z + Math.sin(this.orbitAngle) * this.orbitRadius,
-    );
+    const terrain = this.sceneManager.terrain;
+    let decay: number;
+    if (this.roaming) {
+      // Walk forward at eye level, slowly wandering the heading — an explorer
+      // crossing the world. The camera trails just behind the focus so the
+      // foreground streams past. Follow faster than orbit so it doesn't lag.
+      const DRY = Water.getWaterLevel() + 0.6; // stay this far above the water
+      const probe = 18; // look this far ahead before committing
+      const aheadX = this.streamCenter.x + Math.cos(this.roamHeading) * probe;
+      const aheadZ = this.streamCenter.z + Math.sin(this.roamHeading) * probe;
+      if (getWorldHeightAt(terrain, aheadX, aheadZ) < DRY) {
+        // Water ahead: turn briskly toward whichever side is higher/drier.
+        const lh = this.roamHeading - 0.6;
+        const rh = this.roamHeading + 0.6;
+        const lY = getWorldHeightAt(terrain, this.streamCenter.x + Math.cos(lh) * probe, this.streamCenter.z + Math.sin(lh) * probe);
+        const rY = getWorldHeightAt(terrain, this.streamCenter.x + Math.cos(rh) * probe, this.streamCenter.z + Math.sin(rh) * probe);
+        this.roamHeading += (rY >= lY ? 1 : -1) * delta * 1.8;
+      } else {
+        this.roamHeading += Math.sin(this.elapsed * 0.06) * delta * 0.35; // gentle wander
+      }
+      const dx = Math.cos(this.roamHeading);
+      const dz = Math.sin(this.roamHeading);
+      const speed = 7; // m/s
+      // Only advance if the next step stays on dry land (never enter water).
+      const nextX = this.streamCenter.x + dx * speed * delta;
+      const nextZ = this.streamCenter.z + dz * speed * delta;
+      const nextY = getWorldHeightAt(terrain, nextX, nextZ);
+      if (nextY >= DRY) {
+        this.streamCenter.x = nextX;
+        this.streamCenter.z = nextZ;
+        this.streamCenter.y = nextY;
+      }
+      const groundY = this.streamCenter.y;
+      // Look ahead along the path; camera trails ~6 m behind at eye level.
+      this.lookGoal.set(this.streamCenter.x + dx * 16, groundY + 2.6, this.streamCenter.z + dz * 16);
+      this.camGoal.set(
+        this.streamCenter.x - dx * 6,
+        groundY + 2.9 + Math.sin(this.elapsed * 0.5) * 0.15,
+        this.streamCenter.z - dz * 6,
+      );
+      decay = 0.05; // ~0.25 s time constant → tracks the moving goal
+    } else {
+      // Very slow orbit + faint vertical drift — calm, non-distracting. A small
+      // bob (~0.25 m) reads as a gentle stroll at eye level, not a flying drone.
+      this.orbitAngle += delta * 0.012;
+      this.camGoal.set(
+        this.lookGoal.x + Math.cos(this.orbitAngle) * this.orbitRadius,
+        this.orbitHeight + Math.sin(this.elapsed * 0.12) * 0.25,
+        this.lookGoal.z + Math.sin(this.orbitAngle) * this.orbitRadius,
+      );
+      decay = 0.55; // long time constant — gentle glide
+    }
 
-    // Gentle, slow glide toward the goal pose (long time constant).
-    const k = 1 - Math.pow(0.55, delta);
+    // Glide toward the goal pose.
+    const k = 1 - Math.pow(decay, delta);
     const cam = this.sceneManager.camera;
     cam.position.lerp(this.camGoal, k);
     this.look.lerp(this.lookGoal, k);

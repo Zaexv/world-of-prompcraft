@@ -3,7 +3,7 @@
  * pan/zoom for the architecture diagrams.
  *
  * Kept free of 3D concerns (see backdrop.ts) and of markup (see
- * presentation.html). Mermaid is loaded as a global by a CDN <script> in the
+ * index.html). Mermaid is loaded as a global by a CDN <script> in the
  * HTML so the TypeScript build stays dependency-free; we describe only the tiny
  * surface we call.
  */
@@ -162,7 +162,6 @@ export function initDeck(onSlide?: SlideListener): void {
   const bar = document.getElementById('progress');
   const cur = document.getElementById('cur');
   const total = document.getElementById('total');
-  const section = document.getElementById('section');
   const help = document.getElementById('help');
   if (!bar || !cur || !total || slides.length === 0) return;
   total.textContent = String(slides.length);
@@ -175,11 +174,6 @@ export function initDeck(onSlide?: SlideListener): void {
     slides.forEach((s, k) => s.classList.toggle('active', k === index));
     bar.style.width = `${((index + 1) / slides.length) * 100}%`;
     cur.textContent = String(index + 1);
-    // Footer section label = the slide's kicker / pillar tag.
-    if (section) {
-      const tag = slides[index].querySelector('.kicker, .pilar');
-      section.textContent = tag?.textContent?.trim() ?? '';
-    }
     location.hash = String(index + 1);
     onSlide?.(index);
   };
@@ -247,7 +241,7 @@ export function initDeck(onSlide?: SlideListener): void {
     else if (e.clientX > window.innerWidth * 0.78) next();
   });
 
-  // Deep-link via hash, e.g. presentation.html#5 — on load and on change.
+  // Deep-link via hash, e.g. /src/presentation/#5 — on load and on change.
   window.addEventListener('hashchange', () => {
     const n = parseInt(location.hash.slice(1), 10) - 1;
     if (Number.isInteger(n) && n >= 0) show(n);

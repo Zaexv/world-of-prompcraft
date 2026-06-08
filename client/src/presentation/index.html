@@ -19,24 +19,63 @@
 
   <!-- 1 — TITLE -->
   <section class="slide center">
-    <div class="panel">
-      <div class="title-deco">Presented at the LLMdays</div>
+    <div class="panel title-card">
       <h1>World of <span class="grad">Promptcraft</span></h1>
-      <p class="lead">A 3D RPG with no buttons. You type — and an AI-generated world of agents answers.</p>
+      <p class="lead">The agentic world where <span class="grad">prompting is the interface</span></p>
+      <div class="speaker">
+        <img class="speaker-photo" src="./eduardo.png" alt="Eduardo Pertierra Puche" />
+        <div class="speaker-meta">
+          <div class="speaker-name">Eduardo Pertierra Puche</div>
+          <a href="https://llmday.com/" class="cy speaker-link" target="_blank" rel="noreferrer">https://llmday.com/</a>
+        </div>
+      </div>
     </div>
   </section>
 
-  <!-- 2 — WHAT IS IT -->
+  <!-- 2 — WHO AM I -->
+  <section class="slide">
+    <div class="panel">
+      <div class="kicker">Who am I?</div>
+      <h2>Eduardo <span class="grad">Pertierra Puche</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>AI &amp; Software Engineer</b> (<b>MSc</b>) — five years consulting at the forefront of the AI wave.</li>
+          <li><b>AI automations for MaibornWolff &amp; the BMW Group</b> — applying the latest tech with solid AI-engineering practices to ship deployable, production-ready solutions.</li>
+          <li><b>Always spinning up PoCs</b> that showcase the power of AI.</li>
+          <li><b>Focus: <span class="key">Agentic Coding</span></b> — end-to-end AI-driven workflows that turn experimental ideas into <span class="key">reliable, real-world systems</span>.</li>
+          <li><b>I love to challenge the AI state of the art</b> — and build 3D side projects in my spare time, like this world. :D</li>
+          <li><b>Find me</b> — <a href="https://www.linkedin.com/in/epertierra/" class="cy" target="_blank" rel="noreferrer">linkedin.com/in/epertierra</a></li>
+        </ul>
+        <figure class="avatar-figure">
+          <div class="avatar-stage" id="avatarStage"></div>
+          <figcaption>my in-game avatar · <b class="cy">Zaex</b></figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3 — WHAT IS IT -->
   <section class="slide">
     <div class="panel">
       <div class="kicker">What is World of Promptcraft?</div>
-      <h2>A world generated <span class="grad">entirely by AI</span></h2>
-      <ul class="points">
-        <li><b>Procedural and agentic</b> — terrain, meshes and gameplay are produced by LLMs, never hand-authored.</li>
-        <li><b>NPCs are autonomous agents</b> — each with its own personality, memory, and combat &amp; trade behaviour.</li>
-        <li><b>The prompt is the only interface</b> — no menus, no dialogue trees; you simply write.</li>
-        <li><b>Endless play</b> — uncover stories, fight, or generate new items and textures on demand.</li>
-      </ul>
+      <h2>A procedural world, <span class="grad">driven by agents</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>Procedurally generated</b> — terrain and meshes are built by <span class="key">procedural algorithms</span> from a biome, never hand-authored.</li>
+          <li><b>NPCs are procedural too</b> — generated from the world, then their <span class="key">behaviour and actions are agentic</span> — LLM-driven decisions, each with its own personality and memory.</li>
+          <li><b>The prompt is the <span class="key">only interface</span></b> — no menus, no dialogue trees; you simply write.</li>
+          <li><b>Endless play</b> — uncover stories, fight, or generate new items and textures on demand.</li>
+        </ul>
+        <figure class="showcase">
+          <div class="prompt-bar">
+            <span class="prompt-caret">&gt;</span>
+            <span class="prompt-text" id="showcasePrompt"></span>
+            <span class="prompt-cursor"></span>
+          </div>
+          <div class="mesh-stage" id="meshStage"></div>
+          <figcaption>conjured live from the catalog · prompt → mesh</figcaption>
+        </figure>
+      </div>
     </div>
   </section>
 
@@ -46,7 +85,7 @@
       <div class="kicker">How did the idea start?</div>
       <h2>From the <span class="grad">state of the art</span> to a living 3D world</h2>
       <ul class="points">
-        <li><b>Skyrim</b> and <b>Minecraft</b> have AI mods — but no <b>fully agentic</b> game had shipped, built end-to-end with agentic coding (Claude, Copilot, Gemini).</li>
+        <li><b>Skyrim</b> and <b>Minecraft</b> have AI mods — but no <b><span class="key">fully agentic</span></b> game had shipped, built end-to-end with agentic coding (Claude, Copilot, Gemini).</li>
         <li>Inspired by Stanford's <b>Generative Agents</b> — <a href="https://arxiv.org/abs/2304.03442" class="cy" target="_blank" rel="noreferrer">arxiv.org/abs/2304.03442</a>.</li>
         <li>It began as a proof of concept and grew into a complete, explorable 3D world.</li>
         <li class="am">And it runs entirely in the browser.</li>
@@ -61,7 +100,7 @@
       <h2>One round trip, <span class="grad">three pillars</span></h2>
       <div class="split">
         <ul class="points">
-          <li><b>Your browser is just a window.</b> It draws the world but never decides what happens — the server is the single source of truth.</li>
+          <li><b>Your browser is just a window.</b> It draws the world but never decides what happens — the server is the <span class="key">single source of truth</span>.</li>
           <li><b>One always-open line</b> carries messages both ways: your words go out; a reply comes back with what the character says <i>and</i> a list of changes to make.</li>
           <li><b>Each character has its own small "brain"</b> that turns your words into concrete in-game changes. The server applies them, and the world updates.</li>
         </ul>
@@ -89,7 +128,7 @@ flowchart TD
       <div class="split">
         <ul class="points">
           <li><b>The whole world is drawn live in the browser</b> from simple 3D shapes — nothing to download or install.</li>
-          <li><b>The AI makes the shapes</b> — they're generated on the fly, not placed by a level designer.</li>
+          <li><b>Shapes are procedural</b> — <span class="key">generated on the fly</span> from code recipes, not placed by a level designer.</li>
           <li>The <b class="cy">"DOOM" idea</b> — the land comes from math formulas, so it can be endless and still run <span class="am">"even on a toaster"</span>.</li>
           <li><span class="mg">Special thanks</span> to Rafael Pernil for the visual craft and his GPU.</li>
         </ul>
@@ -115,7 +154,7 @@ flowchart TD
       <h2>How each <span class="grad">frame is drawn</span></h2>
       <div class="split">
         <ul class="points">
-          <li><b>The image is built in layers</b> — first the scene, then a pass that smooths jagged edges, then a pass that makes bright things glow. If a layer can't run, it quietly skips it.</li>
+          <li><b>The image is <span class="key">built in layers</span></b> — first the scene, then a pass that smooths jagged edges, then a pass that makes bright things glow. If a layer can't run, it quietly skips it.</li>
           <li><b>Soft shadows and film-like color</b> make it look less "computer-generated."</li>
           <li><b>The sky lights the world</b> — a snapshot of the sky is used to light everything realistically, added a moment after the game starts.</li>
           <li><b>It watches its own speed</b> — if the frame rate dips, it lowers detail a touch to stay smooth.</li>
@@ -142,7 +181,7 @@ flowchart TD
       <h2>An endless land, <span class="grad">built as you walk</span></h2>
       <div class="split">
         <ul class="points">
-          <li><b>The land is made of square tiles</b> (about 64 metres each) that appear around you as you move — so the world is effectively endless.</li>
+          <li><b>The land is made of square tiles</b> (about 64 metres each) that appear around you as you move — so the world is <span class="key">effectively endless</span>.</li>
           <li><b>Each tile's hills and valleys come from a formula</b>, not a saved map. Mixing "recipes" gives forests, snow, lava and more.</li>
           <li><b>Ground flattens under buildings</b> automatically, so nothing floats or sinks.</li>
           <li><b>As a tile appears, the game fills it</b> with trees, rocks and buildings.</li>
@@ -171,7 +210,7 @@ flowchart TD
       <h2>An agentic backend on <span class="grad">LangGraph</span></h2>
       <div class="split">
         <ul class="points">
-          <li><b>Every character thinks on its own</b> — each has a private decision loop and its own memory; new characters can be added while the game runs.</li>
+          <li><b>Every character thinks on its own</b> — each has a <span class="key">private decision loop</span> and its own memory; new characters can be added while the game runs.</li>
           <li><b>The thinking happens in small steps</b> on the server and is sent back over the live connection.</li>
           <li><b>"Guardrails" keep it on track</b> so the AI stays in character and the story stays consistent.</li>
           <li><b>A quick "lore lookup"</b> feeds each character the facts it needs, so it can reason in the moment, change mood, and remember.</li>
@@ -209,7 +248,7 @@ flowchart TD
         <li><b>Update feelings</b> — <b class="cy">no AI here</b>: simple rules adjust its mood and how much it likes you (a score from −100 to +100).</li>
         <li><b>Trim memory</b> — once in a while it compresses old chat into a short note, so a character's memory never grows out of control.</li>
       </ul>
-      <p class="body" style="margin-top:1rem">Only the first two steps may call the AI — the rest is cheap, ordinary code. That keeps each reply fast and the cost predictable.</p>
+      <p class="body" style="margin-top:1rem"><span class="key">Only the first two steps may call the AI</span> — the rest is cheap, ordinary code. That keeps each reply fast and the cost predictable.</p>
     </div>
   </section>
 
@@ -221,7 +260,7 @@ flowchart TD
       <ul class="points">
         <li><b>A private notebook per pair</b> — each character keeps a separate memory for each player it has met.</li>
         <li><b>What it keeps</b> — a short summary of your chats, its current mood, how much it likes you, and notes it has formed about you.</li>
-        <li><b>No wasted thinking</b> — if you ask the exact same thing again, it reuses the previous answer instead of asking the AI twice.</li>
+        <li><b>No wasted thinking</b> — if you ask the exact same thing again, it <span class="key">reuses the previous answer</span> instead of asking the AI twice.</li>
       </ul>
       <div class="grid g3" style="margin-top:1.6rem">
         <div class="card center"><div class="tagline">−100</div><h3 class="am">Enemy</h3></div>
@@ -238,7 +277,7 @@ flowchart TD
       <h2>Characters act through a <span class="grad">fixed set of verbs</span></h2>
       <div class="split">
         <ul class="points">
-          <li><b>A limited menu of actions</b> — attack, heal, trade, give a quest, change the weather, and a few more. A character can't do anything outside that list. That's the safety net.</li>
+          <li><b>A limited menu of actions</b> — attack, heal, trade, give a quest, change the weather, and a few more. A character <span class="key">can't do anything outside that list</span>. That's the safety net.</li>
           <li><b>Nothing happens immediately</b> — each verb just writes down "what should change." The server then applies the whole list at once, in one clean step.</li>
           <li><b>The money is real</b> — offering an item only proposes a price; a sale only goes through if you can actually pay; quest rewards are capped so nothing breaks the economy.</li>
           <li><b>One place changes the world</b> — keeping every update in a single, guarded step avoids glitches when many things happen at once.</li>
@@ -266,22 +305,22 @@ flowchart TD
         <div class="card">
           <div class="tagline">fairness</div>
           <h3>The server owns the world</h3>
-          <p>Every hit point, coin and weather change is decided in one place. Your browser only shows the result — so two players always see the same thing.</p>
+          <p>Every hit point, coin and weather change is <span class="key">decided in one place</span>. Your browser only shows the result — so two players always see the same thing.</p>
         </div>
         <div class="card">
           <div class="tagline">responsiveness</div>
           <h3>Slow thinking never freezes you</h3>
-          <p>While a character is thinking, you can still walk around freely. Rapid clicks are queued, only a handful of AI requests run at once, and each has a time limit — so it never gets swamped.</p>
+          <p>While a character is thinking, <span class="key">you can still walk around freely</span>. Rapid clicks are queued, only a handful of AI requests run at once, and each has a time limit — so it never gets swamped.</p>
         </div>
         <div class="card">
           <div class="tagline">speed</div>
           <h3>Instant for the simple stuff</h3>
-          <p>Ordinary hits are settled instantly by simple rules. The AI is saved for the moments that actually need thought.</p>
+          <p>Ordinary hits are <span class="key">settled instantly</span> by simple rules. The AI is saved for the moments that actually need thought.</p>
         </div>
         <div class="card">
           <div class="tagline">cost</div>
           <h3>Cheap way to recall lore</h3>
-          <p>Background facts are found by matching keywords, not by heavy AI search — so each reply stays low-cost and predictable.</p>
+          <p>Background facts are found by <span class="key">matching keywords</span>, not by heavy AI search — so each reply stays low-cost and predictable.</p>
         </div>
       </div>
     </div>
@@ -296,7 +335,7 @@ flowchart TD
         <ul class="points">
           <li><b>One shared rulebook</b> — a couple of guide documents tell every AI coding assistant how things are built here, so the style stays consistent.</li>
           <li><b>Nothing ships untested</b> — automated checks and tests must pass before any change is accepted; problems are caught before they reach the project.</li>
-          <li><b>Two working habits</b> — research first then build, and repeat-until-right loops.</li>
+          <li><b>Two working habits</b> — <span class="key">research first then build</span>, and repeat-until-right loops.</li>
           <li><b>Draw it first</b> — sketch the design as simple diagrams before writing any code.</li>
         </ul>
         <figure class="diagram">
@@ -323,7 +362,7 @@ flowchart TD
         <div class="card">
           <div class="tagline">lessons learnt</div>
           <h3>Lessons</h3>
-          <p>Guardrails beat raw randomness. Giving each character its own brain adds personality without adding complexity. And by using the AI sparingly — only where real thinking is needed — the cost stays low and predictable.</p>
+          <p>Guardrails beat raw randomness. Giving each character its own brain adds personality without adding complexity. And by <span class="key">using the AI sparingly</span> — only where real thinking is needed — the cost stays low and predictable.</p>
         </div>
         <div class="card">
           <div class="tagline">cool features</div>
@@ -331,7 +370,7 @@ flowchart TD
           <p><b class="cy">Terrain Builder</b> · <b class="cy">Mesh Viewer</b> · <b class="cy">World Builder</b> — author and edit the world, all AI-driven.</p>
         </div>
       </div>
-      <p class="lead" style="margin-top:1.4rem">Type anything — the world answers.</p>
+      <p class="lead" style="margin-top:1.4rem">Type anything — <span class="key">the world answers</span>.</p>
     </div>
   </section>
 
@@ -340,8 +379,7 @@ flowchart TD
 <div class="progress" id="progress"></div>
 <div class="chrome">
   <span class="brand">World of Promptcraft</span>
-  <span class="section" id="section"></span>
-  <span class="counter"><span id="cur">1</span> / <span id="total">14</span></span>
+  <span class="counter"><span id="cur">1</span> / <span id="total">15</span></span>
 </div>
 <div class="hint">Navigate with <kbd>←</kbd> <kbd>→</kbd> or scroll · <kbd>F</kbd> fullscreen · <kbd>?</kbd> help</div>
 
