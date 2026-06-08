@@ -18,7 +18,7 @@ interface ShowItem {
 
 // Real catalog ids (verified against the MeshRegistry) + the line we pretend a
 // player typed to summon each one.
-const ITEMS: ShowItem[] = [
+export const DEFAULT_ITEMS: ShowItem[] = [
   { id: 'npc_individual_eltito_01', prompt: 'summon El Tito, keeper of the village' },
   { id: 'malaka_cortijo', prompt: 'build a whitewashed cortijo' },
   { id: 'mage_tower', prompt: 'raise a mage tower wreathed in arcane light' },
@@ -64,6 +64,7 @@ export class MeshShowcase {
   constructor(
     private readonly container: HTMLElement,
     private readonly promptEl: HTMLElement,
+    private readonly items: ShowItem[] = DEFAULT_ITEMS,
   ) {
     this.camera = new THREE.PerspectiveCamera(42, 1, 0.05, 2000);
     this.camera.position.set(0, 0, 10);
@@ -140,10 +141,10 @@ export class MeshShowcase {
     this.current = null;
   }
 
-  /** Loads `ITEMS[i]`: builds the mesh, centres it, and computes a fit scale. */
+  /** Loads `items[i]`: builds the mesh, centres it, and computes a fit scale. */
   private loadItem(i: number): void {
     this.clearCurrent();
-    const item = ITEMS[i];
+    const item = this.items[i];
     const obj = buildMesh(item.id, { position: new THREE.Vector3(), scale: 1 });
     if (!obj) return;
 
@@ -189,12 +190,12 @@ export class MeshShowcase {
 
     if (this.phaseT >= TOTAL) {
       this.phaseT = 0;
-      this.index = (this.index + 1) % ITEMS.length;
+      this.index = (this.index + 1) % this.items.length;
       this.loadItem(this.index);
     }
 
     const t = this.phaseT;
-    const item = ITEMS[this.index];
+    const item = this.items[this.index];
 
     // 1) Type the prompt.
     this.typePrompt(item.prompt, Math.min(1, t / TYPE));
