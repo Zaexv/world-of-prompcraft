@@ -55,19 +55,10 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     // 2. Main Body (Wood sides + White Stucco Front)
     const createBody = (w: number, h: number, d: number) => {
       const group = new THREE.Group();
-      
-      // Multi-material body: [+X, -X, +Y, -Y, +Z (Front), -Z]
-      // +Z is the front face where the door and windows are
-      const bodyMaterials = [
-        mats.door,   // +X (Right)
-        mats.door,   // -X (Left)
-        mats.door,   // +Y (Top)
-        mats.door,   // -Y (Bottom)
-        mats.stucco, // +Z (Front - White)
-        mats.door    // -Z (Back)
-      ];
-      
-      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMaterials);
+
+      // All walls: white Andalusian stucco, single material for consistent
+      // color + texture across every face (no front/side material seam).
+      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mats.stucco);
       body.position.y = h / 2;
       body.castShadow = body.receiveShadow = true;
       group.add(body);
@@ -140,6 +131,8 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
       gableGeo.computeVertexNormals();
       const gable = new THREE.Mesh(gableGeo, gableMat);
       gable.position.z = side * depth / 2;
+      gable.castShadow = true;
+      gable.receiveShadow = true;
       gable.userData.noCollision = true;
       roofGroup.add(gable);
     }
@@ -187,7 +180,7 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
 
     for (const side of [-1, 1]) {
       const winGroup = createWindowWithFrame();
-      winGroup.position.set(side * 1.8 * scale, winY, depth / 2 + 0.05 * scale);
+      winGroup.position.set(side * 1.8 * scale, winY, depth / 2 + 0.1 * scale);
       const pot = createFlowerPot(scale);
       pot.position.set(0, -winH / 2 - 0.2 * scale, 0.15 * scale);
       winGroup.add(pot);
@@ -195,7 +188,7 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     }
     for (const side of [-1, 1]) {
       const winGroup = createWindowWithFrame();
-      winGroup.position.set(side * (width / 2 + 0.05 * scale), winY, 0);
+      winGroup.position.set(side * (width / 2 + 0.1 * scale), winY, 0);
       winGroup.rotation.y = side * Math.PI / 2;
       g.add(winGroup);
     }
