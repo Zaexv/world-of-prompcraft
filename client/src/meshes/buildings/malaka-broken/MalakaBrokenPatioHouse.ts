@@ -132,7 +132,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
       placeRow(upperCount, deckY + 1.5 * S);
 
       // Grass tufts + a climbing vine creeping up the whitewash.
-      this.addWallGreenery(wg, len, wt / 2 + 0.04 * S, groundH, S, mats);
+      this.addWallGreenery(wg, len, wt / 2 + 0.04 * S, fy, groundH, S, mats);
 
       wg.userData.noCollision = true;
       g.add(wg);
@@ -293,32 +293,45 @@ export class MalakaBrokenPatioHouse extends Mesh {
     addRailColl((gapR + patioHalf) / 2, -patioHalf, rightSeg, 0);
 
     // ── 6. Staircase: patio → back gallery deck ───────────────────────────────
-    const stepN = 11;
-    const stairBottomZ = -1.5 * S;
-    const stairTopZ = -patioHalf;            // lands at back deck edge (-4S)
-    const stepRise = groundH / stepN;        // ≈0.31S  (< 0.5 step limit)
-    const tread = (stairTopZ - stairBottomZ) / stepN; // negative (heading -Z)
+    // Straight flight against the back wing. 10 steps × 0.34·S rise (< 0.5 step
+    // limit) with generous 0.30·S treads, flanked by sloped stone cheek walls.
+    const stepN = 10;
+    const stairBottomZ = -1.0 * S;
+    const stairTopZ = -patioHalf;            // lands flush on the back deck (-4S)
+    const stepRise = groundH / stepN;        // 0.34·S
+    const tread = (stairBottomZ - stairTopZ) / stepN; // 0.30·S, positive
     for (let i = 0; i < stepN; i++) {
-      const topYStep = fy + (i + 1) * stepRise;
-      const h = topYStep - fy;
-      const z = stairBottomZ + (i + 0.5) * tread;
-      const step = new THREE.Mesh(new THREE.BoxGeometry(stairW, h, Math.abs(tread)), mats.stone);
+      const h = (i + 1) * stepRise;          // solid riser block up from the floor
+      const z = stairBottomZ - (i + 0.5) * tread;
+      const step = new THREE.Mesh(new THREE.BoxGeometry(stairW, h, tread), mats.stone);
       step.position.set(stairX, fy + h / 2, z);
       step.castShadow = step.receiveShadow = true;
       step.userData.noCollision = true;
       g.add(step);
-      const proxy = boxCollider(stairW, h, Math.abs(tread));
+      const proxy = boxCollider(stairW, h, tread);
       proxy.position.set(stairX, fy + h / 2, z);
       g.add(proxy);
     }
-    // stair side railing (open patio side)
-    for (let i = 0; i <= stepN; i += 2) {
-      const topYStep = fy + i * stepRise;
-      const z = stairBottomZ + i * tread;
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1 * S, 1.0 * S, 0.1 * S), mats.wood);
-      post.position.set(stairX + stairW / 2, topYStep + 0.5 * S, z);
-      post.userData.noCollision = true;
-      g.add(post);
+    // Sloped stone cheek walls (balustrades) on both sides of the flight.
+    const runLen = stairBottomZ - stairTopZ;          // 3.0S
+    const riseLen = groundH;                          // 3.4S
+    const cheekLen = Math.hypot(runLen, riseLen);
+    const cheekAng = Math.atan2(riseLen, runLen);
+    for (const sx of [-1, 1]) {
+      const cheek = new THREE.Mesh(
+        new THREE.BoxGeometry(0.18 * S, 0.7 * S, cheekLen),
+        mats.stone
+      );
+      // rotate so it climbs toward -Z (the top), centred on the flight mid-line
+      cheek.rotation.x = cheekAng;
+      cheek.position.set(
+        stairX + sx * (stairW / 2 + 0.09 * S),
+        fy + riseLen / 2 + 0.2 * S,
+        (stairBottomZ + stairTopZ) / 2
+      );
+      cheek.castShadow = cheek.receiveShadow = true;
+      cheek.userData.noCollision = true;
+      g.add(cheek);
     }
 
     // ── 7. Central fountain + patio furniture ─────────────────────────────────
@@ -358,35 +371,41 @@ export class MalakaBrokenPatioHouse extends Mesh {
     climber.traverse(o => { o.userData.noCollision = true; });
     g.add(climber);
 
-    // ── 8. Inward-sloping tiled hip roofs over the wings ──────────────────────
+    // ── 8. Pitched tiled roofs over the wings ─────────────────────────────────
+    // Each wing gets a single pitch: ridge high at the patio side, eave low and
+    // overhanging the outer wall. The eave sits right on the wall top so the
+    // roof reads as a proper roof from outside; the patio stays open to sky.
     const overhang = 0.6 * S;
-    const drop = 0.9 * S;
-    const slopeAngle = Math.atan2(drop, wingDepth);
+    const ridgeRise = 1.2 * S;
+    const slopeLen = Math.hypot(wingDepth, ridgeRise) + overhang;
+    const slopeAngle = Math.atan2(ridgeRise, wingDepth);
+    // Local +Z faces the outer wall (low eave); -Z faces the patio (high ridge).
     const roofSides: Array<{ cx: number; cz: number; rotY: number; span: number }> = [
       { cx: 0, cz: deckMid, rotY: 0, span: outer + overhang * 2 },
       { cx: 0, cz: -deckMid, rotY: Math.PI, span: outer + overhang * 2 },
       { cx: -deckMid, cz: 0, rotY: -Math.PI / 2, span: patioHalf * 2 },
       { cx: deckMid, cz: 0, rotY: Math.PI / 2, span: patioHalf * 2 },
     ];
-    const slopeLen = Math.sqrt(wingDepth * wingDepth + drop * drop) + overhang;
     for (const s of roofSides) {
       const rg = new THREE.Group();
-      rg.position.set(s.cx, topY + 0.45 * S, s.cz);
+      rg.position.set(s.cx, topY, s.cz);
       rg.rotation.y = s.rotY;
 
-      const plane = new THREE.Mesh(new THREE.BoxGeometry(s.span, 0.14 * S, slopeLen), mats.roof);
-      // local +Z = outer (high), -Z = patio (low)
-      plane.rotation.x = -slopeAngle;
+      const plane = new THREE.Mesh(new THREE.BoxGeometry(s.span, 0.16 * S, slopeLen), mats.roof);
+      plane.rotation.x = slopeAngle;             // +Z end drops to the eave
+      plane.position.y = (slopeLen / 2) * Math.sin(slopeAngle); // eave ≈ wall top
       plane.castShadow = plane.receiveShadow = true;
       plane.userData.noCollision = true;
       rg.add(plane);
 
-      // terracotta tile rolls along the low (patio-side) eave
+      // terracotta tile rolls along the low outer eave
+      const eaveY = plane.position.y - (slopeLen / 2) * Math.sin(slopeAngle) + 0.12 * S;
+      const eaveZ = (slopeLen / 2) * Math.cos(slopeAngle);
       const tileCount = Math.round(s.span / (0.45 * S));
       for (let i = 0; i < tileCount; i++) {
         const tile = createRoofTile(S, mats);
         const lx = (i / (tileCount - 1) - 0.5) * s.span;
-        tile.position.set(lx, -drop / 2 + 0.05 * S, -wingDepth / 2);
+        tile.position.set(lx, eaveY, eaveZ);
         tile.rotation.y = Math.PI / 2;
         tile.userData.noCollision = true;
         rg.add(tile);
@@ -396,7 +415,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
     }
 
     const chimney = createChimney(S * 1.3, mats);
-    chimney.position.set(outer * 0.25, topY + 0.6 * S, -deckMid);
+    chimney.position.set(outer * 0.25, topY + 1.2 * S, -deckMid);
     chimney.userData.noCollision = true;
     chimney.traverse(o => { o.userData.noCollision = true; });
     g.add(chimney);
@@ -438,6 +457,35 @@ export class MalakaBrokenPatioHouse extends Mesh {
     wg.rotation.y = rotY;
     wg.userData.noCollision = true;
     parent.add(wg);
+  }
+
+  /** Grass tufts along a wall base + climbing vines up the whitewash. */
+  private addWallGreenery(
+    parent: THREE.Group, len: number, faceZ: number,
+    baseY: number, climbH: number, scale: number, mats: MedMaterials,
+  ): void {
+    const count = Math.max(3, Math.round(len / (1.3 * scale)));
+    for (let i = 0; i < count; i++) {
+      const lx = (count === 1) ? 0 : (i / (count - 1) - 0.5) * (len - 0.4 * scale);
+      const tuft = new THREE.Group();
+      for (let b = 0; b < 4; b++) {
+        const blade = new THREE.Mesh(new THREE.ConeGeometry(0.05 * scale, 0.35 * scale, 4), mats.foliage);
+        blade.position.set((Math.random() - 0.5) * 0.25 * scale, 0.17 * scale, (Math.random() - 0.5) * 0.1 * scale);
+        blade.rotation.z = (Math.random() - 0.5) * 0.5;
+        tuft.add(blade);
+      }
+      tuft.position.set(lx, baseY, faceZ + 0.05 * scale);
+      tuft.userData.noCollision = true;
+      parent.add(tuft);
+    }
+    // a couple of climbing vines scaling the wall
+    for (const vx of [-len * 0.3, len * 0.32]) {
+      const vine = createClimbingPlant(0.8 * scale, climbH * 0.9, scale, mats);
+      vine.position.set(vx, baseY, faceZ);
+      vine.userData.noCollision = true;
+      vine.traverse(o => { o.userData.noCollision = true; });
+      parent.add(vine);
+    }
   }
 
   /** A thin stucco arcade wall with N semicircular-arched openings. */
