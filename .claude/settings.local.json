@@ -177,6 +177,9 @@
       "PowerShell(Format-Hex *)",
       "Bash(echo \"exit:$?\")",
       "Bash(git rm *)",
+      "Skill(run)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:5173/presentation.html)"
       "Bash(rtk vitest *)",
       "Bash(rtk lint *)",
       "Bash(rtk wc *)",

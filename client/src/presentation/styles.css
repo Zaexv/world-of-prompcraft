@@ -95,6 +95,34 @@ a, button, [role="button"], kbd {
 }
 .slide.center .panel { max-width: 880px; text-align: center; }
 
+/* Side-anchored slide — panel hugs one edge, the other half left open for the
+   live world to show through. */
+.slide.left { align-items: flex-start; }
+.slide.left .panel { margin: 0; max-width: min(640px, 48vw); }
+.slide.right { align-items: flex-end; }
+.slide.right .panel { margin: 0; max-width: min(640px, 48vw); }
+
+/* Reference image thumbnails (e.g. old PoC + Generative Agents). */
+.refs { display: flex; gap: 1rem; margin-top: 1.6rem; }
+.ref { margin: 0; flex: 1; min-width: 0; }
+.ref img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+.ref figcaption {
+  margin-top: 0.5rem;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  color: var(--gold-soft);
+  text-align: center;
+}
+
 /* ---------- typography ---------- */
 .kicker {
   font-family: var(--serif);
@@ -197,34 +225,6 @@ code, .mono { font-family: var(--mono); color: var(--gold-soft); font-size: 0.92
   font-size: clamp(0.8rem, 1.1vw, 0.95rem);
 }
 
-/* "Who am I" slide — live 3D avatar (Zaex) beside the bio. */
-.avatar-figure {
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.6rem;
-}
-.avatar-stage {
-  position: relative;
-  width: 100%;
-  height: 50vh;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: radial-gradient(
-    ellipse at 50% 40%,
-    rgba(197, 165, 90, 0.12),
-    rgba(8, 6, 18, 0.34) 70%
-  );
-  overflow: hidden;
-}
-.avatar-stage canvas { display: block; width: 100% !important; height: 100% !important; }
-.avatar-figure figcaption {
-  font-family: var(--mono);
-  font-size: 0.72rem;
-  color: var(--muted);
-}
-
 /* ---------- bullet points ---------- */
 ul.points { list-style: none; display: flex; flex-direction: column; gap: 0.85rem; margin-top: 0.4rem; }
 ul.points li {
@@ -244,6 +244,115 @@ ul.points li::before {
   font-size: 0.8em;
 }
 ul.points li b { color: var(--ink); font-weight: 700; }
+
+/* "Who am I" slide — live 3D avatar (Zaex) beside the bio. */
+.avatar-figure {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+.avatar-stage {
+  position: relative;
+  width: 100%;
+  height: 52vh;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--glass-2);
+  overflow: hidden;
+}
+.avatar-stage canvas { display: block; width: 100% !important; height: 100% !important; }
+.avatar-figure figcaption {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--muted);
+}
+
+/* ---------- the three pillars (real column look) ---------- */
+.pillars3 {
+  display: flex;
+  gap: clamp(1.2rem, 3vw, 2.6rem);
+  justify-content: center;
+  align-items: flex-end;
+  margin-top: 2.2rem;
+}
+.pillar3 {
+  width: min(290px, 28vw);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  opacity: 0;
+}
+.slide.active .pillar3 { animation: pillar-rise 0.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.pillar3:nth-child(1) { animation-delay: 0.08s; }
+.pillar3:nth-child(2) { animation-delay: 0.2s; }
+.pillar3:nth-child(3) { animation-delay: 0.32s; }
+@keyframes pillar-rise { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Capital (top) and base (bottom) — thin, clean gold bars. */
+.pillar3-cap,
+.pillar3-base {
+  width: 112%;
+  margin-left: -6%;
+  height: 6px;
+  background: var(--gold);
+}
+.pillar3-cap { border-radius: 3px 3px 0 0; }
+.pillar3-base { border-radius: 0 0 3px 3px; }
+
+/* Clean shaft — simple glass, hairline sides, generous space. */
+.pillar3-shaft {
+  position: relative;
+  flex: 1;
+  min-height: 38vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.7rem;
+  padding: 1.9rem 1.4rem;
+  color: var(--muted);
+  border-left: 1px solid var(--line-soft);
+  border-right: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(197, 165, 90, 0.05), rgba(12, 9, 20, 0.32));
+  transition: background 0.25s ease, transform 0.25s ease;
+}
+.pillar3:hover .pillar3-shaft {
+  transform: translateY(-4px);
+  background: linear-gradient(180deg, rgba(197, 165, 90, 0.1), rgba(12, 9, 20, 0.32));
+}
+
+/* Icon medallion — quiet, hairline ring. */
+.pillar3-icon {
+  width: 54px;
+  height: 54px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--gold-bright);
+  border: 1px solid var(--line);
+}
+.pillar3-icon svg { width: 27px; height: 27px; }
+.pillar3-num {
+  font-family: var(--serif);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.pillar3-shaft h3 {
+  font-family: var(--serif);
+  font-size: clamp(1.05rem, 1.7vw, 1.4rem);
+  color: var(--ink);
+  margin-top: 0.1rem;
+}
+.pillar3-shaft p {
+  font-size: clamp(0.86rem, 1.15vw, 1rem);
+  line-height: 1.5;
+  max-width: 30ch;
+}
 
 /* ---------- card grids ---------- */
 .grid { display: grid; gap: 1rem; margin-top: 0.4rem; }
@@ -299,6 +408,39 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   touch-action: none;
   cursor: grab;
 }
+/* Full-bleed slide — panel fills the screen (used by the architecture slide). */
+.slide.full { padding: 3vh 3vw; }
+.slide.full .panel { max-width: none; width: 100%; height: 100%; display: flex; flex-direction: column; }
+.slide.full .diagram--hero { flex: 1; height: auto; }
+
+/* Architecture principles — compact note row above the hero diagram. */
+.notes-label {
+  font-family: var(--serif);
+  font-size: 0.8rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold);
+  font-weight: 600;
+  margin-top: 1.2rem;
+}
+.arch-notes { display: flex; gap: 0.9rem; margin-top: 0.7rem; flex-wrap: wrap; }
+.arch-notes .note {
+  flex: 1;
+  min-width: 220px;
+  padding: 0.7rem 0.95rem;
+  background: rgba(197, 165, 90, 0.06);
+  border: 1px solid var(--line-soft);
+  border-left: 2px solid var(--gold);
+  border-radius: 8px;
+  font-size: clamp(0.86rem, 1.15vw, 1.02rem);
+  line-height: 1.45;
+  color: var(--muted);
+}
+.arch-notes .note b { color: var(--ink); }
+
+/* Hero diagram — the slide's focal point (full panel width, taller). */
+.diagram--hero { height: 56vh; margin-top: 1.4rem; }
+.slide.full .arch-notes + .diagram--hero { margin-top: 1.1rem; }
 .diagram .mermaid { position: absolute; top: 0; left: 0; }
 .diagram svg { position: absolute; top: 0; left: 0; max-width: none; will-change: transform; }
 .diagram figcaption {
@@ -366,6 +508,80 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   color: var(--muted);
   opacity: 0.6;
 }
+
+/* ---------- cinematic "endless world" slide ---------- */
+.slide.cinema { justify-content: flex-start; padding: 5vh 6vw; gap: 1rem; }
+.cinema-head { max-width: 70ch; position: relative; z-index: 2; }
+.cinema-sum {
+  font-size: clamp(0.98rem, 1.5vw, 1.3rem);
+  color: var(--muted);
+  line-height: 1.55;
+  margin-top: 0.8rem;
+  max-width: 64ch;
+}
+.cinema-sum b { color: var(--ink); }
+
+/* A film frame whose interior is transparent — the live world plays inside. */
+.movie-frame {
+  position: relative;
+  z-index: 1;
+  flex: 1;
+  width: 100%;
+  margin-top: 1.2rem;
+  border-radius: 10px;
+  border: 1px solid var(--gold);
+  /* Everything OUTSIDE the frame is solid black (huge spread shadow); the
+     interior stays transparent so only the live world shows through, like a
+     window onto a film. A soft inner vignette keeps the edges cinematic. */
+  box-shadow:
+    inset 0 0 120px 20px rgba(4, 3, 8, 0.55),
+    0 0 0 100vmax #000;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* Letterbox bars. */
+.mf-bar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 7%;
+  background: rgba(0, 0, 0, 0.82);
+}
+.mf-top { top: 0; }
+.mf-bottom { bottom: 0; }
+/* Corner crop marks. */
+.mf-corner {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 2px solid var(--gold);
+  opacity: 0.85;
+}
+.mf-corner.tl { top: 12px; left: 12px; border-right: none; border-bottom: none; }
+.mf-corner.tr { top: 12px; right: 12px; border-left: none; border-bottom: none; }
+.mf-corner.bl { bottom: 12px; left: 12px; border-right: none; border-top: none; }
+.mf-corner.br { bottom: 12px; right: 12px; border-left: none; border-top: none; }
+/* HUD overlays (REC + timecode), sit on the letterbox bars. */
+.mf-hud-tl, .mf-hud-br {
+  position: absolute;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  color: var(--gold-soft);
+}
+.mf-hud-tl { top: calc(7% + 14px); left: 22px; display: flex; align-items: center; gap: 0.45rem; }
+.mf-hud-br { bottom: calc(7% + 14px); right: 22px; }
+.mf-rec { display: flex; align-items: center; gap: 0.4rem; color: #ff6b5a; }
+.mf-rec::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #ff5a48;
+  box-shadow: 0 0 8px #ff5a48;
+  animation: rec-blink 1.4s steps(1) infinite;
+}
+@keyframes rec-blink { 0%, 60% { opacity: 1; } 60.01%, 100% { opacity: 0.15; } }
 
 /* ---------- chrome ---------- */
 .progress {

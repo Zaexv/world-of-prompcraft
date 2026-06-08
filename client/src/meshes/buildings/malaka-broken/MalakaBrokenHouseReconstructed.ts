@@ -3,12 +3,12 @@ import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import {
   getMaterials,
-  createDoor,
   createWindowWithGrille,
   createWoodenShutters,
   createFlowerPot,
   createChimney,
   createWoodenBench,
+  createWoodenTable,
   withLOD,
 } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
@@ -41,38 +41,136 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     foundation.receiveShadow = true;
     g.add(foundation);
 
-    // Vibrant Blue Glass / Painted Wood for this building
+    // Vibrant Blue Glass — transparent so the interior shows through the windows.
     const blueGlassMat = new THREE.MeshStandardMaterial({
-      color: 0x3a6ba5,
-      emissive: 0x1a3a5a,
-      emissiveIntensity: 0.5,
+      color: 0x6fa8d8,
+      emissive: 0x12304a,
+      emissiveIntensity: 0.15,
       metalness: 0.1,
-      roughness: 0.6,
+      roughness: 0.4,
       transparent: true,
-      opacity: 0.9
+      opacity: 0.28,
+      depthWrite: false,
     });
 
-    // 2. Main Body (Wood sides + White Stucco Front)
+    // Front-wall opening geometry (shared by walls, windows and the door).
+    const wallThk = 0.2 * scale;
+    const doorOpenHalf = 0.7 * scale;
+    const doorOpenTop = 2.45 * scale;
+    const winOpenHalf = 0.5 * scale;
+    const winOpenCx = 1.8 * scale;
+    const winOpenY0 = 1.35 * scale;
+    const winOpenY1 = 2.45 * scale;
+
+    // Furnished interior — only visible now that the walls are hollow and the
+    // door + windows are real openings.
+    const addInterior = (group: THREE.Group, w: number, h: number, d: number) => {
+      const floorY = wallThk;
+
+      // Warm interior glow (escapes through the open door + transparent windows)
+      const warm = new THREE.PointLight(0xffc98a, 1.4, 14 * scale, 2);
+      warm.position.set(0, h * 0.6, 0);
+      group.add(warm);
+
+      // Rug
+      const rugMat = new THREE.MeshStandardMaterial({ color: 0x8a2d2d, roughness: 0.95 });
+      const rug = new THREE.Mesh(new THREE.BoxGeometry(2.4 * scale, 0.02 * scale, 1.7 * scale), rugMat);
+      rug.position.set(0, floorY + 0.01 * scale, 0.3 * scale);
+      rug.receiveShadow = true;
+      group.add(rug);
+
+      // Table + two benches
+      const table = createWoodenTable(scale, mats);
+      table.position.set(0, floorY, 0.3 * scale);
+      group.add(table);
+      for (const sz of [-1, 1]) {
+        const b = createWoodenBench(scale, mats);
+        b.position.set(0, floorY, 0.3 * scale + sz * 0.65 * scale);
+        if (sz < 0) b.rotation.y = Math.PI;
+        group.add(b);
+      }
+
+      // Fireplace against the back wall (under the chimney)
+      const fpW = 1.6 * scale, fpH = 1.8 * scale, fpD = 0.5 * scale;
+      const fpX = -w * 0.28;
+      const fpZ = -d / 2 + wallThk + fpD / 2;
+      const surround = new THREE.Mesh(new THREE.BoxGeometry(fpW, fpH, fpD), mats.stone);
+      surround.position.set(fpX, floorY + fpH / 2, fpZ);
+      surround.castShadow = surround.receiveShadow = true;
+      group.add(surround);
+      const fireboxMat = new THREE.MeshStandardMaterial({ color: 0x140a06, roughness: 1 });
+      const firebox = new THREE.Mesh(new THREE.BoxGeometry(fpW * 0.6, fpH * 0.5, 0.15 * scale), fireboxMat);
+      firebox.position.set(fpX, floorY + fpH * 0.32, fpZ + fpD / 2);
+      group.add(firebox);
+      const emberMat = new THREE.MeshStandardMaterial({ color: 0xff5a1e, emissive: 0xff5a1e, emissiveIntensity: 2.2, roughness: 1 });
+      const ember = new THREE.Mesh(new THREE.BoxGeometry(fpW * 0.45, 0.2 * scale, 0.12 * scale), emberMat);
+      ember.position.set(fpX, floorY + 0.18 * scale, fpZ + fpD / 2);
+      group.add(ember);
+      const fire = new THREE.PointLight(0xff7a2e, 1.8, 7 * scale, 2);
+      fire.position.set(fpX, floorY + fpH * 0.32, fpZ + fpD);
+      group.add(fire);
+
+      // Bookshelf on the right wall
+      const bookColors = [0x2e5d8a, 0x8a2e3a, 0x2e8a55, 0xb5882e];
+      const shelfX = w / 2 - wallThk - 0.07 * scale;
+      for (let i = 0; i < 2; i++) {
+        const shelfY = floorY + (1.0 + i * 0.6) * scale;
+        const shelf = new THREE.Mesh(new THREE.BoxGeometry(0.14 * scale, 0.06 * scale, 1.8 * scale), mats.wood);
+        shelf.position.set(shelfX, shelfY, -0.4 * scale);
+        group.add(shelf);
+        for (let j = 0; j < 4; j++) {
+          const bookMat = new THREE.MeshStandardMaterial({ color: bookColors[j], roughness: 0.8 });
+          const book = new THREE.Mesh(new THREE.BoxGeometry(0.1 * scale, 0.3 * scale, 0.18 * scale), bookMat);
+          book.position.set(shelfX, shelfY + 0.18 * scale, -0.9 * scale + j * 0.28 * scale);
+          group.add(book);
+        }
+      }
+    };
+
+    // 2. Main Body — thin white stucco walls with real door + window openings.
     const createBody = (w: number, h: number, d: number) => {
       const group = new THREE.Group();
-      
-      // Multi-material body: [+X, -X, +Y, -Y, +Z (Front), -Z]
-      // +Z is the front face where the door and windows are
-      const bodyMaterials = [
-        mats.door,   // +X (Right)
-        mats.door,   // -X (Left)
-        mats.door,   // +Y (Top)
-        mats.door,   // -Y (Bottom)
-        mats.stucco, // +Z (Front - White)
-        mats.door    // -Z (Back)
-      ];
-      
-      const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), bodyMaterials);
-      body.position.y = h / 2;
-      body.castShadow = body.receiveShadow = true;
-      group.add(body);
 
-      // Corner Wooden Beams (Structural look)
+      // Whitewashed stucco rendered on both faces so interior walls show.
+      const wallMat = mats.stucco.clone();
+      wallMat.side = THREE.DoubleSide;
+
+      const addWall = (gw: number, gh: number, gd: number, x: number, y: number, z: number) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, gd), wallMat);
+        m.position.set(x, y, z);
+        m.castShadow = m.receiveShadow = true;
+        group.add(m);
+      };
+
+      // Back + side walls (solid)
+      addWall(w, h, wallThk, 0, h / 2, -d / 2 + wallThk / 2);
+      addWall(wallThk, h, d, -w / 2 + wallThk / 2, h / 2, 0);
+      addWall(wallThk, h, d, w / 2 - wallThk / 2, h / 2, 0);
+
+      // Front wall built from panels around the door + two window openings
+      const fz = d / 2 - wallThk / 2;
+      const addFront = (x0: number, x1: number, y0: number, y1: number) =>
+        addWall(x1 - x0, y1 - y0, wallThk, (x0 + x1) / 2, (y0 + y1) / 2, fz);
+      const wl0 = -winOpenCx - winOpenHalf, wl1 = -winOpenCx + winOpenHalf;
+      const wr0 = winOpenCx - winOpenHalf, wr1 = winOpenCx + winOpenHalf;
+      addFront(-w / 2, wl0, 0, h);                  // far left
+      addFront(wl0, wl1, 0, winOpenY0);             // left window sill
+      addFront(wl0, wl1, winOpenY1, h);             // left window lintel
+      addFront(wl1, -doorOpenHalf, 0, h);           // pier: left window → door
+      addFront(-doorOpenHalf, doorOpenHalf, doorOpenTop, h); // door lintel
+      addFront(doorOpenHalf, wr0, 0, h);            // pier: door → right window
+      addFront(wr0, wr1, 0, winOpenY0);             // right window sill
+      addFront(wr0, wr1, winOpenY1, h);             // right window lintel
+      addFront(wr1, w / 2, 0, h);                   // far right
+
+      // Floor (terracotta) + ceiling (stucco)
+      const floor = new THREE.Mesh(new THREE.BoxGeometry(w - 2 * wallThk, wallThk, d - 2 * wallThk), mats.terracotta);
+      floor.position.y = wallThk / 2;
+      floor.receiveShadow = true;
+      group.add(floor);
+      addWall(w, wallThk, d, 0, h - wallThk / 2, 0); // ceiling
+
+      // Corner Wooden Beams (kept — wood look)
       const beamW = 0.4 * scale;
       for (const sx of [-1, 1]) {
         for (const sz of [-1, 1]) {
@@ -81,6 +179,8 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
           group.add(beam);
         }
       }
+
+      addInterior(group, w, h, d);
       return group;
     };
 
@@ -89,32 +189,37 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     bodyGroup.position.y = foundationHeight;
     g.add(bodyGroup);
 
-    // 3. Azulejos (Decorative Tile Baseboard / Zócalo)
+    // 3. Azulejos (Decorative Tile Baseboard / Zócalo) — perimeter band with a
+    //    gap at the doorway so the threshold stays open into the interior.
     const tileHeight = 0.7 * scale;
     const azulejoMat = mats.azulejo;
-    const zocalo = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.05 * scale, tileHeight, depth + 0.05 * scale),
-      azulejoMat
-    );
-    zocalo.position.y = foundationHeight + tileHeight / 2;
-    g.add(zocalo);
-
-    // Decorative blue strip (Matching windows)
-    const strip = new THREE.Mesh(
-      new THREE.BoxGeometry(width + 0.07 * scale, 0.05 * scale, depth + 0.07 * scale),
-      blueGlassMat
-    );
-    strip.position.y = foundationHeight + tileHeight;
-    g.add(strip);
+    const zThk = 0.15 * scale;
+    const frontSegW = width / 2 - doorOpenHalf;
+    const band = (mat: THREE.Material, gh: number, y: number) => {
+      const add = (gw: number, gd: number, x: number, z: number) => {
+        const m = new THREE.Mesh(new THREE.BoxGeometry(gw, gh, gd), mat);
+        m.position.set(x, y, z);
+        g.add(m);
+      };
+      add(width, zThk, 0, -depth / 2);              // back
+      add(zThk, depth, -width / 2, 0);              // left
+      add(zThk, depth, width / 2, 0);               // right
+      for (const side of [-1, 1]) {                 // front (door gap)
+        add(frontSegW, zThk, side * (doorOpenHalf + frontSegW / 2), depth / 2);
+      }
+    };
+    band(azulejoMat, tileHeight, foundationHeight + tileHeight / 2);
+    // Decorative blue strip atop the zócalo
+    band(blueGlassMat, 0.05 * scale, foundationHeight + tileHeight + 0.025 * scale);
 
     // Main Collider
     const bodyProxy = boxCollider(width, houseHeight, depth);
     bodyProxy.position.y = houseHeight / 2;
     g.add(bodyProxy);
 
-    // 4. Gable Roof (Triangular form)
-    const roofHeight = 2.0 * scale;
-    const roofOverhang = 0.6 * scale;
+    // 4. Gable Roof (Triangular form) — snug overhang so it sits on the walls
+    const roofHeight = 1.8 * scale;
+    const roofOverhang = 0.3 * scale;
     const roofW = width + roofOverhang * 2;
     const roofL = depth + roofOverhang * 2;
     const slopeLen = Math.sqrt(Math.pow(roofW / 2, 2) + Math.pow(roofHeight, 2));
@@ -140,6 +245,8 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
       gableGeo.computeVertexNormals();
       const gable = new THREE.Mesh(gableGeo, gableMat);
       gable.position.z = side * depth / 2;
+      gable.castShadow = true;
+      gable.receiveShadow = true;
       gable.userData.noCollision = true;
       roofGroup.add(gable);
     }
@@ -149,21 +256,57 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     rColl.position.y = houseHeight + roofHeight / 2;
     g.add(rColl);
 
-    // 5. Chimney
+    // 5. Chimney — offset to the left (over the fireplace) with rising smoke
+    const chimneyX = -width * 0.28;
+    const chimneyZ = -depth * 0.12;
+    const chimneyBaseY = houseHeight + roofHeight * 0.5;
     const chimney = createChimney(scale, mats);
-    chimney.position.set(0, houseHeight + roofHeight, depth * 0.2);
+    chimney.position.set(chimneyX, chimneyBaseY, chimneyZ);
     g.add(chimney);
 
-    // 6. Door (Wood Frame + Warm Brown Wood)
-    const door = createDoor(1.3 * scale, 2.4 * scale, 0.2 * scale, mats);
-    door.position.set(0, foundationHeight, depth / 2 + 0.05 * scale);
-    // Explicitly ensure the door and its frame use the wood texture (mats.door)
-    door.traverse(o => {
-      if (o instanceof THREE.Mesh && (o.material === mats.stone || o.material === mats.stucco)) {
-        o.material = mats.door;
-      }
+    // Stylized rising smoke (translucent puffs, fading + widening upward)
+    const smokeMat = new THREE.MeshStandardMaterial({
+      color: 0xc4c4c4, transparent: true, roughness: 1, depthWrite: false,
     });
-    g.add(door);
+    const smokeBaseY = chimneyBaseY + 0.95 * scale;
+    for (let i = 0; i < 6; i++) {
+      const t = i / 5;
+      const puff = new THREE.Mesh(new THREE.SphereGeometry((0.18 + t * 0.34) * scale, 7, 7), smokeMat.clone());
+      (puff.material as THREE.MeshStandardMaterial).opacity = 0.55 * (1 - t * 0.7);
+      puff.position.set(
+        chimneyX + Math.sin(i * 1.3) * 0.25 * scale,
+        smokeBaseY + t * 2.2 * scale,
+        chimneyZ + Math.cos(i * 1.1) * 0.2 * scale,
+      );
+      puff.userData.noCollision = true;
+      g.add(puff);
+    }
+
+    // 6. Door — wooden leaf swung open on a left-side hinge, revealing the interior
+    const doorLeafW = 2 * doorOpenHalf, doorLeafH = doorOpenTop - 0.05 * scale, doorLeafT = 0.12 * scale;
+    const doorPivot = new THREE.Group();
+    doorPivot.position.set(-doorOpenHalf, foundationHeight, depth / 2 - 0.02 * scale);
+    const doorLeaf = new THREE.Mesh(new THREE.BoxGeometry(doorLeafW, doorLeafH, doorLeafT), mats.door);
+    doorLeaf.position.set(doorLeafW / 2, doorLeafH / 2, 0);
+    doorLeaf.castShadow = true;
+    doorPivot.add(doorLeaf);
+    // Iron studs
+    const studMat = new THREE.MeshStandardMaterial({ color: 0x222222, roughness: 0.4, metalness: 0.8 });
+    const studGeo = new THREE.SphereGeometry(0.035 * scale, 8, 8);
+    for (let r = 0; r < 4; r++) {
+      for (let c = 0; c < 3; c++) {
+        const stud = new THREE.Mesh(studGeo, studMat);
+        stud.position.set(doorLeafW * (0.2 + c * 0.3), doorLeafH * (0.2 + r * 0.2), doorLeafT / 2);
+        doorPivot.add(stud);
+      }
+    }
+    // Handle
+    const handleMat = new THREE.MeshStandardMaterial({ color: 0xaa8833, metalness: 0.9, roughness: 0.2 });
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.08 * scale, 0.02 * scale, 8, 16), handleMat);
+    handle.position.set(doorLeafW * 0.85, doorLeafH * 0.5, doorLeafT / 2 + 0.02 * scale);
+    doorPivot.add(handle);
+    doorPivot.rotation.y = Math.PI * 0.55; // swing inward, open
+    g.add(doorPivot);
 
     // 7. Windows with Blue Frames
     const winW = 0.9 * scale;
@@ -187,7 +330,7 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
 
     for (const side of [-1, 1]) {
       const winGroup = createWindowWithFrame();
-      winGroup.position.set(side * 1.8 * scale, winY, depth / 2 + 0.05 * scale);
+      winGroup.position.set(side * 1.8 * scale, winY, depth / 2 + 0.1 * scale);
       const pot = createFlowerPot(scale);
       pot.position.set(0, -winH / 2 - 0.2 * scale, 0.15 * scale);
       winGroup.add(pot);
@@ -195,7 +338,7 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     }
     for (const side of [-1, 1]) {
       const winGroup = createWindowWithFrame();
-      winGroup.position.set(side * (width / 2 + 0.05 * scale), winY, 0);
+      winGroup.position.set(side * (width / 2 + 0.1 * scale), winY, 0);
       winGroup.rotation.y = side * Math.PI / 2;
       g.add(winGroup);
     }

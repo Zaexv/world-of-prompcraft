@@ -27,6 +27,7 @@ void renderDiagrams();
 // Slide-2 mesh showcase (prompt → live mesh). Only runs while slide 2 is on
 // screen so it never competes with the world backdrop for the GPU.
 const SHOWCASE_SLIDE = 2; // 0-based index of the "What is it?" slide
+const ENDLESS_SLIDE = 8; // cinematic "living world" slide — also roams the world
 let showcase: MeshShowcase | null = null;
 const stageEl = document.getElementById('meshStage');
 const promptEl = document.getElementById('showcasePrompt');
@@ -35,6 +36,27 @@ if (stageEl && promptEl) {
     showcase = new MeshShowcase(stageEl, promptEl);
   } catch (err) {
     console.warn('Mesh showcase unavailable:', err);
+  }
+}
+
+// "Why Three.js" slide — a second showcase, framed as Coding Agents authoring
+// brand-new meshes from a prompt.
+const AGENT_SHOWCASE_SLIDE = 7;
+let agentShowcase: MeshShowcase | null = null;
+const stageEl2 = document.getElementById('meshStage2');
+const promptEl2 = document.getElementById('showcasePrompt2');
+if (stageEl2 && promptEl2) {
+  try {
+    agentShowcase = new MeshShowcase(stageEl2, promptEl2, [
+      { id: 'mage_tower', prompt: 'agent: code a mage tower mesh class' },
+      { id: 'malaka_church', prompt: 'agent: generate a stone church' },
+      { id: 'biome_obsidian_spire', prompt: 'agent: new biome prop — obsidian spire' },
+      { id: 'malaka_cortijo', prompt: 'agent: build a whitewashed cortijo' },
+      { id: 'biome_elven_tower', prompt: 'agent: author an elven tower' },
+      { id: 'ancient_tree', prompt: 'agent: add an ancient tree to the catalog' },
+    ]);
+  } catch (err) {
+    console.warn('Agent showcase unavailable:', err);
   }
 }
 
@@ -53,11 +75,16 @@ if (avatarEl) {
 // Map each slide onto a focus anchor; later slides wrap across the lineup.
 initDeck((index) => {
   if (backdrop && backdrop.anchorCount > 0) backdrop.focus(index % backdrop.anchorCount);
-  // Slide 2 explores the world (camera walks forward); every other slide orbits.
-  backdrop?.setRoam(index === SHOWCASE_SLIDE);
+  // The "What is it?" and cinematic "endless land" slides fly over the world;
+  // every other slide gently orbits its anchor.
+  backdrop?.setRoam(index === SHOWCASE_SLIDE || index === ENDLESS_SLIDE);
   if (showcase) {
     if (index === SHOWCASE_SLIDE) showcase.start();
     else showcase.stop();
+  }
+  if (agentShowcase) {
+    if (index === AGENT_SHOWCASE_SLIDE) agentShowcase.start();
+    else agentShowcase.stop();
   }
   if (avatar) {
     if (index === AVATAR_SLIDE) avatar.start();

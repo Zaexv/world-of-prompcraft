@@ -59,8 +59,10 @@ export class Backdrop {
     { kind: 'vista', x: 120, z: 80, radius: 22, height: 2.5 },   // 3  what is it (roam)
     { kind: 'vista', x: -110, z: 70, radius: 24, height: 2.6 },  // 3  the idea
     { kind: 'vista', x: 90, z: -120, radius: 22, height: 2.5 },  // 4  architecture overview
-    { kind: 'vista', x: -150, z: -40, radius: 24, height: 2.6 }, // 5  pillar 1 (3D CLI)
-    { kind: 'vista', x: 160, z: 30, radius: 22, height: 2.5 },   // 6  rendering pipeline
+    { kind: 'vista', x: -40, z: -150, radius: 26, height: 2.6 }, // 5  three pillars
+    { kind: 'vista', x: -150, z: -40, radius: 24, height: 2.6 }, // 6  pillar 1 (3D CLI)
+    { kind: 'vista', x: 40, z: -90, radius: 24, height: 2.6 },   // 6  why three.js (agent showcase)
+    { kind: 'vista', x: 160, z: 30, radius: 22, height: 2.5 },   // 7  rendering pipeline
     { kind: 'vista', x: -60, z: 150, radius: 26, height: 2.6 },  // 7  terrain / chunks
     { kind: 'vista', x: -120, z: 110, radius: 22, height: 2.5 }, // 8  pillar 2 (backend)
     { kind: 'vista', x: 100, z: -150, radius: 24, height: 2.6 }, // 9  agent graph
@@ -196,42 +198,53 @@ export class Backdrop {
     const terrain = this.sceneManager.terrain;
     let decay: number;
     if (this.roaming) {
-      // Walk forward at eye level, slowly wandering the heading — an explorer
-      // crossing the world. The camera trails just behind the focus so the
-      // foreground streams past. Follow faster than orbit so it doesn't lag.
-      const DRY = Water.getWaterLevel() + 0.6; // stay this far above the water
-      const probe = 18; // look this far ahead before committing
-      const aheadX = this.streamCenter.x + Math.cos(this.roamHeading) * probe;
-      const aheadZ = this.streamCenter.z + Math.sin(this.roamHeading) * probe;
-      if (getWorldHeightAt(terrain, aheadX, aheadZ) < DRY) {
-        // Water ahead: turn briskly toward whichever side is higher/drier.
-        const lh = this.roamHeading - 0.6;
-        const rh = this.roamHeading + 0.6;
-        const lY = getWorldHeightAt(terrain, this.streamCenter.x + Math.cos(lh) * probe, this.streamCenter.z + Math.sin(lh) * probe);
-        const rY = getWorldHeightAt(terrain, this.streamCenter.x + Math.cos(rh) * probe, this.streamCenter.z + Math.sin(rh) * probe);
-        this.roamHeading += (rY >= lY ? 1 : -1) * delta * 1.8;
-      } else {
-        this.roamHeading += Math.sin(this.elapsed * 0.06) * delta * 0.35; // gentle wander
+      // Fly over the world at a steady rhythm — high enough that viewers see the
+      // procedural terrain, biomes and LLM-built buildings scroll past. Each
+      // frame we pick a heading that is guaranteed dry ahead, so the camera can
+      // never get stuck (the current spot is dry → at worst it turns back).
+      const DRY = Water.getWaterLevel() + 0.6; // keep land below us, not open sea
+      const LOOK = 26; // commit distance for the dryness test (matches the speed)
+      const dryAt = (h: number): boolean =>
+        getWorldHeightAt(
+          terrain,
+          this.streamCenter.x + Math.cos(h) * LOOK,
+          this.streamCenter.z + Math.sin(h) * LOOK,
+        ) >= DRY;
+
+      // Preferred heading: keep going straight with a faint drift.
+      const desired = this.roamHeading + Math.sin(this.elapsed * 0.05) * delta * 0.1;
+      let target = desired;
+      if (!dryAt(desired)) {
+        // Scan outward (alternating sides) for the nearest dry heading.
+        for (let off = 0.2; off <= Math.PI + 0.001; off += 0.2) {
+          if (dryAt(desired + off)) { target = desired + off; break; }
+          if (dryAt(desired - off)) { target = desired - off; break; }
+        }
       }
-      const dx = Math.cos(this.roamHeading);
-      const dz = Math.sin(this.roamHeading);
-      const speed = 7; // m/s
-      // Only advance if the next step stays on dry land (never enter water).
-      const nextX = this.streamCenter.x + dx * speed * delta;
-      const nextZ = this.streamCenter.z + dz * speed * delta;
-      const nextY = getWorldHeightAt(terrain, nextX, nextZ);
-      if (nextY >= DRY) {
-        this.streamCenter.x = nextX;
-        this.streamCenter.z = nextZ;
-        this.streamCenter.y = nextY;
-      }
+      // Ease the heading toward the target (capped turn rate → smooth turns).
+      let diff = target - this.roamHeading;
+      diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // wrap to [-π, π]
+      const maxTurn = 2.4 * delta;
+      this.roamHeading += Math.max(-maxTurn, Math.min(maxTurn, diff));
+
+      // Step forward along the (dry) target so progress never stalls.
+      const dx = Math.cos(target);
+      const dz = Math.sin(target);
+      const speed = 17; // m/s — a brisk flyover rhythm
+      this.streamCenter.x += dx * speed * delta;
+      this.streamCenter.z += dz * speed * delta;
+      this.streamCenter.y = getWorldHeightAt(terrain, this.streamCenter.x, this.streamCenter.z);
+
       const groundY = this.streamCenter.y;
-      // Look ahead along the path; camera trails ~6 m behind at eye level.
-      this.lookGoal.set(this.streamCenter.x + dx * 16, groundY + 2.6, this.streamCenter.z + dz * 16);
+      const FLY = 34; // camera altitude above the ground
+      const hx = Math.cos(this.roamHeading);
+      const hz = Math.sin(this.roamHeading);
+      // Aim well ahead and lower than the camera → a gentle downward flyover gaze.
+      this.lookGoal.set(this.streamCenter.x + hx * 44, groundY + 8, this.streamCenter.z + hz * 44);
       this.camGoal.set(
-        this.streamCenter.x - dx * 6,
-        groundY + 2.9 + Math.sin(this.elapsed * 0.5) * 0.15,
-        this.streamCenter.z - dz * 6,
+        this.streamCenter.x - hx * 14,
+        groundY + FLY + Math.sin(this.elapsed * 0.35) * 0.8,
+        this.streamCenter.z - hz * 14,
       );
       decay = 0.05; // ~0.25 s time constant → tracks the moving goal
     } else {
