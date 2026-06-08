@@ -22,6 +22,22 @@ const terrainRough = rep('/textures/terrain_rough.jpg');
 const leatherNor = rep('/textures/leather_nor.jpg');
 const leatherRough = rep('/textures/leather_rough.jpg');
 
+// Character cloth: real scanned fabric maps (Poly Haven CC0) — normal + roughness
+// per weave so robes/turbans/kilts read as actual cloth instead of leather:
+// silk = crepe_satin (glossy sheen), velvet = velour_velvet (soft pile),
+// wool = wool_boucle (chunky knit). Tiled fine since they cover small garments.
+function fabric(url: string, rep1: number): THREE.Texture {
+  const t = rep(url);
+  t.repeat.set(rep1, rep1);
+  return t;
+}
+const silkNor = fabric('/textures/silk_nor.jpg', 4);
+const silkRough = fabric('/textures/silk_rough.jpg', 4);
+const velvetNor = fabric('/textures/velvet_nor.jpg', 3);
+const velvetRough = fabric('/textures/velvet_rough.jpg', 3);
+const woolNor = fabric('/textures/wool_nor.jpg', 2);
+const woolRough = fabric('/textures/wool_rough.jpg', 2);
+
 // Building stone: cobblestone_floor_01 (Poly Haven CC0) — 2 tiles per UV unit
 const stoneDiff = rep('/textures/stone_diff.jpg');
 const stoneNor = rep('/textures/stone_nor.jpg');
@@ -86,6 +102,7 @@ export function warmUpTextures(renderer: THREE.WebGLRenderer): void {
   const all = [
     terrainNor, terrainRough,
     leatherNor, leatherRough,
+    silkNor, silkRough, velvetNor, velvetRough, woolNor, woolRough,
     stoneDiff, stoneNor, stoneRough,
     malakaStuccoNor, malakaRoofNor, malakaStoneNor, malakaWoodNor,
     malakaStuccoDiff, malakaRoofDiff, malakaStoneDiff, malakaWoodDiff,
@@ -101,31 +118,112 @@ export function applyTerrainPBR(m: THREE.MeshStandardMaterial): void {
   m.normalMap = terrainNor;
   m.normalScale.set(0.6, 0.6);
   m.roughnessMap = terrainRough;
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /**
- * Add leather/fabric detail to every non-emissive, non-transparent mesh in a
- * character group (body, arms, legs — skips eyes, gems, cloaks).
- * The 'head' mesh gets a skin normal map instead of leather.
+ * Per-material surface intent for character meshes. Set on a material via
+ * `material.userData.charMatKind` (the `vmat` helper exposes a `kind` option) so
+ * `applyCharacterPBR` can give it the right finish instead of leathering
+ * everything. When absent, the kind is inferred: 'head' → skin, metalness ≥ 0.5
+ * → metal, otherwise leather (the legacy default).
+ */
+export type CharMatKind =
+  | 'skin' | 'leather' | 'silk' | 'velvet' | 'wool' | 'gold' | 'metal' | 'none';
+
+type FabricKind = 'silk' | 'velvet' | 'wool';
+interface FabricMaps {
+  nor: THREE.Texture;
+  rough: THREE.Texture;
+  /** Normal-map strength — how pronounced the weave relief reads. */
+  normalScale: number;
+  /** Multiplies the roughness map; < 1 keeps silk glossy, 1 lets the map drive. */
+  roughness: number;
+  /** envMap reflection strength — silk catches a sheen, matte weaves stay dull. */
+  envMapIntensity: number;
+}
+const FABRIC: Record<FabricKind, FabricMaps> = {
+  silk:   { nor: silkNor,   rough: silkRough,   normalScale: 0.4, roughness: 0.7, envMapIntensity: 0.6 },
+  velvet: { nor: velvetNor, rough: velvetRough, normalScale: 0.7, roughness: 1.0, envMapIntensity: 0.25 },
+  wool:   { nor: woolNor,   rough: woolRough,   normalScale: 1.0, roughness: 1.0, envMapIntensity: 0.2 },
+};
+
+/**
+ * Route every mesh in a character group to a surface finish based on its
+ * `charMatKind` tag (or an inferred default). Gold/metal get a clean reflective
+ * metal finish (no bump map, boosted envMap so they mirror the sky), cloth gets
+ * its weave's normal map + roughness, the head/skin gets pore detail, and
+ * everything else falls back to leather. Emissive and transparent materials are
+ * left untouched (eyes, gems, glass, glowing decals) — except explicit
+ * gold/metal, which stay reflective.
  */
 export function applyCharacterPBR(root: THREE.Object3D): void {
   root.traverse((child) => {
     if (!(child instanceof THREE.Mesh)) return;
     const mat = child.material;
     if (!(mat instanceof THREE.MeshStandardMaterial)) return;
-    if (mat.transparent) return;
-    if (mat.emissive.r + mat.emissive.g + mat.emissive.b > 0.02) return;
 
-    if (child.name === 'head') {
-      applySkinPBR(mat);
-    } else {
-      mat.normalMap = leatherNor;
-      mat.normalScale.set(0.35, 0.35);
-      mat.roughnessMap = leatherRough;
-      mat.needsUpdate = true;
+    const kind = mat.userData.charMatKind as CharMatKind | undefined;
+    if (kind === 'none') return;
+    if (kind === 'gold') { applyMetalPBR(mat, true); return; }
+    if (kind === 'metal') { applyMetalPBR(mat, false); return; }
+
+    if (mat.transparent) return;
+    const emissive = mat.emissive.r + mat.emissive.g + mat.emissive.b > 0.02;
+
+    if (kind === 'silk' || kind === 'velvet' || kind === 'wool') {
+      if (!emissive) applyFabricPBR(mat, kind);
+      return;
     }
+    if (emissive) return;
+
+    if (kind === 'skin' || child.name === 'head') { applySkinPBR(mat); return; }
+    if (kind === 'leather') { applyLeatherPBR(mat); return; }
+
+    // No explicit tag — infer from the authored material.
+    if (mat.metalness >= 0.5) { applyMetalPBR(mat, false); return; }
+    applyLeatherPBR(mat);
   });
+}
+
+/** Brown-leather normal + roughness detail (the legacy character default). */
+function applyLeatherPBR(m: THREE.MeshStandardMaterial): void {
+  m.normalMap = leatherNor;
+  m.normalScale.set(0.35, 0.35);
+  m.roughnessMap = leatherRough;
+  m.needsUpdate = true;
+}
+
+/** Scanned-cloth normal + roughness maps for a robe/kilt/turban. */
+function applyFabricPBR(m: THREE.MeshStandardMaterial, kind: FabricKind): void {
+  const f = FABRIC[kind];
+  m.normalMap = f.nor;
+  m.normalScale.setScalar(f.normalScale);
+  m.roughnessMap = f.rough;
+  m.roughness = f.roughness;
+  m.metalness = 0;
+  m.envMapIntensity = f.envMapIntensity;
+  m.needsUpdate = true;
+}
+
+/**
+ * Clean reflective metal finish. Drops any bump/roughness maps and boosts
+ * envMapIntensity so the piece mirrors the scene's PMREM sky (set in
+ * SceneManager). `gold` forces a bright polished-gold spec; otherwise the
+ * authored colour (steel, bronze) is preserved and just made shinier.
+ */
+function applyMetalPBR(m: THREE.MeshStandardMaterial, gold: boolean): void {
+  m.normalMap = null;
+  m.roughnessMap = null;
+  if (gold) {
+    m.metalness = 1.0;
+    m.roughness = 0.28;
+  } else {
+    m.metalness = Math.max(m.metalness, 0.85);
+    m.roughness = Math.min(m.roughness > 0 ? m.roughness : 0.3, 0.35);
+  }
+  m.envMapIntensity = gold ? 1.9 : 1.5;
+  m.needsUpdate = true;
 }
 
 /** Apply knotted-pine-bark textures (albedo + normal + roughness) to a trunk material. */
@@ -135,7 +233,7 @@ export function applyBarkPBR(m: THREE.MeshStandardMaterial): void {
   m.normalScale.set(0.8, 0.8);
   m.roughnessMap = barkRough;
   m.color.set(0xffffff); // let texture drive colour
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /** Apply grass-rock albedo + procedural leaf-bump normal to a canopy material. */
@@ -145,7 +243,7 @@ export function applyCanopyPBR(m: THREE.MeshStandardMaterial): void {
   m.normalScale.set(0.5, 0.5);
   m.color.set(0x7ab840); // tint on top of texture — bright sunny green
   m.roughness = 0.90;
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /**
@@ -158,7 +256,7 @@ export function applyStonePBR(m: THREE.MeshStandardMaterial): void {
   m.normalMap = stoneNor;
   m.normalScale.set(0.85, 0.85); // stronger relief — the masonry was reading too flat
   m.roughnessMap = stoneRough;
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /** Apply the dark-wood albedo + normal (Poly Haven CC0) to a timber material. */
@@ -167,7 +265,7 @@ export function applyWoodPBR(m: THREE.MeshStandardMaterial): void {
   m.normalMap = malakaWoodNor;
   m.normalScale.set(0.5, 0.5);
   m.color.set(0xffffff); // let the wood grain drive colour
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /** Apply custom Malaka architectural PBR maps (albedo + procedural normal). */
@@ -202,7 +300,7 @@ export function applyMalakaPBR(
       m.roughness = 0.8; // Aged timber
       break;
   }
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /** Apply a subtle pore-noise normal map to a skin (face/head) material. */
@@ -210,7 +308,7 @@ function applySkinPBR(m: THREE.MeshStandardMaterial): void {
   m.normalMap = skinNor;
   m.normalScale.set(0.12, 0.12); // very subtle — skin is smooth
   m.roughness = 0.82;            // matte, no specular sheen
-  m.needsUpdate = true;
+  m.needsUpdate = true; // maps were just added/removed — recompile the shader
 }
 
 /**
@@ -218,44 +316,38 @@ function applySkinPBR(m: THREE.MeshStandardMaterial): void {
  * flat cone surface and catch light like overlapping foliage.
  */
 function makeCanopyNor(size: number): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  ctx.fillStyle = 'rgb(128,128,255)';
-  ctx.fillRect(0, 0, size, size);
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    data[i * 4] = 128; data[i * 4 + 1] = 128; data[i * 4 + 2] = 255; data[i * 4 + 3] = 255;
+  }
 
   const count = 420;
   for (let i = 0; i < count; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const rx = 4 + Math.random() * 10;
-    const ry = 2 + Math.random() * 5;
-    const angle = Math.random() * Math.PI;
-
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, rx);
-    grad.addColorStop(0,   'rgba(100,140,255,0.70)');
-    grad.addColorStop(0.4, 'rgba(118,134,255,0.35)');
-    grad.addColorStop(1,   'rgba(128,128,255,0)');
-
-    ctx.save();
-    ctx.translate(x, y);
-    ctx.rotate(angle);
-    ctx.scale(1, ry / rx);
-    ctx.translate(-x, -y);
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.ellipse(x, y, rx, rx, 0, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.restore();
+    const x = Math.floor(Math.random() * size);
+    const y = Math.floor(Math.random() * size);
+    const r = 4 + Math.random() * 10;
+    
+    for (let dy = -r; dy <= r; dy++) {
+      for (let dx = -r; dx <= r; dx++) {
+        const px = x + dx;
+        const py = y + dy;
+        if (px < 0 || px >= size || py < 0 || py >= size) continue;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist > r) continue;
+        
+        const idx = (py * size + px) * 4;
+        const falloff = 1.0 - dist / r;
+        data[idx]     = Math.max(0, Math.min(255, data[idx]! + (Math.random() * 40 - 20) * falloff));
+        data[idx + 1] = Math.max(0, Math.min(255, data[idx + 1]! + (Math.random() * 40 - 20) * falloff));
+      }
+    }
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   tex.repeat.set(3, 3);
   tex.anisotropy = ANISOTROPY;
-  tex.needsUpdate = true;
+  tex.needsUpdate = true; // DataTexture ctor doesn't flag for upload; without this the normal map never reaches the GPU
   return tex;
 }
 
@@ -264,35 +356,37 @@ function makeCanopyNor(size: number): THREE.Texture {
  * indentations scattered across to simulate pores. No file download required.
  */
 function makeSkinNor(size: number): THREE.Texture {
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d')!;
-
-  // Flat normal = pointing straight up in tangent space
-  ctx.fillStyle = 'rgb(128,128,255)';
-  ctx.fillRect(0, 0, size, size);
-
-  // Scatter tiny pore indentations (inward normals = darker blue-shifted dots)
-  const count = Math.floor(size * size * 0.018);
-  for (let i = 0; i < count; i++) {
-    const x = Math.random() * size;
-    const y = Math.random() * size;
-    const r = 0.7 + Math.random() * 1.6;
-    const grad = ctx.createRadialGradient(x, y, 0, x, y, r);
-    grad.addColorStop(0,   'rgba(85,85,210,0.55)');
-    grad.addColorStop(0.5, 'rgba(110,110,235,0.20)');
-    grad.addColorStop(1,   'rgba(128,128,255,0)');
-    ctx.fillStyle = grad;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+  const data = new Uint8Array(size * size * 4);
+  for (let i = 0; i < size * size; i++) {
+    data[i * 4] = 128; data[i * 4 + 1] = 128; data[i * 4 + 2] = 255; data[i * 4 + 3] = 255;
   }
 
-  const tex = new THREE.CanvasTexture(canvas);
+  const count = Math.floor(size * size * 0.018);
+  for (let i = 0; i < count; i++) {
+    const x = Math.floor(Math.random() * size);
+    const y = Math.floor(Math.random() * size);
+    const r = 0.7 + Math.random() * 1.6;
+
+    for (let dy = -Math.ceil(r); dy <= Math.ceil(r); dy++) {
+      for (let dx = -Math.ceil(r); dx <= Math.ceil(r); dx++) {
+        const px = x + dx;
+        const py = y + dy;
+        if (px < 0 || px >= size || py < 0 || py >= size) continue;
+        const distSq = dx * dx + dy * dy;
+        if (distSq > r * r) continue;
+        
+        const idx = (py * size + px) * 4;
+        const w = 1.0 - Math.sqrt(distSq) / r;
+        data[idx]     = Math.round(128 - 43 * w); // subtle blue-shift dots
+        data[idx + 1] = Math.round(128 - 18 * w);
+      }
+    }
+  }
+
+  const tex = new THREE.DataTexture(data, size, size, THREE.RGBAFormat);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
-  tex.repeat.set(4, 4); // tile finely so pores read at face scale
+  tex.repeat.set(4, 4);
   tex.anisotropy = ANISOTROPY;
-  tex.needsUpdate = true;
+  tex.needsUpdate = true; // DataTexture ctor doesn't flag for upload; without this the normal map never reaches the GPU
   return tex;
 }

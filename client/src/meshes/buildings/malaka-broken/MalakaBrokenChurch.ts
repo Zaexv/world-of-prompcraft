@@ -260,9 +260,12 @@ export class MalakaBrokenChurch extends Mesh {
         towerG.add(bWinG);
     }
 
-    const spire = new THREE.Mesh(new THREE.ConeGeometry((tw - 0.8 * scale) * 0.9, 7 * scale, 4), mats.roof);
-    spire.position.set(0, th1 + th2 + 3 * scale, 0);
+    const spireR = (tw - 0.8 * scale) * 0.45;
+    const spireH = 7 * scale;
+    const spire = new THREE.Mesh(new THREE.CylinderGeometry(0.01, spireR, spireH, 4), mats.roof);
+    spire.position.set(0, th1 + th2 + spireH / 2, 0);
     spire.rotation.y = Math.PI / 4;
+    spire.castShadow = spire.receiveShadow = true;
     towerG.add(spire);
 
     const tCross = createStoneCross(scale * 0.9, stoneMat);

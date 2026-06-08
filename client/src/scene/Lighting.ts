@@ -222,7 +222,6 @@ function makeSunTex(size: number): THREE.Texture {
   ctx.fillRect(0, 0, size, size);
 
   const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
   return tex;
 }
 
@@ -249,7 +248,6 @@ function makeMoonTex(size: number): THREE.Texture {
   ctx.fillRect(0, 0, size, size);
 
   const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
   return tex;
 }
 
@@ -267,6 +265,5 @@ function makeFlareTex(size: number, rgb: [number, number, number], peakAlpha: nu
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, size, size);
   const tex = new THREE.CanvasTexture(canvas);
-  tex.needsUpdate = true;
   return tex;
 }

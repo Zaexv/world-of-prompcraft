@@ -36,6 +36,11 @@ export function hasMesh(type: string): boolean {
   return registry.has(type);
 }
 
+/** Get the category of a registered mesh type. */
+export function meshCategory(type: string): MeshCategory | undefined {
+  return categories.get(type);
+}
+
 /**
  * Build a registered mesh. Returns undefined if the type is unknown so callers
  * can fall back to a legacy path during migration.

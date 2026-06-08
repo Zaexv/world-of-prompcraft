@@ -180,6 +180,13 @@
       "Skill(run)",
       "Bash(curl -s http://localhost:5173)",
       "Bash(curl -s http://localhost:5173/presentation.html)"
+      "Bash(rtk vitest *)",
+      "Bash(rtk lint *)",
+      "Bash(rtk wc *)",
+      "Bash(rtk curl *)",
+      "PowerShell($d = Invoke-RestMethod \"https://api.polyhaven.com/assets?type=textures&categories=fabric\"; $d.PSObject.Properties.Name -join \"`n\")",
+      "Bash(rtk proxy *)",
+      "Bash(grep -iB1 needsUpdate)"
     ]
   },
   "hooks": {

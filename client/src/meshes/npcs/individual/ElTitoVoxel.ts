@@ -48,6 +48,7 @@ export class ElTitoVoxel extends Mesh {
       armW: 0.20, armD: 0.22, armColor: ROBE,
       legW: 0.22, legD: 0.26, legColor: ROBE,
       footColor: BOOT,
+      clothKind: 'silk', // royal-blue sorcerer robe — glossy silk, not leather
     });
 
     // ── Golden symbols scattered across the robe ──
@@ -80,7 +81,7 @@ export class ElTitoVoxel extends Mesh {
     }
 
     // ── Tall floppy hat (nods with the head) ──
-    const hatMat = vmat(HAT, { roughness: 0.8 });
+    const hatMat = vmat(HAT, { roughness: 0.8, kind: 'silk' });
     rig.head.add(box(0.64, 0.07, 0.64, hatMat, 0, 0.29, 0));  // brim
     const segs = 7;
     let hy = 0.34;
@@ -159,7 +160,7 @@ export class ElTitoVoxel extends Mesh {
     pipe.position.set(0.14, NPC_Y_HEAD - 0.14, 0.26);
     group.add(pipe);
 
-    addCloak(group, 0.40, 0.52, 1.0, ROBE);
+    addCloak(group, 0.40, 0.52, 1.0, ROBE, 'silk');
 
     finishCharacter(group);
     group.position.copy(ctx.position);

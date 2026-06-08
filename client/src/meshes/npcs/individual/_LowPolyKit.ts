@@ -50,7 +50,7 @@ export function buildLowPolyCharacter(group: THREE.Group, d: VoxelDims): VoxelRi
   const rX = d.torsoW / 2;
   const body = new THREE.Mesh(
     new THREE.CylinderGeometry(rX * 0.9, rX * 1.02, TORSO_H, FACETS),
-    vmat(d.torsoColor),
+    vmat(d.torsoColor, { kind: d.clothKind }),
   );
   body.name = 'body';
   body.rotation.y = Math.PI / FACETS;            // centre a face on +z
@@ -72,7 +72,7 @@ export function buildLowPolyCharacter(group: THREE.Group, d: VoxelDims): VoxelRi
     const pivot = new THREE.Group();
     pivot.name = side < 0 ? 'leftArm' : 'rightArm';
     pivot.position.set(side * armX, shoulderY, 0);
-    const arm = taperedLimb(armR, armR * 0.8, ARM_H, vmat(d.armColor));
+    const arm = taperedLimb(armR, armR * 0.8, ARM_H, vmat(d.armColor, { kind: d.clothKind }));
     arm.position.y = -ARM_H / 2;
     pivot.add(arm);
     const hand = new THREE.Mesh(new THREE.IcosahedronGeometry(armR * 1.15, 0), vmat(handColor, { roughness: 0.55 }));
@@ -93,7 +93,7 @@ export function buildLowPolyCharacter(group: THREE.Group, d: VoxelDims): VoxelRi
     const pivot = new THREE.Group();
     pivot.name = side < 0 ? 'leftLeg' : 'rightLeg';
     pivot.position.set(side * legX, hipY, 0);
-    const leg = taperedLimb(legR, legR * 0.85, LEG_H, vmat(d.legColor));
+    const leg = taperedLimb(legR, legR * 0.85, LEG_H, vmat(d.legColor, { kind: d.clothKind }));
     leg.position.y = -LEG_H / 2;
     pivot.add(leg);
     // Wedge foot: a 4-sided tapered prism tipped forward.

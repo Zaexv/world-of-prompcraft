@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
-import { TemporalAAPass } from './TemporalAAPass';
+import { SMAAPass } from 'three/examples/jsm/postprocessing/SMAAPass.js';
 import { Terrain } from './Terrain';
 import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
@@ -61,8 +61,13 @@ export class SceneManager {
     this.renderer.setPixelRatio(this.dynamicPixelRatio);
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    // Composer renders several passes per frame; with autoReset each pass would
+    // wipe the stats so renderer.info would only show the last (bloom) pass.
+    // Reset once per frame in tick() instead, so info.render.calls/triangles
+    // report the TOTAL GPU work for the frame (what the perf HUD reads).
+    this.renderer.info.autoReset = false;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.55; // Further increased exposure for maximum brightness
+    this.renderer.toneMappingExposure = 1.0; // Reduced from 1.55
     container.appendChild(this.renderer.domElement);
 
     this.clock = new THREE.Clock();
@@ -76,8 +81,8 @@ export class SceneManager {
       this.composer = new EffectComposer(this.renderer);
       this.composer.addPass(new RenderPass(this.scene, this.camera));
 
-      // 1. TAA
-      this.composer.addPass(new TemporalAAPass(window.innerWidth, window.innerHeight, 5));
+      // 1. SMAA (Spatial AA - zero ghosting)
+      this.composer.addPass(new SMAAPass(window.innerWidth * window.devicePixelRatio, window.innerHeight * window.devicePixelRatio));
 
       // 2. Bloom
       const bloomRes = new THREE.Vector2(
@@ -96,15 +101,17 @@ export class SceneManager {
     }
 
     // --- Environment Lighting (IBL) ---
+    // Generate the IBL environment synchronously now (skybox + lights are already
+    // in the scene). Doing it before warmUpShaders means every PBR material is
+    // compiled WITH its envMap variant up-front. The old setTimeout(1000) left
+    // scene.environment null at warmup, so all materials recompiled ~1s after
+    // spawn (and far-zone content recompiled on first appearance).
     const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
     pmremGenerator.compileCubemapShader();
-    
-    setTimeout(() => {
-      const renderTarget = pmremGenerator.fromScene(this.scene);
-      this.scene.environment = renderTarget.texture;
-      this.scene.environmentIntensity = 0.15;
-      pmremGenerator.dispose();
-    }, 1000);
+    const renderTarget = pmremGenerator.fromScene(this.scene);
+    this.scene.environment = renderTarget.texture;
+    this.scene.environmentIntensity = 0.15;
+    pmremGenerator.dispose();
 
     this.terrain = new Terrain(this.scene);
     this.water = new Water(this.scene, this.renderer);
@@ -208,6 +215,8 @@ export class SceneManager {
 
   tick(): number {
     const delta = this.clock.getDelta();
+
+    this.renderer.info.reset(); // start-of-frame: accumulate stats across all passes
 
     this.water.update(delta, this.camera, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);

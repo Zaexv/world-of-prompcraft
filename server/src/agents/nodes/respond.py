@@ -57,7 +57,8 @@ def _clean_speak_text(text: str, params_by_tool: dict[str, list[tuple[str, str]]
 # meta-talk. Such content must NOT be reused verbatim — it routes to the
 # dedicated, tool-free speak call instead.
 _REASONING_HINT = re.compile(
-    r"<\s*(?:thought|think|thinking|reasoning|analysis|channel)\b"
+    r"<\s*(?:thought|think|thinking|reasoning|analysis|channel|tool_calls?)\b"
+    r"|\b(?:own|my|self|inner|internal)_(?:thoughts?|monologue|reasoning)\b"
     r"|no tool calls?\s+(?:needed|required)"
     r"|looking at (?:my|the) (?:instructions|tool)",
     re.IGNORECASE,
