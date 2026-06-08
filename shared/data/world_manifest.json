@@ -3219,7 +3219,7 @@
             "transform": {
               "position": [
                 3.365240353930777,
-                0.13679795354837956,
+                0.9967501388116813,
                 8.634603791869226
               ],
               "rotation": [
@@ -3382,33 +3382,6 @@
       "architecture": {
         "landmarks": [
           {
-            "id": "bunker_01",
-            "type": "bunker",
-            "transform": {
-              "position": [
-                -38,
-                -1.5841530060836326,
-                -34
-              ],
-              "scale": 1,
-              "rotation": [
-                0,
-                0.6,
-                0
-              ]
-            },
-            "visual": {
-              "label": "Abandoned Bunker",
-              "metadata": {
-                "footprint": {
-                  "shape": "rect",
-                  "width": 8.6,
-                  "depth": 6.6
-                }
-              }
-            }
-          },
-          {
             "id": "nireg_campfire",
             "type": "campfire",
             "transform": {
@@ -3534,33 +3507,6 @@
                   "shape": "rect",
                   "width": 3.2,
                   "depth": 4.7
-                }
-              }
-            }
-          },
-          {
-            "id": "encounter_hermit_dwelling_1780473469907",
-            "type": "encounter_hermit_dwelling",
-            "transform": {
-              "position": [
-                1.8302502353959618,
-                0.13524035578644433,
-                12.754696229480771
-              ],
-              "scale": 1,
-              "rotation": [
-                0,
-                0,
-                0
-              ]
-            },
-            "visual": {
-              "label": "encounter_hermit_dwelling",
-              "metadata": {
-                "footprint": {
-                  "shape": "rect",
-                  "width": 5.1,
-                  "depth": 6.2
                 }
               }
             }
@@ -3723,6 +3669,168 @@
                   "shape": "rect",
                   "width": 25.3,
                   "depth": 23
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_chiringuito_1780958004413",
+            "type": "malaka_chiringuito",
+            "transform": {
+              "position": [
+                -3.1221742461451782,
+                0.9967501388116813,
+                9.281961240782252
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_chiringuito",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 17.5,
+                  "depth": 13.9
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_palmtree_1780958063992",
+            "type": "malaka_palmtree",
+            "transform": {
+              "position": [
+                -35.37988640585563,
+                1.220637982991022,
+                9.413101305158499
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_palmtree",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 6.7,
+                  "depth": 6.7
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_palmtree_1780958065738",
+            "type": "malaka_palmtree",
+            "transform": {
+              "position": [
+                -17.009498092524307,
+                1.1966225178936405,
+                27.224831528484486
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_palmtree",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 6.7,
+                  "depth": 6.7
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_palmtree_1780958067771",
+            "type": "malaka_palmtree",
+            "transform": {
+              "position": [
+                3.2118873029482877,
+                -0.3674863264868734,
+                -30.34797910368637
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_palmtree",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 6.7,
+                  "depth": 6.7
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_palmtree_1780958068789",
+            "type": "malaka_palmtree",
+            "transform": {
+              "position": [
+                36.711146506978544,
+                1.0367647032322787,
+                -25.633949293085074
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_palmtree",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 6.7,
+                  "depth": 6.7
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_palmtree_1780958070979",
+            "type": "malaka_palmtree",
+            "transform": {
+              "position": [
+                -30.875168016595477,
+                0.16195543099790163,
+                -13.669609019995853
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_palmtree",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 6.7,
+                  "depth": 6.7
                 }
               }
             }
