@@ -27,7 +27,7 @@ void renderDiagrams();
 // Slide-2 mesh showcase (prompt → live mesh). Only runs while slide 2 is on
 // screen so it never competes with the world backdrop for the GPU.
 const SHOWCASE_SLIDE = 2; // 0-based index of the "What is it?" slide
-const ENDLESS_SLIDE = 9; // cinematic "endless land" slide — also roams the world
+const ENDLESS_SLIDE = 8; // cinematic "living world" slide — also roams the world
 let showcase: MeshShowcase | null = null;
 const stageEl = document.getElementById('meshStage');
 const promptEl = document.getElementById('showcasePrompt');
