@@ -176,7 +176,10 @@
       "PowerShell(powershell -ExecutionPolicy Bypass -NoProfile -Command \"[Console]::OutputEncoding=[System.Text.Encoding]::UTF8; & 'C:\\\\Users\\\\rafaelpernil\\\\.claude\\\\plugins\\\\cache\\\\caveman\\\\caveman\\\\655b7d9c5431\\\\src\\\\hooks\\\\caveman-statusline.ps1'\" | Format-Hex | Select-Object -First 4)",
       "PowerShell(Format-Hex *)",
       "Bash(echo \"exit:$?\")",
-      "Bash(git rm *)"
+      "Bash(git rm *)",
+      "Skill(run)",
+      "Bash(curl -s http://localhost:5173)",
+      "Bash(curl -s http://localhost:5173/presentation.html)"
     ]
   },
   "hooks": {

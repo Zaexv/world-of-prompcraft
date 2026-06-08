@@ -3,415 +3,485 @@ import { Mesh, BuildContext } from '../../core/Mesh';
 import { registerMesh } from '../../core/MeshRegistry';
 import {
   getMaterials,
-  createDoor,
-  createRoofTile,
   createWindowWithGrille,
+  createWoodenShutters,
   createFlowerPot,
   createChimney,
-  createWoodenShutters,
   createWoodenBench,
   createWoodenTable,
   createClimbingPlant,
+  createRoofTile,
   withLOD,
   MedMaterials,
 } from './MalakaBrokenKit';
-import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
+import { boxCollider, cylinderCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
 
+/**
+ * MalakaBrokenPatioHouse — an open Andalusian *casa-patio*.
+ *
+ * Square two-storey house wrapped around a central open-air patio. Redesigned to
+ * be walkable and inviting:
+ *   - an arched ENTRANCE gap in the front wall (real collider gap, open door leaves)
+ *     leads through a covered arcade straight into the patio,
+ *   - the ground-floor arcades are open (passable) so the patio feels airy,
+ *   - a stone STAIRCASE climbs from the patio to a walkable upper gallery (loggia)
+ *     that rings the courtyard behind a wooden railing,
+ *   - a tiled, inward-sloping hip roof crowns the wings; the patio stays open to sky.
+ */
 export class MalakaBrokenPatioHouse extends Mesh {
   static readonly type = 'malaka_broken_patio_house';
   static readonly category = 'building' as const;
 
   build(ctx: BuildContext): THREE.LOD {
-    const { position: pos, scale } = ctx;
+    const { position: pos, scale: S } = ctx;
     const g = new THREE.Group();
     g.position.copy(pos);
     const mats = getMaterials();
 
-    // 1. Dimensions
-    const outerW = 12 * scale;
-    const outerD = 12 * scale;
-    const groundH = 3.5 * scale;
-    const upperH = 3.2 * scale;
-    const totalH = groundH + upperH;
-    
-    const patioW = 5.5 * scale;
-    const patioD = 5.5 * scale;
-    const wingT = (outerW - patioW) / 2; 
-    const zocaloH = 0.8 * scale;
+    // ── Dimensions ───────────────────────────────────────────────────────────
+    const outer = 14 * S;
+    const half = outer / 2;          // 7S
+    const wingDepth = 3 * S;         // depth of each surrounding wing
+    const patioHalf = half - wingDepth; // 4S — half-width of the open patio
+    const wt = 0.45 * S;             // exterior wall thickness
 
-    // 2. Foundation
-    const foundSkirt = 0.7 * scale;
-    const foundation = new THREE.Mesh(new THREE.BoxGeometry(outerW + 0.8 * scale, foundSkirt, outerD + 0.8 * scale), mats.stone);
-    foundation.position.y = 0.49 * scale - foundSkirt / 2;
+    const fy = 0.3 * S;              // finished floor / patio level (small step from terrain)
+    const groundH = 3.4 * S;
+    const upperH = 3.0 * S;
+    const wallsH = groundH + upperH; // 6.4S
+    const deckY = fy + groundH;      // upper-gallery floor height
+    const topY = fy + wallsH;        // wall top
+    const zocaloH = 0.95 * S;
+
+    const entranceW = 3.0 * S;
+    const entranceH = groundH;       // ground-storey-tall arched passage
+
+    // ── 1. Foundation + walkable floor slab ──────────────────────────────────
+    const foundH = fy + 0.6 * S;
+    const foundation = new THREE.Mesh(
+      new THREE.BoxGeometry(outer + 0.6 * S, foundH, outer + 0.6 * S),
+      mats.stone
+    );
+    foundation.position.y = fy - foundH / 2;
+    foundation.receiveShadow = true;
     foundation.userData.noCollision = true;
     g.add(foundation);
 
-    // 3. Wings
-    const wings = [
-      { w: outerW + 0.02 * scale, d: wingT, x: 0, z: (outerD - wingT) / 2 }, 
-      { w: outerW + 0.02 * scale, d: wingT, x: 0, z: -(outerD - wingT) / 2 },
-      { w: wingT, d: patioD - 0.02 * scale, x: (outerW - wingT) / 2, z: 0 }, 
-      { w: wingT, d: patioD - 0.02 * scale, x: -(outerW - wingT) / 2, z: 0 }, 
-    ];
+    // One flat collider slab covers the whole footprint so the patio + arcades
+    // are walkable and the entrance is a small (≤0.5·S) step up from terrain.
+    const floorProxy = boxCollider(outer, 0.4 * S, outer);
+    floorProxy.position.y = fy - 0.2 * S;
+    g.add(floorProxy);
 
-    for (let i = 0; i < wings.length; i++) {
-      const w = wings[i];
-      const isFrontBack = (i <= 1);
-      const wingGroup = new THREE.Group();
-      wingGroup.position.set(w.x, 0.5 * scale, w.z);
+    // Stone arcade floor + terracotta patio tiles (visual)
+    const stoneFloor = new THREE.Mesh(new THREE.PlaneGeometry(outer, outer), mats.stone);
+    stoneFloor.rotation.x = -Math.PI / 2;
+    stoneFloor.position.y = fy + 0.01 * S;
+    stoneFloor.receiveShadow = true;
+    stoneFloor.userData.noCollision = true;
+    g.add(stoneFloor);
 
-      // --- Ground Floor ---
-      const zw = isFrontBack ? w.w + 0.1 * scale : w.w + 0.04 * scale;
-      const zd = isFrontBack ? w.d + 0.05 * scale : w.d + 0.04 * scale;
-      const zocalo = new THREE.Mesh(new THREE.BoxGeometry(zw, zocaloH, zd), mats.stone);
-      zocalo.position.y = zocaloH / 2;
-      wingGroup.add(zocalo);
-
-      const wallH = groundH - zocaloH;
-      const wall = new THREE.Mesh(new THREE.BoxGeometry(w.w - 0.08 * scale, wallH, w.d - 0.08 * scale), mats.stucco);
-      wall.position.y = zocaloH + wallH / 2;
-      wall.castShadow = wall.receiveShadow = true;
-      wingGroup.add(wall);
-
-      // --- Azulejo Zócalo ---
-      const azH = 0.9 * scale;
-      const azD = 0.02 * scale;
-      const azMesh = new THREE.Mesh(
-          (i <= 1) ? new THREE.BoxGeometry(w.w, azH, azD) : new THREE.BoxGeometry(azD, azH, w.d),
-          mats.azulejo
-      );
-      azMesh.position.y = zocaloH + azH/2;
-      if (i === 0) azMesh.position.z = -w.d/2 + azD/2;
-      if (i === 1) azMesh.position.z = w.d/2 - azD/2;
-      if (i === 2) azMesh.position.x = -w.w/2 + azD/2;
-      if (i === 3) azMesh.position.x = w.w/2 - azD/2;
-      wingGroup.add(azMesh);
-
-      // --- Exposed Ceiling Beams ---
-      const beamCount = 6;
-      for (let j = 0; j < beamCount; j++) {
-          const beam = new THREE.Mesh(new THREE.BoxGeometry(w.w * 0.9, 0.1 * scale, 0.15 * scale), mats.wood);
-          if (i <= 1) {
-              beam.position.set(0, groundH - 0.12 * scale, (j / (beamCount-1) - 0.5) * w.d * 0.8);
-          } else {
-              beam.rotation.y = Math.PI / 2;
-              beam.position.set((j / (beamCount-1) - 0.5) * w.w * 0.8, groundH - 0.12 * scale, 0);
-          }
-          wingGroup.add(beam);
-      }
-
-      // --- Cornice ---
-      const cw = isFrontBack ? w.w + 0.12 * scale : w.w + 0.04 * scale;
-      const cd = isFrontBack ? w.d + 0.12 * scale : w.d + 0.1 * scale;
-      const corniceH = 0.22 * scale;
-      const cornice = new THREE.Mesh(new THREE.BoxGeometry(cw, corniceH, cd), mats.stone);
-      cornice.position.y = groundH;
-      wingGroup.add(cornice);
-
-      // --- Upper Floor ---
-      const uWallH = upperH;
-      const isBackWing = (i === 1); 
-      
-      if (isBackWing) {
-        const balconyDepth = wingT * 0.7;
-        const mainWallD = wingT - balconyDepth;
-        const balconyW = patioW - 0.2 * scale;
-
-        const uWall = new THREE.Mesh(new THREE.BoxGeometry(w.w, uWallH, mainWallD), mats.stucco);
-        uWall.position.y = groundH + uWallH / 2;
-        uWall.position.z = -balconyDepth / 2;
-        wingGroup.add(uWall);
-
-        const bFloor = new THREE.Mesh(new THREE.BoxGeometry(balconyW, 0.2 * scale, balconyDepth), mats.terracotta);
-        bFloor.position.y = groundH + 0.12 * scale;
-        bFloor.position.z = mainWallD / 2 + balconyDepth / 2;
-        wingGroup.add(bFloor);
-
-        const railH = 0.9 * scale;
-        const railGroup = this.createRailing(balconyW, railH, scale, mats);
-        railGroup.position.y = groundH + 0.22 * scale;
-        railGroup.position.z = w.d / 2;
-        wingGroup.add(railGroup);
-
-        for (let j = -1; j <= 1; j++) {
-          const pillar = new THREE.Mesh(new THREE.BoxGeometry(0.18 * scale, uWallH, 0.18 * scale), mats.wood);
-          pillar.position.set(j * (balconyW / 2 - 0.2 * scale), groundH + uWallH / 2, w.d / 2 - 0.12 * scale);
-          wingGroup.add(pillar);
-        }
-
-        for (let j = -3; j <= 3; j++) {
-            if (j === 0) continue;
-            const pot = createFlowerPot(scale * 0.8);
-            pot.position.set(j * (balconyW / 8), groundH + railH + 0.13 * scale, w.d / 2);
-            wingGroup.add(pot);
-        }
-
-        const climber = createClimbingPlant(balconyW * 0.4, groundH * 0.7, scale, mats);
-        climber.position.set(balconyW * 0.3, zocaloH + 0.1 * scale, w.d / 2 - 0.05 * scale);
-        wingGroup.add(climber);
-
-      } else {
-        const uWall = new THREE.Mesh(new THREE.BoxGeometry(w.w, uWallH, w.d), mats.stucco);
-        uWall.position.y = groundH + uWallH / 2;
-        uWall.castShadow = true;
-        uWall.receiveShadow = true;
-        wingGroup.add(uWall);
-      }
-
-      wingGroup.userData.noCollision = true;
-      wingGroup.traverse(c => { if (!c.userData.isCollider) c.userData.noCollision = true; });
-      g.add(wingGroup);
-      
-      const proxy = boxCollider(w.w, totalH, w.d);
-      proxy.position.set(w.x, 0.5 * scale + totalH / 2, w.z);
-      g.add(proxy);
-    }
-
-    // 4. Central Patio Floor & Fountain
-    const borderW = patioW + 0.6 * scale;
-    const borderD = patioD + 0.6 * scale;
-    const patioBorder = new THREE.Mesh(new THREE.PlaneGeometry(borderW, borderD), mats.stone);
-    patioBorder.rotation.x = -Math.PI / 2;
-    patioBorder.position.y = 0.505 * scale; 
-    patioBorder.userData.noCollision = true;
-    g.add(patioBorder);
-
-    const patioFloorMat = mats.terracotta.clone();
-    if (patioFloorMat.map) {
-      patioFloorMat.map = patioFloorMat.map.clone();
-      patioFloorMat.map.repeat.set(12, 12);
-    }
-    const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioW, patioD), patioFloorMat);
+    const patioMat = mats.terracotta.clone();
+    if (patioMat.map) { patioMat.map = patioMat.map.clone(); patioMat.map.repeat.set(10, 10); }
+    const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioHalf * 2, patioHalf * 2), patioMat);
     patioFloor.rotation.x = -Math.PI / 2;
-    patioFloor.position.y = 0.515 * scale; 
+    patioFloor.position.y = fy + 0.02 * S;
+    patioFloor.receiveShadow = true;
     patioFloor.userData.noCollision = true;
     g.add(patioFloor);
 
-    const fountainGroup = this.createFountain(scale, mats);
-    fountainGroup.position.y = 0.51 * scale;
-    fountainGroup.userData.noCollision = true;
-    fountainGroup.traverse(c => { c.userData.noCollision = true; });
-    g.add(fountainGroup);
+    // ── 2. Exterior walls (back, left, right + two front flanks) ──────────────
+    const wallTop = fy + wallsH;
+    const addExtWall = (cx: number, cz: number, len: number, rotY: number): void => {
+      const wg = new THREE.Group();
+      wg.position.set(cx, 0, cz);
+      wg.rotation.y = rotY;
 
-    // Bench & Table
-    const bench = createWoodenBench(scale, mats);
-    bench.position.set(patioW / 2 - 0.8 * scale, 0.515 * scale, 0); 
-    bench.rotation.y = -Math.PI / 2;
-    bench.userData.noCollision = true;
-    bench.traverse(c => { c.userData.noCollision = true; });
-    g.add(bench);
+      const wall = new THREE.Mesh(new THREE.BoxGeometry(len, wallsH, wt), mats.stucco);
+      wall.position.y = fy + wallsH / 2;
+      wall.castShadow = wall.receiveShadow = true;
+      wg.add(wall);
 
-    const table = createWoodenTable(scale, mats);
-    table.position.set(patioW / 2 - 1.6 * scale, 0.515 * scale, 0);
-    table.userData.noCollision = true;
-    table.traverse(c => { c.userData.noCollision = true; });
-    g.add(table);
+      const zocalo = new THREE.Mesh(
+        new THREE.BoxGeometry(len + 0.02 * S, zocaloH, wt + 0.06 * S),
+        mats.azulejo
+      );
+      zocalo.position.y = fy + zocaloH / 2;
+      wg.add(zocalo);
 
-    // Patio/Fountain Collider
-    const fountainColl = boxCollider(patioW, 1.5 * scale, patioD);
-    fountainColl.position.set(0, 0.51 * scale + 0.75 * scale, 0);
-    g.add(fountainColl);
+      for (const cy of [fy + groundH, wallTop - 0.12 * S]) {
+        const cornice = new THREE.Mesh(
+          new THREE.BoxGeometry(len + 0.12 * S, 0.22 * S, wt + 0.14 * S),
+          mats.stone
+        );
+        cornice.position.y = cy;
+        wg.add(cornice);
+      }
 
-    // 5. Arched Portico
-    for (let i = 0; i < 4; i++) {
-      const angle = (Math.PI / 2) * i;
-      const arcadeGroup = new THREE.Group();
-      const dist = (patioW / 2) + 0.13 * scale;
-      arcadeGroup.position.set(Math.cos(angle) * dist, 0.5 * scale, Math.sin(angle) * dist);
-      arcadeGroup.rotation.y = -angle;
+      // Windows on the outer face — sparse: a couple on the ground, a couple up.
+      const groundCount = Math.max(1, Math.round(len / (8 * S)));
+      const upperCount = Math.max(1, Math.round(len / (6 * S)));
+      const placeRow = (n: number, y: number): void => {
+        for (let i = 0; i < n; i++) {
+          const lx = (n === 1) ? 0 : (i / (n - 1) - 0.5) * (len - 2.2 * S);
+          this.addWindow(wg, lx, y, wt / 2 + 0.06 * S, 0, S, mats);
+        }
+      };
+      placeRow(groundCount, fy + 1.9 * S);
+      placeRow(upperCount, deckY + 1.5 * S);
 
-      const archW = 1.4 * scale;
-      const archH = 2.6 * scale;
-      const count = Math.floor(patioW / (archW * 1.1));
-      for (let x = -count/2; x <= count/2; x++) {
-        const archShape = new THREE.Shape();
-        archShape.moveTo(-archW / 2, 0);
-        archShape.lineTo(-archW / 2, archH - archW / 2);
-        archShape.absarc(0, archH - archW / 2, archW / 2, Math.PI, 0, true);
-        archShape.lineTo(archW / 2, 0);
-        archShape.closePath();
+      // Grass tufts + a climbing vine creeping up the whitewash.
+      this.addWallGreenery(wg, len, wt / 2 + 0.04 * S, groundH, S, mats);
 
-        const archGeo = new THREE.ExtrudeGeometry(archShape, { depth: 0.3 * scale, bevelEnabled: false });
-        const arch = new THREE.Mesh(archGeo, mats.stucco);
-        arch.position.set(x * archW * 1.3, 0, -0.15 * scale);
-        arcadeGroup.add(arch);
+      wg.userData.noCollision = true;
+      g.add(wg);
 
-        const trimShape = new THREE.Shape();
-        const tw = archW + 0.1 * scale;
-        const th = archH + 0.05 * scale;
-        trimShape.moveTo(-tw / 2, 0);
-        trimShape.lineTo(-tw / 2, th - tw / 2);
-        trimShape.absarc(0, th - tw / 2, tw / 2, Math.PI, 0, true);
-        trimShape.lineTo(tw / 2, 0);
-        
-        const hole = new THREE.Path();
-        hole.moveTo(-archW / 2, 0);
-        hole.lineTo(archW / 2, 0);
-        hole.lineTo(archW / 2, archH - archW / 2);
-        hole.absarc(0, archH - archW / 2, archW / 2, 0, Math.PI, false);
-        hole.lineTo(-archW / 2, 0);
-        trimShape.holes.push(hole);
+      const proxy = boxCollider(len, wallsH, wt);
+      proxy.position.set(cx, fy + wallsH / 2, cz);
+      proxy.rotation.y = rotY;
+      g.add(proxy);
+    };
 
-        const trimGeo = new THREE.ExtrudeGeometry(trimShape, { depth: 0.32 * scale, bevelEnabled: false });
-        const trim = new THREE.Mesh(trimGeo, mats.stone);
-        trim.position.set(x * archW * 1.3, 0, -0.16 * scale);
-        arcadeGroup.add(trim);
+    const wallOff = half - wt / 2;
+    addExtWall(0, -wallOff, outer, Math.PI);          // back
+    addExtWall(-wallOff, 0, outer, -Math.PI / 2);     // left
+    addExtWall(wallOff, 0, outer, Math.PI / 2);       // right
 
-        if (x < count / 2) {
-            const pot = createFlowerPot(scale * 0.7);
-            pot.position.set(x * archW * 1.3 + archW * 0.65, archH * 0.6, 0.07 * scale);
-            arcadeGroup.add(pot);
+    // Front flanks (leave the central entrance open)
+    const flankLen = (outer - entranceW) / 2;          // 5.5S
+    const flankX = entranceW / 2 + flankLen / 2;       // 4.25S
+    addExtWall(-flankX, wallOff, flankLen, 0);
+    addExtWall(flankX, wallOff, flankLen, 0);
+
+    // ── 3. Entrance: arch, lintel wall above, open door leaves ────────────────
+    const frontZ = wallOff;
+    // Solid wall above the entrance arch (upper storey continuous across the front)
+    const lintelH = wallsH - entranceH;
+    const lintel = new THREE.Mesh(
+      new THREE.BoxGeometry(entranceW + 0.4 * S, lintelH, wt),
+      mats.stucco
+    );
+    lintel.position.set(0, fy + entranceH + lintelH / 2, frontZ);
+    lintel.castShadow = true;
+    g.add(lintel);
+    const lintelProxy = boxCollider(entranceW + 0.4 * S, lintelH, wt);
+    lintelProxy.position.set(0, fy + entranceH + lintelH / 2, frontZ);
+    g.add(lintelProxy);
+
+    // Stone arch ring framing the opening
+    const archRing = new THREE.Mesh(
+      new THREE.TorusGeometry(entranceW / 2, 0.22 * S, 10, 24, Math.PI),
+      mats.stone
+    );
+    archRing.position.set(0, fy + entranceH - entranceW / 2, frontZ + wt / 2);
+    g.add(archRing);
+    for (const sx of [-1, 1]) {
+      const jamb = new THREE.Mesh(
+        new THREE.BoxGeometry(0.3 * S, entranceH - entranceW / 2, wt + 0.05 * S),
+        mats.stone
+      );
+      jamb.position.set(sx * entranceW / 2, fy + (entranceH - entranceW / 2) / 2, frontZ);
+      g.add(jamb);
+    }
+
+    // Two studded wooden door leaves, swung open into the arcade
+    const leafW = entranceW / 2 - 0.05 * S;
+    const leafH = entranceH * 0.92;
+    const makeLeaf = (hingeX: number, openAngle: number) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(hingeX, fy, frontZ - wt / 2);
+      const leaf = new THREE.Mesh(new THREE.BoxGeometry(leafW, leafH, 0.08 * S), mats.door);
+      leaf.position.set(-Math.sign(hingeX) * leafW / 2, leafH / 2, 0);
+      pivot.add(leaf);
+      const studMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.8, roughness: 0.4 });
+      for (let r = 1; r <= 4; r++) {
+        for (let c = 1; c <= 2; c++) {
+          const stud = new THREE.Mesh(new THREE.SphereGeometry(0.04 * S, 6, 6), studMat);
+          stud.position.set(-Math.sign(hingeX) * (c / 3) * leafW, (r / 5) * leafH, -0.05 * S);
+          pivot.add(stud);
         }
       }
-      arcadeGroup.userData.noCollision = true;
-      arcadeGroup.traverse(c => { c.userData.noCollision = true; });
-      g.add(arcadeGroup);
+      pivot.rotation.y = openAngle;
+      pivot.userData.noCollision = true;
+      pivot.traverse(o => { o.userData.noCollision = true; });
+      g.add(pivot);
+    };
+    makeLeaf(-entranceW / 2, -Math.PI * 0.62);
+    makeLeaf(entranceW / 2, Math.PI * 0.62);
+
+    // ── 4. Ground-floor arcade (open arched panels facing the patio) ──────────
+    const arcadeSides: Array<{ cx: number; cz: number; rotY: number }> = [
+      { cx: 0, cz: patioHalf, rotY: 0 },          // front
+      { cx: 0, cz: -patioHalf, rotY: Math.PI },   // back
+      { cx: -patioHalf, cz: 0, rotY: -Math.PI / 2 }, // left
+      { cx: patioHalf, cz: 0, rotY: Math.PI / 2 },   // right
+    ];
+    for (const s of arcadeSides) {
+      const panel = this.createArcadePanel(patioHalf * 2, groundH, 0.3 * S, 3, mats, S);
+      panel.position.set(s.cx, fy, s.cz);
+      panel.rotation.y = s.rotY;
+      panel.userData.noCollision = true;
+      panel.traverse(o => { o.userData.noCollision = true; });
+      g.add(panel);
     }
 
-    // 6. Ring Hip Roof
-    const roofH = 2.0 * scale;
-    const roofOverhang = 0.5 * scale;
-    
-    for (let i = 0; i < 4; i++) {
-        const angle = (Math.PI / 2) * i;
-        const w = (i % 2 === 0) ? outerW : outerD;
-        const roofPart = this.createRoofSegment(w + roofOverhang * 2.02, wingT + roofOverhang + 0.01 * scale, roofH, mats);
-        roofPart.position.set(
-            Math.cos(angle) * (outerD - wingT) / 2,
-            totalH + 0.51 * scale, 
-            Math.sin(angle) * (outerD - wingT) / 2
-        );
-        roofPart.rotation.y = -angle + Math.PI / 2;
-        roofPart.userData.noCollision = true;
-        g.add(roofPart);
+    // ── 5. Upper-gallery walkable deck (ring of slabs over the wings) ──────────
+    const deckThick = 0.25 * S;
+    const deckMid = (patioHalf + half) / 2; // 5.5S
+    // front & back decks span full width (cover corners); side decks fill between
+    const addDeck = (cx: number, cz: number, sx: number, sz: number): void => {
+      const slab = new THREE.Mesh(new THREE.BoxGeometry(sx, deckThick, sz), mats.terracotta);
+      slab.position.set(cx, deckY - deckThick / 2, cz);
+      slab.receiveShadow = true;
+      slab.userData.noCollision = true;
+      g.add(slab);
+      const proxy = boxCollider(sx, deckThick, sz);
+      proxy.position.set(cx, deckY - deckThick / 2, cz);
+      g.add(proxy);
+    };
+    addDeck(0, deckMid, outer, wingDepth);
+    addDeck(0, -deckMid, outer, wingDepth);
+    addDeck(deckMid, 0, wingDepth, patioHalf * 2);
+    addDeck(-deckMid, 0, wingDepth, patioHalf * 2);
 
-        // Roof Collider Segment
-        const rProxy = boxCollider(w + roofOverhang * 2, roofH, wingT + roofOverhang);
-        rProxy.position.set(
-            Math.cos(angle) * (outerD - wingT) / 2,
-            totalH + 0.51 * scale + roofH / 2,
-            Math.sin(angle) * (outerD - wingT) / 2
-        );
-        rProxy.rotation.y = -angle + Math.PI / 2;
-        g.add(rProxy);
+    // Gallery posts + railing along the patio edge of the deck
+    const railH = 1.0 * S;
+    for (const s of arcadeSides) {
+      const rg = new THREE.Group();
+      rg.position.set(s.cx, deckY, s.cz);
+      rg.rotation.y = s.rotY;
 
-        // 3D Tiles
-        const tileCount = 20;
-        const edgeLen = w + roofOverhang * 2;
-        for (let j = 0; j < tileCount; j++) {
-            const tile = createRoofTile(scale, mats);
-            tile.userData.noCollision = true;
-            const offset = (j / (tileCount - 1) - 0.5) * edgeLen;
-            const tx = Math.cos(angle) * (outerD / 2 + roofOverhang + 0.02 * scale) - Math.sin(angle) * offset;
-            const tz = Math.sin(angle) * (outerD / 2 + roofOverhang + 0.02 * scale) + Math.cos(angle) * offset;
-            tile.position.set(tx, totalH + 0.62 * scale, tz); 
-            tile.rotation.y = angle;
-            g.add(tile);
-        }
-
-        // 3D Hip Tiles
-        for (let hip = -1; hip <= 1; hip += 2) {
-            const hipTiles = 8;
-            for (let j = 0; j < hipTiles; j++) {
-                const tile = createRoofTile(scale * 0.9, mats);
-                tile.userData.noCollision = true;
-                const t = j / (hipTiles - 1);
-                const localX = hip * (w / 2 + roofOverhang) * (1 - t);
-                const localZ = -(wingT / 2 + roofOverhang) * (1 - t);
-                const localY = t * roofH + 0.13 * scale; 
-                
-                const worldPos = new THREE.Vector3(localX, localY, localZ);
-                worldPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), -angle + Math.PI / 2);
-                worldPos.add(new THREE.Vector3(
-                    Math.cos(angle) * (outerD - wingT) / 2,
-                    totalH + 0.51 * scale,
-                    Math.sin(angle) * (outerD - wingT) / 2
-                ));
-
-                tile.position.copy(worldPos);
-                tile.rotation.y = -angle + Math.PI / 4 * hip;
-                tile.rotation.z = Math.PI / 4;
-                g.add(tile);
-            }
-        }
-
-        // Ridge Peak Tiles
-        const ridgeCount = 10;
-        for (let j = 0; j < ridgeCount; j++) {
-            const tile = createRoofTile(scale * 1.1, mats);
-            tile.userData.noCollision = true;
-            const offset = (j / (ridgeCount - 1) - 0.5) * (w - wingT);
-            const worldPos = new THREE.Vector3(offset, roofH + 0.1 * scale, -(wingT/2 + roofOverhang));
-            worldPos.applyAxisAngle(new THREE.Vector3(0, 1, 0), -angle + Math.PI / 2);
-            worldPos.add(new THREE.Vector3(
-                Math.cos(angle) * (outerD - wingT) / 2,
-                totalH + 0.51 * scale,
-                Math.sin(angle) * (outerD - wingT) / 2
-            ));
-            tile.position.copy(worldPos);
-            tile.rotation.y = -angle + Math.PI / 2;
-            g.add(tile);
-        }
-
-        if (i === 1) {
-            const chimney = createChimney(scale * 1.2, mats);
-            chimney.position.set(w * 0.3, totalH + 0.85 * scale, -(outerD - wingT) / 2 + wingT / 2);
-            chimney.userData.noCollision = true;
-            chimney.traverse(c => { c.userData.noCollision = true; });
-            g.add(chimney);
-        }
+      // wooden posts rising to the roof
+      const postN = 4;
+      for (let i = 0; i <= postN; i++) {
+        const lx = (i / postN - 0.5) * patioHalf * 2;
+        const post = new THREE.Mesh(new THREE.BoxGeometry(0.18 * S, upperH, 0.18 * S), mats.wood);
+        post.position.set(lx, upperH / 2, 0);
+        rg.add(post);
+      }
+      const rail = this.createRailing(patioHalf * 2, railH, S, mats);
+      rg.add(rail);
+      // flower pots on the rail
+      for (let i = -2; i <= 2; i++) {
+        const pot = createFlowerPot(S * 0.7);
+        pot.position.set(i * (patioHalf * 2 / 6), railH, 0);
+        rg.add(pot);
+      }
+      rg.userData.noCollision = true;
+      g.add(rg);
     }
 
-    // 7. Windows and Doors
-    const mainDoor = createDoor(2.2 * scale, 3.4 * scale, 0.5 * scale, mats);
-    mainDoor.position.set(0, 0.5 * scale, outerD / 2 + 0.13 * scale);
-    mainDoor.userData.noCollision = true;
-    mainDoor.traverse(c => { c.userData.noCollision = true; });
-    g.add(mainDoor);
+    // Railing colliders (stop falling into the patio). Back railing has a GAP
+    // where the staircase arrives.
+    const stairX = -2.5 * S;
+    const stairW = 1.6 * S;
+    const addRailColl = (cx: number, cz: number, len: number, rotY: number) => {
+      const p = boxCollider(len, railH, 0.15 * S);
+      p.position.set(cx, deckY + railH / 2, cz);
+      p.rotation.y = rotY;
+      g.add(p);
+    };
+    addRailColl(0, patioHalf, patioHalf * 2, 0);          // front gallery rail
+    addRailColl(patioHalf, 0, patioHalf * 2, Math.PI / 2); // right
+    addRailColl(-patioHalf, 0, patioHalf * 2, Math.PI / 2); // left
+    // back rail split around the stair landing
+    const gapL = stairX - stairW / 2, gapR = stairX + stairW / 2;
+    const leftSeg = (gapL - (-patioHalf));
+    addRailColl((-patioHalf + gapL) / 2, -patioHalf, leftSeg, 0);
+    const rightSeg = (patioHalf - gapR);
+    addRailColl((gapR + patioHalf) / 2, -patioHalf, rightSeg, 0);
 
-    const winW = 0.8 * scale;
-    const winH = 1.2 * scale;
-    
-    for (let side = -1; side <= 1; side += 2) {
-        for (let yOff = 0; yOff <= 1; yOff++) {
-            const y = (yOff === 0) ? zocaloH + 1.2 * scale : groundH + 1.2 * scale;
-            const x = side * (outerW / 2 + 0.06 * scale);
-            const zPositions = [-outerD / 3, 0, outerD / 3];
-            zPositions.forEach((z, idx) => {
-                if (yOff === 1 && idx === 0) return;
-                const hVar = (yOff === 1 && idx === 1) ? 0.6 : 1.0;
-                const winGroup = new THREE.Group();
-                const win = createWindowWithGrille(winW, winH * hVar, scale, mats);
-                winGroup.add(win);
-                
-                const shutters = createWoodenShutters(winW, winH * hVar, scale, mats);
-                shutters.position.z = 0.13 * scale; 
-                winGroup.add(shutters);
-
-                const glowMat = new THREE.MeshStandardMaterial({ 
-                    color: 0xffaa44, 
-                    emissive: 0xffaa44, 
-                    emissiveIntensity: 0.5,
-                    transparent: true,
-                    opacity: 0.3
-                });
-                const glow = new THREE.Mesh(new THREE.PlaneGeometry(winW * 0.9, winH * hVar * 0.9), glowMat);
-                glow.position.z = -0.08 * scale; 
-                winGroup.add(glow);
-
-                winGroup.rotation.y = side * Math.PI / 2;
-                winGroup.position.set(x, y + 0.5 * scale + (1 - hVar) * winH * 0.5, z);
-                winGroup.userData.noCollision = true;
-                winGroup.traverse(c => { c.userData.noCollision = true; });
-                g.add(winGroup);
-            });
-        }
+    // ── 6. Staircase: patio → back gallery deck ───────────────────────────────
+    const stepN = 11;
+    const stairBottomZ = -1.5 * S;
+    const stairTopZ = -patioHalf;            // lands at back deck edge (-4S)
+    const stepRise = groundH / stepN;        // ≈0.31S  (< 0.5 step limit)
+    const tread = (stairTopZ - stairBottomZ) / stepN; // negative (heading -Z)
+    for (let i = 0; i < stepN; i++) {
+      const topYStep = fy + (i + 1) * stepRise;
+      const h = topYStep - fy;
+      const z = stairBottomZ + (i + 0.5) * tread;
+      const step = new THREE.Mesh(new THREE.BoxGeometry(stairW, h, Math.abs(tread)), mats.stone);
+      step.position.set(stairX, fy + h / 2, z);
+      step.castShadow = step.receiveShadow = true;
+      step.userData.noCollision = true;
+      g.add(step);
+      const proxy = boxCollider(stairW, h, Math.abs(tread));
+      proxy.position.set(stairX, fy + h / 2, z);
+      g.add(proxy);
+    }
+    // stair side railing (open patio side)
+    for (let i = 0; i <= stepN; i += 2) {
+      const topYStep = fy + i * stepRise;
+      const z = stairBottomZ + i * tread;
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.1 * S, 1.0 * S, 0.1 * S), mats.wood);
+      post.position.set(stairX + stairW / 2, topYStep + 0.5 * S, z);
+      post.userData.noCollision = true;
+      g.add(post);
     }
 
+    // ── 7. Central fountain + patio furniture ─────────────────────────────────
+    const fountain = this.createFountain(S, mats);
+    fountain.position.y = fy;
+    fountain.userData.noCollision = true;
+    fountain.traverse(o => { o.userData.noCollision = true; });
+    g.add(fountain);
+    const fProxy = cylinderCollider(1.0 * S, 1.5 * S);
+    fProxy.position.y = fy + 0.75 * S;
+    g.add(fProxy);
+
+    const bench = createWoodenBench(S, mats);
+    bench.position.set(patioHalf - 0.9 * S, fy, 1.5 * S);
+    bench.rotation.y = -Math.PI / 2;
+    bench.userData.noCollision = true;
+    bench.traverse(o => { o.userData.noCollision = true; });
+    g.add(bench);
+
+    const table = createWoodenTable(S, mats);
+    table.position.set(patioHalf - 1.7 * S, fy, -1.2 * S);
+    table.userData.noCollision = true;
+    table.traverse(o => { o.userData.noCollision = true; });
+    g.add(table);
+
+    // potted greenery in the patio corners
+    for (const [px, pz] of [[-patioHalf + 0.6 * S, patioHalf - 0.6 * S], [patioHalf - 0.6 * S, patioHalf - 0.6 * S]]) {
+      const pot = createFlowerPot(S * 1.2);
+      pot.position.set(px, fy, pz);
+      pot.userData.noCollision = true;
+      g.add(pot);
+    }
+    const climber = createClimbingPlant(patioHalf * 0.6, groundH * 0.8, S, mats);
+    climber.position.set(-patioHalf + 0.2 * S, fy, -1.5 * S);
+    climber.rotation.y = Math.PI / 2;
+    climber.userData.noCollision = true;
+    climber.traverse(o => { o.userData.noCollision = true; });
+    g.add(climber);
+
+    // ── 8. Inward-sloping tiled hip roofs over the wings ──────────────────────
+    const overhang = 0.6 * S;
+    const drop = 0.9 * S;
+    const slopeAngle = Math.atan2(drop, wingDepth);
+    const roofSides: Array<{ cx: number; cz: number; rotY: number; span: number }> = [
+      { cx: 0, cz: deckMid, rotY: 0, span: outer + overhang * 2 },
+      { cx: 0, cz: -deckMid, rotY: Math.PI, span: outer + overhang * 2 },
+      { cx: -deckMid, cz: 0, rotY: -Math.PI / 2, span: patioHalf * 2 },
+      { cx: deckMid, cz: 0, rotY: Math.PI / 2, span: patioHalf * 2 },
+    ];
+    const slopeLen = Math.sqrt(wingDepth * wingDepth + drop * drop) + overhang;
+    for (const s of roofSides) {
+      const rg = new THREE.Group();
+      rg.position.set(s.cx, topY + 0.45 * S, s.cz);
+      rg.rotation.y = s.rotY;
+
+      const plane = new THREE.Mesh(new THREE.BoxGeometry(s.span, 0.14 * S, slopeLen), mats.roof);
+      // local +Z = outer (high), -Z = patio (low)
+      plane.rotation.x = -slopeAngle;
+      plane.castShadow = plane.receiveShadow = true;
+      plane.userData.noCollision = true;
+      rg.add(plane);
+
+      // terracotta tile rolls along the low (patio-side) eave
+      const tileCount = Math.round(s.span / (0.45 * S));
+      for (let i = 0; i < tileCount; i++) {
+        const tile = createRoofTile(S, mats);
+        const lx = (i / (tileCount - 1) - 0.5) * s.span;
+        tile.position.set(lx, -drop / 2 + 0.05 * S, -wingDepth / 2);
+        tile.rotation.y = Math.PI / 2;
+        tile.userData.noCollision = true;
+        rg.add(tile);
+      }
+      rg.userData.noCollision = true;
+      g.add(rg);
+    }
+
+    const chimney = createChimney(S * 1.3, mats);
+    chimney.position.set(outer * 0.25, topY + 0.6 * S, -deckMid);
+    chimney.userData.noCollision = true;
+    chimney.traverse(o => { o.userData.noCollision = true; });
+    g.add(chimney);
+
+    // ── Tiling + LOD ─────────────────────────────────────────────────────────
     applyWorldTiling(g, mats.stone);
+    applyWorldTiling(g, mats.stucco);
     applyWorldTiling(g, mats.roof);
+    applyWorldTiling(g, mats.azulejo);
+    applyWorldTiling(g, mats.door, 2.0);
+    applyWorldTiling(g, mats.terracotta, 2.0);
     return withLOD(g);
+  }
+
+  // ───────────────────────────────────────────────────────────────────────────
+
+  private addWindow(
+    parent: THREE.Group, x: number, y: number, z: number,
+    rotY: number, scale: number, mats: MedMaterials,
+  ): void {
+    const winW = 0.8 * scale;
+    const winH = 1.3 * scale;
+    const wg = new THREE.Group();
+
+    const win = createWindowWithGrille(winW, winH, scale, mats);
+    wg.add(win);
+    const shutters = createWoodenShutters(winW, winH, scale, mats);
+    shutters.position.z = 0.1 * scale;
+    wg.add(shutters);
+    const glowMat = new THREE.MeshStandardMaterial({
+      color: 0xffaa44, emissive: 0xffaa44, emissiveIntensity: 0.5,
+      transparent: true, opacity: 0.3,
+    });
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(winW * 0.9, winH * 0.9), glowMat);
+    glow.position.z = -0.05 * scale;
+    wg.add(glow);
+
+    wg.position.set(x, y, z);
+    wg.rotation.y = rotY;
+    wg.userData.noCollision = true;
+    parent.add(wg);
+  }
+
+  /** A thin stucco arcade wall with N semicircular-arched openings. */
+  private createArcadePanel(
+    length: number, height: number, thick: number,
+    openings: number, mats: MedMaterials, scale: number,
+  ): THREE.Group {
+    const g = new THREE.Group();
+    const shape = new THREE.Shape();
+    shape.moveTo(-length / 2, 0);
+    shape.lineTo(-length / 2, height);
+    shape.lineTo(length / 2, height);
+    shape.lineTo(length / 2, 0);
+    shape.closePath();
+
+    const spacing = length / openings;
+    const openW = spacing * 0.62;
+    const openH = height * 0.82;
+    const r = openW / 2;
+    for (let i = 0; i < openings; i++) {
+      const cx = -length / 2 + (i + 0.5) * spacing;
+      const hole = new THREE.Path();
+      hole.moveTo(cx - r, 0);
+      hole.lineTo(cx - r, openH - r);
+      hole.absarc(cx, openH - r, r, Math.PI, 0, true);
+      hole.lineTo(cx + r, 0);
+      hole.closePath();
+      shape.holes.push(hole);
+    }
+
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: thick, bevelEnabled: false });
+    geo.translate(0, 0, -thick / 2);
+    const panel = new THREE.Mesh(geo, mats.stucco);
+    panel.castShadow = panel.receiveShadow = true;
+    g.add(panel);
+
+    // stone plinth + capitals hint
+    const plinth = new THREE.Mesh(
+      new THREE.BoxGeometry(length, 0.5 * scale, thick + 0.06 * scale),
+      mats.stone
+    );
+    plinth.position.y = 0.25 * scale;
+    g.add(plinth);
+    return g;
   }
 
   private createRailing(width: number, height: number, scale: number, mats: MedMaterials): THREE.Group {
@@ -436,55 +506,41 @@ export class MalakaBrokenPatioHouse extends Mesh {
 
   private createFountain(scale: number, mats: MedMaterials): THREE.Group {
     const g = new THREE.Group();
-    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.8 * scale, 1.0 * scale, 0.4 * scale, 8), mats.stone);
-    base.position.y = 0.2 * scale;
-    g.add(base);
-
-    const waterMat = new THREE.MeshStandardMaterial({ 
-      color: 0x00ccff, 
-      metalness: 0.1, 
-      roughness: 0.05, 
-      transparent: true, 
-      opacity: 0.7,
-      emissive: 0x003366,
-      emissiveIntensity: 0.5
+    const waterMat = new THREE.MeshStandardMaterial({
+      color: 0x2aa9d8, metalness: 0.1, roughness: 0.05,
+      transparent: true, opacity: 0.7, emissive: 0x10506e, emissiveIntensity: 0.4,
     });
-    const water = new THREE.Mesh(new THREE.CylinderGeometry(0.75 * scale, 0.75 * scale, 0.05 * scale, 16), waterMat);
-    water.position.y = 0.42 * scale; 
-    g.add(water);
 
-    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.12 * scale, 0.18 * scale, 1.2 * scale, 8), mats.stone);
-    stem.position.y = 0.8 * scale;
+    // Solid pedestal basin. Walls rise to 0.5; the pool water sits recessed at
+    // 0.4 so it never goes coplanar with the rim (no z-fighting / clipping).
+    const basin = new THREE.Mesh(
+      new THREE.CylinderGeometry(1.05 * scale, 1.2 * scale, 0.5 * scale, 16),
+      mats.stone
+    );
+    basin.position.y = 0.25 * scale;
+    basin.castShadow = basin.receiveShadow = true;
+    g.add(basin);
+    const pool = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.92 * scale, 0.92 * scale, 0.04 * scale, 24),
+      waterMat
+    );
+    pool.position.y = 0.4 * scale; // 0.1 below the 0.5 rim
+    g.add(pool);
+
+    // Central column + upper bowl, each water tier kept clearly inside its rim.
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.13 * scale, 0.2 * scale, 1.0 * scale, 10), mats.stone);
+    stem.position.y = 0.9 * scale;
     g.add(stem);
-
-    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.4 * scale, 0.2 * scale, 0.2 * scale, 8), mats.stone);
-    bowl.position.y = 1.3 * scale;
+    const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.45 * scale, 0.22 * scale, 0.22 * scale, 14), mats.stone);
+    bowl.position.y = 1.42 * scale;
     g.add(bowl);
-    
+    const topPool = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.36 * scale, 0.36 * scale, 0.04 * scale, 16),
+      waterMat
+    );
+    topPool.position.y = 1.5 * scale; // below bowl rim at ~1.53
+    g.add(topPool);
     return g;
-  }
-
-  private createRoofSegment(width: number, depth: number, height: number, mats: MedMaterials): THREE.Mesh {
-    const geo = new THREE.BufferGeometry();
-    const w2 = width / 2;
-    const d2 = depth / 2;
-    const h = height;
-    const vertices = new Float32Array([
-      -w2, 0, d2,   w2, 0, d2,   w2-d2, h, 0,
-      -w2, 0, d2,   w2-d2, h, 0, -w2+d2, h, 0,
-      w2, 0, -d2,  -w2, 0, -d2,  -w2+d2, h, 0,
-      w2, 0, -d2,  -w2+d2, h, 0,  w2-d2, h, 0,
-    ]);
-    const uvs = new Float32Array([
-      -w2, d2,   w2, d2,   w2-d2, 0,
-      -w2, d2,   w2-d2, 0, -w2+d2, 0,
-      w2, -d2,  -w2, -d2, -w2+d2, 0,
-      w2, -d2,  -w2+d2, 0,  w2-d2, 0,
-    ]);
-    geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
-    geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
-    geo.computeVertexNormals();
-    return new THREE.Mesh(geo, mats.roof);
   }
 }
 
