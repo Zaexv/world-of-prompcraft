@@ -278,6 +278,116 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
             description="A badge marking you as a friend of the village guard.",
         ),
     ),
+    # ── Fort Malaka — Notion-brief quests ───────────────────────────────────
+    "juan_story": QuestInstance(
+        id="juan_story",
+        title="Escucha la Historia del Pescador",
+        description=(
+            "Juan el Pescador gazes out over the Mediterranean, full of memories of "
+            "his father and of Sara, a love lost in a distant port. Sit with him and "
+            "hear his tale of the sea."
+        ),
+        giver_npc_id="juan_pescador",
+        giver_name="Juan el Pescador",
+        objectives=[
+            QuestObjective("hear_tale", "Hear Juan's tale of the sea", "talk", "juan_pescador"),
+        ],
+        reward=QuestReward(
+            gold=20,
+            items=["Anzuelo de la Suerte"],
+            xp=25,
+            description="Juan's lucky hook, worn smooth by years of salt and longing.",
+        ),
+    ),
+    "malaka_thieves": QuestInstance(
+        id="malaka_thieves",
+        title="Hay Nuevos Ladrones en Ésta Zona",
+        description=(
+            "Guardia Abelardo reports a fresh band of thieves plaguing the quarter. "
+            "Defeat 3 of them and report back. ¡Por el Rey Paco!"
+        ),
+        giver_npc_id="guardia_abelardo",
+        giver_name="Guardia Abelardo",
+        objectives=[
+            QuestObjective("clear_thieves", "Defeat 3 thieves", "kill", "any", required=3),
+            QuestObjective(
+                "report_abelardo", "Report to Guardia Abelardo", "talk", "guardia_abelardo"
+            ),
+        ],
+        reward=QuestReward(
+            gold=60,
+            items=["Comenda de la Guardia"],
+            xp=50,
+            description="A commendation marking you a friend of Fort Malaka's guard.",
+        ),
+    ),
+    "glorious_potatoes": QuestInstance(
+        id="glorious_potatoes",
+        title="¡Gloriosas Patatas!",
+        description=(
+            "Luisa la Patatera is shouting across her fields — her glorious potatoes "
+            "will spoil if they are not gathered! Collect 5 potatoes and bring them to her."
+        ),
+        giver_npc_id="luisa_patatera",
+        giver_name="Luisa la Patatera",
+        objectives=[
+            QuestObjective("gather_potatoes", "Collect 5 Patatas", "collect", "Patata", required=5),
+            QuestObjective("return_luisa", "Return to Luisa la Patatera", "talk", "luisa_patatera"),
+        ],
+        reward=QuestReward(
+            gold=40,
+            items=["Saco de Patatas Gloriosas"],
+            xp=40,
+            description="A hefty sack of Luisa's finest, gloriously gathered potatoes.",
+        ),
+    ),
+    "make_him_laugh": QuestInstance(
+        id="make_him_laugh",
+        title="Haz Reír al Hombre Más Serio del Reino",
+        description=(
+            "Sancho Barriga dares you — no cheating! — to make his lifelong friend "
+            "Alonso Quijano, the most serious man in the realm, finally laugh. Then "
+            "report your triumph to Sancho."
+        ),
+        giver_npc_id="sancho_barriga",
+        giver_name="Sancho Barriga",
+        objectives=[
+            QuestObjective("amuse_alonso", "Make Alonso Quijano laugh", "talk", "alonso_quijano"),
+            QuestObjective(
+                "tell_sancho", "Report your triumph to Sancho Barriga", "talk", "sancho_barriga"
+            ),
+        ],
+        reward=QuestReward(
+            gold=70,
+            items=["Sonrisa de Alonso"],
+            xp=60,
+            description="The rarest treasure in the realm: a smile from Alonso Quijano.",
+        ),
+    ),
+    "heroes_reunion": QuestInstance(
+        id="heroes_reunion",
+        title="Misión de Cadena",
+        description=(
+            "Zaex Uve sends you to gather the wisdom of his fellow dragon-slayers: "
+            "consult El Tito the mage, then Nireg Jenkins the oracle, then return to Zaex."
+        ),
+        giver_npc_id="zaex_01",
+        giver_name="Zaex Uve",
+        objectives=[
+            QuestObjective("consult_tito", "Consult El Tito", "talk", "eltito_01"),
+            QuestObjective("consult_nireg", "Consult Nireg Jenkins", "talk", "nireg_jenkins"),
+            QuestObjective("return_zaex", "Return to Zaex Uve", "talk", "zaex_01"),
+        ],
+        reward=QuestReward(
+            gold=300,
+            items=["Aullido de la Hermandad"],
+            xp=250,
+            description=(
+                "The hermandad's howl made token — a relic of the three heroes who "
+                "slew Cárgarath el Inabarcable."
+            ),
+        ),
+    ),
 }
 
 

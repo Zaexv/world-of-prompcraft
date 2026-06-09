@@ -3150,62 +3150,6 @@
             }
           },
           {
-            "id": "eltito_01",
-            "identity": {
-              "name": "El Tito",
-              "role": "mage"
-            },
-            "transform": {
-              "position": [
-                456.1321717806344,
-                66.61268189487993,
-                109.9388420586729
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1
-            },
-            "stats": {
-              "max_hp": 420,
-              "level": 10
-            },
-            "ai": {
-              "personality_key": "eltito_01",
-              "wander_radius": 2
-            }
-          },
-          {
-            "id": "nireg_jenkins",
-            "identity": {
-              "name": "Nireg Jenkins",
-              "role": "oracle"
-            },
-            "transform": {
-              "position": [
-                22.890070628554827,
-                -0.5943486739636499,
-                -7.502198928088181
-              ],
-              "rotation": [
-                0,
-                0.5235987755982988,
-                0
-              ],
-              "scale": 1.0000000000000009
-            },
-            "stats": {
-              "max_hp": 5000,
-              "level": 60
-            },
-            "ai": {
-              "personality_key": "nireg_jenkins",
-              "wander_radius": 2
-            }
-          },
-          {
             "id": "wraith_01",
             "identity": {
               "name": "Sylvara the Wraith",
@@ -4080,6 +4024,235 @@
             },
             "ai": {
               "personality_key": "churrero_01",
+              "wander_radius": 2
+            }
+          },
+          {
+            "id": "juan_pescador",
+            "identity": {
+              "name": "Juan el Pescador",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -205,
+                0,
+                -342
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "juan_pescador",
+              "wander_radius": 4,
+              "style": "merchant"
+            }
+          },
+          {
+            "id": "guardia_abelardo",
+            "identity": {
+              "name": "Guardia Abelardo",
+              "role": "guard"
+            },
+            "transform": {
+              "position": [
+                -112,
+                3.6,
+                -258
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "guardia_abelardo",
+              "wander_radius": 4,
+              "style": "guard"
+            }
+          },
+          {
+            "id": "luisa_patatera",
+            "identity": {
+              "name": "Luisa la Patatera",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -278,
+                2,
+                -328
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "luisa_patatera",
+              "wander_radius": 4,
+              "style": "merchant"
+            }
+          },
+          {
+            "id": "sancho_barriga",
+            "identity": {
+              "name": "Sancho Barriga",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -150,
+                4,
+                -280
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "sancho_barriga",
+              "wander_radius": 4,
+              "style": "merchant"
+            }
+          },
+          {
+            "id": "alonso_quijano",
+            "identity": {
+              "name": "Alonso Quijano",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -146,
+                4,
+                -280
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 200,
+              "level": 2
+            },
+            "ai": {
+              "personality_key": "alonso_quijano",
+              "wander_radius": 4,
+              "style": "guard"
+            }
+          },
+          {
+            "id": "zaex_01",
+            "identity": {
+              "name": "Zaex Uve",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -140,
+                4,
+                -276
+              ],
+              "rotation": [
+                0,
+                0.0,
+                0
+              ],
+              "scale": 1.0
+            },
+            "stats": {
+              "max_hp": 900,
+              "level": 9
+            },
+            "ai": {
+              "personality_key": "zaex_01",
+              "wander_radius": 4
+            }
+          },
+          {
+            "id": "nireg_jenkins",
+            "identity": {
+              "name": "Nireg Jenkins",
+              "role": "oracle"
+            },
+            "transform": {
+              "position": [
+                -220,
+                0,
+                -345
+              ],
+              "rotation": [
+                0,
+                0.5235987755982988,
+                0
+              ],
+              "scale": 1.0000000000000009
+            },
+            "stats": {
+              "max_hp": 900,
+              "level": 9
+            },
+            "ai": {
+              "personality_key": "nireg_jenkins",
+              "wander_radius": 2
+            }
+          },
+          {
+            "id": "eltito_01",
+            "identity": {
+              "name": "El Tito",
+              "role": "mage"
+            },
+            "transform": {
+              "position": [
+                -185,
+                3,
+                -300
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1
+            },
+            "stats": {
+              "max_hp": 420,
+              "level": 10
+            },
+            "ai": {
+              "personality_key": "eltito_01",
               "wander_radius": 2
             }
           }
