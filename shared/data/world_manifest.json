@@ -3158,7 +3158,7 @@
             "transform": {
               "position": [
                 80,
-                13.277207774194478,
+                12.569100342816764,
                 -100
               ],
               "rotation": [
@@ -3689,6 +3689,33 @@
                 }
               }
             }
+          },
+          {
+            "id": "malaka_broken_roman_amphitheatre_1781015524320",
+            "type": "malaka_broken_roman_amphitheatre",
+            "transform": {
+              "position": [
+                100.46535492362752,
+                11.666254300046596,
+                -92.58943657276316
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_broken_roman_amphitheatre",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 25.8,
+                  "depth": 25.2
+                }
+              }
+            }
           }
         ],
         "dungeons": {},
@@ -4054,7 +4081,11 @@
               "personality_key": "juan_pescador",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "juan_story"
+            ]
           },
           {
             "id": "guardia_abelardo",
@@ -4083,7 +4114,11 @@
               "personality_key": "guardia_abelardo",
               "wander_radius": 4,
               "style": "guard"
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "malaka_thieves"
+            ]
           },
           {
             "id": "luisa_patatera",
@@ -4112,7 +4147,11 @@
               "personality_key": "luisa_patatera",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "glorious_potatoes"
+            ]
           },
           {
             "id": "sancho_barriga",
@@ -4141,7 +4180,11 @@
               "personality_key": "sancho_barriga",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "make_him_laugh"
+            ]
           },
           {
             "id": "alonso_quijano",
@@ -4198,7 +4241,11 @@
             "ai": {
               "personality_key": "zaex_01",
               "wander_radius": 4
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "heroes_reunion"
+            ]
           },
           {
             "id": "nireg_jenkins",
@@ -4254,7 +4301,11 @@
             "ai": {
               "personality_key": "eltito_01",
               "wander_radius": 2
-            }
+            },
+            "isQuestGiver": true,
+            "questIds": [
+              "sacred_flame"
+            ]
           }
         ]
       },

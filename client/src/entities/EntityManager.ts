@@ -14,6 +14,10 @@ export class EntityManager {
   public readonly npcs: Map<string, NPC> = new Map();
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
+  // Last-known player quest ids, so newly streamed-in NPCs get the right '!' state.
+  private activeQuestIds: ReadonlySet<string> = new Set();
+  private completedQuestIds: ReadonlySet<string> = new Set();
+
   private scene: THREE.Scene;
 
   // Interleaving & Performance
@@ -50,10 +54,29 @@ export class EntityManager {
     npc.mesh.userData.editorId = npc.id;
     npc.mesh.userData.editorType = 'npc';
     
+    // A just-streamed-in NPC must reflect the player's current quest progress.
+    npc.applyQuestState(this.activeQuestIds, this.completedQuestIds);
+
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     this.npcList = Array.from(this.npcs.values());
     return npc;
+  }
+
+  /**
+   * Refresh every NPC's quest-giver '!' marker from the player's quest state.
+   * Call whenever active/completed quests change. The id sets are cached so NPCs
+   * spawned later (chunk streaming) start with the correct marker visibility.
+   */
+  refreshQuestMarkers(
+    activeQuestIds: Iterable<string>,
+    completedQuestIds: Iterable<string>,
+  ): void {
+    this.activeQuestIds = new Set(activeQuestIds);
+    this.completedQuestIds = new Set(completedQuestIds);
+    for (const npc of this.npcs.values()) {
+      npc.applyQuestState(this.activeQuestIds, this.completedQuestIds);
+    }
   }
 
   /** Retrieve an NPC by id. */

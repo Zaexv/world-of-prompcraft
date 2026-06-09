@@ -433,6 +433,32 @@ def template_ids() -> list[str]:
     return sorted(QUEST_TEMPLATES)
 
 
+def quest_giver_ids() -> frozenset[str]:
+    """NPC ids that own (offer) at least one curated quest.
+
+    Source of truth for the client's quest-giver '!' marker. The world manifest
+    carries a mirrored ``isQuestGiver`` flag (kept in sync by a drift-guard test)
+    so both NPC spawn paths can render it without a server round-trip.
+    """
+    return frozenset(q.giver_npc_id for q in QUEST_TEMPLATES.values() if q.giver_npc_id)
+
+
+def quest_giver_map() -> dict[str, list[str]]:
+    """Map each giver NPC id → sorted list of curated quest ids it owns.
+
+    The client uses this (mirrored into the manifest as ``questIds``) to hide the
+    '!' marker once the player has accepted or completed that NPC's quest.
+    """
+    out: dict[str, list[str]] = {}
+    for quest in QUEST_TEMPLATES.values():
+        if quest.giver_npc_id:
+            out.setdefault(quest.giver_npc_id, []).append(quest.id)
+    return {giver: sorted(ids) for giver, ids in out.items()}
+
+
+QUEST_GIVER_IDS: frozenset[str] = quest_giver_ids()
+
+
 def instantiate(template_id: str, giver_name: str | None = None) -> QuestInstance | None:
     """Build a fresh active instance from a curated template, or None if unknown."""
     template = QUEST_TEMPLATES.get(template_id)

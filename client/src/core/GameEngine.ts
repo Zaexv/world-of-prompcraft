@@ -288,7 +288,18 @@ export class GameEngine {
     };
 
     // Quest
-    d.playerState.onQuestChange = () => { d.uiManager.updateQuestUI(d.playerState); };
+    const refreshQuestMarkers = () => {
+      d.entityManager.refreshQuestMarkers(
+        d.playerState.activeQuests.map((q) => q.id),
+        d.playerState.completedQuests,
+      );
+    };
+    d.playerState.onQuestChange = () => {
+      d.uiManager.updateQuestUI(d.playerState);
+      refreshQuestMarkers();
+    };
+    // Seed markers from whatever quest state we already have at startup.
+    refreshQuestMarkers();
 
     // Zone atmosphere
     d.zoneTracker.onZoneChange = (name: string, desc: string) => {

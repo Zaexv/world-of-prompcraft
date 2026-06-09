@@ -46,6 +46,10 @@ export interface LandmarkDefinition {
 
 export interface NPCDefinition {
   id: string;
+  /** True when this NPC owns (offers) a curated quest — drives the '!' marker. */
+  isQuestGiver?: boolean;
+  /** Curated quest ids this NPC owns — used to hide '!' once taken/completed. */
+  questIds?: string[];
   identity: {
     name: string;
     role: string;
