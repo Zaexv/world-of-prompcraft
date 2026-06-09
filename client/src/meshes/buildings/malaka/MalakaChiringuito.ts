@@ -8,7 +8,7 @@ import { createEmberParticles } from '../../props/fireParticles';
 import { applyWorldTiling } from '../worldTiled';
 
 // ─── Helper: Andalusian wicker-style chair ─────────────────────────────────────
-function createAndalusianChair(scale: number, mats: MedMaterials): THREE.Group {
+function createAndalusianChair(scale: number, _mats: MedMaterials): THREE.Group {
   const chair = new THREE.Group();
   const wickerMat = new THREE.MeshStandardMaterial({ color: 0x8b6914, roughness: 0.95 });
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x222222, metalness: 0.9, roughness: 0.4 });
@@ -97,7 +97,7 @@ function createAndalusianTable(scale: number, mats: MedMaterials): THREE.Group {
 }
 
 // ─── Helper: Bar stool (tall, with footrest) ──────────────────────────────────
-function createBarStool(scale: number, mats: MedMaterials): THREE.Group {
+function createBarStool(scale: number, _mats: MedMaterials): THREE.Group {
   const stool = new THREE.Group();
   const ironMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, metalness: 0.9, roughness: 0.4 });
   const wickerMat = new THREE.MeshStandardMaterial({ color: 0x8b6914, roughness: 0.95 });

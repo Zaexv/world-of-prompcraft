@@ -269,7 +269,7 @@ export class MalakaBrokenChurch extends Mesh {
     // Columns lining the aisle
     const colMat = new THREE.MeshStandardMaterial({ color: 0xddccaa, roughness: 0.8 });
     for (let z = 2 * scale; z < naveD - 4 * scale; z += 4 * scale) {
-        for (let sx of [-1, 1]) {
+        for (const sx of [-1, 1]) {
             const col = new THREE.Mesh(new THREE.CylinderGeometry(0.4 * scale, 0.4 * scale, naveH - 1 * scale, 16), colMat);
             col.position.set(sx * 4.5 * scale, naveH/2 - 0.5 * scale, naveD/2 - z);
             const base = new THREE.Mesh(new THREE.BoxGeometry(1 * scale, 0.5 * scale, 1 * scale), stoneMat);
@@ -279,7 +279,7 @@ export class MalakaBrokenChurch extends Mesh {
     }
 
     for (let z = 2 * scale; z < naveD - 4 * scale; z += 2.5 * scale) {
-        for (let sx of [-1, 1]) {
+        for (const sx of [-1, 1]) {
             const bench = new THREE.Group();
             const seat = new THREE.Mesh(new THREE.BoxGeometry(3 * scale, 0.1 * scale, 0.6 * scale), pewMat);
             seat.position.y = 0.5 * scale;
@@ -330,7 +330,7 @@ export class MalakaBrokenChurch extends Mesh {
     const frameMat = new THREE.MeshStandardMaterial({ color: 0x332211 });
     const canvasMat = new THREE.MeshStandardMaterial({ color: 0xddccaa });
     for (let z = 2 * scale; z < naveD - 4 * scale; z += 4 * scale) {
-        for (let sx of [-1, 1]) {
+        for (const sx of [-1, 1]) {
             const frame = new THREE.Mesh(new THREE.BoxGeometry(0.1 * scale, 2 * scale, 1.5 * scale), frameMat);
             const canvas = new THREE.Mesh(new THREE.BoxGeometry(0.12 * scale, 1.8 * scale, 1.3 * scale), canvasMat);
             frame.add(canvas);
@@ -411,7 +411,7 @@ export class MalakaBrokenChurch extends Mesh {
 
     // Banners behind the altar
     const bannerMat = new THREE.MeshStandardMaterial({ color: 0x990000, roughness: 0.9 });
-    for (let sx of [-1, 1]) {
+    for (const sx of [-1, 1]) {
         const banner = new THREE.Mesh(new THREE.BoxGeometry(1.5 * scale, 6 * scale, 0.1 * scale), bannerMat);
         banner.position.set(sx * 3 * scale, 4.5 * scale, -naveD/2 + 0.3 * scale);
         
@@ -422,7 +422,7 @@ export class MalakaBrokenChurch extends Mesh {
         
         interiorG.add(banner);
     }
-    for (let i of [-1, 1]) {
+    for (const i of [-1, 1]) {
         const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.1 * scale, 0.1 * scale, 0.5 * scale), candleMat);
         candle.position.set(i * 1.5 * scale, 1.25 * scale, -naveD/2 + 2 * scale);
         const flame = new THREE.Mesh(new THREE.ConeGeometry(0.08 * scale, 0.2 * scale), flameMat);
