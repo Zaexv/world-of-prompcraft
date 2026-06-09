@@ -11,6 +11,7 @@ from src.world.player_state import PlayerData
 from src.world.quests import (
     MANUAL_OBJECTIVE_KIND,
     OBJECTIVE_KINDS,
+    QUEST_GIVER_IDS,
     QUEST_TEMPLATES,
     instantiate,
 )
@@ -172,6 +173,42 @@ class TestQuestReliability:
         assert self._obj(p, "heroes_reunion", "consult_nireg")["completed"]
         # ...but the quest is NOT done until the manual return is confirmed.
         assert not p.all_objectives_complete("heroes_reunion")
+
+
+class TestQuestGiverFlag:
+    """The '!' marker is driven by an isQuestGiver flag — keep it consistent."""
+
+    def test_manifest_flag_matches_quest_templates(self) -> None:
+        # Every manifest NPC that owns a curated quest must be flagged, and no
+        # other NPC may be. Orphan givers (ids not present in the manifest) are
+        # ignored here — they have no NPC to mark.
+        defs = get_npc_definitions()
+        flagged = {nid for nid, d in defs.items() if d.get("is_quest_giver")}
+        expected = {gid for gid in QUEST_GIVER_IDS if gid in defs}
+        assert flagged == expected, (flagged, expected)
+
+    def test_new_givers_are_flagged(self) -> None:
+        defs = get_npc_definitions()
+        for nid in [
+            "juan_pescador",
+            "guardia_abelardo",
+            "luisa_patatera",
+            "sancho_barriga",
+            "zaex_01",
+        ]:
+            assert defs[nid]["is_quest_giver"], nid
+
+    def test_participant_only_npcs_not_flagged(self) -> None:
+        # Alonso and Nireg only participate in quests; they don't own one.
+        defs = get_npc_definitions()
+        assert not defs["alonso_quijano"]["is_quest_giver"]
+        assert not defs["nireg_jenkins"]["is_quest_giver"]
+
+    def test_to_dict_emits_flag(self) -> None:
+        ws = WorldState()
+        ws.refresh_npcs()
+        assert ws.npcs["zaex_01"].to_dict()["isQuestGiver"] is True
+        assert ws.npcs["nireg_jenkins"].to_dict()["isQuestGiver"] is False
 
 
 class TestCanonLore:

@@ -4054,7 +4054,8 @@
               "personality_key": "juan_pescador",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true
           },
           {
             "id": "guardia_abelardo",
@@ -4083,7 +4084,8 @@
               "personality_key": "guardia_abelardo",
               "wander_radius": 4,
               "style": "guard"
-            }
+            },
+            "isQuestGiver": true
           },
           {
             "id": "luisa_patatera",
@@ -4112,7 +4114,8 @@
               "personality_key": "luisa_patatera",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true
           },
           {
             "id": "sancho_barriga",
@@ -4141,7 +4144,8 @@
               "personality_key": "sancho_barriga",
               "wander_radius": 4,
               "style": "merchant"
-            }
+            },
+            "isQuestGiver": true
           },
           {
             "id": "alonso_quijano",
@@ -4198,7 +4202,8 @@
             "ai": {
               "personality_key": "zaex_01",
               "wander_radius": 4
-            }
+            },
+            "isQuestGiver": true
           },
           {
             "id": "nireg_jenkins",
@@ -4254,7 +4259,8 @@
             "ai": {
               "personality_key": "eltito_01",
               "wander_radius": 2
-            }
+            },
+            "isQuestGiver": true
           }
         ]
       },

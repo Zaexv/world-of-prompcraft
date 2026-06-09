@@ -39,6 +39,7 @@ class NPCData:
     archetype: str = ""
     style: str | None = None
     appearance: dict[str, Any] | None = None
+    is_quest_giver: bool = False
     # Set once gold + loot have been awarded for this NPC's death so repeated
     # interactions with the corpse don't keep paying out.
     loot_dropped: bool = False
@@ -54,6 +55,7 @@ class NPCData:
             "archetype": self.archetype,
             "mood": self.mood,
             "scale": self.scale,
+            "isQuestGiver": self.is_quest_giver,
         }
         if self.style is not None:
             d["style"] = self.style
@@ -120,6 +122,7 @@ class WorldState:
                 self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
                 self.npcs[npc_id].style = npc_def.get("style")
                 self.npcs[npc_id].appearance = npc_def.get("appearance")
+                self.npcs[npc_id].is_quest_giver = npc_def.get("is_quest_giver", False)
             else:
                 # Add new
                 npc = NPCData(
@@ -133,6 +136,7 @@ class WorldState:
                     archetype=archetype,
                     style=npc_def.get("style"),
                     appearance=npc_def.get("appearance"),
+                    is_quest_giver=npc_def.get("is_quest_giver", False),
                 )
                 self.npcs[npc_id] = npc
 
