@@ -312,6 +312,9 @@ export class ProceduralPopulator {
             personality: 'Hostile creature — attack on sight.',
             scale: def.scale,
             behavior: 'hostile',
+            // Cool biome-themed skin if one is registered for this monster id;
+            // the resolver falls back to the inferred placeholder otherwise.
+            appearance: { mesh: `npc_creature_${def.id}` },
           });
           this._trackNpc(key, npcId);
         } });

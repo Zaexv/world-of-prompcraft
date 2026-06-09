@@ -26,6 +26,21 @@ function talkSeconds(dialogue: string): number {
   return Math.max(1.5, Math.min(4, dialogue.length * 0.045));
 }
 
+/**
+ * NPCs that hand out or gate quests but don't use the `quest_giver` archetype
+ * (e.g. a guard or wanderer who still offers a quest). Keeps the floating "!"
+ * marker accurate for these hand-authored cases.
+ */
+const QUEST_GIVER_IDS: ReadonlySet<string> = new Set(['guardia_abelardo']);
+
+/** Whether a server NPC payload should show the floating quest-giver "!" marker. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function isQuestGiverNpc(n: any): boolean {
+  const id = n?.id ?? n?.npc_id;
+  if (typeof id === 'string' && QUEST_GIVER_IDS.has(id)) return true;
+  return n?.archetype === 'quest_giver';
+}
+
 export interface WSHandlerDeps {
   runtime: RuntimeState;
   entityManager: EntityManager;
@@ -98,6 +113,7 @@ export class WebSocketHandler {
                 behavior: n.behavior ?? undefined,
                 style: n.style ?? undefined,
                 appearance: n.appearance ?? undefined,
+                isQuestGiver: isQuestGiverNpc(n),
               });
             } catch (err) {
               console.error(`join_ok: failed to spawn NPC ${n.name} (${id}):`, err);
