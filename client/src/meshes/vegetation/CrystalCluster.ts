@@ -54,3 +54,4 @@ export class CrystalCluster extends Mesh {
 }
 
 registerMesh(CrystalCluster);
+

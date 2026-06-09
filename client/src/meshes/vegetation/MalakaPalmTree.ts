@@ -1,29 +1,88 @@
 import * as THREE from 'three';
 import { Mesh, BuildContext } from '../core/Mesh';
 import { registerMesh } from '../core/MeshRegistry';
+import { boxCollider } from '../../systems/worldbuilder/colliderProxy';
 
 let _trunkMat: THREE.MeshStandardMaterial | null = null;
 let _leafMat: THREE.MeshStandardMaterial | null = null;
 
 function getTrunkMat() {
   if (!_trunkMat) {
-    _trunkMat = new THREE.MeshStandardMaterial({ color: 0x6b4e31, roughness: 0.9 });
+    // Beautiful detailed brown texture for palm trunk
+    _trunkMat = new THREE.MeshStandardMaterial({ 
+      color: 0x8b5a2b, 
+      roughness: 0.9, 
+      metalness: 0.0
+    });
   }
   return _trunkMat;
 }
 
 function getLeafMat() {
   if (!_leafMat) {
-    _leafMat = new THREE.MeshStandardMaterial({ color: 0x2d5a27, roughness: 0.8, side: THREE.DoubleSide });
+    // Vibrant green for healthy palm fronds
+    _leafMat = new THREE.MeshStandardMaterial({ 
+      color: 0x228b22, 
+      roughness: 0.7, 
+      side: THREE.DoubleSide 
+    });
   }
   return _leafMat;
 }
 
-function buildTreeGroup(pos: THREE.Vector3, scale: number, segs: number, leafCount: number, castShadow: boolean): THREE.Group {
-  const g = new THREE.Group();
-  
-  const trunkMat = getTrunkMat();
+// Helper to create a single arched palm frond
+function createPalmFrond(scale: number, length: number): THREE.Group {
+  const frondGroup = new THREE.Group();
   const leafMat = getLeafMat();
+
+  // The main stem of the frond
+  const stem = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.04 * scale, 0.01 * scale, length, 4),
+    getTrunkMat()
+  );
+  stem.rotation.x = Math.PI / 2;
+  stem.position.z = length / 2;
+  frondGroup.add(stem);
+
+  // Add individual leaves along the stem to make a beautiful feather-like frond
+  const leafCount = 12;
+  for (let i = 0; i < leafCount; i++) {
+    const t = i / (leafCount - 1);
+    // Leaves get smaller towards the tip
+    const leafWidth = (0.2 + 0.3 * Math.sin(t * Math.PI)) * scale;
+    const leafLength = (0.6 + 0.6 * Math.sin(t * Math.PI)) * scale;
+    
+    // Left leaflet
+    const leafletL = new THREE.Mesh(
+      new THREE.PlaneGeometry(leafWidth, leafLength),
+      leafMat
+    );
+    leafletL.rotation.x = -Math.PI / 2;
+    leafletL.rotation.y = 0.4; // Angle outwards
+    leafletL.rotation.z = -0.2; // Angle downwards
+    leafletL.position.set(leafWidth / 2, 0, (t * length * 0.9) + 0.1);
+    leafletL.castShadow = true;
+    frondGroup.add(leafletL);
+
+    // Right leaflet
+    const leafletR = new THREE.Mesh(
+      new THREE.PlaneGeometry(leafWidth, leafLength),
+      leafMat
+    );
+    leafletR.rotation.x = -Math.PI / 2;
+    leafletR.rotation.y = -0.4; // Angle outwards
+    leafletR.rotation.z = 0.2; // Angle downwards
+    leafletR.position.set(-leafWidth / 2, 0, (t * length * 0.9) + 0.1);
+    leafletR.castShadow = true;
+    frondGroup.add(leafletR);
+  }
+
+  return frondGroup;
+}
+
+function buildTreeGroup(pos: THREE.Vector3, scale: number, segs: number, frondCount: number, castShadow: boolean): THREE.Group {
+  const g = new THREE.Group();
+  const trunkMat = getTrunkMat();
 
   const seed = Math.abs(pos.x * 100 + pos.z * 100) || 1;
   const pseudoRand = (function() {
@@ -32,56 +91,84 @@ function buildTreeGroup(pos: THREE.Vector3, scale: number, segs: number, leafCou
   })();
 
   const tH = 8 * scale;
-  const bendX = (pseudoRand() - 0.5) * 4 * scale;
-  const bendZ = (pseudoRand() - 0.5) * 4 * scale;
   
-  const curve = new THREE.QuadraticBezierCurve3(
-    new THREE.Vector3(0, 0, 0),
-    new THREE.Vector3(bendX * 0.5, tH * 0.5, bendZ * 0.5),
-    new THREE.Vector3(bendX, tH, bendZ)
-  );
-
-  const trunkGeo = new THREE.TubeGeometry(curve, Math.max(2, segs), 0.3 * scale, segs, false);
-  const trunk = new THREE.Mesh(trunkGeo, trunkMat);
-  trunk.castShadow = castShadow;
-  trunk.receiveShadow = true;
-  trunk.userData.isCollider = true;
-  g.add(trunk);
-
-  const endPoint = curve.getPoint(1);
-
-  const crown = new THREE.Group();
-  crown.position.copy(endPoint);
-
-  // Leaves
-  for (let i = 0; i < leafCount; i++) {
-    const angle = (i * Math.PI * 2) / leafCount;
+  // Tapered trunk using stacked, overlapping rings for a realistic palm trunk look
+  const trunkGroup = new THREE.Group();
+  const ringCount = 20;
+  let currentY = 0;
+  let currentRadius = 0.4 * scale;
+  
+  // Create a slight curve for the trunk
+  const bendX = (pseudoRand() - 0.5) * 2 * scale;
+  const bendZ = (pseudoRand() - 0.5) * 2 * scale;
+  
+  for (let i = 0; i < ringCount; i++) {
+    const t = i / (ringCount - 1);
+    const ringHeight = (tH / ringCount) * 1.2; // slight overlap
+    const nextRadius = 0.4 * scale * (1 - t * 0.5); // tapers to half radius
     
-    const leafGroup = new THREE.Group();
-    leafGroup.rotation.y = angle;
+    const ring = new THREE.Mesh(
+      new THREE.CylinderGeometry(nextRadius, currentRadius, ringHeight, segs),
+      trunkMat
+    );
     
-    const leafLen = 1.8 * scale;
-    for (let s = 0; s < 3; s++) {
-      const segGeo = new THREE.PlaneGeometry(0.8 * scale, leafLen);
-      const seg = new THREE.Mesh(segGeo, leafMat);
-      seg.rotation.x = -Math.PI / 4 - (s * 0.25);
-      seg.position.z = s * (leafLen * 0.8);
-      seg.position.y = -s * (leafLen * 0.3);
-      seg.castShadow = castShadow;
-      seg.userData.noCollision = true;
-      leafGroup.add(seg);
+    // Position along the curved path
+    const xPos = bendX * (t * t); // curve accelerates towards the top
+    const zPos = bendZ * (t * t);
+    
+    ring.position.set(xPos, currentY + ringHeight / 2, zPos);
+    
+    // Tilt the rings slightly to follow the curve
+    if (i > 0) {
+      ring.rotation.z = -bendX * 2 * t / tH;
+      ring.rotation.x = bendZ * 2 * t / tH;
     }
-    crown.add(leafGroup);
+    
+    ring.castShadow = castShadow;
+    ring.receiveShadow = true;
+    trunkGroup.add(ring);
+    
+    currentY += ringHeight * 0.8; // overlap
+    currentRadius = nextRadius;
+  }
+  
+  trunkGroup.userData.isCollider = true;
+  g.add(trunkGroup);
+
+  const trunkCol = boxCollider(0.8 * scale, tH, 0.8 * scale);
+  trunkCol.position.set(bendX / 2, tH / 2, bendZ / 2);
+  g.add(trunkCol);
+
+  // Crown (Fronds and Coconuts)
+  const crown = new THREE.Group();
+  crown.position.set(bendX, currentY, bendZ);
+
+  // Beautiful sweeping palm fronds
+  for (let i = 0; i < frondCount; i++) {
+    const angle = (i * Math.PI * 2) / frondCount;
+    const length = (3.5 + pseudoRand() * 1.5) * scale;
+    
+    const frond = createPalmFrond(scale, length);
+    frond.rotation.y = angle + (pseudoRand() * 0.2);
+    
+    // Arch the frond downwards using a curved path or simple rotation
+    // We will just angle it outwards and downwards
+    const droopAngle = Math.PI / 6 + pseudoRand() * (Math.PI / 4);
+    frond.rotation.x = droopAngle;
+    
+    crown.add(frond);
   }
 
+  // Coconuts
   const nutMat = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 1.0 });
-  for (let i = 0; i < 3; i++) {
-    const nut = new THREE.Mesh(new THREE.SphereGeometry(0.25 * scale, 8, 8), nutMat);
+  for (let i = 0; i < 4; i++) {
+    const nut = new THREE.Mesh(new THREE.SphereGeometry(0.3 * scale, 8, 8), nutMat);
     nut.position.set(
-      (pseudoRand() - 0.5) * scale,
-      -0.2 * scale,
-      (pseudoRand() - 0.5) * scale
+      (pseudoRand() - 0.5) * 1.2 * scale,
+      -0.4 * scale,
+      (pseudoRand() - 0.5) * 1.2 * scale
     );
+    nut.castShadow = castShadow;
     crown.add(nut);
   }
 
@@ -98,9 +185,9 @@ export class MalakaPalmTree extends Mesh {
     const lod = new THREE.LOD();
     lod.position.copy(pos);
 
-    lod.addLevel(buildTreeGroup(pos, scale, 8, 12, true), 0);
-    lod.addLevel(buildTreeGroup(pos, scale, 5, 8, true), 180);
-    lod.addLevel(buildTreeGroup(pos, scale, 4, 5, false), 360);
+    lod.addLevel(buildTreeGroup(pos, scale, 12, 12, true), 0);
+    lod.addLevel(buildTreeGroup(pos, scale, 8, 8, true), 180);
+    lod.addLevel(buildTreeGroup(pos, scale, 5, 5, false), 360);
 
     return lod;
   }
