@@ -533,4 +533,193 @@ KNOWLEDGE_BASE: list[dict[str, Any]] = [
             "from disease. It was damaged when used to defeat Archimonde but has since regrown."
         ),
     },
+    # ═══════════════════════════════════════════════════════════════
+    # WORLD OF PROMPTCRAFT — CANON LORE (current world state)
+    # The authoritative history of this world. Note: tokens are matched
+    # without accents, so each entry repeats key names in plain ASCII
+    # (Cargarath, Malaka) so queries match regardless of accents.
+    # ═══════════════════════════════════════════════════════════════
+    {
+        "topic": "Cárgarath el Inabarcable (Cargarath the Unfathomable)",
+        "category": "promptcraft_lore",
+        "content": (
+            "Cárgarath el Inabarcable — Cargarath the Unfathomable — was the Dragon Emperor "
+            "who ruled every region of this world for 420 years. A dragon with scales black "
+            "as night, eyes red as fire, and a heart dark as evil itself, he appeared one "
+            "cursed summer night, flying in from the infinite reaches of outer space, from "
+            "the unknown regions between the stars. He ordered the burning of books, which is "
+            "why so much of the past is now lost. He was slain 100 years ago. His reign is "
+            "called 'The Era of the Dragon' (La Era del Dragón)."
+        ),
+    },
+    {
+        "topic": "The Eras and the Measure of Time",
+        "category": "promptcraft_lore",
+        "content": (
+            "Time is measured from the death of the Dragon Emperor Cárgarath (Cargarath). "
+            "It is now the year 100 After Cárgarath, an age known as 'The Era of Freedom' "
+            "(La Era de la Libertad). The 420 years of the dragon's rule are 'The Era of the "
+            "Dragon' (La Era del Dragón). Everything before his arrival is 'The Era Before "
+            "the Dragon' — but because of Cárgarath's mandate to burn books, no one knows how "
+            "the earlier eras were named or how time was once recorded."
+        ),
+    },
+    {
+        "topic": "The Hermandad — Slayers of Cárgarath",
+        "category": "promptcraft_lore",
+        "content": (
+            "Cárgarath (Cargarath) was killed 100 years ago through a careful plan carried "
+            "out by the legendary heroes of each region — a brotherhood, a hermandad. Among "
+            "them: the rogue Zaex Uve of Fort Malaka, the mage El Tito of the Blasted "
+            "Suarezlands, the explorer Destello Azul of The Halmogia, and the oracle Nireg "
+            "Jenkins of the Tanis Desert. The plan was riddled with miscalculations, "
+            "improvisation, misunderstandings and betrayals, yet each hero swears that "
+            "without their part the dragon could never have been slain. The hermandad shared "
+            "a triumphant howl — 'Chooo choooo!', 'Chuuu chuuuu!', '¡Xuuu xuuuu!' — still "
+            "cried out by its surviving members in moments of great joy."
+        ),
+    },
+    {
+        "topic": "La Alianza (The Alliance)",
+        "category": "promptcraft_lore",
+        "content": (
+            "Since Cárgarath's death the regions govern themselves once more, no longer part "
+            "of a single empire. They are loosely bound by 'La Alianza' (The Alliance), which "
+            "facilitates trade, settles disputes peacefully, and keeps good relations between "
+            "regions to avoid large conflicts or full-scale war."
+        ),
+    },
+    {
+        "topic": "Common Religion of the World",
+        "category": "promptcraft_lore",
+        "content": (
+            "Every region shares a 'basic common religion' born not of shared culture but of "
+            "a shared reading of the world. It venerates nature deities (animal and plant "
+            "spirits, spirits of specific mountains or lakes, elemental spirits), the cult of "
+            "ancestors, the worship of local saints, and sky-based deities (the sun, moon, "
+            "stars, and other celestial bodies). Each region also has its own specific "
+            "religions, which coexist intrinsically with this common faith."
+        ),
+    },
+    {
+        "topic": "Fort Malaka",
+        "category": "promptcraft_lore",
+        "content": (
+            "Fort Malaka is the oldest recorded settlement in the world. In times immemorial "
+            "a cataclysm sank whole continents, raised new ones, and reshaped the survivors. "
+            "During it, ships of the Phoenicians — a people who set sail eastward from an "
+            "unknown, now-drowned continent — built what is today Fort Malaka. It is famed for "
+            "its maritime trade, its delicious food (above all the espetos, grilled sardines), "
+            "and its many poets, musicians and philosophers who rest from the sun by the sea "
+            "or in the shade of the olive trees. But its greatest danger is not beasts or "
+            "terrain — it is its own people: thieves' guilds hide in the city's wealthy "
+            "spice-trading streets, bandits stalk the wooded mountain roads, and pirates watch "
+            "the shore for poorly guarded ships."
+        ),
+    },
+    {
+        "topic": "King Paco de las Torres, el Eterno",
+        "category": "promptcraft_lore",
+        "content": (
+            "Fort Malaka's capital is ruled by King Paco de las Torres, 'el Eterno' (the "
+            "Eternal). No one knows how long he has reigned — the history books that recorded "
+            "it have crumbled to dust — nor the secret of his longevity, nor in which era he "
+            "was born. He has grown Malaka into an economic power, drawing ever more ships and "
+            "foreign 'tourists', and he loves above all to build taverns, or 'hoteles'. But "
+            "his rule breeds tension: housing and market prices climb ever higher, sacred and "
+            "historic buildings are turned into hotels, and ordinary citizens are pushed "
+            "toward hunger — feeding the very guilds of rogues and bandits that plague the "
+            "realm. As Malaka folk say, 'la prisa tiene un pincho' — do whatever it takes to "
+            "survive."
+        ),
+    },
+    {
+        "topic": "Landmarks of Fort Malaka",
+        "category": "promptcraft_lore",
+        "content": (
+            "Because of the city's age, Fort Malaka holds structures from many civilizations: "
+            "'La Alcazaba', a vast fortress on the mountain; 'El Teatro Romano', an ancient "
+            "marble theatre still used for plays, concerts and art; and 'La Manquita', an "
+            "enormous cathedral towering over the rooftops. Small old watchtowers dot the "
+            "coast to spot pirates, and a few small castles crown high mountains inland — "
+            "though the kingdom's settlements and control cluster almost entirely on the coast."
+        ),
+    },
+    {
+        "topic": "Society of Fort Malaka — Barrios and Patriarcas",
+        "category": "promptcraft_lore",
+        "content": (
+            "Malaka's people are seen as cheerful and kind, if a touch rude or barbarous — "
+            "fond of smoking, playing guitar on the beach, and making friends — but a hidden "
+            "picaresque streak means they may try to trick, swindle or rob the unwary. Befriend "
+            "a malagueño and you gain a fiercely loyal ally; stay a stranger and you risk a "
+            "dagger in a dark alley. The city fractures into micro-societies: guilds, "
+            "brotherhoods (cofradías) and neighborhood communities. Each barrio is led by a "
+            "'patriarca' who organizes its security; befriending one makes you respected and "
+            "safe in that quarter. But if a patriarca is murdered, the whole barrio will turn "
+            "on the killer and even hire assassins to hunt them down."
+        ),
+    },
+    {
+        "topic": "Rogue Guilds of Fort Malaka",
+        "category": "promptcraft_lore",
+        "content": (
+            "Some guilds, cofradías and brotherhoods of rogues are openly known and will hire "
+            "anyone willing: contracts to assassinate a target, steal an object, or do other "
+            "dirty work. Completing jobs raises your reputation with that guild, unlocking "
+            "merchants who sell goods more cheaply than others. Other guilds stay hidden to "
+            "avoid trouble with the law despite their members' many crimes; because of their "
+            "secrecy, they can only be joined on the recommendation of a high-ranking member."
+        ),
+    },
+    {
+        "topic": "Zaex Uve, the Rogue",
+        "category": "promptcraft_lore",
+        "content": (
+            "Zaex Uve is a legendary rogue of Fort Malaka and one of the heroes of the "
+            "hermandad that slew the Dragon Emperor Cárgarath (Cargarath). Manly and "
+            "mysterious, he speaks with the confidence of a much-traveled adventurer. When "
+            "overjoyed he shouts '¡Chooo choooo!', the hermandad's howl. His great ambition "
+            "is to spend his hard-won riches on beer. He is a close friend of El Tito and "
+            "Nireg Jenkins. He stands before a tavern in the city center, surrounded by "
+            "listeners, and attacks anyone who tries to rob him."
+        ),
+    },
+    {
+        "topic": "El Tito, the Mage",
+        "category": "promptcraft_lore",
+        "content": (
+            "El Tito is a master mage and one of the heroes of the hermandad that slew "
+            "Cárgarath (Cargarath); when overjoyed he howls 'Chuuu chuuuu!'. He lives in a "
+            "tower in the Blasted Suarezlands, an inhospitable place of rock and molten lava "
+            "where his tower and its magically sustained garden are the only safe ground. "
+            "Cantankerous and quick to anger, he is exhaustively detailed in his explanations "
+            "and dreams of inventing a motorized mechanical vehicle. He is a close friend of "
+            "Zaex Uve and Nireg Jenkins. A faint smoke gathers around him like fog."
+        ),
+    },
+    {
+        "topic": "Nireg Jenkins, the Oracle",
+        "category": "promptcraft_lore",
+        "content": (
+            "Nireg Jenkins is the Oracle and one of the heroes of the hermandad that slew "
+            "Cárgarath (Cargarath); when overjoyed he cries '¡Xuuu xuuuu!'. A mystic and "
+            "philosopher, his talk drifts toward the existential, the beauty of life, and the "
+            "praise of shared wisdom. He hails from the Tanis Desert and seeks the mysteries "
+            "within this world and beyond it. He is a close friend of Zaex Uve and El Tito, "
+            "and a friend of Luisa la Patatera, with whom he philosophizes. He sits by a "
+            "bonfire on the beach of Fort Malaka, floating slightly off the ground, and "
+            "fights only those who challenge him to a duel."
+        ),
+    },
+    {
+        "topic": "The Tanis Desert",
+        "category": "promptcraft_lore",
+        "content": (
+            "The Tanis Desert is a boundless expanse of sand dunes, home of the oracle Nireg "
+            "Jenkins. Nomads travel between its oases; magic-filled cities of ziggurats and "
+            "hanging gardens rise from the sands; and ancient temples stand where, long ago, "
+            "the art of magic was first discovered."
+        ),
+    },
 ]

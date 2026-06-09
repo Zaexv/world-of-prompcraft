@@ -21,6 +21,16 @@ from typing import Any
 # Adding a kind here + a matcher there is the whole extension surface.
 OBJECTIVE_KINDS: tuple[str, ...] = ("kill", "collect", "talk", "reach", "enter_dungeon")
 
+# Manual-only objective kind: it has NO matcher and NO event mapping, so
+# quest_progress.on_event never auto-advances it. It can only be completed by an
+# NPC calling advance_quest_objective (the "report back" / "NPC judges this"
+# path). Deliberately NOT in OBJECTIVE_KINDS so the custom-quest generator can't
+# mint improvised quests with an objective nothing can fulfil. Use it for steps a
+# specific NPC must confirm — returning to a quest giver (a plain `talk` step
+# would auto-complete on the turn the quest is accepted from that same giver) or
+# a judged outcome like "make Alonso laugh".
+MANUAL_OBJECTIVE_KIND = "confirm"
+
 
 def _as_int(value: Any, default: int = 0) -> int:
     """Coerce a value (possibly a numeric string) to int, falling back safely."""
@@ -276,6 +286,143 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
             items=["Guard's Badge of Honor"],
             xp=40,
             description="A badge marking you as a friend of the village guard.",
+        ),
+    ),
+    # ── Fort Malaka — Notion-brief quests ───────────────────────────────────
+    "juan_story": QuestInstance(
+        id="juan_story",
+        title="Escucha la Historia del Pescador",
+        description=(
+            "Juan el Pescador gazes out over the Mediterranean, full of memories of "
+            "his father and of Sara, a love lost in a distant port. Sit with him and "
+            "hear his tale of the sea."
+        ),
+        giver_npc_id="juan_pescador",
+        giver_name="Juan el Pescador",
+        objectives=[
+            QuestObjective(
+                "hear_tale",
+                "Hear Juan's tale of the sea",
+                MANUAL_OBJECTIVE_KIND,
+                "juan_pescador",
+            ),
+        ],
+        reward=QuestReward(
+            gold=20,
+            items=["Anzuelo de la Suerte"],
+            xp=25,
+            description="Juan's lucky hook, worn smooth by years of salt and longing.",
+        ),
+    ),
+    "malaka_thieves": QuestInstance(
+        id="malaka_thieves",
+        title="Hay Nuevos Ladrones en Ésta Zona",
+        description=(
+            "Guardia Abelardo reports a fresh band of thieves plaguing the quarter. "
+            "Defeat 3 of them and report back. ¡Por el Rey Paco!"
+        ),
+        giver_npc_id="guardia_abelardo",
+        giver_name="Guardia Abelardo",
+        objectives=[
+            QuestObjective("clear_thieves", "Defeat 3 thieves", "kill", "any", required=3),
+            QuestObjective(
+                "report_abelardo",
+                "Report to Guardia Abelardo",
+                MANUAL_OBJECTIVE_KIND,
+                "guardia_abelardo",
+            ),
+        ],
+        reward=QuestReward(
+            gold=60,
+            items=["Comenda de la Guardia"],
+            xp=50,
+            description="A commendation marking you a friend of Fort Malaka's guard.",
+        ),
+    ),
+    "glorious_potatoes": QuestInstance(
+        id="glorious_potatoes",
+        title="¡Gloriosas Patatas!",
+        description=(
+            "Luisa la Patatera has gathered a glorious sack of potatoes and, shouting "
+            "across her fields, begs you to carry it to her philosopher friend Nireg "
+            "Jenkins down by the beach before they spoil — then hurry back to her."
+        ),
+        giver_npc_id="luisa_patatera",
+        giver_name="Luisa la Patatera",
+        objectives=[
+            QuestObjective(
+                "deliver_potatoes",
+                "Deliver Luisa's sack of potatoes to Nireg Jenkins",
+                "talk",
+                "nireg_jenkins",
+            ),
+            QuestObjective(
+                "return_luisa",
+                "Return to Luisa la Patatera",
+                MANUAL_OBJECTIVE_KIND,
+                "luisa_patatera",
+            ),
+        ],
+        reward=QuestReward(
+            gold=40,
+            items=["Saco de Patatas Gloriosas"],
+            xp=40,
+            description="A hefty sack of Luisa's finest, gloriously gathered potatoes.",
+        ),
+    ),
+    "make_him_laugh": QuestInstance(
+        id="make_him_laugh",
+        title="Haz Reír al Hombre Más Serio del Reino",
+        description=(
+            "Sancho Barriga dares you — no cheating! — to make his lifelong friend "
+            "Alonso Quijano, the most serious man in the realm, finally laugh. Then "
+            "report your triumph to Sancho."
+        ),
+        giver_npc_id="sancho_barriga",
+        giver_name="Sancho Barriga",
+        objectives=[
+            QuestObjective(
+                "amuse_alonso",
+                "Make Alonso Quijano laugh",
+                MANUAL_OBJECTIVE_KIND,
+                "alonso_quijano",
+            ),
+            QuestObjective(
+                "tell_sancho",
+                "Report your triumph to Sancho Barriga",
+                MANUAL_OBJECTIVE_KIND,
+                "sancho_barriga",
+            ),
+        ],
+        reward=QuestReward(
+            gold=70,
+            items=["Sonrisa de Alonso"],
+            xp=60,
+            description="The rarest treasure in the realm: a smile from Alonso Quijano.",
+        ),
+    ),
+    "heroes_reunion": QuestInstance(
+        id="heroes_reunion",
+        title="Misión de Cadena",
+        description=(
+            "Zaex Uve sends you to gather the wisdom of his fellow dragon-slayers: "
+            "consult El Tito the mage, then Nireg Jenkins the oracle, then return to Zaex."
+        ),
+        giver_npc_id="zaex_01",
+        giver_name="Zaex Uve",
+        objectives=[
+            QuestObjective("consult_tito", "Consult El Tito", "talk", "eltito_01"),
+            QuestObjective("consult_nireg", "Consult Nireg Jenkins", "talk", "nireg_jenkins"),
+            QuestObjective("return_zaex", "Return to Zaex Uve", MANUAL_OBJECTIVE_KIND, "zaex_01"),
+        ],
+        reward=QuestReward(
+            gold=300,
+            items=["Aullido de la Hermandad"],
+            xp=250,
+            description=(
+                "The hermandad's howl made token — a relic of the three heroes who "
+                "slew Cárgarath el Inabarcable."
+            ),
         ),
     ),
 }

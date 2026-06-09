@@ -29,6 +29,11 @@ if TYPE_CHECKING:
 Matcher = Callable[[dict[str, Any], dict[str, Any]], int]
 
 # Map objective kind → the event type that can advance it.
+# A kind absent from this map (and from OBJECTIVE_MATCHERS) is manual-only: it is
+# never auto-advanced by on_event and can only be completed via the explicit
+# advance_quest_objective tool. See quests.MANUAL_OBJECTIVE_KIND ("confirm"),
+# used for NPC-judged steps and return-to-giver steps that a plain `talk` would
+# otherwise complete on the very turn the quest is accepted from that giver.
 _KIND_EVENT: dict[str, str] = {
     "kill": "enemy_killed",
     "collect": "item_collected",

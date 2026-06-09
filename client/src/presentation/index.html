@@ -319,7 +319,13 @@ flowchart TB
     <div class="cinema-head">
       <div class="pilar">Pillar 1 — The Living World</div>
       <h2>An endless land, <span class="grad">built as you walk</span></h2>
-      <p class="cinema-sum">Infinite <b class="key">64 m tiles</b> shaped by formulas, <b class="key">filled with props</b> as you explore, kept solid by collision — <b class="key">seamless and endless</b>.</p>
+      <ul class="points cinema-points">
+        <li><b><span class="key">64 × 64 m chunks</span></b> — infinite grid streamed around the player; no hand-authored terrain.</li>
+        <li><b><span class="key">Layered noise → biome</span></b> — elevation, moisture &amp; temperature decide biome per vertex at runtime.</li>
+        <li><b><span class="key">On chunk load</span></b> — populator queues buildings, trees, props &amp; NPCs from the biome catalog.</li>
+        <li><b><span class="key">Deferred spawn</span></b> — heavy mesh builds drain 1 per frame under a time budget; zero stalls.</li>
+        <li><b><span class="key">Unload &amp; GC</span></b> — chunks leaving the streaming radius are disposed; meshes &amp; NPCs removed.</li>
+      </ul>
     </div>
     <div class="movie-frame">
       <div class="mf-bar mf-top"></div>
@@ -333,201 +339,504 @@ flowchart TB
     </div>
   </section>
 
-  <!-- 10 — 3D DEEP DIVE: RENDERING PIPELINE -->
-  <section class="slide">
+  <!-- 10 — BACKEND TOP-LEVEL ARCHITECTURE -->
+  <section class="slide full">
     <div class="panel">
-      <div class="pilar">A Closer Look — The Picture</div>
-      <h2>How each <span class="grad">frame is drawn</span></h2>
-      <div class="split">
-        <ul class="points">
-          <li><b>The image is <span class="key">built in layers</span></b> — first the scene, then a pass that smooths jagged edges, then a pass that makes bright things glow. If a layer can't run, it quietly skips it.</li>
-          <li><b>Soft shadows and film-like color</b> make it look less "computer-generated."</li>
-          <li><b>The sky lights the world</b> — a snapshot of the sky is used to light everything realistically, added a moment after the game starts.</li>
-          <li><b>It watches its own speed</b> — if the frame rate dips, it lowers detail a touch to stay smooth.</li>
-          <li><b>Less effort on far-away things</b> — distant objects switch to simpler versions and stop casting shadows.</li>
-        </ul>
-        <figure class="diagram">
-          <pre class="mermaid">
-flowchart TD
-  SC[The scene] --> RP[Draw it]
-  RP --> TAA[Smooth the edges]
-  TAA --> BL[Add the glow]
-  BL --> CV[Final picture]
-          </pre>
-          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
-        </figure>
+      <div class="pilar">Pillar 2 — Agentic Backend</div>
+      <h2>Server <span class="grad">top-level architecture</span></h2>
+      <div class="notes-label">Architectural Principles Applied</div>
+      <div class="arch-notes">
+        <div class="note"><b class="key">Server-authoritative</b> — WorldState lives on the server; the client is a render mirror only.</div>
+        <div class="note"><b class="key">Per-NPC agents</b> — each character runs its own LangGraph StateGraph with independent memory and tool access.</div>
+        <div class="note"><b class="key">Tool-gated actions</b> — the LLM never mutates state directly; it calls typed tools that apply changes atomically.</div>
       </div>
+      <figure class="diagram diagram--hero">
+        <pre class="mermaid">
+flowchart LR
+  WS((("WebSocket<br/>all comms")))
+
+  subgraph SERVER["Server · FastAPI"]
+    direction TB
+    H["WS Handler<br/>fast-path · agent router"]
+    subgraph AGENT["Per-NPC LangGraph agent"]
+      direction LR
+      RSN["reason"] --> ACT["act · tools"] --> RSP["respond"]
+    end
+    subgraph STATE["Shared state"]
+      direction LR
+      WST["WorldState"]
+      PST["PlayerState"]
+    end
+    WS_OUT["ConnectionManager<br/>broadcast nearby"]
+  end
+
+  RAG[("Lore RAG<br/>keyword retriever")]
+  LLM[("LLM provider<br/>Claude · Ollama")]
+
+  subgraph SHARED["Shared library"]
+    MAN[("World Manifest<br/>baseline")]
+  end
+
+  WS -->|"prompt · move · action"| H
+  H -->|"invoke agent"| AGENT
+  H -->|"update position"| PST
+  RSN -->|"inference"| LLM
+  ACT -->|"lore lookup"| RAG
+  ACT -->|"pending actions"| WST
+  MAN -->|"baseline load"| WST
+  STATE -->|"state delta"| WS_OUT
+  WS_OUT -->|"AgentResponse · world delta · player states"| WS
+
+  classDef ws     fill:#2a1f10,stroke:#e8b84b,color:#ffe9b0,stroke-width:2.5px
+  classDef server fill:#1b1330,stroke:#9a6fc5,color:#e7dcf4,stroke-width:1.5px
+  classDef ai     fill:#0f231c,stroke:#56b89a,color:#cdeede,stroke-width:1.5px
+  classDef shared fill:#15251a,stroke:#c5a55a,color:#ecdcb4,stroke-width:2px
+
+  class WS ws
+  class H,AGENT,RSN,ACT,RSP,WST,PST,WS_OUT server
+  class LLM,RAG ai
+  class MAN shared
+
+  style SERVER fill:#120c1f,stroke:#6f4f95,color:#bfa6dc
+  style AGENT  fill:#1a1030,stroke:#8060b0,color:#cbb8e8
+  style STATE  fill:#0e1a10,stroke:#507050,color:#b8d4b8
+  style SHARED fill:#1a1508,stroke:#c5a55a,color:#ecdcb4
+        </pre>
+        <figcaption>full detail in server/ARCHITECTURE.md · drag · scroll · double-click</figcaption>
+      </figure>
     </div>
   </section>
 
-  <!-- 8 — PILLAR 2: AGENTIC BACKEND -->
+  <!-- 11 — PILLAR 2: AGENT IN ACTION -->
   <section class="slide">
     <div class="panel">
       <div class="pilar">Pillar 2 — Agentic Backend</div>
-      <h2>An agentic backend on <span class="grad">LangGraph</span></h2>
-      <div class="split">
-        <ul class="points">
-          <li><b>Every character thinks on its own</b> — each has a <span class="key">private decision loop</span> and its own memory; new characters can be added while the game runs.</li>
-          <li><b>The thinking happens in small steps</b> on the server and is sent back over the live connection.</li>
-          <li><b>"Guardrails" keep it on track</b> so the AI stays in character and the story stays consistent.</li>
-          <li><b>A quick "lore lookup"</b> feeds each character the facts it needs, so it can reason in the moment, change mood, and remember.</li>
-        </ul>
-        <figure class="diagram">
-          <!-- The per-character decision loop -->
+      <h2>The agent in <span class="grad">action</span></h2>
+      <div class="agent-demo">
+
+        <!-- Col 1: NPC avatar portrait -->
+        <div class="agent-npc-col">
+          <div class="avatar-stage" id="npcStage11"></div>
+          <div class="agent-npc-label">Aurelia · Merchant · Fort Malaka</div>
+        </div>
+
+        <!-- Col 2: in-game chat panel -->
+        <div class="igc">
+          <div class="igc-header">Aurelia</div>
+          <div class="igc-status">
+            <span class="igc-mood-dot"></span>
+            <span class="igc-mood-label">Neutral</span>
+            <span class="igc-rel-label">FRIEND</span>
+            <div class="igc-rel-bar"><div class="igc-rel-fill" style="width:62%"></div></div>
+          </div>
+          <div class="igc-actions">
+            <span class="igc-btn">Browse</span>
+            <span class="igc-btn igc-btn--active">Trade</span>
+            <span class="igc-btn">Chat</span>
+            <span class="igc-btn">Quest</span>
+          </div>
+          <div class="igc-history">
+            <div class="igc-row igc-row--player">
+              <div class="igc-bubble igc-bubble--player" id="igcPlayerBubble" style="opacity:0"></div>
+              <div class="igc-ts">14:23</div>
+            </div>
+            <div class="igc-row igc-row--npc">
+              <div class="igc-npc-name">Aurelia</div>
+              <div class="igc-bubble igc-bubble--npc" id="igcNpcBubble" style="opacity:0"></div>
+              <div class="igc-ts">14:23</div>
+            </div>
+          </div>
+          <div class="igc-input-row">
+            <div class="igc-input">Say something or type an action…</div>
+            <span class="igc-send">Send</span>
+          </div>
+        </div>
+
+        <!-- Col 3: decision-loop graph (left) + agent trace (right) -->
+        <div class="agent-right-col">
+
+          <!-- Vertical decision-loop graph -->
+          <div class="ad-flow" id="agentDiagram">
+            <div class="ad-node ad-node--prompt" id="adn-prompt">You speak</div>
+            <div class="ad-v-arr">▼</div>
+            <div class="ad-loop-group">
+              <div class="ad-loop-inner">
+                <div class="ad-node ad-node--reason" id="adn-reason">
+                  reason
+                  <span class="ad-sub">understand intent</span>
+                </div>
+                <div class="ad-v-arr">▼</div>
+                <div class="ad-node ad-node--act" id="adn-act">
+                  act · tools
+                  <span class="ad-sub">fire tools · mutate state</span>
+                </div>
+              </div>
+              <div class="ad-loop-rail" id="adLoopRail">
+                <span class="ad-loop-icon">↺</span>
+              </div>
+            </div>
+            <div class="ad-v-arr">▼</div>
+            <div class="ad-node ad-node--respond" id="adn-respond">
+              respond
+              <span class="ad-sub">reuse or speak call</span>
+            </div>
+            <div class="ad-v-arr">▼</div>
+            <div class="ad-node ad-node--update" id="adn-update">
+              update state
+              <span class="ad-sub">memory · mood · rel.</span>
+            </div>
+          </div>
+
+          <!-- Agent trace with LLM reasoning -->
+          <div class="agent-trace">
+            <div class="trace-header">
+              <span class="trace-npc-id">npc_id: <b>aurelia_merchant_01</b></span>
+              <span class="trace-badge">LangGraph StateGraph</span>
+            </div>
+            <div class="trace-section reason">
+              <div class="trace-step-label">reason</div>
+              <div class="trace-lines">
+                <div class="trace-line"><span class="tkey">intent</span><span class="tsep"> = </span><span class="tval">TRADE</span>&nbsp;&nbsp;<span class="tkey">mood</span><span class="tsep"> = </span><span class="tval">neutral</span>&nbsp;&nbsp;<span class="tkey">relationship</span><span class="tsep"> = </span><span class="tval">+12</span></div>
+                <div class="trace-line"><span class="tkey">lore</span><span class="tsep"> ↦ </span><span class="tcomment">"Aurelia stocks blades, armor and provisions"</span></div>
+                <div class="trace-line"><span class="tkey">memory</span><span class="tsep"> ↦ </span><span class="tcomment">"Player helped clear the eastern camp"</span></div>
+                <div class="trace-thought" id="traceReasonThought"></div>
+                <div class="trace-line dim">→ LLM call #1 · decides to use tools</div>
+              </div>
+            </div>
+            <div class="trace-section act">
+              <div class="trace-step-label">act</div>
+              <div class="trace-lines">
+                <div class="trace-line"><span class="tfn">check_inventory</span><span class="tsep">("sword") </span><span class="tarrow">→</span><span class="tval"> { available: true, count: 2, price: 50g }</span></div>
+                <div class="trace-line"><span class="tfn">check_gold</span><span class="tsep">(player_id) </span><span class="tarrow">→</span><span class="tval"> { gold: 120 }</span></div>
+                <div class="trace-line"><span class="tfn">propose_trade</span><span class="tsep">("sword", 50g) </span><span class="tarrow">→</span><span class="tcomment"> pending_action → WorldState</span></div>
+                <div class="trace-line dim">→ LLM call #2 · tool results injected · produces dialogue</div>
+              </div>
+            </div>
+            <div class="trace-section respond">
+              <div class="trace-step-label">respond</div>
+              <div class="trace-lines">
+                <div class="trace-line output">"A fine blade — fifty gold. Fair trade, friend."</div>
+                <div class="trace-line dim">↳ reuses reason output · no extra LLM call</div>
+              </div>
+            </div>
+            <div class="trace-footer">
+              <span class="trace-stat"><span class="tkey">LLM calls</span> <span class="tval">2</span></span>
+              <span class="trace-stat"><span class="tkey">tools fired</span> <span class="tval">3</span></span>
+              <span class="trace-stat"><span class="tkey">latency</span> <span class="tval">~420 ms</span></span>
+              <span class="trace-stat"><span class="tkey">memory entries</span> <span class="tval">14</span></span>
+            </div>
+          </div>
+
+        </div><!-- /agent-right-col -->
+
+      </div><!-- /agent-demo -->
+
+      <button class="agent-replay-btn" id="agentReplayBtn">⟳ Replay</button>
+    </div>
+  </section>
+
+  <!-- 11b — AGENT LANGGRAPH: FULL STATE GRAPH -->
+  <section class="slide">
+    <div class="panel panel--wide">
+      <div class="pilar">Pillar 2 — Agentic Backend</div>
+      <h2>The <span class="grad">LangGraph</span> state graph</h2>
+      <div class="sg-layout">
+
+        <!-- Left: the graph -->
+        <figure class="diagram sg-diagram">
           <pre class="mermaid">
 flowchart TD
-  S([You speak]) --> R[Think]
-  R -->|needs to act| A[Do it]
-  R -->|just talk| RESP[Reply]
-  A --> R
-  RESP --> FB[Fill gaps]
-  FB --> REF[Update feelings]
-  REF -->|now and then| SUM[Trim memory]
-  REF --> E([Done])
-  SUM --> E
+  IN(["Player prompt"]) --> R
+
+  R["reason\nlore · memory · intent · plan"]
+  A["act · tools\ncheck · trade · attack · query"]
+  S["respond\ngenerate dialogue"]
+  U["update state\nmemory · mood · relationship"]
+
+  R -->|"tools needed"| A
+  A -->|"results — re-evaluate"| R
+  R -->|"done"| S
+  S --> U
+  U --> OUT(["AgentResponse\ndialogue + actions"])
+
+  LLM(["LLM"]) -.->|"reason call"| R
+  LLM -.->|"respond call"| S
+  RAG(["Lore + Memory"]) -.->|"context"| R
+
+  classDef node fill:#0d0b18,stroke:#c5a55a,color:#e8dcc8
+  classDef io   fill:#081410,stroke:#56b89a,color:#7ed4b4
+  classDef ext  fill:#080812,stroke:#5870b8,color:#8898d0
+
+  class R,A,S,U node
+  class IN,OUT io
+  class LLM,RAG ext
           </pre>
-          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+          <figcaption>one StateGraph per NPC · drag · scroll</figcaption>
         </figure>
-      </div>
-    </div>
-  </section>
 
-  <!-- 9 — AGENT DEEP DIVE: THE GRAPH NODES -->
-  <section class="slide">
-    <div class="panel">
-      <div class="pilar">A Closer Look — Thinking</div>
-      <h2>Six steps, <span class="grad">but only one or two AI calls</span></h2>
-      <ul class="points">
-        <li><b>Think</b> — the character gathers who it is, what's nearby, your shared history, its mood, and any relevant lore, then decides what to say and do. Plain "hellos" take a quick shortcut to save effort.</li>
-        <li><b>Do it</b> — it carries out the chosen actions (attack, give an item…), sees the result, and loops back to think if there's more to do.</li>
-        <li><b>Reply</b> — it writes the actual in-character line, reusing what it already worked out when that text is clean.</li>
-        <li><b>Fill gaps</b> — if it somehow says nothing, a sensible line is built from what it just did.</li>
-        <li><b>Update feelings</b> — <b class="cy">no AI here</b>: simple rules adjust its mood and how much it likes you (a score from −100 to +100).</li>
-        <li><b>Trim memory</b> — once in a while it compresses old chat into a short note, so a character's memory never grows out of control.</li>
-      </ul>
-      <p class="body" style="margin-top:1rem"><span class="key">Only the first two steps may call the AI</span> — the rest is cheap, ordinary code. That keeps each reply fast and the cost predictable.</p>
-    </div>
-  </section>
+        <!-- Right: tools + state -->
+        <div class="sg-sidebar">
 
-  <!-- 10 — AGENT DEEP DIVE: STATE & MEMORY -->
-  <section class="slide">
-    <div class="panel">
-      <div class="pilar">A Closer Look — Memory</div>
-      <h2>Characters remember you — <span class="grad">no database needed</span></h2>
-      <ul class="points">
-        <li><b>A private notebook per pair</b> — each character keeps a separate memory for each player it has met.</li>
-        <li><b>What it keeps</b> — a short summary of your chats, its current mood, how much it likes you, and notes it has formed about you.</li>
-        <li><b>No wasted thinking</b> — if you ask the exact same thing again, it <span class="key">reuses the previous answer</span> instead of asking the AI twice.</li>
-      </ul>
-      <div class="grid g3" style="margin-top:1.6rem">
-        <div class="card center"><div class="tagline">−100</div><h3 class="am">Enemy</h3></div>
-        <div class="card center"><div class="tagline">0</div><h3>Stranger</h3></div>
-        <div class="card center"><div class="tagline">+100</div><h3 class="green">Trusted Ally</h3></div>
-      </div>
-    </div>
-  </section>
+          <!-- Tools -->
+          <div class="sg-block">
+            <div class="sg-block-title">22 tools  <span class="sg-count">bound to act node</span></div>
+            <div class="sg-tool-grid">
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--combat">⚔ combat</span>
+                <span class="sg-tool">deal_damage</span>
+                <span class="sg-tool">heal_target</span>
+                <span class="sg-tool">defend</span>
+                <span class="sg-tool">flee</span>
+              </div>
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--trade">◈ trade</span>
+                <span class="sg-tool">offer_item</span>
+                <span class="sg-tool">complete_purchase</span>
+                <span class="sg-tool">take_item</span>
+                <span class="sg-tool">buy_item_from_player</span>
+              </div>
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--quest">✦ quest</span>
+                <span class="sg-tool">offer_quest</span>
+                <span class="sg-tool">offer_custom_quest</span>
+                <span class="sg-tool">advance_quest_objective</span>
+                <span class="sg-tool">complete_quest</span>
+                <span class="sg-tool">check_player_quests</span>
+              </div>
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--env">◉ environment</span>
+                <span class="sg-tool">change_weather</span>
+                <span class="sg-tool">spawn_effect</span>
+                <span class="sg-tool">move_npc</span>
+              </div>
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--query">◎ world query</span>
+                <span class="sg-tool">get_nearby_entities</span>
+                <span class="sg-tool">check_player_state</span>
+              </div>
+              <div class="sg-tool-group">
+                <span class="sg-cat sg-cat--misc">♪ misc</span>
+                <span class="sg-tool">emote</span>
+                <span class="sg-tool">compose_music</span>
+              </div>
+            </div>
+          </div>
 
-  <!-- 11 — TOOL SYSTEM -->
-  <section class="slide">
-    <div class="panel">
-      <div class="pilar">A Closer Look — Safety</div>
-      <h2>Characters act through a <span class="grad">fixed set of verbs</span></h2>
-      <div class="split">
-        <ul class="points">
-          <li><b>A limited menu of actions</b> — attack, heal, trade, give a quest, change the weather, and a few more. A character <span class="key">can't do anything outside that list</span>. That's the safety net.</li>
-          <li><b>Nothing happens immediately</b> — each verb just writes down "what should change." The server then applies the whole list at once, in one clean step.</li>
-          <li><b>The money is real</b> — offering an item only proposes a price; a sale only goes through if you can actually pay; quest rewards are capped so nothing breaks the economy.</li>
-          <li><b>One place changes the world</b> — keeping every update in a single, guarded step avoids glitches when many things happen at once.</li>
-        </ul>
-        <figure class="diagram">
-          <pre class="mermaid">
-flowchart TD
-  RE[AI picks a verb] --> TC[Attack / give / trade...]
-  TC --> AC[Write down the change]
-  AC --> PA[Collect all changes]
-  PA --> AA[Apply them all at once]
-          </pre>
-          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
-        </figure>
-      </div>
-    </div>
-  </section>
+          <!-- Agent State -->
+          <div class="sg-block">
+            <div class="sg-block-title">AgentState  <span class="sg-count">TypedDict · per NPC per player</span></div>
+            <pre class="sg-state"><span class="sg-field">npc_id</span>               <span class="sg-type">str</span>
+<span class="sg-field">npc_personality</span>      <span class="sg-type">str</span>          <span class="sg-cmt"># system prompt</span>
+<span class="sg-field">messages</span>             <span class="sg-type">list[Message]</span> <span class="sg-cmt"># conversation history</span>
+<span class="sg-field">conversation_summary</span> <span class="sg-type">str</span>          <span class="sg-cmt"># rolling compression</span>
+<span class="sg-field">mood</span>                 <span class="sg-type">str</span>          <span class="sg-cmt"># toward this player</span>
+<span class="sg-field">relationship_score</span>   <span class="sg-type">int</span>          <span class="sg-cmt"># −100 → +100</span>
+<span class="sg-field">personality_notes</span>    <span class="sg-type">str</span>          <span class="sg-cmt"># player-specific notes</span>
+<span class="sg-field">player_state</span>         <span class="sg-type">dict</span>         <span class="sg-cmt"># HP · inventory · pos</span>
+<span class="sg-field">world_context</span>        <span class="sg-type">dict</span>         <span class="sg-cmt"># nearby · zone · time</span>
+<span class="sg-field">pending_actions</span>      <span class="sg-type">list[Action]</span> <span class="sg-cmt"># queued world mutations</span>
+<span class="sg-field">response_text</span>        <span class="sg-type">str</span>          <span class="sg-cmt"># final dialogue out</span></pre>
+          </div>
 
-  <!-- 12 — CONCURRENCY & AUTHORITY -->
-  <section class="slide">
-    <div class="panel">
-      <div class="kicker">Keeping it fast &amp; fair</div>
-      <h2>One source of truth, <span class="grad">never overloaded</span></h2>
-      <div class="grid g2">
-        <div class="card">
-          <div class="tagline">fairness</div>
-          <h3>The server owns the world</h3>
-          <p>Every hit point, coin and weather change is <span class="key">decided in one place</span>. Your browser only shows the result — so two players always see the same thing.</p>
-        </div>
-        <div class="card">
-          <div class="tagline">responsiveness</div>
-          <h3>Slow thinking never freezes you</h3>
-          <p>While a character is thinking, <span class="key">you can still walk around freely</span>. Rapid clicks are queued, only a handful of AI requests run at once, and each has a time limit — so it never gets swamped.</p>
-        </div>
-        <div class="card">
-          <div class="tagline">speed</div>
-          <h3>Instant for the simple stuff</h3>
-          <p>Ordinary hits are <span class="key">settled instantly</span> by simple rules. The AI is saved for the moments that actually need thought.</p>
-        </div>
-        <div class="card">
-          <div class="tagline">cost</div>
-          <h3>Cheap way to recall lore</h3>
-          <p>Background facts are found by <span class="key">matching keywords</span>, not by heavy AI search — so each reply stays low-cost and predictable.</p>
         </div>
       </div>
     </div>
   </section>
 
-  <!-- 13 — PILLAR 3: AGENTIC CODING -->
+  <!-- 11c — PILLAR 2 PoC: IT'S NOT SCRIPTED -->
   <section class="slide">
+    <div class="panel panel--wide">
+      <div class="pilar">Pillar 2 — Proof of Concept</div>
+      <h2>Not a single line is <span class="grad">scripted</span></h2>
+      <div class="poc-layout">
+
+        <!-- Left: live-feeling conversation transcript -->
+        <div class="poc-transcript">
+
+          <div class="poc-turn">
+            <div class="poc-player">Tell me about the sword you're selling.</div>
+            <div class="poc-npc">
+              <span class="poc-npc-name">Aurelia</span>
+              <p class="poc-npc-text">That blade? Forged in the old Malaka style — double-edged, balanced for close quarters. I sourced it from a smith in the lower district before the fire. You won't find better this side of the mountains.</p>
+              <div class="poc-tags">
+                <span class="poc-tag poc-tag--lore">lore RAG · regional smithing lore</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="poc-turn">
+            <div class="poc-player">I'll buy it. I helped clear the eastern camp — can I get a discount?</div>
+            <div class="poc-npc">
+              <span class="poc-npc-name">Aurelia</span>
+              <p class="poc-npc-text">You did, and I remember it. Forty-five gold — five off for the favour. Take it.</p>
+              <div class="poc-tags">
+                <span class="poc-tag poc-tag--memory">memory · player cleared eastern camp</span>
+                <span class="poc-tag poc-tag--tool">propose_trade("sword", 45g)</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="poc-turn poc-turn--gap">
+            <div class="poc-session-sep">— next session —</div>
+            <div class="poc-player">Do you still have anything worth buying?</div>
+            <div class="poc-npc">
+              <span class="poc-npc-name">Aurelia</span>
+              <p class="poc-npc-text">You again. Your blade still serving you? I've got armour this week — lighter than it looks. Sixty gold, and I'll throw in a whetstone given our history.</p>
+              <div class="poc-tags">
+                <span class="poc-tag poc-tag--memory">memory · sold sword at discount · rel. +18</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Right: what's happening behind the scenes -->
+        <div class="poc-callouts">
+          <div class="poc-callout">
+            <div class="poc-callout-icon poc-icon--lore">◈</div>
+            <div>
+              <div class="poc-callout-title">Lore accuracy</div>
+              <div class="poc-callout-body">RAG retrieved regional lore context — the LLM didn't hallucinate it.</div>
+            </div>
+          </div>
+          <div class="poc-callout">
+            <div class="poc-callout-icon poc-icon--tool">⚙</div>
+            <div>
+              <div class="poc-callout-title">Real tool call</div>
+              <div class="poc-callout-body"><code>propose_trade()</code> mutated WorldState. The discount was computed, not written.</div>
+            </div>
+          </div>
+          <div class="poc-callout">
+            <div class="poc-callout-icon poc-icon--memory">◎</div>
+            <div>
+              <div class="poc-callout-title">Cross-session memory</div>
+              <div class="poc-callout-body">NPC remembered the favour and relationship score across server restarts.</div>
+            </div>
+          </div>
+          <div class="poc-callout">
+            <div class="poc-callout-icon poc-icon--zero">∅</div>
+            <div>
+              <div class="poc-callout-title">Zero scripted dialogue</div>
+              <div class="poc-callout-body">Every line generated fresh from context. New prompt → new response.</div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 14 — PILLAR 3: AGENTIC CODING -->
+  <section class="slide panel--wide">
     <div class="panel">
       <div class="pilar">Pillar 3 — Agentic Coding</div>
-      <h2>Agentic coding <span class="grad">as the way of building</span></h2>
-      <div class="split">
-        <ul class="points">
-          <li><b>One shared rulebook</b> — a couple of guide documents tell every AI coding assistant how things are built here, so the style stays consistent.</li>
-          <li><b>Nothing ships untested</b> — automated checks and tests must pass before any change is accepted; problems are caught before they reach the project.</li>
-          <li><b>Two working habits</b> — <span class="key">research first then build</span>, and repeat-until-right loops.</li>
-          <li><b>Draw it first</b> — sketch the design as simple diagrams before writing any code.</li>
-        </ul>
-        <figure class="diagram">
-          <pre class="mermaid">
-flowchart TD
-  RES[Research] --> PLAN[Sketch the design]
-  PLAN --> IMPL[Build it]
-  IMPL --> GATE{Checks pass?}
-  GATE -->|no| IMPL
-  GATE -->|yes| GH[Ships]
-          </pre>
-          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
-        </figure>
+      <h2>The whole project <span class="grad">built agentically</span></h2>
+
+      <div class="ac-layout">
+
+        <!-- left: workflow modules -->
+        <div class="ac-workflow">
+          <div class="ac-step ac-step--research">
+            <div class="ac-step-badge">/rpi-research</div>
+            <div class="ac-step-title">Explore</div>
+            <div class="ac-step-body">Agent reads the codebase, maps the affected area, surfaces constraints and prior decisions before a single line is written.</div>
+          </div>
+          <div class="ac-arrow">↓</div>
+          <div class="ac-step ac-step--plan">
+            <div class="ac-step-badge">/rpi-plan</div>
+            <div class="ac-step-title">Design</div>
+            <div class="ac-step-body">Proposes a diagram-first plan. No implementation starts until the architecture is agreed and written down.</div>
+          </div>
+          <div class="ac-arrow">↓</div>
+          <div class="ac-step ac-step--impl">
+            <div class="ac-step-badge">/rpi-implement</div>
+            <div class="ac-step-title">Build &amp; iterate</div>
+            <div class="ac-step-body">Writes code, runs <code>tsc + eslint + pytest</code>. Loops until all checks are green — the human reviews the diff, not the loop.</div>
+          </div>
+          <div class="ac-arrow">↓</div>
+          <div class="ac-step ac-step--ship">
+            <div class="ac-step-badge">pre-commit hooks</div>
+            <div class="ac-step-title">Ships</div>
+            <div class="ac-step-body">CLAUDE.md conventions + CI gate. Nothing lands without passing typecheck, lint, and tests.</div>
+          </div>
+        </div>
+
+        <!-- right: what was built this way -->
+        <div class="ac-output">
+          <div class="ac-stat-row">
+            <div class="ac-stat">
+              <div class="ac-stat-num">110</div>
+              <div class="ac-stat-label">Three.js mesh classes</div>
+              <div class="ac-stat-sub">buildings, biomes props, structures, vegetation — all prompted into existence</div>
+            </div>
+            <div class="ac-stat">
+              <div class="ac-stat-num">34</div>
+              <div class="ac-stat-label">NPC personalities</div>
+              <div class="ac-stat-sub">system prompts, tool rules, memory — authored by agents</div>
+            </div>
+          </div>
+          <div class="ac-stat-row">
+            <div class="ac-stat">
+              <div class="ac-stat-num">13</div>
+              <div class="ac-stat-label">custom skills</div>
+              <div class="ac-stat-sub">mesh-from-picture, extend-world, npc-registry-manager, terrain-builder…</div>
+            </div>
+            <div class="ac-stat">
+              <div class="ac-stat-num">307</div>
+              <div class="ac-stat-label">commits</div>
+              <div class="ac-stat-sub">agentic workflow from day 1 — research → plan → implement → ship</div>
+            </div>
+          </div>
+
+          <div class="ac-tools-built">
+            <div class="ac-tools-title">Agentic tooling shipped</div>
+            <div class="ac-tools-list">
+              <span class="ac-tool">Terrain Builder</span>
+              <span class="ac-tool">Mesh Viewer</span>
+              <span class="ac-tool">World Builder</span>
+              <span class="ac-tool">mesh-from-picture</span>
+              <span class="ac-tool">extend-world skill</span>
+              <span class="ac-tool">NPC registry manager</span>
+            </div>
+          </div>
+
+          <div class="ac-rulebook">
+            <span class="ac-rulebook-label">CLAUDE.md</span>
+            <span class="ac-rulebook-body">shared rulebook — TS strict · Python mypy strict · no <code>any</code> · conventional commits · CI gates · per-NPC isolation · tool factory pattern</span>
+          </div>
+        </div>
+
       </div>
     </div>
   </section>
 
-  <!-- 14 — TAKEAWAYS & FEATURES -->
-  <section class="slide">
-    <div class="panel">
-      <div class="kicker">Takeaways &amp; features</div>
-      <h2>Lessons learnt &amp; <span class="grad">cool features</span></h2>
-      <div class="grid g2">
-        <div class="card">
-          <div class="tagline">lessons learnt</div>
-          <h3>Lessons</h3>
-          <p>Guardrails beat raw randomness. Giving each character its own brain adds personality without adding complexity. And by <span class="key">using the AI sparingly</span> — only where real thinking is needed — the cost stays low and predictable.</p>
+  <!-- 15 — THANKS & CONTRIBUTORS -->
+  <section class="slide center">
+    <div class="thanks-panel">
+      <div class="thanks-title">Thanks for <span class="grad">listening</span></div>
+      <div class="thanks-tagline">Type anything — <span class="key">the world answers</span>.</div>
+
+      <div class="contrib-grid">
+        <div class="contrib-card">
+          <div class="contrib-name">Eduardo Pertierra</div>
+          <div class="contrib-role">creator · backend · agents</div>
         </div>
-        <div class="card">
-          <div class="tagline">cool features</div>
-          <h3>Tooling</h3>
-          <p><b class="cy">Terrain Builder</b> · <b class="cy">Mesh Viewer</b> · <b class="cy">World Builder</b> — author and edit the world, all AI-driven.</p>
+        <div class="contrib-card">
+          <div class="contrib-name">Irene</div>
+          <div class="contrib-role">contributor</div>
+        </div>
+        <div class="contrib-card">
+          <div class="contrib-name">Mohamed Gara</div>
+          <div class="contrib-role">contributor</div>
+        </div>
+        <div class="contrib-card">
+          <div class="contrib-name">Rafael Pernil</div>
+          <div class="contrib-role">contributor</div>
         </div>
       </div>
-      <p class="lead" style="margin-top:1.4rem">Type anything — <span class="key">the world answers</span>.</p>
+
+      <div class="thanks-url">www.worldofpromptcraft.com</div>
+      <div class="thanks-gh">github.com/Zaexv/world-of-prompcraft</div>
     </div>
   </section>
 

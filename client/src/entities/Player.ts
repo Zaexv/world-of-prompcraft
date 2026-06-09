@@ -116,13 +116,18 @@ export class Player {
 
     // --- Swimming override ---
     if (isSwimming) {
-      this.visualRoot.position.y = 0.34;
+      this.visualRoot.position.set(0, 0.34, 0);
       this.visualRoot.rotation.z = this.bankLean * 0.5;
     } else {
       const breath = Math.sin(this.breathPhase) * 0.012;
-      const idleSway = Math.sin(this.idlePhase) * (isMoving ? 0 : 0.018);
-      const moveBob = Math.sin(this.walkPhase) * (isMoving ? 0.04 : 0);
-      this.visualRoot.position.y = breath + moveBob + idleSway;
+      const idleSway = Math.sin(this.idlePhase) * (isMoving ? 0 : 0.02);
+      // Footfall bounce: the body rises at mid-stride (leg passing under) and dips
+      // at each footfall, so it bobs twice per stride (|cos| has half the period).
+      const bounceAmp = isRunning ? 0.1 : 0.05;
+      const bounce = isMoving ? (Math.abs(Math.cos(this.walkPhase)) - 0.5) * bounceAmp : 0;
+      this.visualRoot.position.y = breath + idleSway + bounce;
+      // Lateral weight shift onto the planted foot, once per stride.
+      this.visualRoot.position.x = isMoving ? Math.sin(this.walkPhase) * (isRunning ? 0.05 : 0.03) : 0;
     }
 
     // --- Face movement direction ---
@@ -137,31 +142,36 @@ export class Player {
   }
 
   private updateProceduralAnimation(delta: number, isMoving: boolean, isRunning: boolean): void {
-    const swing = Math.sin(this.walkPhase) * (isRunning ? 0.65 : 0.48);
-    const breathNod = Math.sin(this.breathPhase) * 0.012;
+    const stride = Math.sin(this.walkPhase);
+    const legAmp = isRunning ? 0.85 : 0.55;
+    const breathNod = Math.sin(this.breathPhase) * 0.02;
     const idleFidget = Math.sin(this.idlePhase * 2.3) * (isMoving ? 0 : 0.008);
 
-    // Legs: stride
-    if (this.leftLeg) this.leftLeg.rotation.x = swing;
-    if (this.rightLeg) this.rightLeg.rotation.x = -swing;
+    // Legs: stride from the hip, contralateral to the arms.
+    if (this.leftLeg) this.leftLeg.rotation.x = stride * legAmp;
+    if (this.rightLeg) this.rightLeg.rotation.x = -stride * legAmp;
 
-    // Arms: swing opposite legs, raise slightly when running (combat-ready)
-    const targetArmRaise = isRunning ? -0.35 : 0;
+    // Arms: swing opposite the same-side leg, with a slight outward splay so they
+    // clear the torso/cape. Running pulls them a touch forward (combat-ready).
+    const targetArmRaise = isRunning ? -0.45 : 0;
     this.armRaise = lerp(this.armRaise, targetArmRaise, clampedT(delta, 4));
+    const armAmp = isRunning ? 0.7 : 0.5;
+    const splay = isMoving ? 0.12 : 0.05;
 
     if (this.leftArm) {
-      this.leftArm.rotation.x = -swing * 0.55 + this.armRaise;
-      this.leftArm.rotation.z = lerp(this.leftArm.rotation.z, isMoving ? -0.08 : -0.04, clampedT(delta, 3));
+      this.leftArm.rotation.x = -stride * armAmp + this.armRaise;
+      this.leftArm.rotation.z = lerp(this.leftArm.rotation.z, -splay, clampedT(delta, 4));
     }
     if (this.rightArm) {
-      this.rightArm.rotation.x = swing * 0.55 + this.armRaise;
-      this.rightArm.rotation.z = lerp(this.rightArm.rotation.z, isMoving ? 0.08 : 0.04, clampedT(delta, 3));
+      this.rightArm.rotation.x = stride * armAmp + this.armRaise;
+      this.rightArm.rotation.z = lerp(this.rightArm.rotation.z, splay, clampedT(delta, 4));
     }
 
-    // Head: breath nod + idle look
+    // Head: breath nod + idle look, plus a subtle counter-bob against the stride.
     if (this.head) {
-      this.head.rotation.x = breathNod + idleFidget;
+      this.head.rotation.x = breathNod + idleFidget + (isMoving ? Math.abs(Math.cos(this.walkPhase)) * 0.03 : 0);
       this.head.rotation.y = lerp(this.head.rotation.y, isMoving ? 0 : Math.sin(this.idlePhase * 0.7) * 0.08, clampedT(delta, 2));
+      this.head.rotation.z = lerp(this.head.rotation.z, isMoving ? -stride * 0.03 : 0, clampedT(delta, 5));
     }
   }
 }
