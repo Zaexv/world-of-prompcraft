@@ -54,3 +54,4 @@ export class MushroomCluster extends Mesh {
 }
 
 registerMesh(MushroomCluster);
+

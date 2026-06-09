@@ -82,3 +82,4 @@ export class AncientTree extends Mesh {
 }
 
 registerMesh(AncientTree);
+

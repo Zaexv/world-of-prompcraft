@@ -3158,7 +3158,7 @@
             "transform": {
               "position": [
                 80,
-                13.277207774194478,
+                12.569100342816764,
                 -100
               ],
               "rotation": [
@@ -3686,6 +3686,33 @@
                   "shape": "rect",
                   "width": 6.7,
                   "depth": 6.7
+                }
+              }
+            }
+          },
+          {
+            "id": "malaka_broken_roman_amphitheatre_1781015524320",
+            "type": "malaka_broken_roman_amphitheatre",
+            "transform": {
+              "position": [
+                100.46535492362752,
+                11.666254300046596,
+                -92.58943657276316
+              ],
+              "scale": 1,
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "visual": {
+              "label": "malaka_broken_roman_amphitheatre",
+              "metadata": {
+                "footprint": {
+                  "shape": "rect",
+                  "width": 25.8,
+                  "depth": 25.2
                 }
               }
             }

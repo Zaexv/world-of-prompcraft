@@ -29,6 +29,13 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     const depth = 5 * scale;
     const houseHeight = 3.5 * scale;
     const foundationHeight = 0.2 * scale;
+    
+    const patioDepth = 4 * scale;
+    const patioWidth = width + 2 * scale;
+
+    // ═══════════════════════════════════════════════════════════════════════
+    //  HOUSE STRUCTURE
+    // ═══════════════════════════════════════════════════════════════════════
 
     // 1. Foundation (Stone)
     const foundSkirt = foundationHeight + 0.4 * scale;
@@ -212,10 +219,40 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     // Decorative blue strip atop the zócalo
     band(blueGlassMat, 0.05 * scale, foundationHeight + tileHeight + 0.025 * scale);
 
-    // Main Collider
-    const bodyProxy = boxCollider(width, houseHeight, depth);
-    bodyProxy.position.y = houseHeight / 2;
-    g.add(bodyProxy);
+    // ═══════════════════════════════════════════════════════════════════════
+    //  COLLIDERS — Main house body
+    // ═══════════════════════════════════════════════════════════════════════
+
+    // Back wall collider
+    const backWallColl = boxCollider(width, houseHeight, wallThk * 2);
+    backWallColl.position.set(0, houseHeight / 2, -depth / 2 + wallThk);
+    g.add(backWallColl);
+
+    // Left wall collider
+    const leftWallColl = boxCollider(wallThk * 2, houseHeight, depth);
+    leftWallColl.position.set(-width / 2 + wallThk, houseHeight / 2, 0);
+    g.add(leftWallColl);
+
+    // Right wall collider
+    const rightWallColl = boxCollider(wallThk * 2, houseHeight, depth);
+    rightWallColl.position.set(width / 2 - wallThk, houseHeight / 2, 0);
+    g.add(rightWallColl);
+
+    // Front wall colliders (two segments around the door opening)
+    for (const side of [-1, 1]) {
+      const fwColl = boxCollider(frontSegW, houseHeight, wallThk * 2);
+      fwColl.position.set(
+        side * (doorOpenHalf + frontSegW / 2),
+        houseHeight / 2,
+        depth / 2 - wallThk,
+      );
+      g.add(fwColl);
+    }
+
+    // Door lintel collider (blocks jumping over door)
+    const lintelColl = boxCollider(doorOpenHalf * 2, houseHeight - doorOpenTop, wallThk * 2);
+    lintelColl.position.set(0, doorOpenTop + (houseHeight - doorOpenTop) / 2, depth / 2 - wallThk);
+    g.add(lintelColl);
 
     // 4. Gable Roof (Triangular form) — snug overhang so it sits on the walls
     const roofHeight = 1.8 * scale;
@@ -252,9 +289,16 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     }
     g.add(roofGroup);
 
-    const rColl = boxCollider(roofW, roofHeight, roofL);
-    rColl.position.y = houseHeight + roofHeight / 2;
-    g.add(rColl);
+    // Roof colliders — angled slope proxies for each side
+    for (const side of [-1, 1]) {
+      const rSlopeColl = boxCollider(slopeLen, 0.3 * scale, roofL);
+      const slopeGroup = new THREE.Group();
+      rSlopeColl.position.set(side * (roofW / 4), roofHeight / 2, 0);
+      rSlopeColl.rotation.z = -side * slopeAngle;
+      slopeGroup.add(rSlopeColl);
+      slopeGroup.position.y = houseHeight;
+      g.add(slopeGroup);
+    }
 
     // 5. Chimney — offset to the left (over the fireplace) with rising smoke
     const chimneyX = -width * 0.28;
@@ -263,6 +307,11 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     const chimney = createChimney(scale, mats);
     chimney.position.set(chimneyX, chimneyBaseY, chimneyZ);
     g.add(chimney);
+
+    // Chimney collider
+    const chimColl = boxCollider(0.5 * scale, 0.9 * scale, 0.5 * scale);
+    chimColl.position.set(chimneyX, chimneyBaseY + 0.45 * scale, chimneyZ);
+    g.add(chimColl);
 
     // Stylized rising smoke (translucent puffs, fading + widening upward)
     const smokeMat = new THREE.MeshStandardMaterial({
@@ -344,8 +393,6 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     }
 
     // 8. Front Patio (Stone)
-    const patioDepth = 4 * scale;
-    const patioWidth = width + 2 * scale;
     const patio = new THREE.Mesh(new THREE.BoxGeometry(patioWidth, 0.1 * scale, patioDepth), mats.stone);
     patio.position.set(0, 0.05 * scale, depth / 2 + patioDepth / 2);
     patio.receiveShadow = true;
@@ -363,48 +410,36 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
       wg.add(wallZocalo);
       return wg;
     };
-    const leftWall = createPatioWall(wallT, patioDepth);
-    leftWall.position.set(-patioWidth / 2 + wallT / 2, 0, depth / 2 + patioDepth / 2);
-    g.add(leftWall);
-    const rightWall = createPatioWall(wallT, patioDepth);
-    rightWall.position.set(patioWidth / 2 - wallT / 2, 0, depth / 2 + patioDepth / 2);
-    g.add(rightWall);
+
+    // ── Patio walls with individual colliders ────────────────────────────
+    const leftPWall = createPatioWall(wallT, patioDepth);
+    leftPWall.position.set(-patioWidth / 2 + wallT / 2, 0, depth / 2 + patioDepth / 2);
+    g.add(leftPWall);
+    const leftPWColl = boxCollider(wallT, wallH, patioDepth);
+    leftPWColl.position.set(-patioWidth / 2 + wallT / 2, wallH / 2, depth / 2 + patioDepth / 2);
+    g.add(leftPWColl);
+
+    const rightPWall = createPatioWall(wallT, patioDepth);
+    rightPWall.position.set(patioWidth / 2 - wallT / 2, 0, depth / 2 + patioDepth / 2);
+    g.add(rightPWall);
+    const rightPWColl = boxCollider(wallT, wallH, patioDepth);
+    rightPWColl.position.set(patioWidth / 2 - wallT / 2, wallH / 2, depth / 2 + patioDepth / 2);
+    g.add(rightPWColl);
+
     const frontWallW = (patioWidth - 2 * scale) / 2;
     for (const side of [-1, 1]) {
       const fWall = createPatioWall(frontWallW, wallT);
       fWall.position.set(side * (patioWidth / 2 - frontWallW / 2), 0, depth / 2 + patioDepth - wallT / 2);
       g.add(fWall);
+      // Front patio wall collider
+      const fwPColl = boxCollider(frontWallW, wallH, wallT);
+      fwPColl.position.set(side * (patioWidth / 2 - frontWallW / 2), wallH / 2, depth / 2 + patioDepth - wallT / 2);
+      g.add(fwPColl);
+
       const pot = createFlowerPot(scale);
       pot.position.set(side * (patioWidth / 2 - wallT / 2), wallH, depth / 2 + patioDepth - wallT / 2);
       g.add(pot);
     }
-
-    // Andalusian Bench
-    const bench = createWoodenBench(scale, mats);
-    bench.position.set(2.5 * scale, foundationHeight, depth / 2 + 1.2 * scale);
-    g.add(bench);
-    const bColl = boxCollider(1.2 * scale, 0.8 * scale, 0.4 * scale);
-    bColl.position.set(2.5 * scale, foundationHeight + 0.4 * scale, depth / 2 + 1.2 * scale);
-    g.add(bColl);
-
-    // Improved Vegetation: Green Tree on the left
-    const treeG = new THREE.Group();
-    const trunkH = 2.5 * scale;
-    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.15 * scale, 0.2 * scale, trunkH, 8), mats.wood);
-    trunk.position.y = trunkH / 2;
-    treeG.add(trunk);
-    const foliageMat = mats.foliage;
-    for (let i = 0; i < 6; i++) {
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(0.9 * scale, 6, 6), foliageMat);
-      leaf.position.set((Math.random() - 0.5) * 0.8 * scale, trunkH + (Math.random() * 0.8 * scale), (Math.random() - 0.5) * 0.8 * scale);
-      treeG.add(leaf);
-    }
-    treeG.position.set(-width / 2 - 1.8 * scale, 0, depth / 2 + 1.0 * scale);
-    g.add(treeG);
-
-    const patioProxy = boxCollider(patioWidth, wallH, patioDepth);
-    patioProxy.position.set(0, wallH / 2, depth / 2 + patioDepth / 2);
-    g.add(patioProxy);
 
     // Tiling
     applyWorldTiling(g, mats.stone);
