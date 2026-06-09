@@ -21,6 +21,16 @@ from typing import Any
 # Adding a kind here + a matcher there is the whole extension surface.
 OBJECTIVE_KINDS: tuple[str, ...] = ("kill", "collect", "talk", "reach", "enter_dungeon")
 
+# Manual-only objective kind: it has NO matcher and NO event mapping, so
+# quest_progress.on_event never auto-advances it. It can only be completed by an
+# NPC calling advance_quest_objective (the "report back" / "NPC judges this"
+# path). Deliberately NOT in OBJECTIVE_KINDS so the custom-quest generator can't
+# mint improvised quests with an objective nothing can fulfil. Use it for steps a
+# specific NPC must confirm — returning to a quest giver (a plain `talk` step
+# would auto-complete on the turn the quest is accepted from that same giver) or
+# a judged outcome like "make Alonso laugh".
+MANUAL_OBJECTIVE_KIND = "confirm"
+
 
 def _as_int(value: Any, default: int = 0) -> int:
     """Coerce a value (possibly a numeric string) to int, falling back safely."""
@@ -290,7 +300,12 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
         giver_npc_id="juan_pescador",
         giver_name="Juan el Pescador",
         objectives=[
-            QuestObjective("hear_tale", "Hear Juan's tale of the sea", "talk", "juan_pescador"),
+            QuestObjective(
+                "hear_tale",
+                "Hear Juan's tale of the sea",
+                MANUAL_OBJECTIVE_KIND,
+                "juan_pescador",
+            ),
         ],
         reward=QuestReward(
             gold=20,
@@ -311,7 +326,10 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
         objectives=[
             QuestObjective("clear_thieves", "Defeat 3 thieves", "kill", "any", required=3),
             QuestObjective(
-                "report_abelardo", "Report to Guardia Abelardo", "talk", "guardia_abelardo"
+                "report_abelardo",
+                "Report to Guardia Abelardo",
+                MANUAL_OBJECTIVE_KIND,
+                "guardia_abelardo",
             ),
         ],
         reward=QuestReward(
@@ -338,7 +356,12 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
                 "talk",
                 "nireg_jenkins",
             ),
-            QuestObjective("return_luisa", "Return to Luisa la Patatera", "talk", "luisa_patatera"),
+            QuestObjective(
+                "return_luisa",
+                "Return to Luisa la Patatera",
+                MANUAL_OBJECTIVE_KIND,
+                "luisa_patatera",
+            ),
         ],
         reward=QuestReward(
             gold=40,
@@ -358,9 +381,17 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
         giver_npc_id="sancho_barriga",
         giver_name="Sancho Barriga",
         objectives=[
-            QuestObjective("amuse_alonso", "Make Alonso Quijano laugh", "talk", "alonso_quijano"),
             QuestObjective(
-                "tell_sancho", "Report your triumph to Sancho Barriga", "talk", "sancho_barriga"
+                "amuse_alonso",
+                "Make Alonso Quijano laugh",
+                MANUAL_OBJECTIVE_KIND,
+                "alonso_quijano",
+            ),
+            QuestObjective(
+                "tell_sancho",
+                "Report your triumph to Sancho Barriga",
+                MANUAL_OBJECTIVE_KIND,
+                "sancho_barriga",
             ),
         ],
         reward=QuestReward(
@@ -382,7 +413,7 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
         objectives=[
             QuestObjective("consult_tito", "Consult El Tito", "talk", "eltito_01"),
             QuestObjective("consult_nireg", "Consult Nireg Jenkins", "talk", "nireg_jenkins"),
-            QuestObjective("return_zaex", "Return to Zaex Uve", "talk", "zaex_01"),
+            QuestObjective("return_zaex", "Return to Zaex Uve", MANUAL_OBJECTIVE_KIND, "zaex_01"),
         ],
         reward=QuestReward(
             gold=300,

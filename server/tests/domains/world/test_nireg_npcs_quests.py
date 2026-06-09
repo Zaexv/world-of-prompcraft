@@ -5,8 +5,15 @@ from __future__ import annotations
 from src.agents.personalities.templates import NPC_PERSONALITIES
 from src.rag.knowledge_base import KNOWLEDGE_BASE
 from src.rag.retriever import LoreRetriever
+from src.world import quest_progress
 from src.world.npc_definitions import get_npc_definitions
-from src.world.quests import OBJECTIVE_KINDS, QUEST_TEMPLATES, instantiate
+from src.world.player_state import PlayerData
+from src.world.quests import (
+    MANUAL_OBJECTIVE_KIND,
+    OBJECTIVE_KINDS,
+    QUEST_TEMPLATES,
+    instantiate,
+)
 from src.world.world_state import WorldState
 
 NEW_NPCS = [
@@ -75,10 +82,16 @@ class TestQuests:
             assert instantiate(quest_id) is not None, quest_id
 
     def test_objective_kinds_are_valid(self) -> None:
+        allowed = set(OBJECTIVE_KINDS) | {MANUAL_OBJECTIVE_KIND}
         for quest_id in NEW_QUESTS:
             quest = QUEST_TEMPLATES[quest_id]
             for obj in quest.objectives:
-                assert obj.kind in OBJECTIVE_KINDS, (quest_id, obj.kind)
+                assert obj.kind in allowed, (quest_id, obj.kind)
+
+    def test_manual_kind_is_not_generator_selectable(self) -> None:
+        # MANUAL_OBJECTIVE_KIND must stay out of OBJECTIVE_KINDS so the custom-quest
+        # generator can't mint an improvised quest with an unfulfillable objective.
+        assert MANUAL_OBJECTIVE_KIND not in OBJECTIVE_KINDS
 
     def test_rewards_are_non_zero(self) -> None:
         for quest_id in NEW_QUESTS:
@@ -99,8 +112,66 @@ class TestQuests:
         assert targets == [
             ("talk", "eltito_01"),
             ("talk", "nireg_jenkins"),
-            ("talk", "zaex_01"),
+            (MANUAL_OBJECTIVE_KIND, "zaex_01"),
         ]
+
+
+class TestQuestReliability:
+    """Regression tests for the talk-objective auto-advance pitfalls."""
+
+    def _accept(self, quest_id: str) -> PlayerData:
+        p = PlayerData()
+        quest = instantiate(quest_id)
+        assert quest is not None
+        p.active_quests.append(quest.to_storage_dict())
+        return p
+
+    def _obj(self, player: PlayerData, quest_id: str, obj_id: str) -> dict:
+        quest = player.get_quest(quest_id)
+        assert quest is not None
+        return next(o for o in quest["objectives"] if o["id"] == obj_id)
+
+    def test_return_to_giver_not_completed_on_accept_turn(self) -> None:
+        # Accepting from the giver fires npc_talked(giver) on the same turn; a plain
+        # talk return step would wrongly complete. The manual 'confirm' kind must not.
+        cases = [
+            ("heroes_reunion", "zaex_01", "return_zaex"),
+            ("glorious_potatoes", "luisa_patatera", "return_luisa"),
+            ("malaka_thieves", "guardia_abelardo", "report_abelardo"),
+            ("make_him_laugh", "sancho_barriga", "tell_sancho"),
+        ]
+        for quest_id, giver, obj_id in cases:
+            p = self._accept(quest_id)
+            quest_progress.on_event(p, {"type": "npc_talked", "target": giver})
+            assert not self._obj(p, quest_id, obj_id)["completed"], (quest_id, obj_id)
+
+    def test_make_him_laugh_gate_not_bypassed_by_talking(self) -> None:
+        # Simply talking to Alonso must NOT satisfy "make him laugh".
+        p = self._accept("make_him_laugh")
+        quest_progress.on_event(p, {"type": "npc_talked", "target": "alonso_quijano"})
+        assert not self._obj(p, "make_him_laugh", "amuse_alonso")["completed"]
+
+    def test_manual_advance_completes_and_rewards(self) -> None:
+        # The explicit advance path completes the confirm step and, once every
+        # objective is done, the safety net pays out (mirrors world_state apply).
+        p = self._accept("make_him_laugh")
+        p.advance_objective("make_him_laugh", "amuse_alonso")
+        p.advance_objective("make_him_laugh", "tell_sancho")
+        assert p.all_objectives_complete("make_him_laugh")
+        reward = p.complete_quest("make_him_laugh")
+        assert reward is not None and reward.gold > 0
+        # Idempotent: a second completion pays nothing.
+        assert p.complete_quest("make_him_laugh") is None
+
+    def test_auto_objectives_still_advance(self) -> None:
+        # The non-confirm steps must still progress from their events.
+        p = self._accept("heroes_reunion")
+        quest_progress.on_event(p, {"type": "npc_talked", "target": "eltito_01"})
+        quest_progress.on_event(p, {"type": "npc_talked", "target": "nireg_jenkins"})
+        assert self._obj(p, "heroes_reunion", "consult_tito")["completed"]
+        assert self._obj(p, "heroes_reunion", "consult_nireg")["completed"]
+        # ...but the quest is NOT done until the manual return is confirmed.
+        assert not p.all_objectives_complete("heroes_reunion")
 
 
 class TestCanonLore:

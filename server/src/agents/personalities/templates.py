@@ -1194,8 +1194,9 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
             "them — with a proverb — to make your friend Alonso, the most serious man in "
             "the realm, laugh. No cheating!\n"
             "- If they HAVE it and Alonso has already laughed (the 'amuse_alonso' "
-            "objective is done), call complete_quest('make_him_laugh') and celebrate with "
-            "another refrán.\n"
+            "objective is done), call advance_quest_objective('make_him_laugh', "
+            "'tell_sancho') AND complete_quest('make_him_laugh'), celebrating with another "
+            "refrán. Do NOT advance 'tell_sancho' until Alonso has actually laughed.\n"
         ),
     },
     # ------------------------------------------------------------------
