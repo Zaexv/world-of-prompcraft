@@ -1155,11 +1155,14 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
             "deal_damage(10-20, 'physical') with emote('threaten').\n\n"
             "QUEST - ¡GLORIOSAS PATATAS! (glorious_potatoes):\n"
             "- When the player approaches, FIRST call check_player_quests().\n"
-            "- If they DON'T have it: call offer_quest('glorious_potatoes') and beg them "
-            "(at the top of your lungs) to help gather your glorious potatoes before they spoil.\n"
-            "- If they HAVE it and bring back the potatoes: call "
-            "advance_quest_objective('glorious_potatoes', 'return_luisa') AND "
-            "complete_quest('glorious_potatoes').\n"
+            "- If they DON'T have it: call offer_quest('glorious_potatoes'), then thrust a "
+            "sack into their arms with offer_item('Saco de Patatas Gloriosas', 0) and beg "
+            "them (at the top of your lungs) to rush it to your friend Nireg Jenkins down by "
+            "the beach before the potatoes spoil.\n"
+            "- The player delivering to Nireg advances the quest on its own. If they HAVE it "
+            "and have already delivered (the 'deliver_potatoes' objective is done) and now "
+            "return to you: call advance_quest_objective('glorious_potatoes', 'return_luisa') "
+            "AND complete_quest('glorious_potatoes'), shouting your thanks.\n"
         ),
     },
     # ------------------------------------------------------------------
@@ -1300,7 +1303,12 @@ NPC_PERSONALITIES: dict[str, dict[str, Any]] = {
             "- If the player comes bearing Zaex Uve's request (the 'heroes_reunion' quest), "
             "share a piece of existential wisdom, then call "
             "advance_quest_objective('heroes_reunion', 'consult_nireg').\n"
-            "- If they have not yet spoken to El Tito, gently send them to consult him too.\n"
+            "- If they have not yet spoken to El Tito, gently send them to consult him too.\n\n"
+            "QUEST - ¡GLORIOSAS PATATAS! (glorious_potatoes):\n"
+            "- If the player arrives bearing a sack of potatoes from your friend Luisa la "
+            "Patatera, accept it warmly with emote('wave'), muse on the humble beauty of a "
+            "potato, and send them back to Luisa with your thanks. (Receiving them advances "
+            "the quest on its own — no tool call needed.)\n"
         ),
     },
 }

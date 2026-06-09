@@ -85,6 +85,14 @@ class TestQuests:
             reward = QUEST_TEMPLATES[quest_id].reward
             assert reward.gold > 0 and reward.xp > 0 and reward.items
 
+    def test_no_uncompletable_collect_objectives(self) -> None:
+        # 'collect' only advances from dungeon loot (ws/handler.py item_collected),
+        # so a collect target with no dungeon drop is uncompletable. These Fort
+        # Malaka quests must rely on completable kinds only.
+        for quest_id in NEW_QUESTS:
+            for obj in QUEST_TEMPLATES[quest_id].objectives:
+                assert obj.kind != "collect", (quest_id, obj.id)
+
     def test_chain_quest_routes_through_three_heroes(self) -> None:
         chain = QUEST_TEMPLATES["heroes_reunion"]
         targets = [(o.kind, o.target) for o in chain.objectives]

@@ -325,13 +325,19 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
         id="glorious_potatoes",
         title="¡Gloriosas Patatas!",
         description=(
-            "Luisa la Patatera is shouting across her fields — her glorious potatoes "
-            "will spoil if they are not gathered! Collect 5 potatoes and bring them to her."
+            "Luisa la Patatera has gathered a glorious sack of potatoes and, shouting "
+            "across her fields, begs you to carry it to her philosopher friend Nireg "
+            "Jenkins down by the beach before they spoil — then hurry back to her."
         ),
         giver_npc_id="luisa_patatera",
         giver_name="Luisa la Patatera",
         objectives=[
-            QuestObjective("gather_potatoes", "Collect 5 Patatas", "collect", "Patata", required=5),
+            QuestObjective(
+                "deliver_potatoes",
+                "Deliver Luisa's sack of potatoes to Nireg Jenkins",
+                "talk",
+                "nireg_jenkins",
+            ),
             QuestObjective("return_luisa", "Return to Luisa la Patatera", "talk", "luisa_patatera"),
         ],
         reward=QuestReward(
