@@ -53,6 +53,7 @@ def load_npc_definitions() -> dict[str, dict[str, Any]]:
                 "style": n["ai"].get("style"),
                 "appearance": n.get("appearance"),
                 "is_quest_giver": bool(n.get("isQuestGiver", False)),
+                "quest_ids": list(n.get("questIds", [])),
             }
 
     return npc_registry

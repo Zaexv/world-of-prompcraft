@@ -443,6 +443,19 @@ def quest_giver_ids() -> frozenset[str]:
     return frozenset(q.giver_npc_id for q in QUEST_TEMPLATES.values() if q.giver_npc_id)
 
 
+def quest_giver_map() -> dict[str, list[str]]:
+    """Map each giver NPC id → sorted list of curated quest ids it owns.
+
+    The client uses this (mirrored into the manifest as ``questIds``) to hide the
+    '!' marker once the player has accepted or completed that NPC's quest.
+    """
+    out: dict[str, list[str]] = {}
+    for quest in QUEST_TEMPLATES.values():
+        if quest.giver_npc_id:
+            out.setdefault(quest.giver_npc_id, []).append(quest.id)
+    return {giver: sorted(ids) for giver, ids in out.items()}
+
+
 QUEST_GIVER_IDS: frozenset[str] = quest_giver_ids()
 
 

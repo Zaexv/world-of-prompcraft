@@ -326,6 +326,7 @@ export interface NPCInitData {
   personality: string;
   archetype?: string;
   isQuestGiver?: boolean;
+  questIds?: string[];
 }
 
 export interface RemotePlayerData {

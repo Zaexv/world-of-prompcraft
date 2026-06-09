@@ -4055,7 +4055,10 @@
               "wander_radius": 4,
               "style": "merchant"
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "juan_story"
+            ]
           },
           {
             "id": "guardia_abelardo",
@@ -4085,7 +4088,10 @@
               "wander_radius": 4,
               "style": "guard"
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "malaka_thieves"
+            ]
           },
           {
             "id": "luisa_patatera",
@@ -4115,7 +4121,10 @@
               "wander_radius": 4,
               "style": "merchant"
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "glorious_potatoes"
+            ]
           },
           {
             "id": "sancho_barriga",
@@ -4145,7 +4154,10 @@
               "wander_radius": 4,
               "style": "merchant"
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "make_him_laugh"
+            ]
           },
           {
             "id": "alonso_quijano",
@@ -4203,7 +4215,10 @@
               "personality_key": "zaex_01",
               "wander_radius": 4
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "heroes_reunion"
+            ]
           },
           {
             "id": "nireg_jenkins",
@@ -4260,7 +4275,10 @@
               "personality_key": "eltito_01",
               "wander_radius": 2
             },
-            "isQuestGiver": true
+            "isQuestGiver": true,
+            "questIds": [
+              "sacred_flame"
+            ]
           }
         ]
       },

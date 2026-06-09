@@ -99,6 +99,7 @@ export class WebSocketHandler {
                 style: n.style ?? undefined,
                 appearance: n.appearance ?? undefined,
                 isQuestGiver: n.isQuestGiver ?? false,
+                questIds: n.questIds ?? undefined,
               });
             } catch (err) {
               console.error(`join_ok: failed to spawn NPC ${n.name} (${id}):`, err);

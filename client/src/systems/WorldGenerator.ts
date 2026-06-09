@@ -237,7 +237,8 @@ export class WorldGenerator {
           wanderRadius: npcDef.ai.wander_radius,
           scale: npcDef.transform.scale,
           style: npcDef.ai.style as NPCPlaceholderStyle | undefined,
-          isQuestGiver: npcDef.isQuestGiver ?? false
+          isQuestGiver: npcDef.isQuestGiver ?? false,
+          questIds: npcDef.questIds ?? undefined
         });
         npcIds.push(npcDef.id);
       }

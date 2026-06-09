@@ -14,6 +14,7 @@ from src.world.quests import (
     QUEST_GIVER_IDS,
     QUEST_TEMPLATES,
     instantiate,
+    quest_giver_map,
 )
 from src.world.world_state import WorldState
 
@@ -209,6 +210,24 @@ class TestQuestGiverFlag:
         ws.refresh_npcs()
         assert ws.npcs["zaex_01"].to_dict()["isQuestGiver"] is True
         assert ws.npcs["nireg_jenkins"].to_dict()["isQuestGiver"] is False
+
+    def test_manifest_quest_ids_match_templates(self) -> None:
+        # questIds drives hiding the '!' once taken/completed; it must mirror the
+        # giver→quest map for every giver present in the manifest.
+        defs = get_npc_definitions()
+        expected = quest_giver_map()
+        for nid, ids in expected.items():
+            if nid in defs:
+                assert sorted(defs[nid]["quest_ids"]) == ids, nid
+        # Non-givers carry no quest ids.
+        assert defs["alonso_quijano"]["quest_ids"] == []
+        assert defs["nireg_jenkins"]["quest_ids"] == []
+
+    def test_to_dict_emits_quest_ids(self) -> None:
+        ws = WorldState()
+        ws.refresh_npcs()
+        assert ws.npcs["zaex_01"].to_dict()["questIds"] == ["heroes_reunion"]
+        assert ws.npcs["nireg_jenkins"].to_dict()["questIds"] == []
 
 
 class TestCanonLore:

@@ -27,6 +27,7 @@ export interface NPCConfig {
   personalityKey?: string;
   scale?: number;
   isQuestGiver?: boolean;
+  questIds?: string[];
 }
 
 export class NPC {
@@ -39,6 +40,8 @@ export class NPC {
   public readonly nameplate: Nameplate;
   public readonly actionIcon: ActionIcon;
   public readonly questMarker: QuestMarker | null;
+  /** Curated quest ids this NPC owns (for hiding the '!' once taken/completed). */
+  public readonly questIds: readonly string[];
 
   public homePosition: THREE.Vector3;
   public wanderRadius = 8;
@@ -72,6 +75,7 @@ export class NPC {
     this.actionIcon = new ActionIcon();
     this.mesh.add(this.actionIcon.sprite);
 
+    this.questIds = config.questIds ?? [];
     this.questMarker = config.isQuestGiver ? new QuestMarker() : null;
     if (this.questMarker) this.mesh.add(this.questMarker.sprite);
 
@@ -97,7 +101,7 @@ export class NPC {
     this.waterHoverPhase += delta * 1.7;
     this.animator.update(delta);
     this.actionIcon.update(delta);
-    this.questMarker?.update(delta);
+    if (this.questMarker?.sprite.visible) this.questMarker.update(delta);
     if (this.mesh.position.y < Water.LEVEL + 0.2) {
       const hoverY = Water.LEVEL
         + this.waterHoverHeight
@@ -130,6 +134,17 @@ export class NPC {
 
   resumeWander(): void {
     this.wander.resumeWander();
+  }
+
+  /**
+   * Show the '!' marker only while this NPC has a quest the player hasn't taken
+   * or finished yet. No-op for non-givers. `activeIds`/`completedIds` are the
+   * player's active + completed quest id sets.
+   */
+  applyQuestState(activeIds: ReadonlySet<string>, completedIds: ReadonlySet<string>): void {
+    if (!this.questMarker) return;
+    const taken = this.questIds.some((q) => activeIds.has(q) || completedIds.has(q));
+    this.questMarker.sprite.visible = !taken;
   }
 
   playEmote(emote: string): void {
