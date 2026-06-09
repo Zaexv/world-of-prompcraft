@@ -3,6 +3,7 @@ import { NPCAnimator } from './NPCAnimator';
 import { createNPCMotionProfile, type NPCMotionProfile, type NPCMotionSource } from './NPCMotion';
 import { Nameplate } from '../ui/Nameplate';
 import { ActionIcon } from '../ui/ActionIcon';
+import { QuestMarker } from '../ui/QuestMarker';
 import type { NPCPlaceholderStyle } from './NPCModels';
 import type { NPCAppearanceOverride } from './NPCModels';
 import { NPCWander } from './NPCWander';
@@ -25,6 +26,8 @@ export interface NPCConfig {
   personality?: string;
   personalityKey?: string;
   scale?: number;
+  /** Show the floating golden "!" quest-giver marker above this NPC. */
+  isQuestGiver?: boolean;
 }
 
 export class NPC {
@@ -36,6 +39,7 @@ export class NPC {
   public readonly animator: NPCAnimator;
   public readonly nameplate: Nameplate;
   public readonly actionIcon: ActionIcon;
+  public readonly questMarker: QuestMarker | null;
 
   public homePosition: THREE.Vector3;
   public wanderRadius = 8;
@@ -69,6 +73,9 @@ export class NPC {
     this.actionIcon = new ActionIcon();
     this.mesh.add(this.actionIcon.sprite);
 
+    this.questMarker = config.isQuestGiver ? new QuestMarker() : null;
+    if (this.questMarker) this.mesh.add(this.questMarker.sprite);
+
     this.mesh.traverse((child) => {
       child.userData.npcId = this.id;
       child.userData.npcName = this.name;
@@ -91,6 +98,7 @@ export class NPC {
     this.waterHoverPhase += delta * 1.7;
     this.animator.update(delta);
     this.actionIcon.update(delta);
+    this.questMarker?.update(delta);
     if (this.mesh.position.y < Water.LEVEL + 0.2) {
       const hoverY = Water.LEVEL
         + this.waterHoverHeight
@@ -162,6 +170,15 @@ export class NPC {
   dispose(): void {
     for (const mat of this.materials) mat.dispose();
 
+    // Free per-part geometry too — NPC bodies are built from many unique, unshared
+    // BufferGeometries, and procedural creatures spawn/despawn every chunk load,
+    // so not disposing them leaks GPU memory over a session. Sprites (nameplate /
+    // action icon / quest marker) are not THREE.Mesh and share an internal sprite
+    // geometry, so they are correctly skipped by the instanceof check.
+    this.mesh.traverse((child) => {
+      if (child instanceof THREE.Mesh) child.geometry.dispose();
+    });
+
     this.nameplate.sprite.material.dispose();
     if (this.nameplate.sprite.material instanceof THREE.SpriteMaterial && this.nameplate.sprite.material.map) {
       this.nameplate.sprite.material.map.dispose();
@@ -170,6 +187,7 @@ export class NPC {
     if (this.actionIcon.sprite.material instanceof THREE.SpriteMaterial && this.actionIcon.sprite.material.map) {
       this.actionIcon.sprite.material.map.dispose();
     }
+    this.questMarker?.dispose();
   }
 
   setHighlight(on: boolean): void {

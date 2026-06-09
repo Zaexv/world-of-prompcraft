@@ -10,6 +10,28 @@ import './individual/NiregJenkins';
 import './individual/AureliaTrader';
 import './individual/ElTito';
 import './individual/Zaex';
+// Fort Malaka individuals — hand-authored skins reflecting each NPC's character
+import './individual/CaptainRolan';
+import './individual/GateWarden';
+import './individual/SisterConstanza';
+import './individual/PabloFisherman';
+import './individual/PacoChurrero';
+import './individual/JuanPescador';
+import './individual/GuardiaAbelardo';
+import './individual/LuisaPatatera';
+import './individual/SanchoBarriga';
+import './individual/AlonsoQuijano';
+// Tutorial guide (starting area)
+import './individual/TutorialMan';
+// Named wilderness / biome characters (fixed manifest NPCs)
+import './individual/OutlawScout';
+import './individual/FlameCultist';
+import './individual/IceShaman';
+import './individual/BogWitch';
+import './individual/WanderingKnight';
+import './individual/TundraYeti';
+// Biome-themed skins for procedurally-spawned monsters + fixed manifest monsters
+import './creatures';
 // Original blocky voxel skins, kept selectable via appearance.mesh = npc_individual_<id>_voxel
 import './individual/NiregJenkinsVoxel';
 import './individual/ElTitoVoxel';
