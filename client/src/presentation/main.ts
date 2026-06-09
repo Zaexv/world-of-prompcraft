@@ -10,6 +10,7 @@ import { Backdrop } from './backdrop';
 import { initDeck, renderDiagrams } from './deck';
 import { MeshShowcase } from './meshShowcase';
 import { AvatarView } from './avatarView';
+import { AgentAnimation } from './agentAnimation';
 
 let backdrop: Backdrop | null = null;
 const bg = document.getElementById('bg');
@@ -72,12 +73,37 @@ if (avatarEl) {
   }
 }
 
+// Slide-11 NPC view — Aurelia the merchant, to accompany the agent trace demo.
+const NPC_SLIDE = 10; // 0-based
+let npcView11: AvatarView | null = null;
+const npcStageEl = document.getElementById('npcStage11');
+if (npcStageEl) {
+  try {
+    npcView11 = new AvatarView(npcStageEl, 'npc_individual_merchant_malaka_01');
+  } catch (err) {
+    console.warn('NPC view unavailable:', err);
+  }
+}
+
+const agentAnim = new AgentAnimation();
+document.getElementById('agentReplayBtn')?.addEventListener('click', () => {
+  agentAnim.replay();
+});
+
 // Map each slide onto a focus anchor; later slides wrap across the lineup.
 initDeck((index) => {
   if (backdrop && backdrop.anchorCount > 0) backdrop.focus(index % backdrop.anchorCount);
   // The "What is it?" and cinematic "endless land" slides fly over the world;
   // every other slide gently orbits its anchor.
-  backdrop?.setRoam(index === SHOWCASE_SLIDE || index === ENDLESS_SLIDE);
+  if (index === ENDLESS_SLIDE) {
+    // Fly straight east through Fort Malaka (bounds x:-300→-100, z:-350→-150)
+    // from a point just west of the fort, at cinematic altitude.
+    backdrop?.setRoam(true, 15, { x: -80, z: -250 }, Math.PI, 35);
+  } else if (index === SHOWCASE_SLIDE) {
+    backdrop?.setRoam(true, 34); // normal wandering roam for mesh showcase
+  } else {
+    backdrop?.setRoam(false);
+  }
   if (showcase) {
     if (index === SHOWCASE_SLIDE) showcase.start();
     else showcase.stop();
@@ -90,4 +116,10 @@ initDeck((index) => {
     if (index === AVATAR_SLIDE) avatar.start();
     else avatar.stop();
   }
+  if (npcView11) {
+    if (index === NPC_SLIDE) npcView11.start();
+    else npcView11.stop();
+  }
+  if (index === NPC_SLIDE) agentAnim.start();
+  else agentAnim.stop();
 });

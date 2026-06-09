@@ -48,6 +48,9 @@ export class Backdrop {
   // the world (slowly wandering its heading), streaming terrain as it goes.
   private roaming = false;
   private roamHeading = 0;
+  // When set, the camera flies in a fixed straight line (no drift, no water avoidance).
+  private roamFixedHeading: number | null = null;
+  private roamSpeed = 17; // m/s
 
   // Viewpoints — a slow walk-through of the procedural world at eye level.
   // `radius` = how far the camera orbits its focus; `height` = eye height above
@@ -63,8 +66,8 @@ export class Backdrop {
     { kind: 'vista', x: -150, z: -40, radius: 24, height: 2.6 }, // 6  pillar 1 (3D CLI)
     { kind: 'vista', x: 40, z: -90, radius: 24, height: 2.6 },   // 6  why three.js (agent showcase)
     { kind: 'vista', x: 160, z: 30, radius: 22, height: 2.5 },   // 7  rendering pipeline
-    { kind: 'vista', x: -60, z: 150, radius: 26, height: 2.6 },  // 7  terrain / chunks
-    { kind: 'vista', x: -120, z: 110, radius: 22, height: 2.5 }, // 8  pillar 2 (backend)
+    { kind: 'vista', x: -200, z: -250, radius: 26, height: 2.6 }, // 10 backend arch — Fort Malaka
+    { kind: 'vista', x: -180, z: -220, radius: 22, height: 2.5 }, // 11 agent in action — Fort Malaka
     { kind: 'vista', x: 100, z: -150, radius: 24, height: 2.6 }, // 9  agent graph
     { kind: 'vista', x: 130, z: -70, radius: 22, height: 2.5 },  // 10 state & memory
     { kind: 'vista', x: -130, z: -110, radius: 24, height: 2.6 },// 11 tool system
@@ -165,16 +168,35 @@ export class Backdrop {
     );
   }
 
+  private roamAltitude = 34; // camera height above ground during roam
+
   /** Toggle free-roam: the camera walks forward through the world (vs orbiting
-   *  the current anchor). Seeds the heading from the current camera direction. */
-  setRoam(on: boolean): void {
+   *  the current anchor). Seeds the heading from the current camera direction.
+   *  @param startPos  Optional world-space XZ to teleport streamCenter to on start.
+   *  @param fixedHeading  When set, fly in a straight line at this heading (radians,
+   *                       no drift, no water-avoidance steering).
+   */
+  setRoam(
+    on: boolean,
+    altitude = 34,
+    startPos?: { x: number; z: number },
+    fixedHeading?: number,
+    speed = 17,
+  ): void {
     if (on && !this.roaming) {
-      // Head outward from wherever we're looking now.
-      this.roamHeading = Math.atan2(
+      if (startPos) {
+        const y = Backdrop.nearestDry(this.sceneManager.terrain, startPos.x, startPos.z).y;
+        this.streamCenter.set(startPos.x, y, startPos.z);
+        this.lookGoal.set(startPos.x, y + altitude, startPos.z);
+      }
+      this.roamHeading = fixedHeading ?? Math.atan2(
         this.lookGoal.z - this.sceneManager.camera.position.z,
         this.lookGoal.x - this.sceneManager.camera.position.x,
       );
     }
+    this.roamAltitude = altitude;
+    this.roamSpeed = speed;
+    this.roamFixedHeading = on && fixedHeading !== undefined ? fixedHeading : null;
     this.roaming = on;
   }
 
@@ -211,32 +233,37 @@ export class Backdrop {
           this.streamCenter.z + Math.sin(h) * LOOK,
         ) >= DRY;
 
-      // Preferred heading: keep going straight with a faint drift.
-      const desired = this.roamHeading + Math.sin(this.elapsed * 0.05) * delta * 0.1;
-      let target = desired;
-      if (!dryAt(desired)) {
-        // Scan outward (alternating sides) for the nearest dry heading.
-        for (let off = 0.2; off <= Math.PI + 0.001; off += 0.2) {
-          if (dryAt(desired + off)) { target = desired + off; break; }
-          if (dryAt(desired - off)) { target = desired - off; break; }
+      if (this.roamFixedHeading !== null) {
+        // Fixed straight-line flight — no drift, no water-avoidance steering.
+        this.roamHeading = this.roamFixedHeading;
+      } else {
+        // Preferred heading: keep going straight with a faint drift.
+        const desired = this.roamHeading + Math.sin(this.elapsed * 0.05) * delta * 0.1;
+        let target = desired;
+        if (!dryAt(desired)) {
+          // Scan outward (alternating sides) for the nearest dry heading.
+          for (let off = 0.2; off <= Math.PI + 0.001; off += 0.2) {
+            if (dryAt(desired + off)) { target = desired + off; break; }
+            if (dryAt(desired - off)) { target = desired - off; break; }
+          }
         }
+        // Ease the heading toward the target (capped turn rate → smooth turns).
+        let diff = target - this.roamHeading;
+        diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // wrap to [-π, π]
+        const maxTurn = 2.4 * delta;
+        this.roamHeading += Math.max(-maxTurn, Math.min(maxTurn, diff));
       }
-      // Ease the heading toward the target (capped turn rate → smooth turns).
-      let diff = target - this.roamHeading;
-      diff = Math.atan2(Math.sin(diff), Math.cos(diff)); // wrap to [-π, π]
-      const maxTurn = 2.4 * delta;
-      this.roamHeading += Math.max(-maxTurn, Math.min(maxTurn, diff));
 
-      // Step forward along the (dry) target so progress never stalls.
-      const dx = Math.cos(target);
-      const dz = Math.sin(target);
-      const speed = 17; // m/s — a brisk flyover rhythm
+      // Step forward along the current heading.
+      const dx = Math.cos(this.roamHeading);
+      const dz = Math.sin(this.roamHeading);
+      const speed = this.roamSpeed;
       this.streamCenter.x += dx * speed * delta;
       this.streamCenter.z += dz * speed * delta;
       this.streamCenter.y = getWorldHeightAt(terrain, this.streamCenter.x, this.streamCenter.z);
 
       const groundY = this.streamCenter.y;
-      const FLY = 34; // camera altitude above the ground
+      const FLY = this.roamAltitude; // camera altitude above the ground
       const hx = Math.cos(this.roamHeading);
       const hz = Math.sin(this.roamHeading);
       // Aim well ahead and lower than the camera → a gentle downward flyover gaze.
@@ -272,6 +299,7 @@ export class Backdrop {
     this.sceneManager.terrain.update(px, pz);
     this.worldGenerator.update(px, pz);
     this.sceneManager.setPlayerPosition(px, pz);
+    this.entityManager.setPlayerPosition(px, pz);
     this.entityManager.update(delta, (x, z) => getWorldHeightAt(this.sceneManager.terrain, x, z));
   };
 }
