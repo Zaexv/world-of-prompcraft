@@ -189,7 +189,21 @@
       "Bash(grep -iB1 needsUpdate)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" http://localhost:5173/)",
       "Bash(curl *)",
-      "Bash(open *)"
+      "Bash(open *)",
+      "PowerShell(git rev-parse HEAD; \"---\"; git --no-pager diff --stat 1daef22..HEAD 2>&1 | Select-Object -Last 80)",
+      "Bash(readlink .agents/skills/mesh-from-picture)",
+      "Bash(readlink .claude/skills)",
+      "Bash(readlink .agents)",
+      "Bash(cp .claude/skills/mesh-from-picture/SKILL.md .agents/skills/mesh-from-picture/SKILL.md)",
+      "Bash(cp .claude/skills/mesh-quality-reviewer/SKILL.md .agents/skills/mesh-quality-reviewer/SKILL.md)",
+      "Bash(echo \"eslint exit=$?\")",
+      "Bash(node_modules/.bin/eslint src/core/ShaderWarmup.ts src/systems/worldbuilder/instanceBatch.ts)",
+      "Bash(echo \"eslint=$?\")",
+      "Bash(node_modules/.bin/vitest run *)",
+      "Bash(echo \"vitest=$?\")",
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(echo \"tsc=$?\")",
+      "Bash(node_modules/.bin/eslint src/debug/PerfHUD.ts)"
     ]
   },
   "hooks": {

@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import type { DungeonConfig } from "./DungeonConfig";
+import { addLightEmitter } from "./PointLightPool";
 
 /**
  * All objects produced by a dungeon interior, including interactive meshes
@@ -145,11 +146,13 @@ function addLighting(group: THREE.Group, config: DungeonConfig): void {
   );
   group.add(hemiLight);
 
-  // Central point light — high intensity, large range to cover the room
-  const centerLight = new THREE.PointLight(config.ambientColor, 3, 60);
-  centerLight.position.set(0, 6, 0);
-  centerLight.castShadow = true;
-  group.add(centerLight);
+  // Central point light — high intensity, large range to cover the room.
+  // Routed through PointLightPool so dungeon point lights never change the
+  // global numPointLights (which recompiles every shader). Pool lights don't
+  // cast shadows — the dungeon relies on its ambient + hemisphere fill instead.
+  addLightEmitter(group, new THREE.Vector3(0, 6, 0), {
+    color: config.ambientColor, intensity: 3, distance: 60,
+  });
 
   // Four corner fill lights for even coverage
   const { roomWidth, roomDepth } = config;
@@ -163,13 +166,9 @@ function addLighting(group: THREE.Group, config: DungeonConfig): void {
   ] as const;
 
   for (const [cx, cy, cz] of corners) {
-    const cornerLight = new THREE.PointLight(
-      config.ambientColor,
-      cornerIntensity,
-      cornerRange,
-    );
-    cornerLight.position.set(cx, cy, cz);
-    group.add(cornerLight);
+    addLightEmitter(group, new THREE.Vector3(cx, cy, cz), {
+      color: config.ambientColor, intensity: cornerIntensity, distance: cornerRange,
+    });
   }
 }
 
@@ -200,10 +199,10 @@ function buildChest(
   lid.castShadow = true;
   chestGroup.add(lid);
 
-  // Warm glow above the chest
-  const chestLight = new THREE.PointLight(0xffaa44, 1.2, 8);
-  chestLight.position.set(0, 2, 0);
-  chestGroup.add(chestLight);
+  // Warm glow above the chest (pooled — see addLighting)
+  addLightEmitter(chestGroup, new THREE.Vector3(0, 2, 0), {
+    color: 0xffaa44, intensity: 1.2, distance: 8,
+  });
 
   chestGroup.position.copy(chestPos);
   group.add(chestGroup);
@@ -231,10 +230,10 @@ function buildExitPortal(
   torus.castShadow = true;
   portalGroup.add(torus);
 
-  // Glow light at the portal center
-  const portalLight = new THREE.PointLight(0x4488ff, 1.5, 10);
-  portalLight.position.set(0, 2, 0);
-  portalGroup.add(portalLight);
+  // Glow light at the portal center (pooled — see addLighting)
+  addLightEmitter(portalGroup, new THREE.Vector3(0, 2, 0), {
+    color: 0x4488ff, intensity: 1.5, distance: 10,
+  });
 
   portalGroup.position.copy(portalPos);
   group.add(portalGroup);
@@ -299,10 +298,10 @@ function addEmberDepthsDecorations(
     pool.position.set(pos.x, 0.02, pos.z);
     group.add(pool);
 
-    // Warm light underneath each pool
-    const poolLight = new THREE.PointLight(0xff4400, 1.0, 8);
-    poolLight.position.set(pos.x, 0.5, pos.z);
-    group.add(poolLight);
+    // Warm light underneath each pool (pooled — see addLighting)
+    addLightEmitter(group, new THREE.Vector3(pos.x, 0.5, pos.z), {
+      color: 0xff4400, intensity: 1.0, distance: 8,
+    });
   }
 
   // Stalactites from the ceiling (inverted cones)

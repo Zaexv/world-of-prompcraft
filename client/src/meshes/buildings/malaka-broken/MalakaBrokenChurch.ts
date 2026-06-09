@@ -4,6 +4,7 @@ import { registerMesh } from '../../core/MeshRegistry';
 import { getMaterials, createRoofTile, withLOD, MedMaterials } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
+import { addLightEmitter } from '../../../scene/PointLightPool';
 
 function stoneBox(w: number, h: number, d: number, mat: THREE.Material): THREE.Mesh {
   const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
@@ -376,10 +377,11 @@ export class MalakaBrokenChurch extends Mesh {
             chandelier.add(arm);
         }
 
-        // Illumination!
-        const light = new THREE.PointLight(0xffddaa, 1.5, 25 * scale);
-        light.position.y = 9.5 * scale;
-        chandelier.add(light);
+        // Illumination! Pooled so streaming churches don't change numPointLights
+        // (which would recompile every shader in the scene).
+        addLightEmitter(chandelier, new THREE.Vector3(0, 9.5 * scale, 0), {
+          color: 0xffddaa, intensity: 1.5, distance: 25 * scale,
+        });
         
         // Candles on Large Ring
         for (let angle = 0; angle < Math.PI * 2; angle += Math.PI / 4) {
