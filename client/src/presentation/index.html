@@ -726,6 +726,61 @@ flowchart TD
     </div>
   </section>
 
+  <!-- 14 — PILLAR 3: AGENTIC CODING -->
+  <section class="slide">
+    <div class="panel">
+      <div class="pilar">Pillar 3 — Agentic Coding</div>
+      <h2>Agentic coding <span class="grad">as the way of building</span></h2>
+      <div class="split">
+        <ul class="points">
+          <li><b>One shared rulebook</b> — CLAUDE.md tells every agent how things are built here. Style, conventions, CI gates — enforced before any change ships.</li>
+          <li><b>Research first, build second</b> — agents plan with diagrams before writing a line of code. No half-finished implementations.</li>
+          <li><b>Loop until green</b> — typecheck + lint + tests must pass. The agent iterates, not the human.</li>
+          <li><b>What we shipped</b> — <span class="key">Terrain Builder</span> · <span class="key">Mesh Viewer</span> · <span class="key">World Builder</span> — all authored by coding agents from text prompts.</li>
+        </ul>
+        <figure class="diagram">
+          <pre class="mermaid">
+flowchart TD
+  RES[Research] --> PLAN[Sketch the design]
+  PLAN --> IMPL[Build it]
+  IMPL --> GATE{Checks pass?}
+  GATE -->|no| IMPL
+  GATE -->|yes| GH[Ships]
+          </pre>
+          <figcaption>drag to pan · scroll to zoom · double-click to reset</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- 15 — THANKS & CONTRIBUTORS -->
+  <section class="slide center">
+    <div class="panel" style="text-align:center;max-width:680px">
+      <h1 style="font-size:2.6rem;margin-bottom:0.5rem">Thanks for <span class="grad">listening</span></h1>
+      <p class="lead" style="margin-bottom:2rem">Type anything — <span class="key">the world answers</span>.</p>
+
+      <div class="contrib-grid">
+        <div class="contrib-card">
+          <div class="contrib-name">Eduardo Pertierra</div>
+          <div class="contrib-role">creator · backend · agents</div>
+        </div>
+        <div class="contrib-card">
+          <div class="contrib-name">Irene</div>
+          <div class="contrib-role">contributor</div>
+        </div>
+        <div class="contrib-card">
+          <div class="contrib-name">Mohamed Gara</div>
+          <div class="contrib-role">contributor</div>
+        </div>
+        <div class="contrib-card">
+          <div class="contrib-name">Rafael Pernil</div>
+          <div class="contrib-role">contributor</div>
+        </div>
+      </div>
+
+      <p class="body" style="margin-top:2rem;opacity:0.55">github.com/Zaexv/world-of-prompcraft</p>
+    </div>
+  </section>
 
 </div>
 

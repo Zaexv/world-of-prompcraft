@@ -1707,6 +1707,34 @@ kbd {
 }
 .scale-fact-val { color: var(--muted); }
 
+/* ================================================================
+   SLIDE 15 — THANKS & CONTRIBUTORS
+   ================================================================ */
+.contrib-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.8rem;
+  margin-top: 0.5rem;
+}
+.contrib-card {
+  background: rgba(12,9,20,0.55);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  padding: 0.9rem 0.7rem;
+}
+.contrib-name {
+  font-family: var(--serif);
+  font-size: 0.78rem;
+  color: var(--gold-soft);
+  margin-bottom: 0.3rem;
+  letter-spacing: 0.04em;
+}
+.contrib-role {
+  font-size: 0.63rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
 /* ---------- responsive ---------- */
 @media (max-width: 900px) {
   .split { grid-template-columns: 1fr; }
