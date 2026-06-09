@@ -51,7 +51,8 @@ export class PerfHUD {
   private baselineKey: string | null = null; // a representative key captured at prime
   private windowNovelTokens = new Map<string, number>(); // token → #new programs carrying it
   private windowNewProgs = 0;
-  private dumpedPair = false; // log one full baseline/new key pair, once
+  private dumpedPair = false; // console banner once; window.__perfKeys keeps accumulating
+  private allFreshKeys: string[] = []; // every new key seen this session (for window.__perfKeys)
 
   constructor(
     container: HTMLElement,
@@ -114,20 +115,25 @@ export class PerfHUD {
           }
         }
       }
-      // One-time full-key dump so the exact differing parameters can be diffed.
-      // Stashed on window.__perfKeys too (copy(window.__perfKeys) in console).
-      if (!this.dumpedPair && freshKeys.length > 0 && this.baselineKey) {
-        this.dumpedPair = true;
+      // Accumulate EVERY new key across the session so late recompiles (reaching
+      // a new zone/biome) are captured, not just the first batch. `copy(window
+      // .__perfKeys)` in the console always reflects the full set. The yellow
+      // console banner stays one-shot to avoid spamming the log.
+      if (freshKeys.length > 0 && this.baselineKey) {
+        for (const k of freshKeys) this.allFreshKeys.push(k);
         const payload = {
           baseline: this.baselineKey,
-          fresh: freshKeys.slice(0, 4),
+          fresh: this.allFreshKeys,
         };
         (window as unknown as { __perfKeys?: unknown }).__perfKeys = payload;
-        console.warn(
-          '%c=== SHADER KEY DUMP (copy the JSON below, or run: copy(window.__perfKeys)) ===',
-          'color:#ff0;font-weight:bold',
-        );
-        console.warn(JSON.stringify(payload, null, 2));
+        if (!this.dumpedPair) {
+          this.dumpedPair = true;
+          console.warn(
+            '%c=== SHADER KEY DUMP (live — copy(window.__perfKeys) after triggering a spike) ===',
+            'color:#ff0;font-weight:bold',
+          );
+          console.warn(JSON.stringify({ baseline: this.baselineKey, fresh: freshKeys.slice(0, 4) }, null, 2));
+        }
       }
     }
 

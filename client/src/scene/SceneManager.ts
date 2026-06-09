@@ -8,6 +8,7 @@ import { Skybox } from './Skybox';
 import { Lighting } from './Lighting';
 import { Water } from './Water';
 import { Effects } from './Effects';
+import { PointLightPool } from './PointLightPool';
 
 export class SceneManager {
   public scene: THREE.Scene;
@@ -18,6 +19,7 @@ export class SceneManager {
 
   private clock: THREE.Clock;
   private water: Water;
+  private lightPool: PointLightPool;
   private effects: Effects;
   private skybox: Skybox;
   private composer: EffectComposer | null = null;
@@ -75,6 +77,14 @@ export class SceneManager {
     // --- World systems (order matters: lighting first, then geometry) ---
     this.skybox = new Skybox(this.scene);
     this.lighting = new Lighting(this.scene);
+
+    // Fixed pool of point lights, added now (before warmUpShaders) so
+    // numPointLights is baked into every material's program at boot and never
+    // changes as lanterns/houses stream in and out. See PointLightPool.
+    // Size 12 covers the worst-case concurrent emitters (a lava dungeon: center
+    // + 4 corners + chest + portal + 4 pools = 11). Excess emitters degrade
+    // gracefully — only the nearest 12 to the player are lit.
+    this.lightPool = new PointLightPool(this.scene, 12);
 
     // --- Post-processing: render → TAA → bloom ---
     try {
@@ -220,6 +230,7 @@ export class SceneManager {
 
     this.water.update(delta, this.camera, this.playerX, this.playerZ);
     this.skybox.update(delta, this.playerX, this.playerZ);
+    this.lightPool.update(this.playerX, this.playerZ);
 
     this.effects.update(delta);
     this.lighting.updateCelestialDiscs(this.camera.position, this.camera);

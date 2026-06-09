@@ -13,6 +13,7 @@ import {
 } from './MalakaBrokenKit';
 import { boxCollider } from '../../../systems/worldbuilder/colliderProxy';
 import { applyWorldTiling } from '../worldTiled';
+import { addLightEmitter } from '../../../scene/PointLightPool';
 
 export class MalakaBrokenHouseReconstructed extends Mesh {
   static readonly type = 'malaka_broken_house_reconstructed';
@@ -74,10 +75,11 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
     const addInterior = (group: THREE.Group, w: number, h: number, d: number) => {
       const floorY = wallThk;
 
-      // Warm interior glow (escapes through the open door + transparent windows)
-      const warm = new THREE.PointLight(0xffc98a, 1.4, 14 * scale, 2);
-      warm.position.set(0, h * 0.6, 0);
-      group.add(warm);
+      // Warm interior glow (escapes through the open door + transparent windows).
+      // Pooled so streaming houses don't change numPointLights (full recompile).
+      addLightEmitter(group, new THREE.Vector3(0, h * 0.6, 0), {
+        color: 0xffc98a, intensity: 1.4, distance: 14 * scale, decay: 2,
+      });
 
       // Rug
       const rugMat = new THREE.MeshStandardMaterial({ color: 0x8a2d2d, roughness: 0.95 });
@@ -113,9 +115,9 @@ export class MalakaBrokenHouseReconstructed extends Mesh {
       const ember = new THREE.Mesh(new THREE.BoxGeometry(fpW * 0.45, 0.2 * scale, 0.12 * scale), emberMat);
       ember.position.set(fpX, floorY + 0.18 * scale, fpZ + fpD / 2);
       group.add(ember);
-      const fire = new THREE.PointLight(0xff7a2e, 1.8, 7 * scale, 2);
-      fire.position.set(fpX, floorY + fpH * 0.32, fpZ + fpD);
-      group.add(fire);
+      addLightEmitter(group, new THREE.Vector3(fpX, floorY + fpH * 0.32, fpZ + fpD), {
+        color: 0xff7a2e, intensity: 1.8, distance: 7 * scale, decay: 2,
+      });
 
       // Bookshelf on the right wall
       const bookColors = [0x2e5d8a, 0x8a2e3a, 0x2e8a55, 0xb5882e];

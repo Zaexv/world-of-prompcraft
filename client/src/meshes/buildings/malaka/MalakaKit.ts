@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { applyMalakaPBR } from '../../../utils/PBRMaps';
+import { mergeStaticByMaterial } from '../../core/mergeStatic';
 
 // ─── Material Cache (Singleton) ───────────────────────────────────────────────
 
@@ -146,6 +147,10 @@ export function withLOD(full: THREE.Group, midDist = 180, farDist = 380): THREE.
   const lod = new THREE.LOD();
   lod.position.copy(full.position);
   full.position.set(0, 0, 0);
+  // Collapse opaque sub-meshes to one draw per material before deriving LOD
+  // levels — see mergeStaticByMaterial. Collision still uses level 0 (proxies
+  // preserved, merged visible meshes flagged noCollision).
+  mergeStaticByMaterial(full);
   lod.addLevel(full, 0);
   lod.addLevel(makeReducedLevel(full, false), midDist);
   lod.addLevel(makeReducedLevel(full, true), farDist);

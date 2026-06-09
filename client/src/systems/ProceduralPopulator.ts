@@ -30,6 +30,8 @@ import type { Terrain } from '../scene/Terrain';
 import type { CollisionSystem } from './CollisionSystem';
 import type { EntityManager } from '../entities/EntityManager';
 import { buildMesh, selectBiomePropType, selectBiomeVegetationType, selectBiomeBuildingType } from '../meshes';
+import { isInstanceable } from '../meshes/core/MeshRegistry';
+import { buildInstancedBatch, type VegInstance } from './worldbuilder/instanceBatch';
 import { getBiomeEntry } from './BiomeRegistry';
 import { tagDebugInfo, type DebugInfo } from '../debug/DebugInfo';
 
@@ -193,9 +195,8 @@ export class ProceduralPopulator {
         this.scene?.remove(obj);
         this.collisionSystem?.removeCollidable(obj);
         obj.traverse((child) => {
-          if (child instanceof THREE.Mesh) {
-            child.geometry.dispose();
-          }
+          if (child instanceof THREE.InstancedMesh) child.dispose(); // frees instanceMatrix buffer
+          if (child instanceof THREE.Mesh) child.geometry.dispose();
         });
       }
       this.spawnedObjects.delete(key);
@@ -365,6 +366,9 @@ export class ProceduralPopulator {
     // ── Vegetation / Clutter (4–12 items) ────────────────────────────
     if (rng.chance(0.75)) {
       const vegCount = rng.nextInt(8) + 4;
+      // Instanceable types (e.g. trees) are batched into one InstancedMesh per
+      // material for the whole chunk instead of one object each.
+      const batches = new Map<string, VegInstance[]>();
       for (let i = 0; i < vegCount; i++) {
         const px = worldX + rng.nextRange(2, SIZE - 2);
         const pz = worldZ + rng.nextRange(2, SIZE - 2);
@@ -376,11 +380,20 @@ export class ProceduralPopulator {
         const seed = rng.nextInt(0x40000000);
         if (!type) continue;
         const pos = new THREE.Vector3(px, py, pz);
+        if (isInstanceable(type)) {
+          let arr = batches.get(type);
+          if (!arr) { arr = []; batches.set(type, arr); }
+          arr.push({ pos, scale, rotationY });
+          continue;
+        }
         this._pushObjectTask(
           key,
           (r) => buildMesh(type, { position: pos.clone(), scale, rng: r }) ?? null,
           seed, rotationY, false, { type, category: 'vegetation', zone },
         );
+      }
+      for (const [type, list] of batches) {
+        this._pushInstancedBatchTask(key, type, list, rng.nextInt(0x40000000), zone);
       }
     }
 
@@ -431,6 +444,33 @@ export class ProceduralPopulator {
       if (collide) void this.collisionSystem?.addCollidableFiltered(obj);
       tagDebugInfo(obj, debug);
       this._trackObj(key, obj);
+    } });
+  }
+
+  /** Enqueue a batched-instancing build: all placements of one instanceable
+   *  type in a chunk collapse to one InstancedMesh per material + per-instance
+   *  colliders. */
+  private _pushInstancedBatchTask(
+    key: string,
+    type: string,
+    instances: VegInstance[],
+    seed: number,
+    zone: string,
+  ): void {
+    this.spawnTasks.push({ key, run: () => {
+      if (!this.scene) return;
+      const batch = buildInstancedBatch(type, instances, new SeededRng(seed, 0));
+      if (!batch) return;
+      for (const obj of batch.objects) {
+        this.scene.add(obj);
+        tagDebugInfo(obj, { type, category: 'vegetation', zone });
+        this._trackObj(key, obj);
+      }
+      if (batch.colliders) {
+        this.scene.add(batch.colliders);
+        void this.collisionSystem?.addCollidableFiltered(batch.colliders);
+        this._trackObj(key, batch.colliders);
+      }
     } });
   }
 

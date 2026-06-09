@@ -119,6 +119,36 @@ Create `client/src/meshes/buildings/<bucket>/<ClassName>.ts`. Rules:
   - **Flat Color Fallback**: All `MeshStandardMaterial`s should define
     `userData.flatColor` (a hex number representing the average tone) to allow
     the LOD system to swap textures for matching solid colors at a distance.
+- **Performance — draw calls & lighting (CRITICAL — the renderer is draw-call
+  bound; a dense scene died at 5000+ draws on a high-end GPU):**
+  - **Geometry auto-merges; materials do NOT.** `buildMesh` / `withLOD`
+    automatically collapse a mesh's opaque sub-meshes into **one draw call per
+    material** (`meshes/core/mergeStatic.ts`). Building from many small
+    primitives is fine — but **every distinct material is its own draw after
+    merging.** Keep the material count low: reuse the kit's cached materials and
+    **never `new THREE.MeshStandardMaterial(...)` per item in a loop** (a unique
+    colour per book / tile / pot / crate). Pull from a small shared palette. A
+    70-piece building with 5 materials = 5 draws; with a material per piece = 70.
+  - **Don't defeat the merge.** Only opaque, single-material, visible meshes
+    merge. `transparent` meshes, multi-material meshes (material arrays),
+    `InstancedMesh` / `SkinnedMesh`, and invisible collider proxies stay separate
+    (each = its own draw). Use `transparent` only where genuinely needed (glass,
+    glow); never on opaque stone/wood.
+  - **NEVER add real lights to a mesh.** A `THREE.PointLight` / `SpotLight` /
+    `HemisphereLight` created in `build()` changes the scene's light count, which
+    forces Three.js to **recompile every material in the game** (100–600 ms
+    stalls) and costs every lit fragment forever. For a glowing
+    lantern/window/fire/ember, use an **emissive material + bloom** (`emissive` +
+    `emissiveIntensity`) — the bloom pass makes it glow with zero lights. If a
+    prop truly must cast local light, register it with the shared pool:
+    `addLightEmitter(group, localPos, { color, intensity, distance, decay })`
+    from `scene/PointLightPool` — never `new THREE.PointLight`.
+  - **Instance repeated identical meshes.** If the mesh is scattered MANY times
+    with geometry identical per placement (trees, rocks, fence posts — only
+    pos/rot/scale differ), add `static readonly instanceable = true`; the
+    populator then draws all copies in a chunk as one `InstancedMesh` per
+    material. Do NOT set it if `build()` varies shape by `position`/`rng` (e.g. a
+    per-tree bend) — instanced copies must be identical.
 - **Physics & Collisions**:
   - **Explicit Proxies**: Do NOT rely on render meshes for collisions. Use
     `boxCollider` or `cylinderCollider` from `colliderProxy.ts` to create a

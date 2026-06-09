@@ -6,6 +6,7 @@
 
 import * as THREE from 'three';
 import { applyMalakaPBR } from '../../../utils/PBRMaps';
+import { mergeStaticByMaterial } from '../../core/mergeStatic';
 
 // ─── Material Cache (Singleton) ───────────────────────────────────────────────
 
@@ -174,6 +175,10 @@ export function withLOD(full: THREE.Group, midDist = 180, farDist = 380): THREE.
   const lod = new THREE.LOD();
   lod.position.copy(full.position);
   full.position.set(0, 0, 0);
+  // Collapse the building's dozens of opaque sub-meshes into one draw per
+  // material before deriving the LOD levels — buildings were the bulk of the
+  // 5000+ draw calls that made the renderer CPU-bound.
+  mergeStaticByMaterial(full);
   lod.addLevel(full, 0);
   lod.addLevel(makeReducedLevel(full, false), midDist);
   lod.addLevel(makeReducedLevel(full, true), farDist);

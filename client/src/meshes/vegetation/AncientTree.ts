@@ -62,6 +62,9 @@ export class AncientTree extends Mesh {
   static readonly type = 'ancient_tree';
   static readonly category = 'vegetation' as const;
   static readonly aliases = ['ancient_tree_cluster', 'tree', 'pine'] as const;
+  // Shape is identical per placement (no position/rng variation) → safe to GPU
+  // instance: all trees in a chunk render as ~2 draws total (trunk + canopy).
+  static readonly instanceable = true;
 
   build(ctx: BuildContext): THREE.LOD {
     const { position: pos, scale } = ctx;

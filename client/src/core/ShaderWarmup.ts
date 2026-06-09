@@ -1,6 +1,7 @@
 import * as THREE from 'three';
-import { meshTypes, buildMesh, meshCategory } from '../meshes/core/MeshRegistry';
+import { meshTypes, buildMesh, meshCategory, isInstanceable } from '../meshes/core/MeshRegistry';
 import { buildNPCMesh } from '../entities/npc/NPCMeshFactory';
+import { buildInstancedBatch } from '../systems/worldbuilder/instanceBatch';
 import type { Rng } from '../systems/worldbuilder/RngTypes';
 
 /** Deterministic throwaway RNG for procedural meshes that require ctx.rng. */
@@ -74,6 +75,23 @@ export function warmUpShaders(
       });
       scene.add(obj);
       temp.push(obj);
+
+      // Instanceable types (trees, …) render in-game as InstancedMesh, whose
+      // shader has the USE_INSTANCING define — a DIFFERENT program from the
+      // plain mesh built above. Warm it too, or the first instanced batch (a
+      // forest / Fort Malaka) compiles it mid-move. One instance is enough; the
+      // program key doesn't depend on instance count.
+      if (isInstanceable(type)) {
+        const batch = buildInstancedBatch(type, [{ pos: hidden.clone(), scale: 1, rotationY: 0 }], rng);
+        if (batch) {
+          for (const o of batch.objects) {
+            o.frustumCulled = false;
+            scene.add(o);
+            temp.push(o);
+          }
+          // colliders are invisible — no program to warm; drop them.
+        }
+      }
     } catch {
       // A type that can't build from a generic context simply isn't pre-warmed —
       // it will compile on first real use (same as before). Never fail boot.
@@ -121,34 +139,71 @@ export function warmUpShaders(
     temp.push(m);
   }
 
-  // PBR variants (Standard/Physical)
-  // We need to catch: flatShading on/off, fog on/off, clearcoat (for El Tito lenses)
-  // We use dummyMap for all texture slots so we don't trigger "no image data" 
-  // errors while real assets are still loading asynchronously.
-  const pbrVariants = [
-    { physical: false, flat: true,  fog: true,  clearcoat: 0, trans: false },
-    { physical: false, flat: false, fog: true,  clearcoat: 0, trans: false },
-    { physical: true,  flat: true,  fog: true,  clearcoat: 1, trans: false },
-    { physical: false, flat: true,  fog: false, clearcoat: 0, trans: false },
-    // With maps to catch anisotropy/normalMap variants used by buildings/terrain
-    { physical: false, flat: true,  fog: true,  clearcoat: 0, trans: false, maps: true },
-    { physical: true,  flat: true,  fog: true,  clearcoat: 1, trans: false, maps: true },
-    { physical: true,  flat: true,  fog: true,  clearcoat: 1, trans: true },
+  // PBR variants (Standard/Physical).
+  //
+  // The program cache key splits on the material's *map-slot signature* (which
+  // texture slots are bound → which UV channels + which lighting defines the
+  // shader needs). PBRMaps.applyXPBR produces exactly five distinct combos; an
+  // earlier version of this list only warmed "all three maps" and "no maps",
+  // so the nor+rough / nor-only / map+nor combos compiled on first render —
+  // a synchronous spike each time an NPC (skin/leather/cloth) or building
+  // (wood/malaka/canopy) first entered view. Warming every combo here closes
+  // that gap. We use dummyMap for each bound slot so no "no image data" error
+  // fires while the real assets are still loading asynchronously.
+  //
+  //   map  nor  rough   produced by
+  //    ·    ✓    ✓      terrain, leather, silk/velvet/wool
+  //    ·    ✓    ·      skin
+  //    ✓    ✓    ·      wood, canopy, malaka stucco/roof/stone/wood
+  //    ✓    ✓    ✓      stone, bark
+  //    ·    ·    ·      gold/metal
+  const mapCombos: { map: boolean; nor: boolean; rough: boolean }[] = [
+    { map: false, nor: true,  rough: true  },
+    { map: false, nor: true,  rough: false },
+    { map: true,  nor: true,  rough: false },
+    { map: true,  nor: true,  rough: true  },
+    { map: false, nor: false, rough: false },
   ];
 
-  for (const v of pbrVariants) {
+  // flatShading splits the program (NPC meshes are flat-shaded, world geometry
+  // is smooth); physical adds the clearcoat path (El Tito lenses, water). fog is
+  // on for all world content. Cross-product is bounded (5 × 2 × 2 = 20).
+  for (const physical of [false, true]) {
+    for (const flat of [true, false]) {
+      for (const combo of mapCombos) {
+        const params: THREE.MeshStandardMaterialParameters = {
+          color: 0xffffff, flatShading: flat, fog: true,
+          map: combo.map ? dummyMap : null,
+          normalMap: combo.nor ? dummyMap : null,
+          roughnessMap: combo.rough ? dummyMap : null,
+        };
+        const mat = physical
+          ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
+          : new THREE.MeshStandardMaterial(params);
+
+        const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
+        m.position.copy(hidden);
+        m.frustumCulled = false;
+        m.castShadow = true;
+        m.receiveShadow = true;
+        scene.add(m);
+        temp.push(m);
+      }
+    }
+  }
+
+  // Transparent + fog:false outliers (glass/lenses, sky-adjacent UI panels) that
+  // don't share the opaque world program. Kept minimal — these are rare.
+  for (const v of [
+    { physical: true,  flat: true,  fog: true,  trans: true  },
+    { physical: false, flat: true,  fog: false, trans: false },
+  ]) {
     const params: THREE.MeshStandardMaterialParameters = {
-      color: 0xffffff, flatShading: v.flat, fog: v.fog,
-      transparent: v.trans,
-      map: v.maps ? dummyMap : null,
-      normalMap: v.maps ? dummyMap : null,
-      roughnessMap: v.maps ? dummyMap : null,
+      color: 0xffffff, flatShading: v.flat, fog: v.fog, transparent: v.trans,
     };
-    
     const mat = v.physical
-      ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: v.clearcoat })
+      ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
       : new THREE.MeshStandardMaterial(params);
-    
     const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
     m.position.copy(hidden);
     m.frustumCulled = false;
@@ -158,8 +213,17 @@ export function warmUpShaders(
     temp.push(m);
   }
 
-  // Compile main materials
+  // Compile main materials.
   renderer.compile(scene, camera);
+
+  // A real render pass compiles the variants `compile()` does NOT: the
+  // shadow-DEPTH programs (only built during the shadow-map pass) and any
+  // draw-state-specific variant. The temp meshes sit at the origin in front of
+  // the camera and the sun's shadow frustum, so one render warms their cast +
+  // receive shadow programs. Runs behind the loading screen and is immediately
+  // overwritten by the game loop's first composer frame.
+  renderer.shadowMap.needsUpdate = true;
+  renderer.render(scene, camera);
 
   // Clean up references
   for (const obj of temp) scene.remove(obj);

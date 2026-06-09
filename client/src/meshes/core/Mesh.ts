@@ -35,6 +35,13 @@ export abstract class Mesh {
   static readonly category: MeshCategory;
   /** Optional extra type strings this mesh also answers to (legacy/synonyms). */
   static readonly aliases?: readonly string[];
+  /**
+   * Opt in to cross-instance GPU instancing (one draw per material for ALL
+   * placements of this type in a chunk). Only valid when build() produces
+   * geometry that is IDENTICAL regardless of position — i.e. it does not vary
+   * shape by `position`/`rng` (only pos/rot/scale differ between instances).
+   */
+  static readonly instanceable?: boolean;
 
   /** Build the Three.js object for this mesh. */
   abstract build(ctx: BuildContext): THREE.Object3D;
@@ -45,5 +52,6 @@ export interface MeshClass {
   readonly type: string;
   readonly category: MeshCategory;
   readonly aliases?: readonly string[];
+  readonly instanceable?: boolean;
   new (): Mesh;
 }
