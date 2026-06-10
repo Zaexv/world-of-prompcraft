@@ -1890,6 +1890,18 @@ kbd {
   grid-template-columns: 1fr 1fr;
   gap: 0.7rem;
 }
+.ac-stat-row--4 { grid-template-columns: repeat(4, 1fr); }
+/* Side-by-side callouts; the stacked variant puts the label above the body. */
+.ac-callout-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.7rem;
+}
+.ac-rulebook--stack {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+}
 .ac-stat {
   background: rgba(12,9,20,0.55);
   border: 1px solid var(--line-soft);
