@@ -1799,183 +1799,138 @@ kbd {
 .scale-fact-val { color: var(--muted); }
 
 /* ================================================================
-   SLIDE 14 — AGENTIC CODING
+   SLIDE 14 — AGENTIC CODING (prompting strategies)
    ================================================================ */
-.ac-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 1.8rem;
-  margin-top: 1rem;
-  align-items: start;
-}
-/* Full-screen variant — workflow and output stretch, type scales up. */
-.slide.full .ac-layout {
-  flex: 1;
-  min-height: 0;
-  grid-template-columns: 300px 1fr;
-  gap: 2.2rem;
-  margin-top: 1.2rem;
-  align-items: stretch;
-}
-.slide.full .ac-workflow { justify-content: space-evenly; }
-.slide.full .ac-step-badge { font-size: 0.7rem; }
-.slide.full .ac-step-title { font-size: 0.95rem; }
-.slide.full .ac-step-body { font-size: 0.8rem; }
-.slide.full .ac-step-body code { font-size: 0.74rem; }
-.slide.full .ac-output { justify-content: space-evenly; }
-.slide.full .ac-stat-num { font-size: 2.7rem; }
-.slide.full .ac-stat-label { font-size: 0.92rem; }
-.slide.full .ac-stat-sub { font-size: 0.76rem; }
-.slide.full .ac-tools-title { font-size: 0.85rem; }
-.slide.full .ac-tool { font-size: 0.76rem; padding: 0.2rem 0.6rem; }
-.slide.full .ac-rulebook { font-size: 0.82rem; }
-.slide.full .ac-rulebook-label { font-size: 0.72rem; }
-.slide.full .ac-rulebook-body code { font-size: 0.72rem; }
-.ac-workflow {
+/* The delivery loop as one quiet strip above the strategy grid. */
+.acx-loop {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0;
-}
-.ac-step {
-  width: 100%;
-  border-radius: 8px;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--line-soft);
-  background: rgba(12,9,20,0.55);
-}
-.ac-step-badge {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+  margin-top: 1.1rem;
   font-family: var(--mono);
-  font-size: 0.56rem;
+}
+.acx-loop-step {
+  font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  display: inline-block;
-  margin-bottom: 0.3rem;
-}
-.ac-step-title {
-  font-family: var(--serif);
-  font-size: 0.72rem;
-  margin-bottom: 0.2rem;
-  color: var(--ink);
-}
-.ac-step-body {
-  font-size: 0.62rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.ac-step-body code { font-family: var(--mono); font-size: 0.58rem; color: #e8b84b; }
-.ac-step--research { border-color: rgba(86,184,154,0.35); }
-.ac-step--research .ac-step-badge { background: rgba(86,184,154,0.15); color: #56b89a; }
-.ac-step--plan     { border-color: rgba(136,200,255,0.3); }
-.ac-step--plan     .ac-step-badge { background: rgba(136,200,255,0.12); color: #88c8ff; }
-.ac-step--impl     { border-color: rgba(232,184,75,0.3); }
-.ac-step--impl     .ac-step-badge { background: rgba(232,184,75,0.12); color: #e8b84b; }
-.ac-step--ship     { border-color: rgba(200,168,232,0.3); }
-.ac-step--ship     .ac-step-badge { background: rgba(200,168,232,0.12); color: #c8a8e8; }
-.ac-arrow {
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 0.18rem 0;
-  text-align: center;
-}
-.ac-output {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.ac-stat-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-}
-.ac-stat-row--4 { grid-template-columns: repeat(4, 1fr); }
-/* Side-by-side callouts; the stacked variant puts the label above the body. */
-.ac-callout-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-}
-.ac-rulebook--stack {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-.ac-stat {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
-}
-.ac-stat-num {
-  font-family: var(--serif);
-  font-size: 2rem;
-  color: var(--gold-bright);
-  line-height: 1;
-  margin-bottom: 0.2rem;
-}
-.ac-stat-label {
-  font-size: 0.72rem;
-  color: var(--ink);
-  margin-bottom: 0.2rem;
-}
-.ac-stat-sub {
-  font-size: 0.60rem;
-  color: var(--muted);
-  line-height: 1.45;
-}
-.ac-tools-built {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
-}
-.ac-tools-title {
-  font-family: var(--serif);
-  font-size: 0.68rem;
   color: var(--gold-soft);
-  margin-bottom: 0.5rem;
+  background: rgba(212, 179, 105, 0.1);
+  border: 1px solid rgba(212, 179, 105, 0.35);
+  border-radius: 16px;
+  padding: 0.22rem 0.8rem;
+}
+.acx-loop-arr { color: var(--gold); font-size: 0.8rem; }
+.acx-loop-note {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--muted);
   letter-spacing: 0.04em;
 }
-.ac-tools-list {
+
+/* Six strategy cards — 3 × 2, each with its own accent color. */
+.acx-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.2rem;
+}
+.acx-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(10, 7, 17, 0.6);
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid transparent;
+  border-radius: 10px;
+  padding: 1.1rem 1.25rem;
+  opacity: 0;
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
 }
-.ac-tool {
+.slide.active .acx-card { animation: pillar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.acx-card:nth-child(1) { animation-delay: 0.06s; }
+.acx-card:nth-child(2) { animation-delay: 0.14s; }
+.acx-card:nth-child(3) { animation-delay: 0.22s; }
+.acx-card:nth-child(4) { animation-delay: 0.3s; }
+.acx-card:nth-child(5) { animation-delay: 0.38s; }
+.acx-card:nth-child(6) { animation-delay: 0.46s; }
+.acx-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--line);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+.acx-tag {
+  align-self: flex-start;
   font-family: var(--mono);
-  font-size: 0.60rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid;
   border-radius: 4px;
-  background: rgba(232,184,75,0.1);
-  color: #e8b84b;
-  border: 1px solid rgba(232,184,75,0.22);
+  padding: 0.12rem 0.5rem;
 }
-.ac-rulebook {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid rgba(197,165,90,0.3);
-  border-radius: 8px;
-  padding: 0.65rem 0.9rem;
+.acx-card h3 {
+  font-family: var(--serif);
+  font-size: clamp(1rem, 1.5vw, 1.3rem);
+  font-weight: 700;
+  color: var(--ink);
+}
+.acx-card p {
+  font-size: clamp(0.82rem, 1.1vw, 0.98rem);
+  line-height: 1.55;
+  color: var(--muted);
+}
+.acx-card p b { color: var(--ink); }
+.acx-card p code { font-size: 0.85em; }
+/* Per-card accents */
+.acx-card--ctx   { border-top-color: rgba(86, 184, 154, 0.7); }
+.acx-card--ctx   .acx-tag { color: #7ed4b4; border-color: rgba(86, 184, 154, 0.45); background: rgba(86, 184, 154, 0.1); }
+.acx-card--skill { border-top-color: rgba(232, 184, 75, 0.7); }
+.acx-card--skill .acx-tag { color: #f0c155; border-color: rgba(232, 184, 75, 0.45); background: rgba(232, 184, 75, 0.1); }
+.acx-card--plan  { border-top-color: rgba(136, 200, 255, 0.7); }
+.acx-card--plan  .acx-tag { color: #9cd4ff; border-color: rgba(136, 200, 255, 0.45); background: rgba(136, 200, 255, 0.1); }
+.acx-card--pipe  { border-top-color: rgba(200, 168, 232, 0.7); }
+.acx-card--pipe  .acx-tag { color: #dcc4f4; border-color: rgba(200, 168, 232, 0.45); background: rgba(200, 168, 232, 0.1); }
+.acx-card--gate  { border-top-color: rgba(220, 80, 80, 0.7); }
+.acx-card--gate  .acx-tag { color: #f4a8a0; border-color: rgba(220, 80, 80, 0.45); background: rgba(220, 80, 80, 0.1); }
+.acx-card--mem   { border-top-color: rgba(217, 148, 80, 0.7); }
+.acx-card--mem   .acx-tag { color: #f0b888; border-color: rgba(217, 148, 80, 0.45); background: rgba(217, 148, 80, 0.1); }
+
+/* Footer strip: the numbers + the punchline. */
+.acx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line-soft);
+}
+.acx-stats {
   display: flex;
   align-items: baseline;
-  gap: 0.8rem;
-  font-size: 0.67rem;
-}
-.ac-rulebook-label {
+  gap: 0.6rem;
   font-family: var(--mono);
-  font-size: 0.60rem;
-  color: var(--gold-bright);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  flex-shrink: 0;
-}
-.ac-rulebook-body {
+  font-size: 0.82rem;
   color: var(--muted);
-  line-height: 1.5;
 }
-.ac-rulebook-body b { color: var(--ink); font-weight: 700; }
-.ac-rulebook-body code { font-family: var(--mono); font-size: 0.60rem; color: #c8a8e8; }
+.acx-stats b {
+  font-family: var(--serif);
+  font-size: 1.3rem;
+  color: var(--gold-bright);
+  font-weight: 700;
+}
+.acx-dot { color: var(--gold); }
+.acx-zero {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.acx-zero b { color: var(--gold-soft); }
 
 /* ================================================================
    SLIDE 15 — CONTRIBUTORS (the guild)

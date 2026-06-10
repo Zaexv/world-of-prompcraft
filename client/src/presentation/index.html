@@ -738,89 +738,59 @@ flowchart TD
       <div class="pilar">Pillar 3 — Agentic Coding</div>
       <h2>The whole project <span class="grad">built agentically</span></h2>
 
-      <div class="ac-layout">
+      <!-- the loop, as one strip -->
+      <div class="acx-loop">
+        <span class="acx-loop-step">research</span><span class="acx-loop-arr">→</span>
+        <span class="acx-loop-step">plan</span><span class="acx-loop-arr">→</span>
+        <span class="acx-loop-step">implement</span><span class="acx-loop-arr">→</span>
+        <span class="acx-loop-step">verify</span><span class="acx-loop-arr">→</span>
+        <span class="acx-loop-step">ship</span>
+        <span class="acx-loop-note">small prompts · one concern at a time · review every diff</span>
+      </div>
 
-        <!-- left: workflow modules -->
-        <div class="ac-workflow">
-          <div class="ac-step ac-step--research">
-            <div class="ac-step-badge">/rpi-research</div>
-            <div class="ac-step-title">Explore</div>
-            <div class="ac-step-body">Agent reads the codebase, maps the affected area, surfaces constraints and prior decisions before a single line is written.</div>
-          </div>
-          <div class="ac-arrow">↓</div>
-          <div class="ac-step ac-step--plan">
-            <div class="ac-step-badge">/rpi-plan</div>
-            <div class="ac-step-title">Design</div>
-            <div class="ac-step-body">Proposes a diagram-first plan. No implementation starts until the architecture is agreed and written down.</div>
-          </div>
-          <div class="ac-arrow">↓</div>
-          <div class="ac-step ac-step--impl">
-            <div class="ac-step-badge">/rpi-implement</div>
-            <div class="ac-step-title">Build &amp; iterate</div>
-            <div class="ac-step-body">Writes code, runs <code>tsc + eslint + pytest</code>. Loops until all checks are green — the human reviews the diff, not the loop.</div>
-          </div>
-          <div class="ac-arrow">↓</div>
-          <div class="ac-step ac-step--ship">
-            <div class="ac-step-badge">pre-commit hooks</div>
-            <div class="ac-step-title">Ships</div>
-            <div class="ac-step-body">CLAUDE.md conventions + CI gate. Nothing lands without passing typecheck, lint, and tests.</div>
-          </div>
+      <!-- six strategies that make the prompting work -->
+      <div class="acx-grid">
+        <div class="acx-card acx-card--ctx">
+          <span class="acx-tag">CLAUDE.md</span>
+          <h3>Context engineering</h3>
+          <p>A shared rulebook every agent reads first — strict types, conventions, architecture. Prompts stay short because <b>the repo carries the context</b>.</p>
         </div>
-
-        <!-- right: what was built this way -->
-        <div class="ac-output">
-          <div class="ac-stat-row ac-stat-row--4">
-            <div class="ac-stat">
-              <div class="ac-stat-num">110</div>
-              <div class="ac-stat-label">Three.js mesh classes</div>
-              <div class="ac-stat-sub">buildings, biomes props, structures, vegetation — all prompted into existence</div>
-            </div>
-            <div class="ac-stat">
-              <div class="ac-stat-num">34</div>
-              <div class="ac-stat-label">NPC personalities</div>
-              <div class="ac-stat-sub">system prompts, tool rules, memory — authored by agents</div>
-            </div>
-            <div class="ac-stat">
-              <div class="ac-stat-num">13</div>
-              <div class="ac-stat-label">custom skills</div>
-              <div class="ac-stat-sub">mesh-from-picture, extend-world, npc-registry-manager, terrain-builder…</div>
-            </div>
-            <div class="ac-stat">
-              <div class="ac-stat-num">307</div>
-              <div class="ac-stat-label">commits</div>
-              <div class="ac-stat-sub">agentic workflow from day 1 — research → plan → implement → ship</div>
-            </div>
-          </div>
-
-          <div class="ac-tools-built">
-            <div class="ac-tools-title">Agentic tooling shipped</div>
-            <div class="ac-tools-list">
-              <span class="ac-tool">Terrain Builder</span>
-              <span class="ac-tool">Mesh Viewer</span>
-              <span class="ac-tool">World Builder</span>
-              <span class="ac-tool">mesh-from-picture</span>
-              <span class="ac-tool">extend-world skill</span>
-              <span class="ac-tool">NPC registry manager</span>
-            </div>
-          </div>
-
-          <div class="ac-callout-row">
-            <div class="ac-rulebook ac-rulebook--stack">
-              <span class="ac-rulebook-label">Mesh factory</span>
-              <span class="ac-rulebook-body">Coding Agents build every mesh — <b>skills</b> encode the know-how, <b>pipelines</b> fan the work out across agents, and <b>backpressure</b> keeps the quality gates ahead of throughput. The guidelines hold the flow steady.</span>
-            </div>
-            <div class="ac-rulebook ac-rulebook--stack">
-              <span class="ac-rulebook-label">Zero barrier</span>
-              <span class="ac-rulebook-body"><b>Any coding CLI</b> can work on this project — the skills and rulebook carry the context, so <b>no technical knowledge is needed to start</b>.</span>
-            </div>
-          </div>
-
-          <div class="ac-rulebook">
-            <span class="ac-rulebook-label">CLAUDE.md</span>
-            <span class="ac-rulebook-body">shared rulebook — TS strict · Python mypy strict · no <code>any</code> · conventional commits · CI gates · per-NPC isolation · tool factory pattern</span>
-          </div>
+        <div class="acx-card acx-card--skill">
+          <span class="acx-tag">/skills</span>
+          <h3>Skills encode know-how</h3>
+          <p>13 custom skills — <code>mesh-from-picture</code>, <code>extend-world</code>, <code>terrain-builder</code> — turn whole workflows into <b>one-line prompts</b>.</p>
         </div>
+        <div class="acx-card acx-card--plan">
+          <span class="acx-tag">/rpi-*</span>
+          <h3>Phased delivery</h3>
+          <p>Features run <b>research → plan → implement</b>. The plan is written and agreed before any code is generated — then executed phase by phase.</p>
+        </div>
+        <div class="acx-card acx-card--pipe">
+          <span class="acx-tag">pipelines</span>
+          <h3>Fan-out with backpressure</h3>
+          <p>Mesh production fans out across coding agents; <b>quality gates apply backpressure</b> so review never falls behind generation.</p>
+        </div>
+        <div class="acx-card acx-card--gate">
+          <span class="acx-tag">pre-commit</span>
+          <h3>Guardrails, not trust</h3>
+          <p>TS strict, mypy strict, ESLint, tests on every commit. Agent code ships through <b>the same gates as human code</b>.</p>
+        </div>
+        <div class="acx-card acx-card--mem">
+          <span class="acx-tag">memory</span>
+          <h3>Feedback that sticks</h3>
+          <p>Corrections become persistent memory and docs. The next session <b>starts smarter</b> — the same mistake never needs prompting twice.</p>
+        </div>
+      </div>
 
+      <!-- proof + the punchline -->
+      <div class="acx-foot">
+        <div class="acx-stats">
+          <span><b>110</b> mesh classes</span><span class="acx-dot">·</span>
+          <span><b>34</b> NPC personalities</span><span class="acx-dot">·</span>
+          <span><b>13</b> skills</span><span class="acx-dot">·</span>
+          <span><b>307</b> commits</span>
+        </div>
+        <div class="acx-zero">Any coding CLI can contribute — <b>zero technical knowledge to start</b>.</div>
       </div>
     </div>
   </section>
