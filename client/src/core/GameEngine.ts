@@ -12,6 +12,7 @@ import type { WorldBuilder } from '../systems/WorldBuilder';
 import type { ZoneTracker } from '../systems/ZoneTracker';
 import type { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import type { DungeonSystem } from '../systems/DungeonSystem';
+import type { BoatSystem } from '../systems/BoatSystem';
 import type { UIManager } from '../ui/UIManager';
 import type { WebSocketClient } from '../network/WebSocketClient';
 import type { PlayerState } from '../state/PlayerState';
@@ -37,6 +38,7 @@ export interface GameEngineDeps {
   zoneTracker: ZoneTracker;
   zoneAtmosphere: ZoneAtmosphere;
   dungeonSystem: DungeonSystem;
+  boatSystem: BoatSystem;
   uiManager: UIManager;
   ws: WebSocketClient;
   playerState: PlayerState;
@@ -327,10 +329,15 @@ export class GameEngine {
         delta,
         !this.introCinematicActive && !dialogFocusActive && d.playerController.isMoving,
         (this.introCinematicActive || dialogFocusActive) ? this._idleVelocity : d.playerController.velocity,
-        d.playerController.isSwimming,
+        // In a boat the player holds a sailing pose, not the swim pose.
+        d.playerController.isSwimming && !d.playerController.inBoat,
         d.playerController.facingYawOverride,
         d.playerController.isGrounded,
+        d.playerController.inBoat,
+        d.playerController.boardJumpT,
       );
+      // Board / leave the boat on entering / leaving water; bob, rock, hop.
+      d.boatSystem.update(d.playerController, d.player.group, delta);
       d.playerState.position = [
         d.playerController.position.x,
         d.playerController.position.y,

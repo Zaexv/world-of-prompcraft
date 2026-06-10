@@ -6,7 +6,9 @@
 // Furniture / standalone props
 import './Campfire';
 import './Bonfire';
+import './AIBonfire';
 import './Lantern';
+import './Boat';
 
 // Procedural biome ambient props (selected per-biome by ProceduralPopulator)
 import './biome/GiantMushroom';

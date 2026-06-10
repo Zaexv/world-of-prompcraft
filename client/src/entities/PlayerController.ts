@@ -46,6 +46,18 @@ export class PlayerController {
   private readonly swimUpSpeed = 4;
   private verticalVelocity = 0;
 
+  // --- Boat (set by BoatSystem when the player boards on entering water) ---
+  /** When true, the player rides a boat on the surface instead of swimming. */
+  public inBoat = false;
+  /** Height the player's feet sit above the water surface while in the boat
+   * (the boat's floorboards, which sit just above the waterline). */
+  public readonly boatDeckHeight = 0.2;
+  /** Board-jump arc progress 0..1 (peak = 1), set by BoatSystem; drives the
+   * leap pose while jumping into / out of the boat. */
+  public boardJumpT = 0;
+  private readonly boatSpeed = 11;
+  private readonly boatSprintSpeed = 18;
+
   // --- Water proximity ---
   private readonly waterSlowRange = 1.5;
   private readonly waterSlowFactor = 0.6;
@@ -255,7 +267,11 @@ export class PlayerController {
 
     let speed: number;
     if (this.isSwimming) {
-      speed = running ? this.swimSprintSpeed : this.swimSpeed;
+      if (this.inBoat) {
+        speed = running ? this.boatSprintSpeed : this.boatSpeed;
+      } else {
+        speed = running ? this.swimSprintSpeed : this.swimSpeed;
+      }
     } else {
       speed = running ? this.runSpeed : this.walkSpeed;
 
@@ -277,7 +293,22 @@ export class PlayerController {
 
     this.velocity.set(dx, 0, dz);
 
-    if (this.isSwimming) {
+    if (this.isSwimming && this.inBoat) {
+      // --- Boat: ride on the surface, no diving. BoatSystem adds the visual
+      // bob/rock; here we just keep the body planted at deck height and move it
+      // horizontally at sailing speed.
+      this.position.x += dx * delta;
+      this.position.z += dz * delta;
+      this.position.y = waterLevel + this.boatDeckHeight;
+      this.verticalVelocity = 0;
+
+      this.capsule.set(
+        new THREE.Vector3(this.position.x, this.position.y + 0.35, this.position.z),
+        new THREE.Vector3(this.position.x, this.position.y + 1.45, this.position.z),
+        0.35
+      );
+      this.capsuleController.resetVerticalVelocity();
+    } else if (this.isSwimming) {
       // --- Swimming Physics (Legacy) ---
       const swimSurface = waterLevel - this.swimDepth;
 
