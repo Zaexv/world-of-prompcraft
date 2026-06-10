@@ -138,6 +138,15 @@ export class AudioSystem {
     // Bass per chord: root and fifth an octave below the pad.
     const bassTones = progression.map(chord => [semisUp(chord[0], -12), semisUp(chord[2], -12)]);
 
+    // Anchor every loop to the same bar boundary. Without a shared startTime
+    // each scheduleRepeat aligns to the transport's tick-0 grid and its counter
+    // begins on its own first fire, which lands at a different absolute tick per
+    // interval (4n vs 2n vs 1n vs 8n). That offset — set by when playStartMusic
+    // runs relative to Transport.start() — desynced the pad from the arp on init.
+    // Quantizing all four to the next measure locks index 0 of every loop to the
+    // same bar, so the chord/bass/arp progressions advance together.
+    const barStart = Tone.Transport.nextSubdivision('1m');
+
     // ── Light pulse: soft kick on beat 1, gentle brush on beat 3 ──
     let beat4 = 0;
     const beatInterval = Tone.Transport.scheduleRepeat((time) => {
@@ -145,7 +154,7 @@ export class AudioSystem {
       if (barBeat === 0) kick.triggerAttackRelease('C1', '32n', time);
       if (barBeat === 2) snare.triggerAttackRelease('32n', time);
       beat4++;
-    }, '4n');
+    }, '4n', barStart);
     this.registerTransportEvent(beatInterval);
 
     // ── Bass: chord root on beat 1, fifth on beat 3 ──
@@ -154,7 +163,7 @@ export class AudioSystem {
       const [bassRoot, bassFifth] = bassTones[Math.floor(bassHalf / 2) % bassTones.length];
       bassSynth.triggerAttackRelease(bassHalf % 2 === 0 ? bassRoot : bassFifth, '2n', time);
       bassHalf++;
-    }, '2n');
+    }, '2n', barStart);
     this.registerTransportEvent(bassInterval);
 
     // ── Chords: hold one triad per bar (airy pad) ──
@@ -162,7 +171,7 @@ export class AudioSystem {
     const chordInterval = Tone.Transport.scheduleRepeat((time) => {
       chordSynth.triggerAttackRelease(progression[chordBar % progression.length], '1n', time);
       chordBar++;
-    }, '1n');
+    }, '1n', barStart);
     this.registerTransportEvent(chordInterval);
 
     // ── Arpeggio: pattern 8-5-3-1-3-5-8-5 over the bar's chord ──
@@ -173,7 +182,7 @@ export class AudioSystem {
       const tones = arpTones[Math.floor(arpEighth / 8) % arpTones.length];
       arpSynth.triggerAttackRelease(tones[arpPattern[arpEighth % arpPattern.length]], '8n', time);
       arpEighth++;
-    }, '8n');
+    }, '8n', barStart);
     this.registerTransportEvent(arpInterval);
   }
 
