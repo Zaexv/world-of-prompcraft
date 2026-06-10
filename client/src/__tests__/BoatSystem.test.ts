@@ -24,6 +24,8 @@ function fakeController(): PlayerController {
     isSwimming: false,
     inBoat: false,
     position: new THREE.Vector3(10, 0, -5),
+    velocity: new THREE.Vector3(),
+    boardJumpT: 0,
   } as unknown as PlayerController;
 }
 

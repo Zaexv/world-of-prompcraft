@@ -24,15 +24,21 @@ const ROCK_AMP = 0.05;    // side-to-side rock (radians)
 
 export class BoatSystem {
   private readonly boat: THREE.Group;
+  private readonly rig: THREE.Object3D | null;   // boom + sail, pivots at the mast
+  private readonly sail: THREE.Object3D | null;  // billow animates along local X
   private mounted = false;
   /** >0 while boarding, <0 while leaving; magnitude counts down to 0. */
   private transition = 0;
   private leaving = false;
   private time = 0;
+  private sailBillow = 1;
+  private boomSwing = 0;
 
   constructor(private readonly scene: THREE.Scene) {
     const built = buildMesh('boat_rowboat', { position: new THREE.Vector3(), scale: 1 });
     this.boat = (built as THREE.Group) ?? new THREE.Group();
+    this.rig = this.boat.getObjectByName('rig') ?? null;
+    this.sail = this.boat.getObjectByName('sail') ?? null;
     this.boat.visible = false;
     this.scene.add(this.boat);
   }
@@ -92,6 +98,19 @@ export class BoatSystem {
       playerGroup.position.x = px - fwdX * lunge;
       playerGroup.position.z = pz - fwdZ * lunge;
     }
+
+    // --- Living sail: fills and swings the boom when under way, luffs when idle ---
+    const speed = Math.hypot(controller.velocity.x, controller.velocity.z);
+    const moving = speed > 0.5;
+    const t = Math.min(1, delta * 3); // frame-rate-independent smoothing
+    // Billow deeper with speed; flutter always.
+    const targetBillow = 1 + (moving ? 0.35 : 0.08) + Math.sin(this.time * 2.4) * 0.07;
+    this.sailBillow = this.sailBillow + (targetBillow - this.sailBillow) * t;
+    if (this.sail) this.sail.scale.x = this.sailBillow;
+    // Boom swings out to leeward under way, with a gentle sway.
+    const targetSwing = (moving ? 0.16 : 0.0) + Math.sin(this.time * 1.3) * 0.05;
+    this.boomSwing = this.boomSwing + (targetSwing - this.boomSwing) * t;
+    if (this.rig) this.rig.rotation.y = this.boomSwing;
   }
 
   private board(controller: PlayerController): void {
