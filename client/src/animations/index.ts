@@ -13,3 +13,4 @@ export type { AnimInput } from './PlayerAnimator';
 export { applyLocomotion } from './poses/locomotion';
 export { applySwimPose } from './poses/swim';
 export { applySailingPose } from './poses/sailing';
+export { applyJumpPose } from './poses/jump';

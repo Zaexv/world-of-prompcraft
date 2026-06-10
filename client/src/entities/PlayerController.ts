@@ -51,7 +51,10 @@ export class PlayerController {
   public inBoat = false;
   /** Height the player's feet sit above the water surface while in the boat
    * (the boat's floorboards, which sit just above the waterline). */
-  public readonly boatDeckHeight = 0.3;
+  public readonly boatDeckHeight = 0.2;
+  /** Board-jump arc progress 0..1 (peak = 1), set by BoatSystem; drives the
+   * leap pose while jumping into / out of the boat. */
+  public boardJumpT = 0;
   private readonly boatSpeed = 11;
   private readonly boatSprintSpeed = 18;
 

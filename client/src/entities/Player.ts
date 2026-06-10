@@ -36,9 +36,10 @@ export class Player {
     facingYawOverride: number | null = null,
     isGrounded = true,
     inBoat = false,
+    boardJump = 0,
   ): void {
     this.animator.update(this.rig, {
-      delta, isMoving, velocity, isSwimming, facingYawOverride, isGrounded, inBoat,
+      delta, isMoving, velocity, isSwimming, facingYawOverride, isGrounded, inBoat, boardJump,
     });
   }
 }

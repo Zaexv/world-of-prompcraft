@@ -4,6 +4,7 @@ import { PlayerRig, lerp, clamp, clampedT, angleDiff } from './PlayerRig';
 import { applyLocomotion } from './poses/locomotion';
 import { applySwimPose } from './poses/swim';
 import { applySailingPose } from './poses/sailing';
+import { applyJumpPose } from './poses/jump';
 
 export interface AnimInput {
   delta: number;
@@ -13,6 +14,8 @@ export interface AnimInput {
   facingYawOverride: number | null;
   isGrounded: boolean;
   inBoat: boolean;
+  /** Board-jump arc progress 0..1 (peak = 1) — overrides other poses while leaping. */
+  boardJump: number;
 }
 
 /**
@@ -44,7 +47,7 @@ export class PlayerAnimator {
   }
 
   update(rig: PlayerRig, input: AnimInput): void {
-    const { delta, isMoving, velocity, isSwimming, facingYawOverride, isGrounded, inBoat } = input;
+    const { delta, isMoving, velocity, isSwimming, facingYawOverride, isGrounded, inBoat, boardJump } = input;
 
     // --- Phases ---
     const speed = velocity.length();
@@ -114,6 +117,9 @@ export class PlayerAnimator {
     } else if (!isSwimming) {
       rig.visualRoot.position.z = lerp(rig.visualRoot.position.z, 0, clampedT(delta, 6));
     }
+
+    // --- Board-jump leap pose (wins over sailing while leaping into the boat) ---
+    if (boardJump > 0.001) applyJumpPose(rig, boardJump);
 
     // --- Face movement direction ---
     if (facingYawOverride !== null) {

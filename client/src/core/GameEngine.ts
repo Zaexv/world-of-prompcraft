@@ -334,6 +334,7 @@ export class GameEngine {
         d.playerController.facingYawOverride,
         d.playerController.isGrounded,
         d.playerController.inBoat,
+        d.playerController.boardJumpT,
       );
       // Board / leave the boat on entering / leaving water; bob, rock, hop.
       d.boatSystem.update(d.playerController, d.player.group, delta);

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import * as THREE from 'three';
-import { PlayerAnimator, applySailingPose, type PlayerRig } from '../animations';
+import { PlayerAnimator, applySailingPose, applyJumpPose, type PlayerRig } from '../animations';
 
 function makeRig(): PlayerRig {
   const group = new THREE.Group();
@@ -22,6 +22,7 @@ const baseInput = {
   facingYawOverride: null as number | null,
   isGrounded: true,
   inBoat: false,
+  boardJump: 0,
 };
 
 describe('applySailingPose', () => {
@@ -45,7 +46,30 @@ describe('applySailingPose', () => {
   });
 });
 
+describe('applyJumpPose', () => {
+  it('tucks the knees and throws the arms up at the apex', () => {
+    const rig = makeRig();
+    applyJumpPose(rig, 1);
+    expect(rig.leftLeg!.rotation.x).toBeGreaterThan(0.8);  // knees up
+    expect(rig.rightLeg!.rotation.x).toBeGreaterThan(0.8);
+    expect(rig.leftArm!.rotation.x).toBeLessThan(-1.0);    // arms up
+  });
+
+  it('does nothing at zero', () => {
+    const rig = makeRig();
+    applyJumpPose(rig, 0);
+    expect(rig.leftLeg!.rotation.x).toBe(0);
+  });
+});
+
 describe('PlayerAnimator', () => {
+  it('plays the leap pose when boardJump is high', () => {
+    const anim = new PlayerAnimator();
+    const rig = makeRig();
+    anim.update(rig, { ...baseInput, inBoat: true, boardJump: 1 });
+    expect(rig.leftLeg!.rotation.x).toBeGreaterThan(0.8); // knees tucked mid-leap
+  });
+
   it('eases into the sailing pose while in a boat', () => {
     const anim = new PlayerAnimator();
     const rig = makeRig();
