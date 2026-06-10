@@ -6,6 +6,7 @@
 // Furniture / standalone props
 import './Campfire';
 import './Bonfire';
+import './AIBonfire';
 import './Lantern';
 import './Boat';
 
