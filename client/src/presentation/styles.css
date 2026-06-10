@@ -1946,7 +1946,7 @@ kbd {
    ================================================================ */
 .contrib-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(2, 1fr);
   gap: 1rem;
   width: 100%;
   margin-top: 1.8rem;
@@ -1973,7 +1973,34 @@ kbd {
   border-color: var(--line);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
 }
-.contrib-card--lead { border-color: rgba(212, 179, 105, 0.5); }
+/* Featured contributors — larger card, gilt frame, soft glow. */
+.contrib-card--lead {
+  border-color: rgba(212, 179, 105, 0.5);
+  padding: 1.9rem 1.1rem 1.6rem;
+  box-shadow: 0 0 26px rgba(212, 179, 105, 0.08), 0 14px 36px rgba(0, 0, 0, 0.35);
+}
+.contrib-card--lead .contrib-avatar {
+  width: 84px;
+  height: 84px;
+  font-size: 2.2rem;
+}
+.contrib-card--lead .contrib-name { font-size: 1.2rem; }
+.contrib-card--lead .contrib-role { font-size: 0.82rem; max-width: 30ch; }
+/* Secondary contributor — quieter card. */
+.contrib-card--minor { opacity: 0; }
+.slide.active .contrib-card--minor { animation-name: pillar-rise-minor; }
+@keyframes pillar-rise-minor {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 0.78; transform: translateY(0); }
+}
+.contrib-card--minor .contrib-avatar {
+  width: 50px;
+  height: 50px;
+  font-size: 1.3rem;
+  border-width: 1px;
+  box-shadow: none;
+}
+.contrib-card--minor .contrib-name { font-size: 0.88rem; }
 /* Initial-letter medallion — gilt ring with a soft glow. */
 .contrib-avatar {
   width: 66px;
@@ -2000,6 +2027,7 @@ kbd {
   font-size: 0.74rem;
   color: var(--muted);
   letter-spacing: 0.04em;
+  text-align: center;
 }
 .contrib-badge {
   font-family: var(--serif);
