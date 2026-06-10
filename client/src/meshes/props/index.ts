@@ -7,6 +7,7 @@
 import './Campfire';
 import './Bonfire';
 import './Lantern';
+import './Boat';
 
 // Procedural biome ambient props (selected per-biome by ProceduralPopulator)
 import './biome/GiantMushroom';
