@@ -4,6 +4,7 @@ import { ZONES, LOCALE_DISCS } from '../systems/ZoneTracker';
 
 const MM_SIZE  = 290;
 const MM_SCALE = 2.0; // wu/px at 1.0 zoom
+const LM_MARGIN = 110; // local biome cache scroll headroom (px each side)
 
 const WM_MAP_SIZE = 500;
 const WM_RANGE    = 600;
@@ -44,6 +45,13 @@ export class Minimap extends UIComponent {
   private _worldBiomeCanvas: HTMLCanvasElement | null = null;
   private _worldBiomeDirty = true;
 
+  // Local-mode biome cache: an oversized offscreen raster blitted as a scrolling
+  // crop so moving/turning costs a blit, not thousands of getBiomeWeights samples.
+  private _localBiomeCanvas: HTMLCanvasElement | null = null;
+  private _localCacheX = NaN;
+  private _localCacheZ = NaN;
+  private _localCacheScale = NaN;
+
   // Zoom state
   private worldZoom = 1.0;
   private localZoom = 1.0;
@@ -66,11 +74,9 @@ export class Minimap extends UIComponent {
 
   onWaypointClick: ((waypoint: MinimapWaypoint) => void) | null = null;
 
-  // Throttling
+  // Last drawn player position (hit-testing reference for waypoint clicks).
   private lastDrawX = NaN;
   private lastDrawZ = NaN;
-  private lastDrawAngle = NaN;
-  private frameSkip = 0;
 
   constructor() {
     super('ui-root', 'minimap');
@@ -349,7 +355,6 @@ export class Minimap extends UIComponent {
     this.container.style.display = 'flex';
     this.lastDrawX = NaN;
     this.lastDrawZ = NaN;
-    this.lastDrawAngle = NaN;
     this._worldBiomeDirty = true;
   }
 
@@ -526,6 +531,41 @@ export class Minimap extends UIComponent {
   }
 
   /**
+   * Bake the local (player-centred) biome raster into an oversized offscreen
+   * canvas centred on (cx,cz). Local mode then blits a scrolling crop of this,
+   * re-baking only when the player nears the margin or the zoom changes.
+   */
+  private _rebakeLocalBiomes(cx: number, cz: number, scale: number): void {
+    const full = MM_SIZE + 2 * LM_MARGIN;
+    if (!this._localBiomeCanvas) {
+      this._localBiomeCanvas = document.createElement('canvas');
+      this._localBiomeCanvas.width = full;
+      this._localBiomeCanvas.height = full;
+    }
+    const octx = this._localBiomeCanvas.getContext('2d')!;
+    octx.fillStyle = '#12141e';
+    octx.fillRect(0, 0, full, full);
+    const step = Math.max(2, Math.ceil(6 / this.localZoom));
+    for (let px = 0; px < full; px += step) {
+      for (let py = 0; py < full; py += step) {
+        const wx = cx + (px - full / 2) * scale;
+        const wz = cz + (py - full / 2) * scale;
+        const weights = getBiomeWeights(wx, wz);
+        let r = 0, g = 0, b = 0;
+        for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
+          const w = weights[biome];
+          if (w > 0.001) { r += color.r * w; g += color.g * w; b += color.b * w; }
+        }
+        octx.fillStyle = `rgb(${r | 0},${g | 0},${b | 0})`;
+        octx.fillRect(px, py, step, step);
+      }
+    }
+    this._localCacheX = cx;
+    this._localCacheZ = cz;
+    this._localCacheScale = scale;
+  }
+
+  /**
    * Draw one engraved label per region at its anchor point. Zones are a clean
    * non-overlapping partition (see ZoneTracker), so labels no longer stack —
    * we just place each name at its representative centroid.
@@ -667,7 +707,6 @@ export class Minimap extends UIComponent {
       if (!ctx) return;
       this.lastDrawX = playerX;
       this.lastDrawZ = playerZ;
-      this.lastDrawAngle = playerAngle;
       ctx.clearRect(0, 0, WM_MAP_SIZE, WM_MAP_SIZE);
       this._drawWorldView(playerX, playerZ);
       // Only touch the DOM when the displayed text actually changes (avoids a
@@ -679,52 +718,32 @@ export class Minimap extends UIComponent {
       return;
     }
 
-    // Local mode — throttled
-    this.frameSkip++;
-    const dx = playerX - this.lastDrawX;
-    const dz = playerZ - this.lastDrawZ;
-    const moved = isNaN(this.lastDrawX) || (dx * dx + dz * dz) > 9;
-
-    let angleDiff = playerAngle - this.lastDrawAngle;
-    angleDiff = ((angleDiff + Math.PI) % (2 * Math.PI) + 2 * Math.PI) % (2 * Math.PI) - Math.PI;
-    const rotated = isNaN(this.lastDrawAngle) || Math.abs(angleDiff) > 0.1;
-
-    if (!moved && !rotated && this.frameSkip < 10) {
-      this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
-      return;
-    }
-
-    this.frameSkip = 0;
+    // Local mode — player-centred. The biome raster is cached in an oversized
+    // offscreen canvas and blitted as a scrolling crop, so moving/turning costs a
+    // blit (not thousands of getBiomeWeights samples). Re-baked only when the
+    // player nears the cache margin or the zoom changes.
     this.lastDrawX = playerX;
     this.lastDrawZ = playerZ;
-    this.lastDrawAngle = playerAngle;
 
     const ctx = this.ctx;
     if (!ctx) return;
     const S     = MM_SIZE;
     const scale = MM_SCALE / this.localZoom; // effective wu/px
     const halfWorld = (S * scale) / 2;
-
-    ctx.fillStyle = '#12141e';
-    ctx.fillRect(0, 0, S, S);
-
-    const step = Math.max(2, Math.ceil(6 / this.localZoom));
     const dominantBiome = getDominantBiome(playerX, playerZ);
 
-    for (let px = 0; px < S; px += step) {
-      for (let py = 0; py < S; py += step) {
-        const wx = playerX + (px - S / 2) * scale;
-        const wz = playerZ + (py - S / 2) * scale;
-        const weights = getBiomeWeights(wx, wz);
-        let r = 0, g = 0, b = 0;
-        for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
-          const w = weights[biome];
-          if (w > 0.001) { r += color.r * w; g += color.g * w; b += color.b * w; }
-        }
-        ctx.fillStyle = `rgb(${r|0},${g|0},${b|0})`;
-        ctx.fillRect(px, py, step, step);
-      }
+    const offX = (playerX - this._localCacheX) / scale;
+    const offZ = (playerZ - this._localCacheZ) / scale;
+    if (
+      !this._localBiomeCanvas || this._localCacheScale !== scale ||
+      !Number.isFinite(offX) || Math.abs(offX) > LM_MARGIN * 0.8 || Math.abs(offZ) > LM_MARGIN * 0.8
+    ) {
+      this._rebakeLocalBiomes(playerX, playerZ, scale);
     }
+    const sx = LM_MARGIN + (playerX - this._localCacheX) / scale;
+    const sy = LM_MARGIN + (playerZ - this._localCacheZ) / scale;
+    ctx.clearRect(0, 0, S, S);
+    ctx.drawImage(this._localBiomeCanvas!, sx, sy, S, S, 0, 0, S, S);
 
     const vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.3, S / 2, S / 2, S * 0.72);
     vg.addColorStop(0, 'rgba(0,0,0,0)');

@@ -301,11 +301,14 @@ function directionalWeight(angle: number, targetAngle: number): number {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
 
-  // Narrow halfWidth so each biome owns a tighter wedge and a band of neutral
-  // Teldrassil forest separates neighbouring biomes (the user wants clearly
-  // separated biomes, not bleeding ones). Tunable — widen toward 0.5π to blend
-  // more, narrow to separate harder.
-  const halfWidth = Math.PI * 0.20; // 36 degrees
+  // halfWidth must exceed half the largest gap between adjacent biome axes (90°)
+  // so every direction is covered by at least one biome. Otherwise the gaps fall
+  // back to the tiny center weight and normalize to a full Teldrassil-forest
+  // wedge jammed between biomes — which looked weird. At 54° neighbouring biomes
+  // overlap just enough to blend smoothly into each other (no forest seam) while
+  // each still owns a distinct core on its axis. Tunable: narrower → harder
+  // separation (risks gaps); wider → more bleed.
+  const halfWidth = Math.PI * 0.30; // 54 degrees
   if (Math.abs(diff) > halfWidth) return 0;
   return 0.5 + 0.5 * Math.cos((diff / halfWidth) * Math.PI);
 }

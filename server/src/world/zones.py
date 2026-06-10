@@ -93,7 +93,7 @@ def _directional_weight(angle: float, target: float) -> float:
         diff -= 2 * math.pi
     while diff < -math.pi:
         diff += 2 * math.pi
-    half_width = math.pi * 0.20  # 36 degrees — mirror of Biomes.directionalWeight
+    half_width = math.pi * 0.30  # 54 degrees — mirror of Biomes.directionalWeight
     if abs(diff) > half_width:
         return 0.0
     return 0.5 + 0.5 * math.cos((diff / half_width) * math.pi)

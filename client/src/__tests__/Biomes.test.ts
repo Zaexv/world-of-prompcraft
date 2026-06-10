@@ -29,11 +29,13 @@ describe('biome partition (radial sectors)', () => {
     }
   });
 
-  it('narrow sectors leave a Teldrassil-forest buffer between biomes on 90° gaps', () => {
-    // Midway between east (Blasted, 0°) and north (Tundra, 90°) is 45° — outside
-    // both 36° half-widths, so the neutral forest separates them.
+  it('neighbouring biomes blend directly at boundaries — no forest wedge far out', () => {
+    // Midway between east (Blasted, 0°) and north (Tundra, 90°) is 45°. With 54°
+    // half-widths both cover it, so it resolves to one of the two neighbours
+    // (a smooth blend), NOT a Teldrassil-forest gap.
     const mid = getDominantBiome(Math.cos(Math.PI / 4) * 300, Math.sin(Math.PI / 4) * 300);
-    expect(mid).toBe(BiomeType.Teldrassil);
+    expect([BiomeType.BlastedSuarezLands, BiomeType.CrystalTundra]).toContain(mid);
+    expect(mid).not.toBe(BiomeType.Teldrassil);
   });
 
   it('BIOME_ZONE_NAMES covers every biome type', () => {
