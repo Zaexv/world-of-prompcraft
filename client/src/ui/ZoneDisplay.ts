@@ -11,7 +11,7 @@ interface ZoneTheme {
 const ZONE_THEMES: Record<string, ZoneTheme> = {
   "Suarez Quarter":        { accent: "#cc88ff", category: "MAGE DISTRICT",        glyph: "—" },
   "Fort Malaka":          { accent: "#ffdd88", category: "MEDITERRANEAN CITY",   glyph: "—" },
-  "Elders' Village":      { accent: "#88ffcc", category: "STARTING VILLAGE",     glyph: "—" },
+  "Makaleta Strande":      { accent: "#88ffcc", category: "STARTING VILLAGE",     glyph: "—" },
   "Dark Forest":          { accent: "#55dd55", category: "FORBIDDEN FOREST",     glyph: "—" },
   "Ember Peaks":          { accent: "#ff7733", category: "VOLCANIC MOUNTAINS",   glyph: "—" },
   "Crystal Lake":         { accent: "#66ddff", category: "ENCHANTED WATERS",     glyph: "—" },

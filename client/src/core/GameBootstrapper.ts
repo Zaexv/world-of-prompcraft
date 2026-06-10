@@ -14,6 +14,7 @@ import { CollisionSystem } from '../systems/CollisionSystem';
 import { WorldGenerator } from '../systems/WorldGenerator';
 import { WorldManifest } from '../state/WorldManifest';
 import { ZoneTracker } from '../systems/ZoneTracker';
+import { safeArrivalXZ } from '../systems/TeleportRegistry';
 import { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import { DungeonSystem } from '../systems/DungeonSystem';
 import { AudioSystem } from '../audio/AudioSystem';
@@ -159,15 +160,17 @@ export function bootstrap(
   const ws = new WebSocketClient(`${wsProto}://${window.location.host}/ws`);
 
   uiManager.minimap.onWaypointClick = (waypoint) => {
-    const teleportY = runtime.inDungeonOverride ? 0 : getWorldHeightAt(terrain, waypoint.x, waypoint.z);
-    playerController.position.set(waypoint.x, teleportY, waypoint.z);
+    // Arrive clear of the structure's footprint, not inside its mesh.
+    const { x: tx, z: tz } = safeArrivalXZ(waypoint.x, waypoint.z, waypoint.safeRadius);
+    const teleportY = runtime.inDungeonOverride ? 0 : getWorldHeightAt(terrain, tx, tz);
+    playerController.position.set(tx, teleportY, tz);
     player.group.position.copy(playerController.position);
-    playerState.position = [waypoint.x, teleportY, waypoint.z];
+    playerState.position = [tx, teleportY, tz];
     if (runtime.joinedServer) {
       ws.send({
         type: 'player_move',
         playerId: runtime.localPlayerId,
-        position: [waypoint.x, teleportY, waypoint.z],
+        position: [tx, teleportY, tz],
         yaw: playerController.yaw,
       });
     }

@@ -171,7 +171,7 @@ describe('AudioSystem', () => {
     const { AudioSystem } = await import('../audio/AudioSystem');
     const a = AudioSystem.getInstance();
     await a.init();
-    expect(() => a.setZoneMusic("Elders' Village")).not.toThrow();
+    expect(() => a.setZoneMusic("Makaleta Strande")).not.toThrow();
     expect(() => a.setZoneMusic("Dark Forest")).not.toThrow();
   });
 
@@ -187,7 +187,7 @@ describe('AudioSystem', () => {
     const a = AudioSystem.getInstance();
     // Without calling init(), these should still not throw
     expect(() => a.playSfx('hit')).not.toThrow();
-    expect(() => a.setZoneMusic("Elders' Village")).not.toThrow();
+    expect(() => a.setZoneMusic("Makaleta Strande")).not.toThrow();
     expect(() => a.playStartMusic()).not.toThrow();
   });
 

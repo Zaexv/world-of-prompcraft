@@ -1,6 +1,6 @@
 import { UIComponent } from "./core/UIComponent";
 import { BiomeType, getDominantBiome, getBiomeWeights } from '../scene/Biomes';
-import { ZONES } from '../systems/ZoneTracker';
+import { ZONES, LOCALE_DISCS } from '../systems/ZoneTracker';
 
 const MM_SIZE  = 290;
 const MM_SCALE = 2.0; // wu/px at 1.0 zoom
@@ -19,7 +19,9 @@ export interface MinimapWaypoint {
   label: string;
   x: number;
   z: number;
-  kind: 'landmark' | 'feature';
+  kind: 'landmark' | 'feature' | 'teleport';
+  /** Footprint radius (world units) used to offset teleport arrival clear of the mesh. */
+  safeRadius?: number;
 }
 
 export interface MinimapNPCDot {
@@ -353,10 +355,12 @@ export class Minimap extends UIComponent {
 
   setWaypoints(waypoints: MinimapWaypoint[]): void {
     this.waypoints = waypoints.map((waypoint) => ({ ...waypoint }));
+    this._worldBiomeDirty = true; // waypoints are baked into the static layer
   }
 
   addWaypoint(waypoint: MinimapWaypoint): void {
     this.waypoints.push({ ...waypoint });
+    this._worldBiomeDirty = true;
   }
 
   addTown(x: number, z: number, label = 'Town'): void {
@@ -441,6 +445,14 @@ export class Minimap extends UIComponent {
     return (range * 2) / WM_MAP_SIZE;
   }
 
+  /**
+   * Pre-render the entire STATIC world-map layer to an offscreen canvas: biome
+   * raster, region labels, locale rings, waypoints, vignette and compass. None
+   * of these depend on the player position, so we bake them once (on pan / zoom /
+   * waypoint / hover change) and just blit them every frame. Only the player
+   * beacon and NPC dots are drawn live — this is what keeps the map from lagging
+   * the game while moving.
+   */
   private _prerenderWorldBiomes(): void {
     const S     = WM_MAP_SIZE;
     const scale = this._worldEffectiveScale();
@@ -455,7 +467,8 @@ export class Minimap extends UIComponent {
       this._worldBiomeCanvas.height = S;
     }
     const offCtx = this._worldBiomeCanvas.getContext('2d')!;
-    offCtx.fillStyle = '#12141e';
+    // Warm parchment base shows at the map fringe beyond the known world.
+    offCtx.fillStyle = '#1a1206';
     offCtx.fillRect(0, 0, S, S);
 
     for (let px = 0; px < S; px += step) {
@@ -472,61 +485,97 @@ export class Minimap extends UIComponent {
         offCtx.fillRect(px, py, step, step);
       }
     }
+
+    // ── Static overlays baked into the same canvas ───────────────────────────
+    this._drawRegionLabels(offCtx, scale, cx, cz);
+
+    const sortedWps = [...this.waypoints].sort(
+      (a, b) => (a.kind === 'teleport' ? 1 : 0) - (b.kind === 'teleport' ? 1 : 0),
+    );
+    for (const wp of sortedWps) {
+      const wx = (wp.x - cx) / scale + S / 2;
+      const wy = (wp.z - cz) / scale + S / 2;
+      if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
+      const highlighted = wp.id === this.hoveredWaypointId;
+      this.drawWaypointMarker(offCtx, wx, wy, wp.kind, highlighted);
+      if (wp.kind === 'teleport') {
+        this.drawWaypointLabel(offCtx, wx, wy, wp.label, highlighted);
+      }
+    }
+
+    // Edge vignette
+    const vg = offCtx.createRadialGradient(S/2, S/2, S*0.32, S/2, S/2, S*0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    offCtx.fillStyle = vg;
+    offCtx.fillRect(0, 0, S, S);
+
+    // Pan indicator (shown when not centered on 0,0)
+    if (Math.abs(cx) > 10 || Math.abs(cz) > 10) {
+      offCtx.save();
+      offCtx.font = '8px "Cinzel", serif';
+      offCtx.fillStyle = 'rgba(197,165,90,0.5)';
+      offCtx.textAlign = 'left';
+      offCtx.fillText(`pan: ${Math.round(cx)}, ${Math.round(cz)}`, 6, S - 6);
+      offCtx.restore();
+    }
+
+    this._drawCompass(offCtx, S);
+
     this._worldBiomeDirty = false;
   }
 
-  private _drawZoneOverlays(ctx: CanvasRenderingContext2D, scale: number, panX: number, panZ: number): void {
+  /**
+   * Draw one engraved label per region at its anchor point. Zones are a clean
+   * non-overlapping partition (see ZoneTracker), so labels no longer stack —
+   * we just place each name at its representative centroid.
+   */
+  private _drawRegionLabels(ctx: CanvasRenderingContext2D, scale: number, panX: number, panZ: number): void {
     const S = WM_MAP_SIZE;
-    const halfRange = (S / 2) * scale;
-    const toCanvasX = (wx: number) => (wx - panX) / scale + S / 2;
-    const toCanvasZ = (wz: number) => (wz - panZ) / scale + S / 2;
-    const viewX0 = panX - halfRange, viewX1 = panX + halfRange;
-    const viewZ0 = panZ - halfRange, viewZ1 = panZ + halfRange;
 
-    const sorted = [...ZONES].sort((a, b) =>
-      (b.maxX - b.minX) * (b.maxZ - b.minZ) - (a.maxX - a.minX) * (a.maxZ - a.minZ)
-    );
+    // Cartographic territory rings for the named inner locales (Makaleta
+    // Strande, Fort Malaka). Thin dashed circles tie each label to its ground.
+    ctx.save();
+    ctx.setLineDash([4, 4]);
+    ctx.lineWidth = 1;
+    for (const disc of LOCALE_DISCS) {
+      const cxp = (disc.x - panX) / scale + S / 2;
+      const czp = (disc.z - panZ) / scale + S / 2;
+      const rp = disc.radius / scale;
+      if (cxp + rp < 0 || cxp - rp > S || czp + rp < 0 || czp - rp > S) continue;
+      ctx.strokeStyle = `${ZONE_ACCENT_COLORS[disc.name] ?? ZONE_DEFAULT_ACCENT}66`;
+      ctx.beginPath();
+      ctx.arc(cxp, czp, rp, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.restore();
 
-    for (const zone of sorted) {
+    const margin = 16;
+    // letterSpacing is supported in the Canvas2D context of the app's target
+    // browsers; harmless no-op where it isn't.
+    type SpacedCtx = CanvasRenderingContext2D & { letterSpacing?: string };
+    for (const zone of ZONES) {
+      const lx = (zone.labelX - panX) / scale + S / 2;
+      const lz = (zone.labelZ - panZ) / scale + S / 2;
+      if (lx < margin || lx > S - margin || lz < margin || lz > S - margin) continue;
       const accent = ZONE_ACCENT_COLORS[zone.name] ?? ZONE_DEFAULT_ACCENT;
-      const x0 = Math.max(zone.minX, viewX0);
-      const x1 = Math.min(zone.maxX, viewX1);
-      const z0 = Math.max(zone.minZ, viewZ0);
-      const z1 = Math.min(zone.maxZ, viewZ1);
-      if (x1 <= x0 || z1 <= z0) continue;
-
-      const cx0 = toCanvasX(x0), cx1 = toCanvasX(x1);
-      const cz0 = toCanvasZ(z0), cz1 = toCanvasZ(z1);
-      const cw = cx1 - cx0, ch = cz1 - cz0;
+      const name = zone.name.toUpperCase();
 
       ctx.save();
-      ctx.globalAlpha = 0.13;
+      ctx.font = 'bold 11px "Cinzel", serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      (ctx as SpacedCtx).letterSpacing = '1.5px';
+      // Dark engraved shadow underneath for legibility over any biome color.
+      ctx.fillStyle = 'rgba(0,0,0,0.9)';
+      ctx.shadowColor = 'rgba(0,0,0,0.95)';
+      ctx.shadowBlur = 4;
+      ctx.fillText(name, lx + 0.8, lz + 0.8);
+      ctx.shadowBlur = 2;
       ctx.fillStyle = accent;
-      ctx.fillRect(cx0, cz0, cw, ch);
+      ctx.fillText(name, lx, lz);
+      (ctx as SpacedCtx).letterSpacing = '0px';
       ctx.restore();
-
-      ctx.save();
-      ctx.strokeStyle = accent;
-      ctx.globalAlpha = 0.35;
-      ctx.lineWidth = 1;
-      ctx.setLineDash([3, 3]);
-      ctx.strokeRect(cx0 + 0.5, cz0 + 0.5, cw - 1, ch - 1);
-      ctx.restore();
-
-      if (cw >= 30 && ch >= 14) {
-        const labelX = (cx0 + cx1) / 2;
-        const labelZ = (cz0 + cz1) / 2;
-        ctx.save();
-        ctx.font = 'bold 9px "Cinzel", serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = accent;
-        ctx.globalAlpha = 0.85;
-        ctx.shadowColor = 'rgba(0,0,0,0.9)';
-        ctx.shadowBlur = 4;
-        ctx.fillText(zone.name.toUpperCase(), labelX, labelZ);
-        ctx.restore();
-      }
     }
   }
 
@@ -538,9 +587,10 @@ export class Minimap extends UIComponent {
     const panX  = this.worldPanX;
     const panZ  = this.worldPanZ;
 
+    // Blit the baked static layer (biomes, labels, waypoints, vignette, compass).
     ctx.drawImage(this._worldBiomeCanvas!, 0, 0);
-    this._drawZoneOverlays(ctx, scale, panX, panZ);
 
+    // ── Dynamic layer only (cheap, redrawn every frame) ──────────────────────
     // NPC dots
     for (const npc of this.npcDots) {
       const nx = (npc.x - panX) / scale + S / 2;
@@ -552,14 +602,6 @@ export class Minimap extends UIComponent {
       ctx.fillStyle  = npc.hostile ? '#ff6644' : '#88ffaa';
       ctx.beginPath(); ctx.arc(nx, nz, 2.5, 0, Math.PI * 2); ctx.fill();
       ctx.restore();
-    }
-
-    // Waypoints
-    for (const wp of this.waypoints) {
-      const wx = (wp.x - panX) / scale + S / 2;
-      const wy = (wp.z - panZ) / scale + S / 2;
-      if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
-      this.drawWaypointMarker(ctx, wx, wy, wp.kind, false);
     }
 
     // Player dot (pulsing)
@@ -581,25 +623,6 @@ export class Minimap extends UIComponent {
       // Off-screen indicator: arrow pointing toward player
       this._drawOffscreenArrow(ctx, px, pz, S);
     }
-
-    // Edge vignette
-    const vg = ctx.createRadialGradient(S/2, S/2, S*0.32, S/2, S/2, S*0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, S, S);
-
-    // Pan indicator (shown when not centered on 0,0)
-    if (Math.abs(panX) > 10 || Math.abs(panZ) > 10) {
-      ctx.save();
-      ctx.font = '8px "Cinzel", serif';
-      ctx.fillStyle = 'rgba(197,165,90,0.5)';
-      ctx.textAlign = 'left';
-      ctx.fillText(`pan: ${Math.round(panX)}, ${Math.round(panZ)}`, 6, S - 6);
-      ctx.restore();
-    }
-
-    this._drawCompass(ctx, S);
   }
 
   private _drawOffscreenArrow(ctx: CanvasRenderingContext2D, px: number, pz: number, S: number): void {
@@ -647,8 +670,12 @@ export class Minimap extends UIComponent {
       this.lastDrawAngle = playerAngle;
       ctx.clearRect(0, 0, WM_MAP_SIZE, WM_MAP_SIZE);
       this._drawWorldView(playerX, playerZ);
-      this.coordLabel.textContent = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
-      this.biomeLabel.textContent = BIOME_NAMES[getDominantBiome(playerX, playerZ)] ?? '—';
+      // Only touch the DOM when the displayed text actually changes (avoids a
+      // per-frame reflow while the player moves).
+      const coordText = `x: ${Math.round(playerX)}  z: ${Math.round(playerZ)}`;
+      if (this.coordLabel.textContent !== coordText) this.coordLabel.textContent = coordText;
+      const biomeText = BIOME_NAMES[getDominantBiome(playerX, playerZ)] ?? '—';
+      if (this.biomeLabel.textContent !== biomeText) this.biomeLabel.textContent = biomeText;
       return;
     }
 
@@ -820,7 +847,12 @@ export class Minimap extends UIComponent {
     }
 
     const waypoint = this.getWaypointAtEvent(event);
-    this.hoveredWaypointId = waypoint?.id ?? null;
+    const newHover = waypoint?.id ?? null;
+    if (newHover !== this.hoveredWaypointId) {
+      this.hoveredWaypointId = newHover;
+      // Hover highlight is baked into the static world layer — rebake on change.
+      if (this.viewMode === 'world') this._worldBiomeDirty = true;
+    }
     this.canvas.style.cursor = waypoint ? 'pointer' : (this.viewMode === 'world' ? 'grab' : 'default');
   }
 
@@ -847,11 +879,26 @@ export class Minimap extends UIComponent {
   }
 
   private getWaypointAtCanvasPoint(x: number, y: number): MinimapWaypoint | null {
-    if (!Number.isFinite(this.lastDrawX) || !Number.isFinite(this.lastDrawZ)) return null;
-    const markerRadius = 10;
+    // Project each waypoint with the SAME scale/center the active view draws it,
+    // so hit-testing lines up in both world and local modes.
+    let center: { x: number; z: number };
+    let scale: number;
+    let size: number;
+    if (this.viewMode === 'world') {
+      center = { x: this.worldPanX, z: this.worldPanZ };
+      scale = this._worldEffectiveScale();
+      size = WM_MAP_SIZE;
+    } else {
+      if (!Number.isFinite(this.lastDrawX) || !Number.isFinite(this.lastDrawZ)) return null;
+      center = { x: this.lastDrawX, z: this.lastDrawZ };
+      scale = MM_SCALE / this.localZoom;
+      size = MM_SIZE;
+    }
+
+    const markerRadius = 12;
     let closest: { waypoint: MinimapWaypoint; distanceSq: number } | null = null;
     for (const waypoint of this.waypoints) {
-      const marker = this.getMarkerPoint(waypoint, this.lastDrawX, this.lastDrawZ, MM_SCALE / this.localZoom, MM_SIZE);
+      const marker = this.getMarkerPoint(waypoint, center.x, center.z, scale, size);
       if (!marker) continue;
       const dx = x - marker.x;
       const dy = y - marker.y;
@@ -883,6 +930,11 @@ export class Minimap extends UIComponent {
     kind: MinimapWaypoint['kind'],
     highlighted: boolean,
   ): void {
+    if (kind === 'teleport') {
+      this.drawTeleportMarker(ctx, x, y, highlighted);
+      return;
+    }
+
     const accent = kind === 'feature' ? '#82d8ff' : '#ffcc44';
     const outline = kind === 'feature' ? '#2c7fb8' : '#aa8800';
     const radius = highlighted ? 5 : 4;
@@ -915,6 +967,49 @@ export class Minimap extends UIComponent {
       ctx.fill();
       ctx.stroke();
     }
+    ctx.restore();
+  }
+
+  /** Portal-rune marker for fast-travel points — a glowing ringed star. */
+  private drawTeleportMarker(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    highlighted: boolean,
+  ): void {
+    const pulse = 0.5 + 0.5 * Math.sin(Date.now() * 0.005);
+    const r = highlighted ? 6 : 5;
+    ctx.save();
+    ctx.translate(x, y);
+    // Outer glow ring
+    ctx.shadowColor = '#b388ff';
+    ctx.shadowBlur = highlighted ? 12 : 6 + pulse * 4;
+    ctx.strokeStyle = `rgba(179,136,255,${0.5 + pulse * 0.4})`;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(0, 0, r + 2, 0, Math.PI * 2);
+    ctx.stroke();
+    // Inner diamond/star
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = highlighted ? '#e6d4ff' : '#c8a8ff';
+    ctx.strokeStyle = '#7a4fd0';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, -r);
+    ctx.lineTo(r * 0.45, 0);
+    ctx.lineTo(0, r);
+    ctx.lineTo(-r * 0.45, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(-r, 0);
+    ctx.lineTo(0, -r * 0.45);
+    ctx.lineTo(r, 0);
+    ctx.lineTo(0, r * 0.45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -993,16 +1088,14 @@ const BIOME_COLOR_COMPONENTS: Array<[BiomeType, {r:number,g:number,b:number}]> =
   });
 
 const ZONE_ACCENT_COLORS: Record<string, string> = {
-  "Blasted Suarezlands": "#cc88ff",
+  "Makaleta Strande":     "#88ffcc",
   "Fort Malaka":         "#ffdd88",
-  "Elders' Village":     "#88ffcc",
-  "Dark Forest":         "#55dd55",
-  "Ember Peaks":         "#ff7733",
-  "Crystal Lake":        "#66ddff",
+  "Teldrassil Wilds":    "#9be07a",
   "Crystal Tundra":      "#aaeeff",
-  "Moin Swamps":         "#66bb44",
-  "Malaka Area":         "#eecc44",
-  "Teldrassil Wilds":    "#9966ff",
+  "Blasted Suarezlands": "#ff8a4a",
+  "Moin Swamps":         "#7fd06a",
+  "Malaka Area":         "#eecc66",
+  "Tanis Desert":        "#e0b86c",
 };
 
 const ZONE_DEFAULT_ACCENT = "#aaaaff";

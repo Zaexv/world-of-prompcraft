@@ -40,6 +40,7 @@ import './biome/RuinedOutpost';
 import './biome/ObsidianSpire';
 import './biome/Forge';
 import './biome/FireTemple';
+import './biome/Volcano';
 import './biome/IceCastle';
 import './biome/FrozenCaravan';
 import './biome/CrystalSpire';
