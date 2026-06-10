@@ -1863,6 +1863,20 @@ kbd {
   border-color: var(--line);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
 }
+.acx-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.acx-icon { display: inline-flex; }
+.acx-icon svg { width: 28px; height: 28px; }
+.acx-card--ctx   .acx-icon { color: #7ed4b4; }
+.acx-card--skill .acx-icon { color: #f0c155; }
+.acx-card--plan  .acx-icon { color: #9cd4ff; }
+.acx-card--pipe  .acx-icon { color: #dcc4f4; }
+.acx-card--gate  .acx-icon { color: #f4a8a0; }
+.acx-card--mem   .acx-icon { color: #f0b888; }
+.acx-loop-note b { color: var(--gold-soft); }
 .acx-tag {
   align-self: flex-start;
   font-family: var(--mono);
@@ -1961,6 +1975,30 @@ kbd {
 .pp-stage:nth-of-type(3) { animation-delay: 0.26s; }
 .pp-stage:nth-of-type(4) { animation-delay: 0.36s; }
 .pp-stage:nth-of-type(5) { animation-delay: 0.46s; }
+.pp-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.pp-icon { display: inline-flex; }
+.pp-icon svg { width: 24px; height: 24px; }
+.pp-stage--prompt   .pp-icon { color: #9cd4ff; }
+.pp-stage--research .pp-icon { color: #7ed4b4; }
+.pp-stage--plan     .pp-icon { color: #f0c155; }
+.pp-stage--impl     .pp-icon { color: #dcc4f4; }
+.pp-stage--ship     .pp-icon { color: #f4a8a0; }
+.pp-agent {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.56rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px dashed rgba(212, 179, 105, 0.4);
+  border-radius: 10px;
+  padding: 0.1rem 0.45rem;
+  white-space: nowrap;
+}
 .pp-badge {
   align-self: flex-start;
   font-family: var(--mono);
@@ -2103,16 +2141,25 @@ kbd {
   display: flex;
   gap: 0.9rem;
   align-items: baseline;
-  padding: 0.4rem 0;
+  padding: 0.45rem 0 0.45rem 0.7rem;
   border-bottom: 1px solid rgba(212, 179, 105, 0.08);
+  border-left: 3px solid transparent;
   font-size: clamp(0.8rem, 1.1vw, 0.95rem);
 }
 .pf-row:last-child { border-bottom: none; }
+.pf-row--tldr   { border-left-color: rgba(136, 200, 255, 0.7); }
+.pf-row--tldr   .pf-key { color: #9cd4ff; }
+.pf-row--parts  { border-left-color: rgba(200, 168, 232, 0.7); }
+.pf-row--parts  .pf-key { color: #dcc4f4; }
+.pf-row--fix    { border-left-color: rgba(232, 184, 75, 0.7); }
+.pf-row--fix    .pf-key { color: #f0c155; }
+.pf-row--verify { border-left-color: rgba(86, 184, 154, 0.7); }
+.pf-row--verify .pf-key { color: #8ee4c4; }
 .pf-key {
   flex-shrink: 0;
-  width: 120px;
+  width: 130px;
   font-family: var(--mono);
-  font-size: 0.74rem;
+  font-size: 0.76rem;
   letter-spacing: 0.04em;
   color: var(--gold-bright);
 }
@@ -2142,64 +2189,6 @@ kbd {
   color: var(--muted);
 }
 .pf-life-note code { font-size: 0.85em; }
-
-/* ================================================================
-   SLIDE 14d — ENABLEMENT (context stack)
-   ================================================================ */
-.en-layout {
-  flex: 1;
-  min-height: 0;
-  display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 2rem;
-  margin-top: 1.4rem;
-  align-items: stretch;
-}
-.en-stack {
-  display: flex;
-  flex-direction: column;
-  justify-content: space-evenly;
-  gap: 0.8rem;
-}
-.en-layer {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  background: rgba(10, 7, 17, 0.6);
-  border: 1px solid var(--line-soft);
-  border-left: 4px solid transparent;
-  border-radius: 10px;
-  padding: 0.9rem 1.1rem;
-  opacity: 0;
-}
-.slide.active .en-layer { animation: pillar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
-.en-layer:nth-child(1) { animation-delay: 0.06s; }
-.en-layer:nth-child(2) { animation-delay: 0.18s; }
-.en-layer:nth-child(3) { animation-delay: 0.3s; }
-.en-layer:nth-child(4) { animation-delay: 0.42s; }
-.en-layer-tag {
-  flex-shrink: 0;
-  width: 150px;
-  font-family: var(--mono);
-  font-size: 0.78rem;
-  letter-spacing: 0.04em;
-}
-.en-layer-body {
-  font-size: clamp(0.82rem, 1.15vw, 1rem);
-  line-height: 1.55;
-  color: var(--muted);
-}
-.en-layer-body b { color: var(--ink); }
-.en-layer-body code { font-size: 0.85em; }
-.en-layer--rules  { border-left-color: rgba(212, 179, 105, 0.75); }
-.en-layer--rules  .en-layer-tag { color: var(--gold-bright); }
-.en-layer--skills { border-left-color: rgba(86, 184, 154, 0.7); }
-.en-layer--skills .en-layer-tag { color: #7ed4b4; }
-.en-layer--docs   { border-left-color: rgba(136, 200, 255, 0.7); }
-.en-layer--docs   .en-layer-tag { color: #9cd4ff; }
-.en-layer--mem    { border-left-color: rgba(200, 168, 232, 0.7); }
-.en-layer--mem    .en-layer-tag { color: #dcc4f4; }
-.en-points { display: flex; align-items: center; }
 
 /* ================================================================
    SLIDE 15 — CONTRIBUTORS (the guild)

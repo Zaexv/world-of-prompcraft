@@ -745,38 +745,56 @@ flowchart TD
         <span class="acx-loop-step">implement</span><span class="acx-loop-arr">→</span>
         <span class="acx-loop-step">verify</span><span class="acx-loop-arr">→</span>
         <span class="acx-loop-step">ship</span>
-        <span class="acx-loop-note">small prompts · one concern at a time · review every diff</span>
+        <span class="acx-loop-note">every step runs on a <b>fresh agent</b> — its own context, its own session</span>
       </div>
 
       <!-- six strategies that make the prompting work -->
       <div class="acx-grid">
         <div class="acx-card acx-card--ctx">
-          <span class="acx-tag">CLAUDE.md</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4h6a4 4 0 0 1 4 4v12a3 3 0 0 0-3-3H2z"/><path d="M22 4h-6a4 4 0 0 0-4 4v12a3 3 0 0 1 3-3h7z"/></svg></span>
+            <span class="acx-tag">CLAUDE.md</span>
+          </div>
           <h3>Context engineering</h3>
           <p>A shared rulebook every agent reads first — strict types, conventions, architecture. Prompts stay short because <b>the repo carries the context</b>.</p>
         </div>
         <div class="acx-card acx-card--skill">
-          <span class="acx-tag">/skills</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/></svg></span>
+            <span class="acx-tag">/skills</span>
+          </div>
           <h3>Skills encode know-how</h3>
           <p>13 custom skills — <code>mesh-from-picture</code>, <code>extend-world</code>, <code>terrain-builder</code> — turn whole workflows into <b>one-line prompts</b>.</p>
         </div>
         <div class="acx-card acx-card--plan">
-          <span class="acx-tag">/rpi-*</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4l-6 2v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14"/><path d="M15 6v14"/></svg></span>
+            <span class="acx-tag">/rpi-*</span>
+          </div>
           <h3>Phased delivery</h3>
           <p>Features run <b>research → plan → implement</b>. The plan is written and agreed before any code is generated — then executed phase by phase.</p>
         </div>
         <div class="acx-card acx-card--pipe">
-          <span class="acx-tag">pipelines</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="5" r="2.5"/><circle cx="6" cy="19" r="2.5"/><circle cx="18" cy="12" r="2.5"/><path d="M8.5 5.8C12 7 13.5 9 15.5 10.8"/><path d="M8.5 18.2C12 17 13.5 15 15.5 13.2"/></svg></span>
+            <span class="acx-tag">pipelines</span>
+          </div>
           <h3>Fan-out with backpressure</h3>
           <p>Mesh production fans out across coding agents; <b>quality gates apply backpressure</b> so review never falls behind generation.</p>
         </div>
         <div class="acx-card acx-card--gate">
-          <span class="acx-tag">pre-commit</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v5c0 5.2-3.4 9.4-8 11-4.6-1.6-8-5.8-8-11V6z"/><path d="M8.5 12l2.5 2.5 4.5-4.5"/></svg></span>
+            <span class="acx-tag">pre-commit</span>
+          </div>
           <h3>Guardrails, not trust</h3>
           <p>TS strict, mypy strict, ESLint, tests on every commit. Agent code ships through <b>the same gates as human code</b>.</p>
         </div>
         <div class="acx-card acx-card--mem">
-          <span class="acx-tag">memory</span>
+          <div class="acx-head">
+            <span class="acx-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="5" rx="8" ry="3"/><path d="M4 5v7c0 1.7 3.6 3 8 3s8-1.3 8-3V5"/><path d="M4 12v7c0 1.7 3.6 3 8 3s8-1.3 8-3v-7"/></svg></span>
+            <span class="acx-tag">memory</span>
+          </div>
           <h3>Feedback that sticks</h3>
           <p>Corrections become persistent memory and docs. The next session <b>starts smarter</b> — the same mistake never needs prompting twice.</p>
         </div>
@@ -804,42 +822,60 @@ flowchart TD
 
       <div class="pp-flow">
         <div class="pp-stage pp-stage--prompt">
-          <div class="pp-badge">prompt</div>
+          <div class="pp-head">
+            <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
+            <span class="pp-badge">intent</span>
+          </div>
           <h3>The ask</h3>
           <p>"Players clip through the Suarezlands hills — fix the collisions."</p>
           <div class="pp-artifact">a sentence, not a spec</div>
         </div>
         <div class="pp-arr">→</div>
         <div class="pp-stage pp-stage--research">
-          <div class="pp-badge">/rpi-research</div>
+          <div class="pp-head">
+            <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
+            <span class="pp-badge">explore</span>
+            <span class="pp-agent">fresh agent</span>
+          </div>
           <h3>Research</h3>
-          <p>Agents read the code and write down how it <b>actually</b> works — root causes, with the offending lines cited. No guessing.</p>
-          <div class="pp-artifact">research report → docs/plans/</div>
+          <p>An agent reads the code and writes down how it <b>actually</b> works — root causes, with the offending lines cited. No guessing.</p>
+          <div class="pp-artifact">report → docs/agents/research/</div>
         </div>
         <div class="pp-arr">→</div>
         <div class="pp-stage pp-stage--plan">
-          <div class="pp-badge">/rpi-plan</div>
+          <div class="pp-head">
+            <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></span>
+            <span class="pp-badge">design</span>
+            <span class="pp-agent">fresh agent</span>
+          </div>
           <h3>Plan</h3>
-          <p>A phased plan with exact files, fixes and verification steps. Cheap to correct — <b>it's still just text</b>.</p>
-          <div class="pp-artifact">plan doc · human reviews here</div>
+          <p>A new agent reads the report and writes a phased plan — exact files, fixes, verification. Cheap to correct, <b>it's still just text</b>.</p>
+          <div class="pp-artifact">plan → docs/plans/ · human reviews</div>
         </div>
         <div class="pp-arr">→</div>
         <div class="pp-stage pp-stage--impl">
-          <div class="pp-badge">/rpi-implement</div>
+          <div class="pp-head">
+            <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg></span>
+            <span class="pp-badge">build</span>
+            <span class="pp-agent">fresh agent</span>
+          </div>
           <h3>Implement</h3>
-          <p>Executes the agreed plan phase by phase, looping on <code>tsc · eslint · pytest</code> until everything is green.</p>
+          <p>Another clean session executes the agreed plan phase by phase, looping on <code>tsc · eslint · pytest</code> until green.</p>
           <div class="pp-artifact">commits · human reviews the diff</div>
         </div>
         <div class="pp-arr">→</div>
         <div class="pp-stage pp-stage--ship">
-          <div class="pp-badge">pre-commit + PR</div>
+          <div class="pp-head">
+            <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg></span>
+            <span class="pp-badge">release</span>
+          </div>
           <h3>Ship</h3>
-          <p>Hooks gate the commit, CI gates the merge. The plan is renamed <code>DONE</code> and stays as documentation.</p>
+          <p>Hooks gate the commit, CI gates the merge. The plan is renamed <code>DONE</code> and stays behind as documentation.</p>
           <div class="pp-artifact">2026-05-29_DONE_….md</div>
         </div>
       </div>
 
-      <div class="pp-note">The human steers at exactly two points — <b>the plan</b> and <b>the diff</b>. Everything in between is agentic.</div>
+      <div class="pp-note">Each behaviour runs in its <b>own agent, context and session</b> — the artifacts carry the knowledge between them. The human steers at two points: <b>the plan</b> and <b>the diff</b>.</div>
     </div>
   </section>
 
@@ -866,63 +902,22 @@ flowchart TD
         <!-- right: anatomy + lifecycle -->
         <div class="pf-right">
           <div class="pf-anatomy">
-            <div class="pf-block-title">Inside a plan</div>
-            <div class="pf-row"><span class="pf-key">TL;DR</span><span class="pf-val">root causes first — the whole diagnosis in ten lines</span></div>
-            <div class="pf-row"><span class="pf-key">Parts</span><span class="pf-val">one per problem, with the offending code cited by file and line</span></div>
-            <div class="pf-row"><span class="pf-key">Fix required</span><span class="pf-val">exact files and changes — an agent can execute it without asking</span></div>
-            <div class="pf-row"><span class="pf-key">Verification</span><span class="pf-val">how we'll know it worked, before the work starts</span></div>
+            <div class="pf-block-title">⚜ Inside a plan</div>
+            <div class="pf-row pf-row--tldr"><span class="pf-key">◈ TL;DR</span><span class="pf-val">root causes first — the whole diagnosis in ten lines</span></div>
+            <div class="pf-row pf-row--parts"><span class="pf-key">✦ Parts</span><span class="pf-val">one per problem, with the offending code cited by file and line</span></div>
+            <div class="pf-row pf-row--fix"><span class="pf-key">⚒ Fix required</span><span class="pf-val">exact files and changes — an agent can execute it without asking</span></div>
+            <div class="pf-row pf-row--verify"><span class="pf-key">✓ Verification</span><span class="pf-val">how we'll know it worked, before the work starts</span></div>
           </div>
           <div class="pf-life">
-            <div class="pf-block-title">Lifecycle</div>
+            <div class="pf-block-title">↻ Lifecycle</div>
             <div class="pf-life-chips">
-              <span class="pf-chip">drafted by agent</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip pf-chip--human">corrected by human</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip">executed in phases</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip pf-chip--done">renamed DONE</span>
+              <span class="pf-chip">✎ drafted by agent</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip pf-chip--human">⚖ corrected by human</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip">⚙ executed in phases</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip pf-chip--done">✓ renamed DONE</span>
             </div>
             <p class="pf-life-note">Old plans never rot — the <code>DONE_</code> prefix turns them into a decision log agents read during research.</p>
           </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <!-- 14d — A CLOSER LOOK: ENABLEMENT -->
-  <section class="slide full">
-    <div class="panel">
-      <div class="pilar">Pillar 3 — Agentic Coding</div>
-      <h2>A Closer Look — <span class="grad">Enablement</span></h2>
-      <p class="lead">Four layers of written context make the project promptable — by any coding CLI, from the first minute.</p>
-
-      <div class="en-layout">
-        <!-- left: the context stack -->
-        <div class="en-stack">
-          <div class="en-layer en-layer--rules">
-            <div class="en-layer-tag">CLAUDE.md</div>
-            <div class="en-layer-body"><b>The rules.</b> Stack, conventions, strict-typing gates, commit format — read first by every agent.</div>
-          </div>
-          <div class="en-layer en-layer--skills">
-            <div class="en-layer-tag">.claude/skills/</div>
-            <div class="en-layer-body"><b>The know-how.</b> 12 project skills — <code>mesh-from-picture</code>, <code>extend-world</code>, <code>rpi-*</code> — whole workflows behind one command.</div>
-          </div>
-          <div class="en-layer en-layer--docs">
-            <div class="en-layer-tag">docs/</div>
-            <div class="en-layer-body"><b>The map.</b> Architecture, standards, how-tos, protocol — agents research here before touching code.</div>
-          </div>
-          <div class="en-layer en-layer--mem">
-            <div class="en-layer-tag">memory</div>
-            <div class="en-layer-body"><b>The learnings.</b> Corrections persist between sessions — feedback given once holds forever.</div>
-          </div>
-        </div>
-
-        <!-- right: what this buys -->
-        <div class="en-points">
-          <ul class="points">
-            <li><b>One-line prompts.</b> The know-how lives in the repo, not in the prompter's head.</li>
-            <li><b>No tribal knowledge.</b> A brand-new CLI session starts with everything it needs.</li>
-            <li><b>Consistent output.</b> Same rules in, same patterns out — whoever (or whatever) writes the code.</li>
-            <li><b>Parallel agents.</b> Shared written context lets several agents build without colliding.</li>
-          </ul>
         </div>
       </div>
     </div>
