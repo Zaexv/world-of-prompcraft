@@ -5,6 +5,7 @@ import { ZONES, LOCALE_DISCS } from '../systems/ZoneTracker';
 const MM_SIZE  = 290;
 const MM_SCALE = 2.0; // wu/px at 1.0 zoom
 const LM_MARGIN = 110; // local biome cache scroll headroom (px each side)
+const WM_MARGIN = 130; // world biome cache scroll headroom (px each side)
 
 const WM_MAP_SIZE = 500;
 const WM_RANGE    = 600;
@@ -44,6 +45,10 @@ export class Minimap extends UIComponent {
   private viewMode: 'local' | 'world' = 'world';
   private _worldBiomeCanvas: HTMLCanvasElement | null = null;
   private _worldBiomeDirty = true;
+  // World biome cache is oversized + scroll-blitted; bake center/scale it holds.
+  private _worldBakeX = NaN;
+  private _worldBakeZ = NaN;
+  private _worldBakeScale = NaN;
 
   // Local-mode biome cache: an oversized offscreen raster blitted as a scrolling
   // crop so moving/turning costs a blit, not thousands of getBiomeWeights samples.
@@ -459,27 +464,27 @@ export class Minimap extends UIComponent {
    * the game while moving.
    */
   private _prerenderWorldBiomes(): void {
-    const S     = WM_MAP_SIZE;
-    const scale = this._worldEffectiveScale();
     const cx    = this.worldPanX;
     const cz    = this.worldPanZ;
-    // Adaptive step: coarser at zoom-out (faster), finer at zoom-in (more detail)
-    const step  = Math.max(2, Math.ceil(4 / this.worldZoom));
+    const scale = this._worldEffectiveScale();
+    const full  = WM_MAP_SIZE + 2 * WM_MARGIN;
+    // Coarse, zoom-aware step: this is a schematic map and the bake must be cheap
+    // since it can run on a margin-cross. Biomes are smooth so blocky is fine.
+    const step  = Math.max(6, Math.ceil(8 / this.worldZoom));
 
     if (!this._worldBiomeCanvas) {
       this._worldBiomeCanvas = document.createElement('canvas');
-      this._worldBiomeCanvas.width  = S;
-      this._worldBiomeCanvas.height = S;
+      this._worldBiomeCanvas.width  = full;
+      this._worldBiomeCanvas.height = full;
     }
     const offCtx = this._worldBiomeCanvas.getContext('2d')!;
-    // Warm parchment base shows at the map fringe beyond the known world.
-    offCtx.fillStyle = '#1a1206';
-    offCtx.fillRect(0, 0, S, S);
+    offCtx.fillStyle = '#1a1206'; // warm parchment fringe beyond the known world
+    offCtx.fillRect(0, 0, full, full);
 
-    for (let px = 0; px < S; px += step) {
-      for (let py = 0; py < S; py += step) {
-        const wx = cx + (px - S / 2) * scale;
-        const wz = cz + (py - S / 2) * scale;
+    for (let px = 0; px < full; px += step) {
+      for (let py = 0; py < full; py += step) {
+        const wx = cx + (px - full / 2) * scale;
+        const wz = cz + (py - full / 2) * scale;
         const weights = getBiomeWeights(wx, wz);
         let r = 0, g = 0, b = 0;
         for (const [biome, color] of BIOME_COLOR_COMPONENTS) {
@@ -491,42 +496,9 @@ export class Minimap extends UIComponent {
       }
     }
 
-    // ── Static overlays baked into the same canvas ───────────────────────────
-    this._drawRegionLabels(offCtx, scale, cx, cz);
-
-    const sortedWps = [...this.waypoints].sort(
-      (a, b) => (a.kind === 'teleport' ? 1 : 0) - (b.kind === 'teleport' ? 1 : 0),
-    );
-    for (const wp of sortedWps) {
-      const wx = (wp.x - cx) / scale + S / 2;
-      const wy = (wp.z - cz) / scale + S / 2;
-      if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
-      const highlighted = wp.id === this.hoveredWaypointId;
-      this.drawWaypointMarker(offCtx, wx, wy, wp.kind, highlighted);
-      if (wp.kind === 'teleport') {
-        this.drawWaypointLabel(offCtx, wx, wy, wp.label, highlighted);
-      }
-    }
-
-    // Edge vignette
-    const vg = offCtx.createRadialGradient(S/2, S/2, S*0.32, S/2, S/2, S*0.72);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
-    offCtx.fillStyle = vg;
-    offCtx.fillRect(0, 0, S, S);
-
-    // Pan indicator (shown when not centered on 0,0)
-    if (Math.abs(cx) > 10 || Math.abs(cz) > 10) {
-      offCtx.save();
-      offCtx.font = '8px "Cinzel", serif';
-      offCtx.fillStyle = 'rgba(197,165,90,0.5)';
-      offCtx.textAlign = 'left';
-      offCtx.fillText(`pan: ${Math.round(cx)}, ${Math.round(cz)}`, 6, S - 6);
-      offCtx.restore();
-    }
-
-    this._drawCompass(offCtx, S);
-
+    this._worldBakeX = cx;
+    this._worldBakeZ = cz;
+    this._worldBakeScale = scale;
     this._worldBiomeDirty = false;
   }
 
@@ -620,17 +592,43 @@ export class Minimap extends UIComponent {
   }
 
   private _drawWorldView(playerX: number, playerZ: number): void {
-    if (this._worldBiomeDirty) this._prerenderWorldBiomes();
     const ctx  = this.ctx;
     const S    = WM_MAP_SIZE;
     const scale = this._worldEffectiveScale();
     const panX  = this.worldPanX;
     const panZ  = this.worldPanZ;
 
-    // Blit the baked static layer (biomes, labels, waypoints, vignette, compass).
-    ctx.drawImage(this._worldBiomeCanvas!, 0, 0);
+    // Re-bake the biome raster only when needed — and NEVER during an active drag,
+    // so panning is a pure blit. Triggers: first/forced, zoom change, or the pan
+    // scrolled near the cached margin. The baked canvas is oversized; we blit the
+    // crop centred on the current pan.
+    const offX = (panX - this._worldBakeX) / scale;
+    const offZ = (panZ - this._worldBakeZ) / scale;
+    const needBake =
+      this._worldBiomeDirty || this._worldBakeScale !== scale ||
+      !Number.isFinite(offX) || Math.abs(offX) > WM_MARGIN * 0.85 || Math.abs(offZ) > WM_MARGIN * 0.85;
+    if (needBake && !this._isDragging) this._prerenderWorldBiomes();
 
-    // ── Dynamic layer only (cheap, redrawn every frame) ──────────────────────
+    const sx = WM_MARGIN + (panX - this._worldBakeX) / scale;
+    const sy = WM_MARGIN + (panZ - this._worldBakeZ) / scale;
+    ctx.fillStyle = '#1a1206'; // parchment shows if dragged past the cached margin
+    ctx.fillRect(0, 0, S, S);
+    if (this._worldBiomeCanvas) ctx.drawImage(this._worldBiomeCanvas, sx, sy, S, S, 0, 0, S, S);
+
+    // ── World-anchored overlays (cheap vector draws, every frame) ─────────────
+    this._drawRegionLabels(ctx, scale, panX, panZ);
+    const sortedWps = [...this.waypoints].sort(
+      (a, b) => (a.kind === 'teleport' ? 1 : 0) - (b.kind === 'teleport' ? 1 : 0),
+    );
+    for (const wp of sortedWps) {
+      const wx = (wp.x - panX) / scale + S / 2;
+      const wy = (wp.z - panZ) / scale + S / 2;
+      if (wx < -12 || wx > S + 12 || wy < -12 || wy > S + 12) continue;
+      const highlighted = wp.id === this.hoveredWaypointId;
+      this.drawWaypointMarker(ctx, wx, wy, wp.kind, highlighted);
+      if (wp.kind === 'teleport') this.drawWaypointLabel(ctx, wx, wy, wp.label, highlighted);
+    }
+
     // NPC dots
     for (const npc of this.npcDots) {
       const nx = (npc.x - panX) / scale + S / 2;
@@ -663,6 +661,25 @@ export class Minimap extends UIComponent {
       // Off-screen indicator: arrow pointing toward player
       this._drawOffscreenArrow(ctx, px, pz, S);
     }
+
+    // Edge vignette
+    const vg = ctx.createRadialGradient(S / 2, S / 2, S * 0.32, S / 2, S / 2, S * 0.72);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, S, S);
+
+    // Pan indicator (shown when not centred on 0,0)
+    if (Math.abs(panX) > 10 || Math.abs(panZ) > 10) {
+      ctx.save();
+      ctx.font = '8px "Cinzel", serif';
+      ctx.fillStyle = 'rgba(197,165,90,0.5)';
+      ctx.textAlign = 'left';
+      ctx.fillText(`pan: ${Math.round(panX)}, ${Math.round(panZ)}`, 6, S - 6);
+      ctx.restore();
+    }
+
+    this._drawCompass(ctx, S);
   }
 
   private _drawOffscreenArrow(ctx: CanvasRenderingContext2D, px: number, pz: number, S: number): void {
@@ -860,24 +877,21 @@ export class Minimap extends UIComponent {
       const dy = event.clientY - this._dragStartCanvasY;
       this.worldPanX = this._dragStartPanX - dx * scale;
       this.worldPanZ = this._dragStartPanZ - dy * scale;
-      this._worldBiomeDirty = true;
-      this.lastDrawX = NaN;
+      // No re-bake here — the biome cache is scroll-blitted while dragging.
       return;
     }
 
     const waypoint = this.getWaypointAtEvent(event);
-    const newHover = waypoint?.id ?? null;
-    if (newHover !== this.hoveredWaypointId) {
-      this.hoveredWaypointId = newHover;
-      // Hover highlight is baked into the static world layer — rebake on change.
-      if (this.viewMode === 'world') this._worldBiomeDirty = true;
-    }
+    // Hover highlight is drawn per-frame as an overlay, so no re-bake needed.
+    this.hoveredWaypointId = waypoint?.id ?? null;
     this.canvas.style.cursor = waypoint ? 'pointer' : (this.viewMode === 'world' ? 'grab' : 'default');
   }
 
   private handlePointerUp(event: PointerEvent): void {
     if (this._isDragging) {
       this._isDragging = false;
+      // Re-centre the biome cache on the final pan (bakes were suppressed mid-drag).
+      this._worldBiomeDirty = true;
       this.canvas.style.cursor = this.viewMode === 'world' ? 'grab' : 'default';
       this.canvas.releasePointerCapture(event.pointerId);
     }
