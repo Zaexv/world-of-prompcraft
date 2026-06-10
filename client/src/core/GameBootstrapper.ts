@@ -40,15 +40,16 @@ export interface PlayerConfig {
 
 interface LoadingOverlay {
   setMessage(msg: string): void;
+  setProgress(fraction: number): void;
   hide(): void;
 }
 
-export function bootstrap(
+export async function bootstrap(
   config: PlayerConfig,
   app: HTMLElement,
   loadingOverlay: LoadingOverlay,
   loginScreen: LoginScreen,
-): GameEngine {
+): Promise<GameEngine> {
   const worldManifest = new WorldManifest();
   
   // Inject manifest into data-driven environment systems immediately
@@ -110,8 +111,10 @@ export function bootstrap(
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
 
   const audioSystem = AudioSystem.getInstance();
+  // init() unlocks the AudioContext (Tone.start) — must run now, inside the
+  // Enter-World click gesture. The music itself starts later, with the intro
+  // cinematic (see startIntroCinematic below), not during the loading/compile.
   audioSystem.init();
-  audioSystem.playStartMusic();
 
   const reactionSystem    = new ReactionSystem(scene, playerState, npcStateStore, worldState, entityManager, audioSystem);
 
@@ -155,6 +158,27 @@ export function bootstrap(
   // Initialize terrain (preloads starting area) AFTER callbacks are wired
   terrain.init();
 
+  // Compile every shader program up-front while the loading screen is still
+  // visible. Shader compilation on first frustum entry causes the deterministic
+  // freeze a few meters from spawn — and 100–600ms stalls when far biomes
+  // introduce new monster/prop/building types. warmUpShaders builds one of EVERY
+  // registered mesh type and compiles them all (it calls renderer.compile
+  // internally), running in batches that yield so the loading bar reports
+  // progress.
+  //
+  // CRITICAL: this MUST run BEFORE the WebSocket is created below. The warmup
+  // yields across frames (for the progress bar), so it unwinds the call stack —
+  // if the socket were already open, the async `join_ok` handshake could land
+  // mid-warmup and hide the loading overlay + start the intro cinematic while the
+  // engine loop is NOT yet running (engine.start() happens after bootstrap
+  // resolves). That left a black screen and a cinematic whose timer had already
+  // elapsed by the time the loop started. Warming first means the whole join
+  // handshake happens after the engine is live.
+  loadingOverlay.setMessage('Compiling shaders...');
+  await warmUpShaders(renderer, scene, camera, (fraction) => {
+    loadingOverlay.setProgress(fraction);
+  });
+
   // eslint-disable-next-line prefer-const
   let engine: GameEngine;
 
@@ -196,6 +220,7 @@ export function bootstrap(
     loginScreen, loadingOverlay, username: config.username, npcNameMap,
     HOSTILE_NPCS: new Set(['dragon_01', 'guard_01']),
     startIntroCinematic: () => {
+      audioSystem.playStartMusic(); // music kicks in as the cinematic begins
       if (engine) engine.startIntroCinematic();
     },
     stopReconnect: () => ws.stopReconnect(),
@@ -353,14 +378,6 @@ export function bootstrap(
     interactionSystem, reactionSystem, worldGenerator, worldBuilder, zoneTracker, zoneAtmosphere,
     dungeonSystem, boatSystem, uiManager, ws, playerState, npcStateStore, runtime,
   });
-
-  // Compile every shader program and upload every texture while the loading
-  // screen is still visible. Shader compilation on first frustum entry causes
-  // the deterministic freeze the player experiences a few meters from spawn —
-  // and 100–600ms stalls when far biomes introduce new monster/prop/building
-  // types. warmUpShaders builds one of EVERY registered mesh type and compiles
-  // them all up-front (it calls renderer.compile internally).
-  warmUpShaders(renderer, scene, camera);
 
   return engine;
 }
