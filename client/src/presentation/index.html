@@ -620,17 +620,27 @@ flowchart TD
           <div class="sg-block">
             <div class="sg-block-title">AgentState  <span class="sg-count">TypedDict · per NPC per player</span></div>
             <div class="sg-state-grid">
-              <span class="sg-field-chip">npc_id</span>
-              <span class="sg-field-chip">npc_personality</span>
-              <span class="sg-field-chip">messages</span>
-              <span class="sg-field-chip">conversation_summary</span>
-              <span class="sg-field-chip">mood</span>
-              <span class="sg-field-chip">relationship_score</span>
-              <span class="sg-field-chip">personality_notes</span>
-              <span class="sg-field-chip">player_state</span>
-              <span class="sg-field-chip">world_context</span>
-              <span class="sg-field-chip">pending_actions</span>
-              <span class="sg-field-chip">response_text</span>
+              <div class="sg-state-group sg-sg--identity">
+                <span class="sg-field-chip">npc_id<span class="sg-field-note">which NPC</span></span>
+                <span class="sg-field-chip">npc_personality<span class="sg-field-note">system prompt</span></span>
+              </div>
+              <div class="sg-state-group sg-sg--memory">
+                <span class="sg-field-chip">messages<span class="sg-field-note">conversation history</span></span>
+                <span class="sg-field-chip">conversation_summary<span class="sg-field-note">rolling compression</span></span>
+                <span class="sg-field-chip">personality_notes<span class="sg-field-note">player-specific notes</span></span>
+              </div>
+              <div class="sg-state-group sg-sg--relation">
+                <span class="sg-field-chip">mood<span class="sg-field-note">toward this player</span></span>
+                <span class="sg-field-chip">relationship_score<span class="sg-field-note">−100 → +100</span></span>
+              </div>
+              <div class="sg-state-group sg-sg--world">
+                <span class="sg-field-chip">player_state<span class="sg-field-note">HP · inventory · pos</span></span>
+                <span class="sg-field-chip">world_context<span class="sg-field-note">nearby · zone · time</span></span>
+              </div>
+              <div class="sg-state-group sg-sg--output">
+                <span class="sg-field-chip">pending_actions<span class="sg-field-note">queued world mutations</span></span>
+                <span class="sg-field-chip">response_text<span class="sg-field-note">final dialogue out</span></span>
+              </div>
             </div>
           </div>
 

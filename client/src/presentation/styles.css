@@ -1180,18 +1180,21 @@ kbd {
 }
 .slide.full .sg-diagram { height: auto; }
 .slide.full .sg-sidebar { min-height: 0; }
-.slide.full .sg-sidebar .sg-block:first-child {
+.slide.full .sg-sidebar .sg-block {
   flex: 1;
   display: flex;
   flex-direction: column;
 }
-.slide.full .sg-tool-grid {
+.slide.full .sg-tool-grid,
+.slide.full .sg-state-grid {
   flex: 1;
   justify-content: space-evenly;
 }
 .slide.full .sg-tool-group { padding: 0.6rem 0.9rem; gap: 0.45rem 0.5rem; }
 .slide.full .sg-tool { font-size: 0.95rem; padding: 0.26rem 0.7rem; }
-.slide.full .sg-field-chip { font-size: 0.95rem; padding: 0.26rem 0.7rem; }
+.slide.full .sg-state-group { padding: 0.55rem 0.9rem; gap: 0.45rem 0.5rem; }
+.slide.full .sg-field-chip { font-size: 0.95rem; padding: 0.28rem 0.7rem 0.32rem; }
+.slide.full .sg-field-note { font-size: 0.72rem; }
 .slide.full .sg-block-title { font-size: 1rem; padding: 0.6rem 0.95rem; }
 .slide.full .sg-count { font-size: 0.74rem; }
 .sg-diagram {
@@ -1273,14 +1276,32 @@ kbd {
 .sg-group--query  .sg-tool { background: rgba(112,136,208,0.12); border-color: rgba(112,136,208,0.36); color: #b4c4f0; }
 .sg-group--misc   .sg-tool { background: rgba(160,160,170,0.10); border-color: rgba(160,160,170,0.28); color: #c8c8d4; }
 
-/* Agent state — field-name chips only */
+/* Agent state — field chips grouped by role, colored rail per group
+   (identity / memory / relationship / world / output) */
 .sg-state-grid {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.4rem 0.45rem;
-  padding: 0.6rem 0.8rem;
+  flex-direction: column;
+  padding: 0.2rem 0;
 }
+.sg-state-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 0.4rem 0.45rem;
+  padding: 0.45rem 0.8rem;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid rgba(212, 179, 105, 0.1);
+}
+.sg-state-group:last-child { border-bottom: none; }
+.sg-sg--identity { border-left-color: rgba(212, 179, 105, 0.7); }
+.sg-sg--memory   { border-left-color: rgba(200, 168, 232, 0.65); }
+.sg-sg--relation { border-left-color: rgba(86, 184, 154, 0.65); }
+.sg-sg--world    { border-left-color: rgba(112, 136, 208, 0.7); }
+.sg-sg--output   { border-left-color: rgba(217, 148, 80, 0.7); }
 .sg-field-chip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.08rem;
   font-family: var(--mono);
   font-size: 0.86rem;
   font-weight: 600;
@@ -1288,7 +1309,15 @@ kbd {
   background: rgba(136, 152, 216, 0.12);
   border: 1px solid rgba(136, 152, 216, 0.38);
   border-radius: 5px;
-  padding: 0.2rem 0.6rem;
+  padding: 0.22rem 0.6rem 0.26rem;
+}
+.sg-field-note {
+  font-family: var(--sans);
+  font-size: 0.64rem;
+  font-weight: 400;
+  font-style: italic;
+  color: var(--muted);
+  letter-spacing: 0.01em;
 }
 
 /* ---- PoC transcript slide ---- */
