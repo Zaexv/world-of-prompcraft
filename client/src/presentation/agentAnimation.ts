@@ -7,12 +7,12 @@
  * Loops continuously while the slide is active.
  */
 
-const PLAYER_TEXT  = 'Can you sell me a sword?';
-const NPC_TEXT     = 'A fine blade — fifty gold. Fair trade, friend.';
+const PLAYER_TEXT  = '¡Buenos días, Paco! Some churros, please.';
+const NPC_TEXT     = '¡Recién hechos, hombre! Ten gold the ración — finest oil in Fort Malaka.';
 const REASON_TEXT  =
-  'Player wants to buy a sword. I have 2 in stock at 50g each. ' +
-  'They have 120g — they can afford it. We\'re on good terms. ' +
-  'I should check inventory, verify gold, then make the offer.';
+  'A breakfast order from a morning regular — wave hello. ' +
+  'Ración de Churros is 10g, they carry 120g. ' +
+  'Fry a fresh batch (smoke from the hot oil), then make the offer.';
 
 interface Step {
   node:      string;        // DOM id of the .ad-node element

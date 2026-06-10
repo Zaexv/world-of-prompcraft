@@ -416,16 +416,18 @@ flowchart LR
 
         <!-- Col 1: NPC avatar portrait -->
         <div class="agent-npc-col">
-          <div class="avatar-stage" id="npcStage11"></div>
-          <div class="agent-npc-label">Aurelia · Merchant · Fort Malaka</div>
+          <div class="avatar-stage" id="npcStage11">
+            <button class="agent-replay-btn" id="agentReplayBtn">⟳ Replay</button>
+          </div>
+          <div class="agent-npc-label">Paco el Churrero · Churrero · Fort Malaka</div>
         </div>
 
         <!-- Col 2: in-game chat panel -->
         <div class="igc">
-          <div class="igc-header">Aurelia</div>
+          <div class="igc-header">Paco el Churrero</div>
           <div class="igc-status">
             <span class="igc-mood-dot"></span>
-            <span class="igc-mood-label">Neutral</span>
+            <span class="igc-mood-label">Gruff</span>
             <span class="igc-rel-label">FRIEND</span>
             <div class="igc-rel-bar"><div class="igc-rel-fill" style="width:62%"></div></div>
           </div>
@@ -441,7 +443,7 @@ flowchart LR
               <div class="igc-ts">14:23</div>
             </div>
             <div class="igc-row igc-row--npc">
-              <div class="igc-npc-name">Aurelia</div>
+              <div class="igc-npc-name">Paco</div>
               <div class="igc-bubble igc-bubble--npc" id="igcNpcBubble" style="opacity:0"></div>
               <div class="igc-ts">14:23</div>
             </div>
@@ -490,15 +492,15 @@ flowchart LR
           <!-- Agent trace with LLM reasoning -->
           <div class="agent-trace">
             <div class="trace-header">
-              <span class="trace-npc-id">npc_id: <b>aurelia_merchant_01</b></span>
+              <span class="trace-npc-id">npc_id: <b>churrero_01</b></span>
               <span class="trace-badge">LangGraph StateGraph</span>
             </div>
             <div class="trace-section reason">
               <div class="trace-step-label">reason</div>
               <div class="trace-lines">
                 <div class="trace-line"><span class="tkey">intent</span><span class="tsep"> = </span><span class="tval">TRADE</span>&nbsp;&nbsp;<span class="tkey">mood</span><span class="tsep"> = </span><span class="tval">neutral</span>&nbsp;&nbsp;<span class="tkey">relationship</span><span class="tsep"> = </span><span class="tval">+12</span></div>
-                <div class="trace-line"><span class="tkey">lore</span><span class="tsep"> ↦ </span><span class="tcomment">"Aurelia stocks blades, armor and provisions"</span></div>
-                <div class="trace-line"><span class="tkey">memory</span><span class="tsep"> ↦ </span><span class="tcomment">"Player helped clear the eastern camp"</span></div>
+                <div class="trace-line"><span class="tkey">lore</span><span class="tsep"> ↦ </span><span class="tcomment">"Paco fries churros and tejeringos since before the mages"</span></div>
+                <div class="trace-line"><span class="tkey">memory</span><span class="tsep"> ↦ </span><span class="tcomment">"Player buys breakfast here every morning"</span></div>
                 <div class="trace-thought" id="traceReasonThought"></div>
                 <div class="trace-line dim">→ LLM call #1 · decides to use tools</div>
               </div>
@@ -506,16 +508,16 @@ flowchart LR
             <div class="trace-section act">
               <div class="trace-step-label">act</div>
               <div class="trace-lines">
-                <div class="trace-line"><span class="tfn">check_inventory</span><span class="tsep">("sword") </span><span class="tarrow">→</span><span class="tval"> { available: true, count: 2, price: 50g }</span></div>
-                <div class="trace-line"><span class="tfn">check_gold</span><span class="tsep">(player_id) </span><span class="tarrow">→</span><span class="tval"> { gold: 120 }</span></div>
-                <div class="trace-line"><span class="tfn">propose_trade</span><span class="tsep">("sword", 50g) </span><span class="tarrow">→</span><span class="tcomment"> pending_action → WorldState</span></div>
+                <div class="trace-line"><span class="tfn">emote</span><span class="tsep">("wave") </span><span class="tarrow">→</span><span class="tval"> { ok: true }</span><span class="tcomment"> # regular customer</span></div>
+                <div class="trace-line"><span class="tfn">spawn_effect</span><span class="tsep">("smoke") </span><span class="tarrow">→</span><span class="tcomment"> fresh batch in the fryer</span></div>
+                <div class="trace-line"><span class="tfn">offer_item</span><span class="tsep">("Ración de Churros", 10g) </span><span class="tarrow">→</span><span class="tcomment"> pending_action → WorldState</span></div>
                 <div class="trace-line dim">→ LLM call #2 · tool results injected · produces dialogue</div>
               </div>
             </div>
             <div class="trace-section respond">
               <div class="trace-step-label">respond</div>
               <div class="trace-lines">
-                <div class="trace-line output">"A fine blade — fifty gold. Fair trade, friend."</div>
+                <div class="trace-line output">"¡Recién hechos, hombre! Ten gold the ración — finest oil in Fort Malaka."</div>
                 <div class="trace-line dim">↳ reuses reason output · no extra LLM call</div>
               </div>
             </div>
@@ -530,8 +532,6 @@ flowchart LR
         </div><!-- /agent-right-col -->
 
       </div><!-- /agent-demo -->
-
-      <button class="agent-replay-btn" id="agentReplayBtn">⟳ Replay</button>
     </div>
   </section>
 
