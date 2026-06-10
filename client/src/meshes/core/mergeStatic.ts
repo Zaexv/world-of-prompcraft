@@ -29,7 +29,19 @@ import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js
  *   - non-mesh nodes: light-emitter markers (PointLightPool), sprites, nested LODs
  *   - anything tagged `userData.noMerge`
  */
-export function mergeStaticByMaterial(root: THREE.Group): void {
+export interface MergeOptions {
+  /**
+   * How to group materials into one draw. Default = by material instance
+   * (`uuid`), correct when meshes SHARE cached materials (buildings/kits). For
+   * meshes that create a fresh material per part (NPC rigs via `vmat`), pass a
+   * property signature so visually-identical materials still merge — the bucket
+   * keeps the first material as representative, so all members must look the same.
+   */
+  materialKey?: (m: THREE.Material) => string;
+}
+
+export function mergeStaticByMaterial(root: THREE.Group, opts: MergeOptions = {}): void {
+  const matKey = opts.materialKey ?? ((m: THREE.Material): string => m.uuid);
   root.updateMatrixWorld(true);
   // Bake into the root's LOCAL frame, not world: a mesh's root-local matrix is
   // root.matrixWorld⁻¹ · mesh.matrixWorld. This keeps the root's own transform
@@ -73,7 +85,7 @@ export function mergeStaticByMaterial(root: THREE.Group): void {
       if (mergeable && single) {
         const tag: Tag =
           o.userData.isCollider === true ? 'C' : o.userData.noCollision === true ? 'N' : 'D';
-        const key = `${single.uuid}|${tag}|${o.castShadow ? 1 : 0}|${o.receiveShadow ? 1 : 0}`;
+        const key = `${matKey(single)}|${tag}|${o.castShadow ? 1 : 0}|${o.receiveShadow ? 1 : 0}`;
         let b = buckets.get(key);
         if (!b) {
           b = { mat: single, tag, cast: o.castShadow, recv: o.receiveShadow, geos: [] };

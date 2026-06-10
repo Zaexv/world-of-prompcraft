@@ -27,6 +27,7 @@ import { GameEngine } from './GameEngine';
 import { WebSocketHandler } from './WebSocketHandler';
 import { createRuntimeState } from './RuntimeState';
 import { warmUpShaders } from './ShaderWarmup';
+import { installShaderTrace } from '../debug/shaderTrace';
 import type { LoginScreen } from '../ui/LoginScreen';
 
 export interface PlayerConfig {
@@ -56,6 +57,7 @@ export function bootstrap(
   loadingOverlay.setMessage('Initializing renderer...');
   const sceneManager = new SceneManager(app);
   const { scene, camera, renderer, terrain } = sceneManager;
+  installShaderTrace(renderer); // dev: window.__shaderTrace = true to log runtime shader compiles
 
   // Pass the raw data shape (not the instance) so building pads / flat-patches
   // are actually built — Terrain.setManifest reads `world.topology.features`

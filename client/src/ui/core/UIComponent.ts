@@ -102,9 +102,10 @@ export abstract class UIComponent {
    */
   dispose(): void {
     this.onDispose();
-    if (this.container && this.container.parentNode) {
-      this.container.removeChild(this.container);
-    }
+    // Remove the container from its PARENT (a node can't be its own child —
+    // `container.removeChild(container)` threw NotFoundError). `.remove()` is a
+    // no-op when already detached, so double-dispose is safe.
+    this.container?.remove();
   }
 
   /**

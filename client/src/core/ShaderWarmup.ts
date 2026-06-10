@@ -166,28 +166,36 @@ export function warmUpShaders(
   ];
 
   // flatShading splits the program (NPC meshes are flat-shaded, world geometry
-  // is smooth); physical adds the clearcoat path (El Tito lenses, water). fog is
-  // on for all world content. Cross-product is bounded (5 × 2 × 2 = 20).
+  // is smooth); physical adds the clearcoat path (El Tito lenses, water);
+  // vertexColors (USE_COLOR) is its own define — terrain and several procedural
+  // meshes use it. `side` splits the program too (DOUBLE_SIDED / FLIP_SIDED):
+  // palm fronds, cloth, foliage, glass are double-sided and compiled unwarmed at
+  // the coast. fog + scene.environment (envMap) are on for all world content.
+  // Cross-product bounded (5 × 2 × 2 × 2 × 2 = 80).
   for (const physical of [false, true]) {
     for (const flat of [true, false]) {
-      for (const combo of mapCombos) {
-        const params: THREE.MeshStandardMaterialParameters = {
-          color: 0xffffff, flatShading: flat, fog: true,
-          map: combo.map ? dummyMap : null,
-          normalMap: combo.nor ? dummyMap : null,
-          roughnessMap: combo.rough ? dummyMap : null,
-        };
-        const mat = physical
-          ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
-          : new THREE.MeshStandardMaterial(params);
+      for (const vertexColors of [false, true]) {
+        for (const side of [THREE.FrontSide, THREE.DoubleSide]) {
+          for (const combo of mapCombos) {
+            const params: THREE.MeshStandardMaterialParameters = {
+              color: 0xffffff, flatShading: flat, fog: true, vertexColors, side,
+              map: combo.map ? dummyMap : null,
+              normalMap: combo.nor ? dummyMap : null,
+              roughnessMap: combo.rough ? dummyMap : null,
+            };
+            const mat = physical
+              ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
+              : new THREE.MeshStandardMaterial(params);
 
-        const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
-        m.position.copy(hidden);
-        m.frustumCulled = false;
-        m.castShadow = true;
-        m.receiveShadow = true;
-        scene.add(m);
-        temp.push(m);
+            const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
+            m.position.copy(hidden);
+            m.frustumCulled = false;
+            m.castShadow = true;
+            m.receiveShadow = true;
+            scene.add(m);
+            temp.push(m);
+          }
+        }
       }
     }
   }
@@ -220,10 +228,23 @@ export function warmUpShaders(
   // shadow-DEPTH programs (only built during the shadow-map pass) and any
   // draw-state-specific variant. The temp meshes sit at the origin in front of
   // the camera and the sun's shadow frustum, so one render warms their cast +
-  // receive shadow programs. Runs behind the loading screen and is immediately
-  // overwritten by the game loop's first composer frame.
+  // receive shadow programs.
   renderer.shadowMap.needsUpdate = true;
   renderer.render(scene, camera);
+
+  // Render once more into an OFF-SCREEN target. three.js folds tone mapping into
+  // the material program ONLY when rendering to the screen — so a screen render
+  // produces the `TONE_MAPPING` variant, but the game renders the scene through
+  // EffectComposer into a render target (and the water reflection cube is another
+  // off-screen pass), which needs the NO-tone-mapping variant. Without this they
+  // compiled on first sight (the persistent coast/Fort-Malaka stutter). Same
+  // meshes, different output → the complementary programs compile here.
+  const rt = new THREE.WebGLRenderTarget(4, 4);
+  renderer.setRenderTarget(rt);
+  renderer.shadowMap.needsUpdate = true;
+  renderer.render(scene, camera);
+  renderer.setRenderTarget(null);
+  rt.dispose();
 
   // Clean up references
   for (const obj of temp) scene.remove(obj);
