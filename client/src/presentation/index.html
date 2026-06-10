@@ -582,21 +582,18 @@ flowchart TD
             <div class="sg-block-title">22 tools  <span class="sg-count">bound to act node</span></div>
             <div class="sg-tool-grid">
               <div class="sg-tool-group sg-group--combat">
-                <span class="sg-cat sg-cat--combat">⚔ combat</span>
                 <span class="sg-tool">deal_damage</span>
                 <span class="sg-tool">heal_target</span>
                 <span class="sg-tool">defend</span>
                 <span class="sg-tool">flee</span>
               </div>
               <div class="sg-tool-group sg-group--trade">
-                <span class="sg-cat sg-cat--trade">◈ trade</span>
                 <span class="sg-tool">offer_item</span>
                 <span class="sg-tool">complete_purchase</span>
                 <span class="sg-tool">take_item</span>
                 <span class="sg-tool">buy_item_from_player</span>
               </div>
               <div class="sg-tool-group sg-group--quest">
-                <span class="sg-cat sg-cat--quest">✦ quest</span>
                 <span class="sg-tool">offer_quest</span>
                 <span class="sg-tool">offer_custom_quest</span>
                 <span class="sg-tool">advance_quest_objective</span>
@@ -604,18 +601,15 @@ flowchart TD
                 <span class="sg-tool">check_player_quests</span>
               </div>
               <div class="sg-tool-group sg-group--env">
-                <span class="sg-cat sg-cat--env">◉ environment</span>
                 <span class="sg-tool">change_weather</span>
                 <span class="sg-tool">spawn_effect</span>
                 <span class="sg-tool">move_npc</span>
               </div>
               <div class="sg-tool-group sg-group--query">
-                <span class="sg-cat sg-cat--query">◎ world query</span>
                 <span class="sg-tool">get_nearby_entities</span>
                 <span class="sg-tool">check_player_state</span>
               </div>
               <div class="sg-tool-group sg-group--misc">
-                <span class="sg-cat sg-cat--misc">♪ misc</span>
                 <span class="sg-tool">emote</span>
                 <span class="sg-tool">compose_music</span>
               </div>
@@ -625,17 +619,19 @@ flowchart TD
           <!-- Agent State -->
           <div class="sg-block">
             <div class="sg-block-title">AgentState  <span class="sg-count">TypedDict · per NPC per player</span></div>
-            <pre class="sg-state"><span class="sg-field">npc_id</span>               <span class="sg-type">str</span>
-<span class="sg-field">npc_personality</span>      <span class="sg-type">str</span>          <span class="sg-cmt"># system prompt</span>
-<span class="sg-field">messages</span>             <span class="sg-type">list[Message]</span> <span class="sg-cmt"># conversation history</span>
-<span class="sg-field">conversation_summary</span> <span class="sg-type">str</span>          <span class="sg-cmt"># rolling compression</span>
-<span class="sg-field">mood</span>                 <span class="sg-type">str</span>          <span class="sg-cmt"># toward this player</span>
-<span class="sg-field">relationship_score</span>   <span class="sg-type">int</span>          <span class="sg-cmt"># −100 → +100</span>
-<span class="sg-field">personality_notes</span>    <span class="sg-type">str</span>          <span class="sg-cmt"># player-specific notes</span>
-<span class="sg-field">player_state</span>         <span class="sg-type">dict</span>         <span class="sg-cmt"># HP · inventory · pos</span>
-<span class="sg-field">world_context</span>        <span class="sg-type">dict</span>         <span class="sg-cmt"># nearby · zone · time</span>
-<span class="sg-field">pending_actions</span>      <span class="sg-type">list[Action]</span> <span class="sg-cmt"># queued world mutations</span>
-<span class="sg-field">response_text</span>        <span class="sg-type">str</span>          <span class="sg-cmt"># final dialogue out</span></pre>
+            <div class="sg-state-grid">
+              <span class="sg-field-chip">npc_id</span>
+              <span class="sg-field-chip">npc_personality</span>
+              <span class="sg-field-chip">messages</span>
+              <span class="sg-field-chip">conversation_summary</span>
+              <span class="sg-field-chip">mood</span>
+              <span class="sg-field-chip">relationship_score</span>
+              <span class="sg-field-chip">personality_notes</span>
+              <span class="sg-field-chip">player_state</span>
+              <span class="sg-field-chip">world_context</span>
+              <span class="sg-field-chip">pending_actions</span>
+              <span class="sg-field-chip">response_text</span>
+            </div>
           </div>
 
         </div>

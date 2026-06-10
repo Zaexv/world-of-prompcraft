@@ -1185,35 +1185,19 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.3rem 0.35rem;
-  padding: 0.38rem 0.75rem;
+  gap: 0.4rem 0.45rem;
+  padding: 0.5rem 0.8rem;
   border-bottom: 1px solid rgba(212, 179, 105, 0.1);
 }
 .sg-tool-group:last-child { border-bottom: none; }
-.sg-cat {
-  font-family: var(--mono);
-  font-size: 0.68rem;
-  font-weight: 600;
-  padding: 0.12rem 0.45rem;
-  border-radius: 3px;
-  letter-spacing: 0.06em;
-  flex-shrink: 0;
-  width: 104px;
-}
-.sg-cat--combat { background: rgba(220,60,60,0.12); border: 1px solid rgba(220,60,60,0.3); color: #e88080; }
-.sg-cat--trade  { background: rgba(197,165,90,0.12); border: 1px solid rgba(197,165,90,0.3); color: #c5a55a; }
-.sg-cat--quest  { background: rgba(200,168,232,0.1); border: 1px solid rgba(200,168,232,0.3); color: #c8a8e8; }
-.sg-cat--env    { background: rgba(86,184,154,0.1); border: 1px solid rgba(86,184,154,0.3); color: #56b89a; }
-.sg-cat--query  { background: rgba(88,112,184,0.1); border: 1px solid rgba(88,112,184,0.3); color: #88a0d8; }
-.sg-cat--misc   { background: rgba(140,140,140,0.08); border: 1px solid rgba(140,140,140,0.2); color: #a0a0b0; }
 .sg-tool {
   font-family: var(--mono);
-  font-size: 0.7rem;
+  font-size: 0.86rem;
   color: var(--ink);
   background: rgba(255,255,255,0.05);
   border: 1px solid rgba(255,255,255,0.12);
-  border-radius: 4px;
-  padding: 0.12rem 0.45rem;
+  border-radius: 5px;
+  padding: 0.2rem 0.6rem;
 }
 /* Tool chips tinted by their category — color carries the grouping. */
 .sg-group--combat .sg-tool { background: rgba(220,80,80,0.10);   border-color: rgba(220,80,80,0.32);   color: #f4b0a8; }
@@ -1223,19 +1207,23 @@ kbd {
 .sg-group--query  .sg-tool { background: rgba(112,136,208,0.12); border-color: rgba(112,136,208,0.36); color: #b4c4f0; }
 .sg-group--misc   .sg-tool { background: rgba(160,160,170,0.10); border-color: rgba(160,160,170,0.28); color: #c8c8d4; }
 
-/* Agent state code block */
-.sg-state {
-  font-family: var(--mono);
-  font-size: clamp(0.66rem, 0.85vw, 0.76rem);
-  line-height: 1.8;
-  padding: 0.6rem 0.85rem;
-  margin: 0;
-  overflow: hidden;
-  color: var(--muted);
+/* Agent state — field-name chips only */
+.sg-state-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.45rem;
+  padding: 0.6rem 0.8rem;
 }
-.sg-field { color: #a4b4ec; font-weight: 600; }
-.sg-type  { color: #d8bcf4; }
-.sg-cmt   { color: rgba(165,175,140,0.85); font-style: italic; }
+.sg-field-chip {
+  font-family: var(--mono);
+  font-size: 0.86rem;
+  font-weight: 600;
+  color: #b8c6f4;
+  background: rgba(136, 152, 216, 0.12);
+  border: 1px solid rgba(136, 152, 216, 0.38);
+  border-radius: 5px;
+  padding: 0.2rem 0.6rem;
+}
 
 /* ---- PoC transcript slide ---- */
 .poc-layout {
