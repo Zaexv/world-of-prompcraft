@@ -15,6 +15,7 @@ import { ChatPanel } from "./ChatPanel";
 import { ChatBubbleSystem } from "./ChatBubbleSystem";
 import type * as THREE from 'three';
 import type { PlayerState } from "../state/PlayerState";
+import { isPhone } from "../utils/DeviceDetection";
 
 /**
  * Root UI overlay that sits on top of the Three.js canvas.
@@ -107,10 +108,135 @@ export class UIManager {
     };
 
     this.buildShortcutBar();
+
+    if (isPhone()) {
+      this.applyMobileLayout();
+    }
+  }
+
+  /**
+   * Phone-only layout pass. HUD panels use fixed-pixel inline styles sized for
+   * desktop; here we tag each panel root with a class and inject a stylesheet of
+   * `!important` overrides (needed to beat the inline styles).
+   *
+   * Two groups, per the mobile design:
+   *   • Non-interactive INFO panels (status, combat HUD/log, quest tracker,
+   *     zone banner, minimap) are SCALED DOWN to declutter the small screen.
+   *   • Interactive panels (dialogue/prompt, chat, inventory, shortcut bar) are
+   *     kept at a comfortable, readable, tappable size — never shrunk.
+   */
+  private applyMobileLayout(): void {
+    // Interactive (kept usable)
+    this.interactionPanel.element.classList.add('m-interaction');
+    this.chatPanel.element.classList.add('m-chat');
+    this.inventoryPanel.element.classList.add('m-inventory');
+    // Non-interactive info (scaled down)
+    this.minimap.element.classList.add('m-minimap');
+    this.combatLog.element.classList.add('m-combatlog');
+    this.questTracker.element.classList.add('m-questtracker');
+    this.statusBars.element.classList.add('m-status');
+    this.combatHUD.element.classList.add('m-combathud');
+    this.zoneDisplay.element.classList.add('m-zone');
+
+    const style = document.createElement('style');
+    style.textContent = `
+      /* Stop the browser scrolling / pinch-zooming the page during play. */
+      html, body { overscroll-behavior: none; touch-action: none; }
+
+      /* iOS zooms the whole page when focusing an input whose font is < 16px.
+         Force 16px on every control so the viewport stays put. */
+      .is-phone input, .is-phone textarea, .is-phone select { font-size: 16px !important; }
+
+      /* Layout is tuned for landscape phones (≈915×412). Each panel gets a
+         dedicated screen zone so nothing overlaps:
+           top-left = status    top-center = shortcuts   top-right = minimap
+           right    = quests     bottom-left = joystick + chat
+           bottom-center = dialogue   bottom-right = combat log   center = inventory */
+
+      /* ── Top-left: status (info, scaled) ────────────────────────────────── */
+      .m-status {
+        transform: scale(0.7); transform-origin: top left;
+        top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+        left: calc(env(safe-area-inset-left, 0px) + 6px) !important;
+      }
+
+      /* ── Top-center: shortcut bar (tappable, stays centered) ─────────────── */
+      .ui-shortcut-bar {
+        top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+        bottom: auto !important;
+        gap: 6px !important;
+      }
+      .ui-shortcut-bar button { padding: 7px 11px !important; font-size: 12px !important; }
+
+      /* ── Top-right: minimap (info, scaled) ──────────────────────────────── */
+      .m-minimap {
+        transform: scale(0.5); transform-origin: top right;
+        top: calc(env(safe-area-inset-top, 0px) + 6px) !important;
+        right: calc(env(safe-area-inset-right, 0px) + 6px) !important;
+      }
+
+      /* ── Right edge, below the minimap: quest tracker (info, scaled) ─────── */
+      .m-questtracker {
+        transform: scale(0.78); transform-origin: top right;
+        top: 158px !important;
+        right: calc(env(safe-area-inset-right, 0px) + 6px) !important;
+      }
+
+      /* ── Bottom-right: combat log (info, scaled, clear of shortcut bar) ──── */
+      .m-combatlog {
+        transform: scale(0.66); transform-origin: bottom right;
+        right: calc(env(safe-area-inset-right, 0px) + 6px) !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 6px) !important;
+      }
+
+      /* Combat HUD drops below the shortcut bar so the two don't stack. */
+      .m-combathud {
+        transform: translateX(-50%) scale(0.7) !important;
+        transform-origin: top center;
+        top: 52px !important;
+      }
+      .m-zone { transform: translateX(-50%) scale(0.82) !important; transform-origin: top center; }
+
+      /* ── Left column, under the status bars: world chat (readable) ───────── */
+      /* Parked top-left (not bottom) so it never collides with the joystick or
+         the dialogue panel that share the cramped bottom band. */
+      .m-chat {
+        width: min(42vw, 260px) !important;
+        height: 28vh !important;
+        top: 56px !important;
+        left: calc(env(safe-area-inset-left, 0px) + 8px) !important;
+        bottom: auto !important;
+      }
+      .m-chat, .m-chat div, .m-chat span { font-size: 13px !important; line-height: 1.4 !important; }
+      .m-chat input { font-size: 16px !important; }
+
+      /* ── Bottom-center: NPC dialogue (between joystick and combat log) ───── */
+      .m-interaction {
+        width: min(48vw, 460px) !important;
+        height: auto !important;
+        max-height: 54vh !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: calc(env(safe-area-inset-bottom, 0px) + 10px) !important;
+      }
+
+      /* ── Center: inventory opens as a centered modal (clears the corners) ── */
+      .m-inventory {
+        top: 50% !important;
+        left: 50% !important;
+        right: auto !important;
+        bottom: auto !important;
+        transform: translate(-50%, -50%) !important;
+        max-width: 96vw !important;
+        max-height: 88vh !important;
+      }
+    `;
+    document.head.appendChild(style);
   }
 
   private buildShortcutBar(): void {
     const bar = document.createElement('div');
+    bar.className = 'ui-shortcut-bar';
     Object.assign(bar.style, {
       position: 'absolute',
       bottom: '12px',

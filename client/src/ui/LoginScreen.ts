@@ -1,4 +1,5 @@
 import { CharacterCreation } from './screens/CharacterCreation';
+import { isPhone } from '../utils/DeviceDetection';
 
 interface Ember {
   x: number; y: number; vx: number; vy: number;
@@ -64,6 +65,27 @@ export class LoginScreen {
       fontFamily: "'Cinzel', Georgia, serif", fontSize: '0.75rem', color: '#555', userSelect: 'none',
     } as CSSStyleDeclaration);
     this.overlay.appendChild(version);
+
+    // Phone: the centered column overflows a short viewport and hides the
+    // "Enter World" button. Make the overlay top-aligned + scrollable so every
+    // control is reachable, and shrink the title to reclaim vertical space.
+    if (isPhone()) {
+      Object.assign(this.overlay.style, {
+        justifyContent: 'flex-start',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        height: '100dvh',
+        padding:
+          'calc(env(safe-area-inset-top, 0px) + 16px) 12px ' +
+          'calc(env(safe-area-inset-bottom, 0px) + 32px)',
+      } as CSSStyleDeclaration);
+      Object.assign(title.style, {
+        fontSize: 'clamp(1.25rem, 7vw, 2.2rem)',
+        marginTop: '0',
+        marginBottom: '1em',
+        flexShrink: '0',
+      } as CSSStyleDeclaration);
+    }
 
     this.seedEmbers(80);
   }
