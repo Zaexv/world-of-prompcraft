@@ -1808,6 +1808,29 @@ kbd {
   margin-top: 1rem;
   align-items: start;
 }
+/* Full-screen variant — workflow and output stretch, type scales up. */
+.slide.full .ac-layout {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 300px 1fr;
+  gap: 2.2rem;
+  margin-top: 1.2rem;
+  align-items: stretch;
+}
+.slide.full .ac-workflow { justify-content: space-evenly; }
+.slide.full .ac-step-badge { font-size: 0.7rem; }
+.slide.full .ac-step-title { font-size: 0.95rem; }
+.slide.full .ac-step-body { font-size: 0.8rem; }
+.slide.full .ac-step-body code { font-size: 0.74rem; }
+.slide.full .ac-output { justify-content: space-evenly; }
+.slide.full .ac-stat-num { font-size: 2.7rem; }
+.slide.full .ac-stat-label { font-size: 0.92rem; }
+.slide.full .ac-stat-sub { font-size: 0.76rem; }
+.slide.full .ac-tools-title { font-size: 0.85rem; }
+.slide.full .ac-tool { font-size: 0.76rem; padding: 0.2rem 0.6rem; }
+.slide.full .ac-rulebook { font-size: 0.82rem; }
+.slide.full .ac-rulebook-label { font-size: 0.72rem; }
+.slide.full .ac-rulebook-body code { font-size: 0.72rem; }
 .ac-workflow {
   display: flex;
   flex-direction: column;
@@ -1939,6 +1962,7 @@ kbd {
   color: var(--muted);
   line-height: 1.5;
 }
+.ac-rulebook-body b { color: var(--ink); font-weight: 700; }
 .ac-rulebook-body code { font-family: var(--mono); font-size: 0.60rem; color: #c8a8e8; }
 
 /* ================================================================
