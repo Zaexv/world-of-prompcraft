@@ -703,6 +703,30 @@ kbd {
   align-items: start;
   margin-top: 0.6rem;
 }
+/* Full-screen variant — demo fills the whole panel, columns stretch. */
+.slide.full .agent-demo {
+  flex: 1;
+  min-height: 0;
+  grid-template-columns: 240px 340px 1fr;
+  gap: 1.4rem;
+  align-items: stretch;
+  margin-top: 1rem;
+}
+.slide.full .agent-npc-col .avatar-stage { height: auto; flex: 1; }
+.slide.full .igc {
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(0.78rem, 1vw, 0.92rem);
+}
+.slide.full .igc-history { flex: 1; }
+.slide.full .agent-right-col .ad-flow { width: 220px; }
+.slide.full .agent-trace {
+  display: flex;
+  flex-direction: column;
+  font-size: clamp(0.82rem, 1.05vw, 0.98rem);
+}
+.slide.full .agent-trace .trace-section { flex: 1; }
+.slide.full .trace-thought { font-size: 0.8rem; }
 .agent-npc-col {
   display: flex;
   flex-direction: column;

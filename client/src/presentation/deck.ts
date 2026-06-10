@@ -233,10 +233,10 @@ export function initDeck(onSlide?: SlideListener): void {
     { passive: true },
   );
 
-  // Click the far left / right edge to page (ignore links + diagram drags).
+  // Click the far left / right edge to page (ignore links, buttons + diagram drags).
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest('a') || t.closest('.diagram')) return;
+    if (t.closest('a, button, .diagram')) return;
     if (e.clientX < window.innerWidth * 0.22) prev();
     else if (e.clientX > window.innerWidth * 0.78) next();
   });
