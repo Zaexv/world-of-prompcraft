@@ -17,6 +17,7 @@ import { ZoneTracker } from '../systems/ZoneTracker';
 import { safeArrivalXZ } from '../systems/TeleportRegistry';
 import { ZoneAtmosphere } from '../systems/ZoneAtmosphere';
 import { DungeonSystem } from '../systems/DungeonSystem';
+import { BoatSystem } from '../systems/BoatSystem';
 import { AudioSystem } from '../audio/AudioSystem';
 import { WorldBuilder } from '../systems/WorldBuilder';
 import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
@@ -145,6 +146,8 @@ export function bootstrap(
   const dungeonSystem = new DungeonSystem(scene, entityManager, null!, playerState);
   dungeonSystem.setCollisionSystem(collisionSystem);
   dungeonSystem.excludeFromDungeonHide(player.group);
+
+  const boatSystem = new BoatSystem(scene);
 
   terrain.onChunkLoaded   = (cx, cz, wx, wz) => worldGenerator.onChunkLoaded(cx, cz, wx, wz);
   terrain.onChunkUnloaded = (cx, cz)         => worldGenerator.onChunkUnloaded(cx, cz);
@@ -348,7 +351,7 @@ export function bootstrap(
   engine = new GameEngine({
     sceneManager, playerController, player, entityManager, collisionSystem,
     interactionSystem, reactionSystem, worldGenerator, worldBuilder, zoneTracker, zoneAtmosphere,
-    dungeonSystem, uiManager, ws, playerState, npcStateStore, runtime,
+    dungeonSystem, boatSystem, uiManager, ws, playerState, npcStateStore, runtime,
   });
 
   // Compile every shader program and upload every texture while the loading
