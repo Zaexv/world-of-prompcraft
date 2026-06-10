@@ -1946,8 +1946,8 @@ kbd {
    ================================================================ */
 .contrib-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1rem;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.1rem;
   width: 100%;
   margin-top: 1.8rem;
 }
@@ -1973,52 +1973,28 @@ kbd {
   border-color: var(--line);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.5);
 }
-/* Featured contributors — larger card, gilt frame, soft glow. */
-.contrib-card--lead {
-  border-color: rgba(212, 179, 105, 0.5);
-  padding: 1.9rem 1.1rem 1.6rem;
-  box-shadow: 0 0 26px rgba(212, 179, 105, 0.08), 0 14px 36px rgba(0, 0, 0, 0.35);
-}
-.contrib-card--lead .contrib-avatar {
-  width: 84px;
-  height: 84px;
-  font-size: 2.2rem;
-}
-.contrib-card--lead .contrib-name { font-size: 1.2rem; }
-.contrib-card--lead .contrib-role { font-size: 0.82rem; max-width: 30ch; }
-/* Secondary contributor — quieter card. */
-.contrib-card--minor { opacity: 0; }
-.slide.active .contrib-card--minor { animation-name: pillar-rise-minor; }
-@keyframes pillar-rise-minor {
-  from { opacity: 0; transform: translateY(26px); }
-  to { opacity: 0.78; transform: translateY(0); }
-}
-.contrib-card--minor .contrib-avatar {
-  width: 50px;
-  height: 50px;
-  font-size: 1.3rem;
-  border-width: 1px;
-  box-shadow: none;
-}
-.contrib-card--minor .contrib-name { font-size: 0.88rem; }
-/* Initial-letter medallion — gilt ring with a soft glow. */
-.contrib-avatar {
-  width: 66px;
-  height: 66px;
-  display: grid;
-  place-items: center;
+/* Portrait medallion — photo (or initial placeholder) in a gilt ring. */
+.contrib-photo {
+  width: 96px;
+  height: 96px;
   border-radius: 50%;
-  font-family: var(--serif);
-  font-size: 1.7rem;
-  font-weight: 700;
-  color: var(--gold-bright);
+  object-fit: cover;
+  object-position: center 30%;
   border: 2px solid var(--gold);
   background: radial-gradient(circle at 50% 35%, rgba(212, 179, 105, 0.22), rgba(10, 7, 17, 0.6) 75%);
   box-shadow: 0 0 18px rgba(212, 179, 105, 0.25), inset 0 0 12px rgba(212, 179, 105, 0.12);
 }
+.contrib-photo--initial {
+  display: grid;
+  place-items: center;
+  font-family: var(--serif);
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--gold-bright);
+}
 .contrib-name {
   font-family: var(--serif);
-  font-size: 1rem;
+  font-size: 1.15rem;
   font-weight: 700;
   color: var(--ink);
   letter-spacing: 0.03em;
@@ -2029,17 +2005,33 @@ kbd {
   letter-spacing: 0.04em;
   text-align: center;
 }
-.contrib-badge {
-  font-family: var(--serif);
-  font-size: 0.62rem;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--gold-bright);
+/* LinkedIn pill — href filled per speaker; sits under the role line. */
+.contrib-link {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  color: var(--gold);
+  text-decoration: none;
   border: 1px solid var(--line);
-  border-radius: 3px;
-  padding: 0.16rem 0.55rem;
-  margin-top: 0.2rem;
+  border-radius: 14px;
+  padding: 0.18rem 0.7rem;
+  margin-top: 0.3rem;
+  transition: background 0.18s ease, border-color 0.18s ease;
 }
+.contrib-link:hover {
+  background: rgba(212, 179, 105, 0.16);
+  border-color: rgba(212, 179, 105, 0.7);
+}
+/* Closing credit line under the grid. */
+.contrib-thanks {
+  margin-top: 1.5rem;
+  font-size: 0.86rem;
+  color: var(--muted);
+  letter-spacing: 0.03em;
+}
+.contrib-thanks a { text-decoration: none; }
+.contrib-thanks b { color: var(--gold-soft); font-weight: 600; }
+.contrib-thanks a:hover b { color: var(--gold-bright); }
 
 /* ================================================================
    SLIDE 16 — THANKS / WORLD OF PROMPTCRAFT
