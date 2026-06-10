@@ -1958,15 +1958,16 @@ kbd {
   margin-top: 1.4rem;
 }
 .pp-stage {
-  flex: 1;
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.55rem;
+  gap: 0.5rem;
   background: rgba(10, 7, 17, 0.6);
   border: 1px solid var(--line-soft);
   border-top: 3px solid transparent;
   border-radius: 10px;
-  padding: 1.1rem 1.1rem 1rem;
+  padding: 0.95rem 0.95rem 0.85rem;
   opacity: 0;
 }
 .slide.active .pp-stage { animation: pillar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
@@ -1978,7 +1979,8 @@ kbd {
 .pp-head {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
 }
 .pp-icon { display: inline-flex; }
 .pp-icon svg { width: 24px; height: 24px; }
@@ -1990,13 +1992,13 @@ kbd {
 .pp-agent {
   margin-left: auto;
   font-family: var(--mono);
-  font-size: 0.56rem;
-  letter-spacing: 0.08em;
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);
   border: 1px dashed rgba(212, 179, 105, 0.4);
   border-radius: 10px;
-  padding: 0.1rem 0.45rem;
+  padding: 0.1rem 0.4rem;
   white-space: nowrap;
 }
 .pp-badge {
@@ -2011,31 +2013,33 @@ kbd {
 }
 .pp-stage h3 {
   font-family: var(--serif);
-  font-size: clamp(0.95rem, 1.4vw, 1.2rem);
+  font-size: clamp(0.9rem, 1.25vw, 1.1rem);
   color: var(--ink);
 }
 .pp-stage p {
-  font-size: clamp(0.78rem, 1.05vw, 0.92rem);
-  line-height: 1.55;
+  font-size: clamp(0.74rem, 0.98vw, 0.88rem);
+  line-height: 1.5;
   color: var(--muted);
+  overflow-wrap: break-word;
 }
 .pp-stage p b { color: var(--ink); }
 .pp-stage p code { font-size: 0.85em; }
 .pp-artifact {
   margin-top: auto;
   font-family: var(--mono);
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   color: var(--gold-soft);
   background: rgba(212, 179, 105, 0.08);
   border: 1px dashed rgba(212, 179, 105, 0.4);
   border-radius: 6px;
-  padding: 0.32rem 0.5rem;
+  padding: 0.3rem 0.4rem;
   text-align: center;
+  overflow-wrap: break-word;
 }
 .pp-arr {
   align-self: center;
   color: var(--gold);
-  font-size: 1.1rem;
+  font-size: 1rem;
   flex-shrink: 0;
 }
 .pp-stage--prompt   { border-top-color: rgba(136, 200, 255, 0.7); }
