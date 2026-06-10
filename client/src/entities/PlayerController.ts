@@ -49,8 +49,9 @@ export class PlayerController {
   // --- Boat (set by BoatSystem when the player boards on entering water) ---
   /** When true, the player rides a boat on the surface instead of swimming. */
   public inBoat = false;
-  /** Height the player's feet sit above the water surface while in the boat. */
-  public readonly boatDeckHeight = 0.45;
+  /** Height the player's feet sit above the water surface while in the boat
+   * (the boat's floorboards, which sit just above the waterline). */
+  public readonly boatDeckHeight = 0.3;
   private readonly boatSpeed = 11;
   private readonly boatSprintSpeed = 18;
 

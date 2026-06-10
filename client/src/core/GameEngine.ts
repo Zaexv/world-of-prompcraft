@@ -329,10 +329,11 @@ export class GameEngine {
         delta,
         !this.introCinematicActive && !dialogFocusActive && d.playerController.isMoving,
         (this.introCinematicActive || dialogFocusActive) ? this._idleVelocity : d.playerController.velocity,
-        // In a boat the player sits upright, not the swim pose.
+        // In a boat the player holds a sailing pose, not the swim pose.
         d.playerController.isSwimming && !d.playerController.inBoat,
         d.playerController.facingYawOverride,
         d.playerController.isGrounded,
+        d.playerController.inBoat,
       );
       // Board / leave the boat on entering / leaving water; bob, rock, hop.
       d.boatSystem.update(d.playerController, d.player.group, delta);

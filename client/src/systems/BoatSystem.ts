@@ -14,10 +14,12 @@ import { AudioSystem } from '../audio/AudioSystem';
  * Call `update(controller, playerGroup, delta)` once per frame, after the
  * controller has moved and the player group position has been synced.
  */
-const BOARD_TIME = 0.55; // seconds for the hop-in / hop-out animation
-const HOP_HEIGHT = 0.7;  // peak of the boarding hop arc (world units)
-const BOB_AMP = 0.12;    // vertical bob amplitude
-const ROCK_AMP = 0.05;   // side-to-side rock (radians)
+const BOAT_SCALE = 2.2;   // boat is much bigger than the character
+const BOAT_OFFSET = 1.7;  // shift the hull back so the player stands at the bow, leading
+const BOARD_TIME = 0.55;  // seconds for the hop-in / hop-out animation
+const HOP_HEIGHT = 0.9;   // peak of the boarding hop arc (world units)
+const BOB_AMP = 0.14;     // vertical bob amplitude
+const ROCK_AMP = 0.05;    // side-to-side rock (radians)
 
 export class BoatSystem {
   private readonly boat: THREE.Group;
@@ -69,11 +71,16 @@ export class BoatSystem {
       }
     }
 
-    // Boat sits on the water surface under the player, aligned to their facing.
-    this.boat.position.set(px, waterLevel + bob, pz);
-    this.boat.rotation.set(rockX, playerGroup.rotation.y, rockZ);
-    const scale = this.mounted ? 1 : Math.max(0.001, 1 - this.transition / BOARD_TIME);
-    this.boat.scale.setScalar(scale);
+    // Boat sits on the water surface aligned to the player's facing, shifted back
+    // so the player stands toward the bow and appears to lead/steer it. Forward
+    // for this game's yaw convention is (sin, cos).
+    const yaw = playerGroup.rotation.y;
+    const fwdX = Math.sin(yaw);
+    const fwdZ = Math.cos(yaw);
+    this.boat.position.set(px - fwdX * BOAT_OFFSET, waterLevel + bob, pz - fwdZ * BOAT_OFFSET);
+    this.boat.rotation.set(rockX, yaw, rockZ);
+    const grow = this.mounted ? 1 : Math.max(0.001, 1 - this.transition / BOARD_TIME);
+    this.boat.scale.setScalar(grow * BOAT_SCALE);
 
     // Seat the player on the deck and let them bob with the boat (+ the hop).
     if (this.mounted || this.leaving) {
