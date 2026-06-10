@@ -4,6 +4,8 @@ import { PlayerController } from '../entities/PlayerController';
 import { Player } from '../entities/Player';
 import { EntityManager } from '../entities/EntityManager';
 import { InteractionSystem } from '../systems/InteractionSystem';
+import { TouchControls } from '../systems/TouchControls';
+import { isPhone } from '../utils/DeviceDetection';
 import { ReactionSystem } from '../systems/ReactionSystem';
 import { WebSocketClient } from '../network/WebSocketClient';
 import { UIManager } from '../ui/UIManager';
@@ -108,6 +110,13 @@ export function bootstrap(
   playerController.setCollisionSystem(collisionSystem);
 
   const interactionSystem = new InteractionSystem(camera, renderer.domElement, entityManager);
+
+  // Mobile: spawn the on-screen joystick + drag-look controls. Desktop keeps the
+  // mouse-orbit / keyboard scheme (PlayerController skips touch when !isPhone()).
+  if (isPhone()) {
+    document.body.classList.add('is-phone');
+    new TouchControls(playerController, renderer.domElement);
+  }
 
   const audioSystem = AudioSystem.getInstance();
   audioSystem.init();
