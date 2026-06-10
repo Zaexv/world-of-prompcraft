@@ -60,7 +60,7 @@ export const ZONE_ATMOSPHERES: Record<string, AtmospherePreset> = {
   //                           fog        density  sky        ground     ambient    aInt  sun        bloom
   "Suarez Quarter":  preset(0xc8c4e0, 0.0028, 0xb9c0e8, 0x6a5a50, 0xfff0e0, 0.55, 0xffe8c8, 0.88),
   "Fort Malaka":           preset(0xc6dcec, 0.0020, 0xa8cdec, 0x6a5e48, 0xfff0d8, 0.60, 0xffe6b8, 0.90),
-  "Elders' Village":       preset(0xc8def0, 0.0018, 0xa6cdee, 0x6e5e44, 0xfff2dc, 0.62, 0xffe7bc, 0.90),
+  "Makaleta Strande":       preset(0xc8def0, 0.0018, 0xa6cdee, 0x6e5e44, 0xfff2dc, 0.62, 0xffe7bc, 0.90),
   "Dark Forest":           preset(0xa8c0b0, 0.0035, 0x8fb4cf, 0x4a5238, 0xeaf0d8, 0.50, 0xfff0c8, 0.85),
   "Ember Peaks":           preset(0xe8c4a0, 0.0030, 0xe0b890, 0x6a4a30, 0xfff0dc, 0.55, 0xffd9a0, 0.85),
   "Crystal Lake":          preset(0xc8e2f2, 0.0018, 0xa8d4f0, 0x6a6450, 0xfff2e0, 0.60, 0xffe8c4, 0.90),
@@ -71,7 +71,7 @@ export const ZONE_ATMOSPHERES: Record<string, AtmospherePreset> = {
   "Teldrassil Wilds":      preset(0xc4def0, 0.0022, 0xa6cee8, 0x5e5e40, 0xfff0dc, 0.60, 0xffe8bc, 0.90),
 };
 
-const DEFAULT_PRESET = ZONE_ATMOSPHERES["Elders' Village"]!;
+const DEFAULT_PRESET = ZONE_ATMOSPHERES["Makaleta Strande"]!;
 
 // ── Runtime state ────────────────────────────────────────────────────────────
 

@@ -257,6 +257,19 @@ export function getBiomeWeights(x: number, z: number): BiomeWeights {
   return weights;
 }
 
+/**
+ * Display zone name for each biome sector. Zones are derived from the biome
+ * partition (see systems/ZoneTracker) so a zone never overlaps another.
+ */
+export const BIOME_ZONE_NAMES: Record<BiomeType, string> = {
+  [BiomeType.Teldrassil]: "Teldrassil Wilds",
+  [BiomeType.BlastedSuarezLands]: "Blasted Suarezlands",
+  [BiomeType.CrystalTundra]: "Crystal Tundra",
+  [BiomeType.MoinSwamps]: "Moin Swamps",
+  [BiomeType.MalakaArea]: "Malaka Area",
+  [BiomeType.TanisDesert]: "Tanis Desert",
+};
+
 /** Returns the dominant biome at a position. */
 export function getDominantBiome(x: number, z: number): BiomeType {
   const w = getBiomeWeights(x, z);
@@ -288,10 +301,14 @@ function directionalWeight(angle: number, targetAngle: number): number {
   while (diff > Math.PI) diff -= Math.PI * 2;
   while (diff < -Math.PI) diff += Math.PI * 2;
 
-  // 90° halfWidth: covers all directions without dead zones. Biomes at 45° spacing
-  // (N/E/S) each overlap; the SW (MalakaArea) and NW (TanisDesert) at 135° gap
-  // blend cleanly at the west (180°) midpoint.
-  const halfWidth = Math.PI * 0.50; // 90 degrees
+  // halfWidth must exceed half the largest gap between adjacent biome axes (90°)
+  // so every direction is covered by at least one biome. Otherwise the gaps fall
+  // back to the tiny center weight and normalize to a full Teldrassil-forest
+  // wedge jammed between biomes — which looked weird. At 54° neighbouring biomes
+  // overlap just enough to blend smoothly into each other (no forest seam) while
+  // each still owns a distinct core on its axis. Tunable: narrower → harder
+  // separation (risks gaps); wider → more bleed.
+  const halfWidth = Math.PI * 0.30; // 54 degrees
   if (Math.abs(diff) > halfWidth) return 0;
   return 0.5 + 0.5 * Math.cos((diff / halfWidth) * Math.PI);
 }
@@ -306,13 +323,16 @@ export function biomeHeightModifier(x: number, z: number, biome: BiomeType): num
   switch (biome) {
     case BiomeType.Teldrassil:
       return 0; // base terrain unchanged
-    case BiomeType.BlastedSuarezLands:
-      // Steeper, jagged volcanic terrain
-      return (
-        (Math.sin(x * 0.02 + 5.0) * Math.cos(z * 0.025 - 2.0) * 6 +
-          Math.abs(Math.sin(x * 0.06) * Math.cos(z * 0.07)) * 4 +
-          Math.sin(x * 0.12 + z * 0.08) * 2) * amplitude
-      );
+    case BiomeType.BlastedSuarezLands: {
+      // Dramatic volcanic terrain: broad cones, jagged ridges, and fine rubble.
+      // Large low-frequency swells form caldera-like rises; abs() ridges sharpen
+      // them into peaks; high-frequency noise adds scorched detail.
+      const cones = Math.abs(Math.sin(x * 0.012 + 1.0) * Math.cos(z * 0.013 - 0.5)) * 16;
+      const ridges = Math.abs(Math.sin(x * 0.04) * Math.cos(z * 0.045)) * 7;
+      const swell = Math.sin(x * 0.02 + 5.0) * Math.cos(z * 0.025 - 2.0) * 5;
+      const rubble = Math.sin(x * 0.12 + z * 0.08) * 2;
+      return (cones + ridges + swell + rubble) * amplitude;
+    }
     case BiomeType.CrystalTundra:
       // High peaks and plateaus
       return (
@@ -426,6 +446,22 @@ function smoothstep(edge0: number, edge1: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
+/**
+ * Procedural molten-lava field [0..1] for the Blasted Suarezlands, baked into
+ * the terrain itself (no prop meshes). Broad slow pools + finer cracking veins;
+ * thresholded so lava reads as glowing pools/rivers, not a uniform wash.
+ * Shared by both the terrain color and emissive passes so they line up exactly.
+ */
+export function lavaField(x: number, z: number): number {
+  const pools = Math.sin(x * 0.018 + 1.3) * Math.cos(z * 0.021 - 0.7);
+  const cracks = Math.sin(x * 0.07 - z * 0.05) * Math.cos(z * 0.06 + x * 0.04);
+  const v = pools * 0.7 + cracks * 0.3;
+  return smoothstep(0.42, 0.72, v);
+}
+
+// Molten lava surface tint (shared, allocated once).
+const _lavaColor = new THREE.Color(1.0, 0.32, 0.06);
+
 export function getBiomeColor(x: number, z: number, y: number, t: number, cachedWeights?: BiomeWeights): THREE.Color {
   _cacheEnv();
   const weights = cachedWeights ?? getBiomeWeights(x, z);
@@ -474,6 +510,15 @@ export function getBiomeColor(x: number, z: number, y: number, t: number, cached
     _colorResult.r += _colorTemp.r * w;
     _colorResult.g += _colorTemp.g * w;
     _colorResult.b += _colorTemp.b * w;
+  }
+
+  // --- Molten lava baked into the terrain (Blasted Suarezlands) ---
+  const lavaWeight = weights[BiomeType.BlastedSuarezLands];
+  if (lavaWeight > 0.2) {
+    const lf = lavaField(x, z) * lavaWeight;
+    if (lf > 0.01) {
+      _colorResult.lerp(_lavaColor, Math.min(0.88, lf));
+    }
   }
 
   // --- Manifest-driven Grass Patches ---
@@ -627,11 +672,23 @@ export function getBiomeEmissive(x: number, z: number, y: number, t: number, cac
   // so the floor is lit purely by the warm sun/sky. (A nocturnal magic glow
   // used to be baked in here, which read as a persistent cold blue cast.)
 
-  if (weights[BiomeType.BlastedSuarezLands] > 0.01 && t < 0.35) {
-    const str = (1.0 - t / 0.35) * 0.25 * weights[BiomeType.BlastedSuarezLands];
+  if (weights[BiomeType.BlastedSuarezLands] > 0.01 && t < 0.42) {
+    // Molten glow pooling in the low ground between volcanic ridges.
+    const str = (1.0 - t / 0.42) * 0.4 * weights[BiomeType.BlastedSuarezLands];
     _emissiveResult.r += 1.0 * str;
-    _emissiveResult.g += 0.3 * str;
-    _emissiveResult.b += 0.05 * str;
+    _emissiveResult.g += 0.28 * str;
+    _emissiveResult.b += 0.04 * str;
+  }
+
+  // Bright glow on the exposed lava pools/veins baked into the terrain so they
+  // read as molten rock regardless of height.
+  if (weights[BiomeType.BlastedSuarezLands] > 0.2) {
+    const lf = lavaField(x, z) * weights[BiomeType.BlastedSuarezLands];
+    if (lf > 0.01) {
+      _emissiveResult.r += 1.0 * lf * 0.7;
+      _emissiveResult.g += 0.30 * lf * 0.7;
+      _emissiveResult.b += 0.03 * lf * 0.7;
+    }
   }
 
   if (weights[BiomeType.CrystalTundra] > 0.01 && t > 0.5) {

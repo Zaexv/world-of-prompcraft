@@ -35,7 +35,10 @@ describe('WorldGenerator - minimap waypoint sync', () => {
     
     const manifest = new WorldManifest();
     manifest.getAllLandmarks = vi.fn().mockReturnValue([
-      { id: 'test_l', visual: { label: 'Test L' }, transform: { position: [1, 0, 2] } }
+      // Teleportable destination type → becomes a teleport waypoint.
+      { id: 'test_tower', type: 'tower', visual: { label: 'Test Tower' }, transform: { position: [1, 0, 2], scale: 1 } },
+      // Decorative prop → filtered out (not a travel destination).
+      { id: 'test_palm', type: 'malaka_palmtree', visual: { label: 'Palm' }, transform: { position: [5, 0, 6], scale: 1 } },
     ]);
     manifest.getTerrainFeatures = vi.fn().mockReturnValue([
       { id: 'test_f', transform: { x: 3, z: 4 } }
@@ -43,21 +46,26 @@ describe('WorldGenerator - minimap waypoint sync', () => {
     generator.setWorldManifest(manifest);
 
     expect(minimap.setWaypoints).toHaveBeenCalledTimes(1);
-    expect(minimap.setWaypoints).toHaveBeenCalledWith(
+    const waypoints = (minimap.setWaypoints as ReturnType<typeof vi.fn>).mock.calls[0][0];
+
+    // Decorative prop is filtered out; only the tower + feature remain.
+    expect(waypoints).toHaveLength(2);
+    expect(waypoints.find((w: { id: string }) => w.id === 'landmark:test_palm')).toBeUndefined();
+    expect(waypoints).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          id: 'landmark:test_l',
-          label: 'Test L',
+          id: 'landmark:test_tower',
+          label: 'Test Tower',
           x: 1,
           z: 2,
-          kind: 'landmark',
+          kind: 'teleport',
         }),
         expect.objectContaining({
           id: 'feature:test_f',
           label: 'Test F',
           x: 3,
           z: 4,
-          kind: 'feature',
+          kind: 'teleport',
         }),
       ]),
     );

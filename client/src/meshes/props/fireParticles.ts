@@ -17,7 +17,13 @@ function emberSprite(): THREE.Texture {
   const s = 32;
   const canvas = document.createElement('canvas');
   canvas.width = canvas.height = s;
-  const ctx = canvas.getContext('2d')!;
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    // Headless / no-2d-context environments (e.g. happy-dom in tests): skip the
+    // painted gradient, return a blank texture so mesh construction never throws.
+    sharedSprite = new THREE.CanvasTexture(canvas);
+    return sharedSprite;
+  }
   const grad = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
   grad.addColorStop(0, 'rgba(255,255,255,1)');
   grad.addColorStop(0.4, 'rgba(255,200,120,0.75)');

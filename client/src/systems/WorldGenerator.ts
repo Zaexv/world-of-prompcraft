@@ -16,8 +16,24 @@ import type { WorldBuilder } from './WorldBuilder';
 import { ProceduralPopulator } from './ProceduralPopulator';
 import type { LandmarkDefinition, NPCDefinition } from '../state/WorldManifest';
 import type { NPCPlaceholderStyle } from '../entities/NPCModels';
+import { FOOTPRINT_SPECS } from '../scene/Terrain';
+import { isTeleportType } from './TeleportRegistry';
 
 const CHUNK_SIZE = 64; // Match Terrain.ts
+
+/** Estimate a footprint radius (world units) for a landmark, for safe arrival offset. */
+function landmarkFootprintRadius(landmark: LandmarkDefinition): number {
+  const metaSpec = landmark.visual?.metadata?.footprint as
+    | { shape?: string; radius?: number; width?: number; depth?: number }
+    | undefined;
+  const spec = metaSpec ?? FOOTPRINT_SPECS[landmark.type];
+  const scale = landmark.transform.scale ?? 1.0;
+  if (!spec) return 6; // sensible default clearance
+  if (spec.shape === 'circle') return (spec.radius ?? 4) * scale;
+  const w = (spec.width ?? 6) * scale;
+  const d = (spec.depth ?? 6) * scale;
+  return Math.sqrt(w * w + d * d) / 2;
+}
 
 type ExclusionFootprint = { x: number; z: number; radius: number };
 
@@ -267,12 +283,18 @@ export class WorldGenerator {
       const label = landmark.visual?.label?.trim();
       if (!label) continue;
 
+      const teleportable =
+        landmark.visual?.metadata?.teleportable === true ||
+        isTeleportType(landmark.type);
+      if (!teleportable) continue; // skip props (palm trees, grass, lanterns, …)
+
       waypoints.push({
         id: `landmark:${landmark.id}`,
         label,
         x: landmark.transform.position[0],
         z: landmark.transform.position[2],
-        kind: 'landmark',
+        kind: 'teleport',
+        safeRadius: landmarkFootprintRadius(landmark),
       });
     }
 
@@ -282,7 +304,8 @@ export class WorldGenerator {
         label: this.formatWaypointLabel(feature.id),
         x: feature.transform.x,
         z: feature.transform.z,
-        kind: 'feature',
+        kind: 'teleport',
+        safeRadius: 8,
       });
     }
 
