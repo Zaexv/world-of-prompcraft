@@ -7,6 +7,23 @@
  */
 import * as THREE from 'three';
 import { buildMesh } from '../meshes/index';
+import { NPCAnimator } from '../entities/NPCAnimator';
+import { createNPCMotionProfile } from '../entities/NPCMotion';
+
+interface AvatarViewOptions {
+  /** Slow turntable spin (default). Off = fixed three-quarter facing. */
+  turntable?: boolean;
+  /** Drive the mesh with the in-game NPCAnimator: idle bob + periodic gestures. */
+  liveAnims?: boolean;
+}
+
+/** Gestures the live-anim stage cycles through, like an NPC at its post. */
+const STAGE_GESTURES: ReadonlyArray<readonly [string, string?]> = [
+  ['talk'],
+  ['emote', 'wave'],
+  ['talk'],
+  ['emote', 'laugh'],
+];
 
 export class AvatarView {
   private readonly scene = new THREE.Scene();
@@ -18,10 +35,14 @@ export class AvatarView {
   private raf = 0;
   private running = false;
   private loaded = false;
+  private animator: NPCAnimator | null = null;
+  private gestureCooldown = 2.5;
+  private gestureIndex = 0;
 
   constructor(
     private readonly container: HTMLElement,
     private readonly meshId = 'npc_individual_zaex_01',
+    private readonly opts: AvatarViewOptions = {},
   ) {
     this.camera = new THREE.PerspectiveCamera(38, 1, 0.05, 2000);
 
@@ -70,6 +91,14 @@ export class AvatarView {
     box.getCenter(centre);
     obj.position.set(-centre.x, -box.min.y, -centre.z); // feet on the ground
     this.pivot.add(obj);
+
+    if (this.opts.liveAnims) {
+      const profile = createNPCMotionProfile({ id: this.meshId, name: this.meshId, behavior: 'friendly' });
+      this.animator = new NPCAnimator(obj as THREE.Group, profile);
+      this.animator.setBaseY(obj.position.y);
+    }
+    // Fixed three-quarter facing when the turntable is off.
+    if (this.opts.turntable === false) this.pivot.rotation.y = 0.35;
 
     // Soft contact shadow under the avatar.
     const plane = new THREE.Mesh(
@@ -121,7 +150,20 @@ export class AvatarView {
     if (!this.running) return;
     this.raf = requestAnimationFrame(this.loop);
     const dt = Math.min(this.clock.getDelta(), 0.05);
-    this.pivot.rotation.y += dt * 0.5; // slow, steady turntable
+    if (this.opts.turntable !== false) {
+      this.pivot.rotation.y += dt * 0.5; // slow, steady turntable
+    }
+    if (this.animator) {
+      // Idle at the post, with a gesture every few seconds — like in-game NPCs.
+      this.gestureCooldown -= dt;
+      if (this.gestureCooldown <= 0) {
+        const [anim, emote] = STAGE_GESTURES[this.gestureIndex % STAGE_GESTURES.length];
+        this.animator.play(anim, emote);
+        this.gestureIndex++;
+        this.gestureCooldown = 4 + Math.random() * 3;
+      }
+      this.animator.update(dt);
+    }
     this.renderer.render(this.scene, this.camera);
   };
 }

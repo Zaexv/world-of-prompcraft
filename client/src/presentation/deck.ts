@@ -44,9 +44,9 @@ export async function renderDiagrams(): Promise<void> {
       fontSize: '14px',
       background: 'transparent',
       primaryColor: '#1a1320',
-      primaryBorderColor: '#c5a55a',
-      primaryTextColor: '#e8dcc8',
-      lineColor: '#c5a55a',
+      primaryBorderColor: '#d4b369',
+      primaryTextColor: '#f4ecdd',
+      lineColor: '#d4b369',
       secondaryColor: '#241a2c',
       tertiaryColor: '#15101c',
     },
@@ -233,10 +233,10 @@ export function initDeck(onSlide?: SlideListener): void {
     { passive: true },
   );
 
-  // Click the far left / right edge to page (ignore links + diagram drags).
+  // Click the far left / right edge to page (ignore links, buttons + diagram drags).
   document.addEventListener('click', (e) => {
     const t = e.target as HTMLElement;
-    if (t.closest('a') || t.closest('.diagram')) return;
+    if (t.closest('a, button, .diagram')) return;
     if (e.clientX < window.innerWidth * 0.22) prev();
     else if (e.clientX > window.innerWidth * 0.78) next();
   });

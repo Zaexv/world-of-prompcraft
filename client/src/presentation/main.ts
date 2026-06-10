@@ -73,13 +73,16 @@ if (avatarEl) {
   }
 }
 
-// Slide-11 NPC view — Aurelia the merchant, to accompany the agent trace demo.
+// Slide-11 NPC view — Paco el Churrero, to accompany the agent trace demo.
 const NPC_SLIDE = 10; // 0-based
 let npcView11: AvatarView | null = null;
 const npcStageEl = document.getElementById('npcStage11');
 if (npcStageEl) {
   try {
-    npcView11 = new AvatarView(npcStageEl, 'npc_individual_merchant_malaka_01');
+    npcView11 = new AvatarView(npcStageEl, 'npc_individual_churrero_malaka_01', {
+      turntable: false,
+      liveAnims: true,
+    });
   } catch (err) {
     console.warn('NPC view unavailable:', err);
   }

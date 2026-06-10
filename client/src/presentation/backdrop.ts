@@ -66,14 +66,16 @@ export class Backdrop {
     { kind: 'vista', x: -150, z: -40, radius: 24, height: 2.6 }, // 6  pillar 1 (3D CLI)
     { kind: 'vista', x: 40, z: -90, radius: 24, height: 2.6 },   // 6  why three.js (agent showcase)
     { kind: 'vista', x: 160, z: 30, radius: 22, height: 2.5 },   // 7  rendering pipeline
-    { kind: 'vista', x: -200, z: -250, radius: 26, height: 2.6 }, // 10 backend arch — Fort Malaka
-    { kind: 'vista', x: -180, z: -220, radius: 22, height: 2.5 }, // 11 agent in action — Fort Malaka
-    { kind: 'vista', x: 100, z: -150, radius: 24, height: 2.6 }, // 9  agent graph
-    { kind: 'vista', x: 130, z: -70, radius: 22, height: 2.5 },  // 10 state & memory
-    { kind: 'vista', x: -130, z: -110, radius: 24, height: 2.6 },// 11 tool system
-    { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 12 concurrency & authority
-    { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 13 pillar 3 (coding)
-    { kind: 'vista', x: 0, z: 0, radius: 28, height: 2.7 },      // 14 takeaways
+    // Pillars 2 + 3 hold one vista: the mage tower in the Blasted Suarezlands
+    // (manifest landmark at ~(460, 100)) — the camera stays put for the whole arc.
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 10 backend arch — mage tower
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 11 agent in action
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 12 state graph
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 13 PoC transcript
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 14 pillar 3 (coding)
+    { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 15 contributors
+    { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 16 thanks
+    { kind: 'vista', x: 0, z: 0, radius: 28, height: 2.7 },      // spare
   ];
 
   constructor(container: HTMLElement) {
