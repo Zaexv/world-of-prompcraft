@@ -24,14 +24,16 @@ export function addOutlineShell(root: THREE.Object3D, options: OutlineOptions = 
     meshes.push(child);
   });
 
+  // One material shared by all shells in this call: identical params anyway, and
+  // sharing lets the NPC rig merge collapse every outline shell into one draw.
+  const outlineMaterial = new THREE.MeshBasicMaterial({
+    color,
+    side: THREE.BackSide,
+    transparent: opacity < 1,
+    opacity,
+    depthWrite: false,
+  });
   for (const mesh of meshes) {
-    const outlineMaterial = new THREE.MeshBasicMaterial({
-      color,
-      side: THREE.BackSide,
-      transparent: opacity < 1,
-      opacity,
-      depthWrite: false,
-    });
     const outline = new THREE.Mesh(mesh.geometry.clone(), outlineMaterial);
     outline.name = `${mesh.name || 'mesh'}_outline`;
     outline.position.set(0, 0, 0);
