@@ -1136,8 +1136,8 @@ kbd {
 /* ---- State graph slide: graph + tools + state ---- */
 .sg-layout {
   display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: 1.2rem;
+  grid-template-columns: 1fr 400px;
+  gap: 1.4rem;
   margin-top: 0.7rem;
   align-items: start;
 }
@@ -1158,16 +1158,16 @@ kbd {
 }
 .sg-block-title {
   font-family: var(--serif);
-  font-size: 0.72rem;
+  font-size: 0.88rem;
   color: var(--gold-soft);
-  padding: 0.4rem 0.75rem;
-  background: rgba(197, 165, 90, 0.05);
+  padding: 0.5rem 0.8rem;
+  background: rgba(212, 179, 105, 0.08);
   border-bottom: 1px solid var(--line-soft);
   letter-spacing: 0.05em;
 }
 .sg-count {
   font-family: var(--mono);
-  font-size: 0.58rem;
+  font-size: 0.66rem;
   color: var(--muted);
   font-style: italic;
   letter-spacing: 0;
@@ -1185,19 +1185,20 @@ kbd {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 0.2rem 0.3rem;
-  padding: 0.22rem 0.65rem;
-  border-bottom: 1px solid rgba(197, 165, 90, 0.05);
+  gap: 0.3rem 0.35rem;
+  padding: 0.38rem 0.75rem;
+  border-bottom: 1px solid rgba(212, 179, 105, 0.1);
 }
 .sg-tool-group:last-child { border-bottom: none; }
 .sg-cat {
   font-family: var(--mono);
-  font-size: 0.58rem;
-  padding: 0.06rem 0.4rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding: 0.12rem 0.45rem;
   border-radius: 3px;
   letter-spacing: 0.06em;
   flex-shrink: 0;
-  width: 88px;
+  width: 104px;
 }
 .sg-cat--combat { background: rgba(220,60,60,0.12); border: 1px solid rgba(220,60,60,0.3); color: #e88080; }
 .sg-cat--trade  { background: rgba(197,165,90,0.12); border: 1px solid rgba(197,165,90,0.3); color: #c5a55a; }
@@ -1207,26 +1208,33 @@ kbd {
 .sg-cat--misc   { background: rgba(140,140,140,0.08); border: 1px solid rgba(140,140,140,0.2); color: #a0a0b0; }
 .sg-tool {
   font-family: var(--mono);
-  font-size: 0.6rem;
-  color: var(--muted);
-  background: rgba(255,255,255,0.03);
-  border: 1px solid rgba(255,255,255,0.06);
-  border-radius: 3px;
-  padding: 0.04rem 0.35rem;
+  font-size: 0.7rem;
+  color: var(--ink);
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 4px;
+  padding: 0.12rem 0.45rem;
 }
+/* Tool chips tinted by their category — color carries the grouping. */
+.sg-group--combat .sg-tool { background: rgba(220,80,80,0.10);   border-color: rgba(220,80,80,0.32);   color: #f4b0a8; }
+.sg-group--trade  .sg-tool { background: rgba(212,179,105,0.10); border-color: rgba(212,179,105,0.35); color: #ecd494; }
+.sg-group--quest  .sg-tool { background: rgba(200,168,232,0.10); border-color: rgba(200,168,232,0.32); color: #dcc4f4; }
+.sg-group--env    .sg-tool { background: rgba(86,184,154,0.10);  border-color: rgba(86,184,154,0.34);  color: #9ce4c8; }
+.sg-group--query  .sg-tool { background: rgba(112,136,208,0.12); border-color: rgba(112,136,208,0.36); color: #b4c4f0; }
+.sg-group--misc   .sg-tool { background: rgba(160,160,170,0.10); border-color: rgba(160,160,170,0.28); color: #c8c8d4; }
 
 /* Agent state code block */
 .sg-state {
   font-family: var(--mono);
-  font-size: clamp(0.58rem, 0.72vw, 0.66rem);
-  line-height: 1.65;
-  padding: 0.5rem 0.75rem;
+  font-size: clamp(0.66rem, 0.85vw, 0.76rem);
+  line-height: 1.8;
+  padding: 0.6rem 0.85rem;
   margin: 0;
   overflow: hidden;
   color: var(--muted);
 }
-.sg-field { color: #8898d8; }
-.sg-type  { color: #c8a8e8; }
+.sg-field { color: #a4b4ec; font-weight: 600; }
+.sg-type  { color: #d8bcf4; }
 .sg-cmt   { color: rgba(165,175,140,0.85); font-style: italic; }
 
 /* ---- PoC transcript slide ---- */

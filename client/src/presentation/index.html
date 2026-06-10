@@ -563,9 +563,9 @@ flowchart TD
   LLM -.->|"respond call"| S
   RAG(["Lore + Memory"]) -.->|"context"| R
 
-  classDef node fill:#0d0b18,stroke:#c5a55a,color:#e8dcc8
-  classDef io   fill:#081410,stroke:#56b89a,color:#7ed4b4
-  classDef ext  fill:#080812,stroke:#5870b8,color:#8898d0
+  classDef node fill:#0d0b18,stroke:#d4b369,stroke-width:1.5px,color:#f4ecdd
+  classDef io   fill:#081410,stroke:#56b89a,stroke-width:1.5px,color:#8ee4c4
+  classDef ext  fill:#080812,stroke:#7088d0,stroke-width:1.5px,color:#a4b4e8
 
   class R,A,S,U node
   class IN,OUT io
@@ -581,21 +581,21 @@ flowchart TD
           <div class="sg-block">
             <div class="sg-block-title">22 tools  <span class="sg-count">bound to act node</span></div>
             <div class="sg-tool-grid">
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--combat">
                 <span class="sg-cat sg-cat--combat">⚔ combat</span>
                 <span class="sg-tool">deal_damage</span>
                 <span class="sg-tool">heal_target</span>
                 <span class="sg-tool">defend</span>
                 <span class="sg-tool">flee</span>
               </div>
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--trade">
                 <span class="sg-cat sg-cat--trade">◈ trade</span>
                 <span class="sg-tool">offer_item</span>
                 <span class="sg-tool">complete_purchase</span>
                 <span class="sg-tool">take_item</span>
                 <span class="sg-tool">buy_item_from_player</span>
               </div>
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--quest">
                 <span class="sg-cat sg-cat--quest">✦ quest</span>
                 <span class="sg-tool">offer_quest</span>
                 <span class="sg-tool">offer_custom_quest</span>
@@ -603,18 +603,18 @@ flowchart TD
                 <span class="sg-tool">complete_quest</span>
                 <span class="sg-tool">check_player_quests</span>
               </div>
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--env">
                 <span class="sg-cat sg-cat--env">◉ environment</span>
                 <span class="sg-tool">change_weather</span>
                 <span class="sg-tool">spawn_effect</span>
                 <span class="sg-tool">move_npc</span>
               </div>
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--query">
                 <span class="sg-cat sg-cat--query">◎ world query</span>
                 <span class="sg-tool">get_nearby_entities</span>
                 <span class="sg-tool">check_player_state</span>
               </div>
-              <div class="sg-tool-group">
+              <div class="sg-tool-group sg-group--misc">
                 <span class="sg-cat sg-cat--misc">♪ misc</span>
                 <span class="sg-tool">emote</span>
                 <span class="sg-tool">compose_music</span>
