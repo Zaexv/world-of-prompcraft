@@ -79,7 +79,10 @@ let npcView11: AvatarView | null = null;
 const npcStageEl = document.getElementById('npcStage11');
 if (npcStageEl) {
   try {
-    npcView11 = new AvatarView(npcStageEl, 'npc_individual_churrero_malaka_01');
+    npcView11 = new AvatarView(npcStageEl, 'npc_individual_churrero_malaka_01', {
+      turntable: false,
+      liveAnims: true,
+    });
   } catch (err) {
     console.warn('NPC view unavailable:', err);
   }
