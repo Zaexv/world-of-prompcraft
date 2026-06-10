@@ -106,17 +106,26 @@ export class Backdrop {
     terrain.onChunkUnloaded = (cx, cz) => this.worldGenerator.onChunkUnloaded(cx, cz);
     terrain.init(); // preload chunks around origin → first spawns happen now
 
-    // Pre-compile every shader program up front (same fix the game uses in
-    // GameBootstrapper). Without it, each new mesh/biome type the camera streams
-    // past compiles its program synchronously on first render — 100–600ms stalls
-    // that read as stutters mid-slide. SceneManager already has lights + a
-    // synchronous PMREM env in scene at this point, so the right variants warm.
-    // Fire-and-forget: it compiles in batches across frames while the deck runs
-    // (no loading screen to block here), so no progress callback is needed.
-    void warmUpShaders(this.sceneManager.renderer, scene, this.sceneManager.camera);
-
     this.buildAnchors();
     this.focus(0);
+  }
+
+  /**
+   * Pre-compile every shader program up front — same fix the game uses in
+   * GameBootstrapper. Without it, each new mesh/biome type the camera streams past
+   * compiles its program synchronously on first render (100–600ms stalls that read
+   * as stutters mid-slide). SceneManager already has lights + a synchronous PMREM
+   * env in scene, so the right variants warm. Await this behind a loading overlay
+   * BEFORE {@link start} so the audience never sees the compile stutter; the
+   * optional `onProgress` (0→1) drives that overlay's progress bar.
+   */
+  async warmUp(onProgress?: (fraction: number) => void): Promise<void> {
+    await warmUpShaders(
+      this.sceneManager.renderer,
+      this.sceneManager.scene,
+      this.sceneManager.camera,
+      onProgress,
+    );
   }
 
   /** Builds viewpoints; places the two NPC characters on the terrain. */

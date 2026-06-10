@@ -17,10 +17,26 @@ const bg = document.getElementById('bg');
 if (bg) {
   try {
     backdrop = new Backdrop(bg);
-    backdrop.start();
   } catch (err) {
     console.warn('3D backdrop unavailable — slides will run without it:', err);
   }
+}
+
+// Pre-compile the world's shaders behind a loading screen before the deck starts,
+// so the audience never sees the first-render compile stutter as the camera flies
+// to each slide's vista. Same warmup the game runs at login.
+if (backdrop) {
+  const bd = backdrop;
+  const loading = createLoadingScreen();
+  void (async () => {
+    try {
+      await bd.warmUp((f) => loading.setProgress(f));
+    } catch (err) {
+      console.warn('Shader warmup failed — starting deck anyway:', err);
+    }
+    bd.start();
+    loading.hide();
+  })();
 }
 
 void renderDiagrams();
@@ -126,3 +142,57 @@ initDeck((index) => {
   if (index === NPC_SLIDE) agentAnim.start();
   else agentAnim.stop();
 });
+
+// ── Shader-compilation loading screen ─────────────────────────────────────────
+// A gold-on-dark overlay (matching the deck theme) shown while the world's
+// shaders compile, with a progress bar driven by warmUpShaders. Removed once the
+// backdrop is warm and started.
+function createLoadingScreen(): { setProgress(f: number): void; hide(): void } {
+  const overlay = document.createElement('div');
+  Object.assign(overlay.style, {
+    position: 'fixed', inset: '0', zIndex: '10000',
+    display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+    gap: '18px', background: 'radial-gradient(120% 100% at 50% 40%, #15101c, #07060c)',
+    fontFamily: "'Cinzel', Georgia, serif", transition: 'opacity 0.6s ease', opacity: '1',
+  } as CSSStyleDeclaration);
+
+  const title = document.createElement('div');
+  title.textContent = 'World of Promptcraft';
+  Object.assign(title.style, {
+    fontSize: 'clamp(1.5rem, 3vw, 2.6rem)', fontWeight: '700', color: '#f0c155',
+    letterSpacing: '0.12em', textShadow: '0 0 22px rgba(240, 193, 85, 0.35)',
+  } as CSSStyleDeclaration);
+
+  const message = document.createElement('div');
+  message.textContent = 'Compiling shaders…';
+  Object.assign(message.style, {
+    fontSize: '0.8rem', letterSpacing: '0.22em', color: '#c9bca2', textTransform: 'uppercase',
+  } as CSSStyleDeclaration);
+
+  const track = document.createElement('div');
+  Object.assign(track.style, {
+    width: '260px', height: '6px', borderRadius: '3px',
+    background: 'rgba(212, 179, 105, 0.16)', overflow: 'hidden',
+  } as CSSStyleDeclaration);
+
+  const fill = document.createElement('div');
+  Object.assign(fill.style, {
+    width: '0%', height: '100%', borderRadius: '3px',
+    background: 'linear-gradient(90deg, #d4b369, #f0c155)', transition: 'width 0.15s ease-out',
+  } as CSSStyleDeclaration);
+  track.appendChild(fill);
+
+  overlay.append(title, message, track);
+  document.body.appendChild(overlay);
+
+  return {
+    setProgress(f: number) {
+      const pct = Math.max(0, Math.min(1, f)) * 100;
+      fill.style.width = `${pct.toFixed(1)}%`;
+    },
+    hide() {
+      overlay.style.opacity = '0';
+      setTimeout(() => overlay.remove(), 600);
+    },
+  };
+}
