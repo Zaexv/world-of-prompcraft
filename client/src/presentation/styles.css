@@ -3,16 +3,16 @@
    layered over the live game world. Companion to backdrop.ts + deck.ts. */
 
 :root {
-  --ink:        #ece2d0;   /* parchment text */
-  --muted:      #a99a80;
-  --gold:       #c5a55a;   /* primary accent (matches in-game UI) */
-  --gold-soft:  #e3c987;
-  --gold-bright:#e8b84b;
-  --ember:      #cc8844;
-  --line:       rgba(197, 165, 90, 0.30);
-  --line-soft:  rgba(197, 165, 90, 0.16);
-  --glass:      rgba(12, 9, 20, 0.62);   /* keep transparency */
-  --glass-2:    rgba(8, 6, 14, 0.74);
+  --ink:        #f4ecdd;   /* parchment text */
+  --muted:      #c9bca2;
+  --gold:       #d4b369;   /* primary accent (matches in-game UI) */
+  --gold-soft:  #ecd494;
+  --gold-bright:#f0c155;
+  --ember:      #d99450;
+  --line:       rgba(212, 179, 105, 0.45);
+  --line-soft:  rgba(212, 179, 105, 0.26);
+  --glass:      rgba(10, 7, 17, 0.78);   /* keep some transparency */
+  --glass-2:    rgba(7, 5, 12, 0.86);
   --serif:      "Cinzel", Georgia, "Times New Roman", serif;
   --sans:       "Inter", ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
   --mono:       "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -50,7 +50,7 @@ a, button, [role="button"], kbd {
   inset: 0;
   z-index: 1;
   pointer-events: none;
-  background: radial-gradient(130% 100% at 50% 35%, transparent 45%, rgba(6, 4, 10, 0.66) 100%);
+  background: radial-gradient(130% 100% at 50% 35%, rgba(6, 4, 10, 0.18) 40%, rgba(6, 4, 10, 0.78) 100%);
   transition: opacity 0.7s ease;
 }
 /* Cinema slide: suppress the vignette so the world fills the screen in full. */
@@ -83,9 +83,9 @@ body:has(.slide.cinema.active) .scrim { opacity: 0.08; }
   background: var(--glass);
   border: 1px solid var(--line);
   border-radius: 10px;
-  backdrop-filter: blur(9px) saturate(115%);
-  -webkit-backdrop-filter: blur(9px) saturate(115%);
-  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  backdrop-filter: blur(14px) saturate(115%);
+  -webkit-backdrop-filter: blur(14px) saturate(115%);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.04);
 }
 /* inner gilt hairline */
 .panel::after {
@@ -457,7 +457,7 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   font-family: var(--mono);
   font-size: 0.66rem;
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.85;
   pointer-events: none;
 }
 
@@ -511,7 +511,7 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   font-family: var(--mono);
   font-size: 0.66rem;
   color: var(--muted);
-  opacity: 0.6;
+  opacity: 0.85;
 }
 
 /* ---------- cinematic "endless world" slide ---------- */
@@ -523,7 +523,7 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   left: 5.5vw;
   max-width: min(54ch, 40vw);
   z-index: 3;
-  background: rgba(8, 6, 14, 0.62);
+  background: rgba(8, 6, 14, 0.78);
   border: 1px solid var(--line);
   border-radius: 10px;
   padding: 1.4rem 1.8rem;
@@ -676,7 +676,7 @@ ul.points li b { color: var(--ink); font-weight: 700; }
   font-family: var(--mono);
   font-size: 0.72rem;
   color: var(--muted);
-  opacity: 0.5;
+  opacity: 0.75;
 }
 kbd {
   border: 1px solid var(--line);
@@ -866,7 +866,7 @@ kbd {
 }
 .igc-ts {
   font-size: 0.55rem;
-  color: rgba(197, 165, 90, 0.35);
+  color: rgba(212, 179, 105, 0.55);
   padding: 0 0.2rem;
 }
 .igc-input-row {
@@ -883,7 +883,7 @@ kbd {
   border-radius: 22px;
   border: 1px solid rgba(197, 165, 90, 0.3);
   background: rgba(255, 255, 255, 0.04);
-  color: rgba(197, 165, 90, 0.4);
+  color: rgba(212, 179, 105, 0.62);
   font-family: var(--serif);
   font-size: 0.62rem;
   font-style: italic;
@@ -958,7 +958,7 @@ kbd {
   gap: 0.2rem;
 }
 .trace-line { color: var(--muted); line-height: 1.5; }
-.trace-line.dim     { opacity: 0.45; font-style: italic; }
+.trace-line.dim     { opacity: 0.62; font-style: italic; }
 .trace-line.output  { color: var(--ink); font-style: italic; }
 .tkey    { color: #56b89a; }
 .tval    { color: #e8dcc8; }
@@ -1018,7 +1018,7 @@ kbd {
   background: rgba(18, 13, 30, 0.9);
   font-family: var(--mono);
   font-size: clamp(0.68rem, 0.85vw, 0.76rem);
-  color: rgba(160, 145, 120, 0.55);
+  color: rgba(185, 170, 142, 0.75);
   gap: 0.12rem;
   flex-shrink: 0;
   transition: border-color 0.22s ease, color 0.22s ease, background 0.22s ease, box-shadow 0.22s ease;
@@ -1031,7 +1031,7 @@ kbd {
 }
 .ad-v-arr {
   font-size: 0.55rem;
-  color: rgba(197, 165, 90, 0.22);
+  color: rgba(212, 179, 105, 0.4);
   line-height: 2;
   flex-shrink: 0;
   transition: color 0.22s ease;
@@ -1227,7 +1227,7 @@ kbd {
 }
 .sg-field { color: #8898d8; }
 .sg-type  { color: #c8a8e8; }
-.sg-cmt   { color: rgba(140,150,120,0.6); font-style: italic; }
+.sg-cmt   { color: rgba(165,175,140,0.85); font-style: italic; }
 
 /* ---- PoC transcript slide ---- */
 .poc-layout {
@@ -1260,10 +1260,10 @@ kbd {
   text-align: center;
   font-family: var(--mono);
   font-size: 0.62rem;
-  color: rgba(197, 165, 90, 0.35);
+  color: rgba(212, 179, 105, 0.55);
   letter-spacing: 0.12em;
   padding: 0.4rem 0;
-  border-bottom: 1px dashed rgba(197, 165, 90, 0.15);
+  border-bottom: 1px dashed rgba(212, 179, 105, 0.25);
 }
 .poc-player {
   align-self: flex-end;
@@ -1398,7 +1398,7 @@ kbd {
   font-size: 0.72rem;
   line-height: 1.45;
 }
-.cw-row--dim { opacity: 0.42; }
+.cw-row--dim { opacity: 0.58; }
 .cw-row--now { opacity: 1; }
 .cw-label {
   font-family: var(--mono);
@@ -1910,7 +1910,7 @@ kbd {
 .thanks-gh {
   font-family: var(--mono);
   font-size: 0.68rem;
-  color: rgba(160,150,120,0.5);
+  color: var(--muted);
   letter-spacing: 0.05em;
 }
 
