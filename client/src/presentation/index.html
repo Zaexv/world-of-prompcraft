@@ -795,6 +795,139 @@ flowchart TD
     </div>
   </section>
 
+  <!-- 14b — A CLOSER LOOK: THE PROCESS -->
+  <section class="slide full">
+    <div class="panel">
+      <div class="pilar">Pillar 3 — Agentic Coding</div>
+      <h2>A Closer Look — <span class="grad">The Process</span></h2>
+      <p class="lead">One feature, end to end. Every stage leaves a written artifact the next stage reads.</p>
+
+      <div class="pp-flow">
+        <div class="pp-stage pp-stage--prompt">
+          <div class="pp-badge">prompt</div>
+          <h3>The ask</h3>
+          <p>"Players clip through the Suarezlands hills — fix the collisions."</p>
+          <div class="pp-artifact">a sentence, not a spec</div>
+        </div>
+        <div class="pp-arr">→</div>
+        <div class="pp-stage pp-stage--research">
+          <div class="pp-badge">/rpi-research</div>
+          <h3>Research</h3>
+          <p>Agents read the code and write down how it <b>actually</b> works — root causes, with the offending lines cited. No guessing.</p>
+          <div class="pp-artifact">research report → docs/plans/</div>
+        </div>
+        <div class="pp-arr">→</div>
+        <div class="pp-stage pp-stage--plan">
+          <div class="pp-badge">/rpi-plan</div>
+          <h3>Plan</h3>
+          <p>A phased plan with exact files, fixes and verification steps. Cheap to correct — <b>it's still just text</b>.</p>
+          <div class="pp-artifact">plan doc · human reviews here</div>
+        </div>
+        <div class="pp-arr">→</div>
+        <div class="pp-stage pp-stage--impl">
+          <div class="pp-badge">/rpi-implement</div>
+          <h3>Implement</h3>
+          <p>Executes the agreed plan phase by phase, looping on <code>tsc · eslint · pytest</code> until everything is green.</p>
+          <div class="pp-artifact">commits · human reviews the diff</div>
+        </div>
+        <div class="pp-arr">→</div>
+        <div class="pp-stage pp-stage--ship">
+          <div class="pp-badge">pre-commit + PR</div>
+          <h3>Ship</h3>
+          <p>Hooks gate the commit, CI gates the merge. The plan is renamed <code>DONE</code> and stays as documentation.</p>
+          <div class="pp-artifact">2026-05-29_DONE_….md</div>
+        </div>
+      </div>
+
+      <div class="pp-note">The human steers at exactly two points — <b>the plan</b> and <b>the diff</b>. Everything in between is agentic.</div>
+    </div>
+  </section>
+
+  <!-- 14c — A CLOSER LOOK: PLANS -->
+  <section class="slide full">
+    <div class="panel">
+      <div class="pilar">Pillar 3 — Agentic Coding</div>
+      <h2>A Closer Look — <span class="grad">Plans</span></h2>
+      <p class="lead">The plan is the contract between human intent and agent execution — <span class="key">36 of them</span> shipped this world.</p>
+
+      <div class="pf-layout">
+        <!-- left: the real folder -->
+        <div class="pf-files">
+          <div class="pf-files-title"><code>docs/plans/</code><span class="pf-count">36 plans · all executed</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-24</span><span class="pf-done">DONE</span><span class="pf-name">malaka-suarezlands-rebuild</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-24</span><span class="pf-done">DONE</span><span class="pf-name">npc-style-movement-backpressure</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-26</span><span class="pf-done">DONE</span><span class="pf-name">refactor</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">agentic-world-building</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">item_collision_position_plan</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">deployment-plan</span></div>
+          <div class="pf-file pf-file--more">+ 30 more…</div>
+        </div>
+
+        <!-- right: anatomy + lifecycle -->
+        <div class="pf-right">
+          <div class="pf-anatomy">
+            <div class="pf-block-title">Inside a plan</div>
+            <div class="pf-row"><span class="pf-key">TL;DR</span><span class="pf-val">root causes first — the whole diagnosis in ten lines</span></div>
+            <div class="pf-row"><span class="pf-key">Parts</span><span class="pf-val">one per problem, with the offending code cited by file and line</span></div>
+            <div class="pf-row"><span class="pf-key">Fix required</span><span class="pf-val">exact files and changes — an agent can execute it without asking</span></div>
+            <div class="pf-row"><span class="pf-key">Verification</span><span class="pf-val">how we'll know it worked, before the work starts</span></div>
+          </div>
+          <div class="pf-life">
+            <div class="pf-block-title">Lifecycle</div>
+            <div class="pf-life-chips">
+              <span class="pf-chip">drafted by agent</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip pf-chip--human">corrected by human</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip">executed in phases</span><span class="pf-life-arr">→</span>
+              <span class="pf-chip pf-chip--done">renamed DONE</span>
+            </div>
+            <p class="pf-life-note">Old plans never rot — the <code>DONE_</code> prefix turns them into a decision log agents read during research.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 14d — A CLOSER LOOK: ENABLEMENT -->
+  <section class="slide full">
+    <div class="panel">
+      <div class="pilar">Pillar 3 — Agentic Coding</div>
+      <h2>A Closer Look — <span class="grad">Enablement</span></h2>
+      <p class="lead">Four layers of written context make the project promptable — by any coding CLI, from the first minute.</p>
+
+      <div class="en-layout">
+        <!-- left: the context stack -->
+        <div class="en-stack">
+          <div class="en-layer en-layer--rules">
+            <div class="en-layer-tag">CLAUDE.md</div>
+            <div class="en-layer-body"><b>The rules.</b> Stack, conventions, strict-typing gates, commit format — read first by every agent.</div>
+          </div>
+          <div class="en-layer en-layer--skills">
+            <div class="en-layer-tag">.claude/skills/</div>
+            <div class="en-layer-body"><b>The know-how.</b> 12 project skills — <code>mesh-from-picture</code>, <code>extend-world</code>, <code>rpi-*</code> — whole workflows behind one command.</div>
+          </div>
+          <div class="en-layer en-layer--docs">
+            <div class="en-layer-tag">docs/</div>
+            <div class="en-layer-body"><b>The map.</b> Architecture, standards, how-tos, protocol — agents research here before touching code.</div>
+          </div>
+          <div class="en-layer en-layer--mem">
+            <div class="en-layer-tag">memory</div>
+            <div class="en-layer-body"><b>The learnings.</b> Corrections persist between sessions — feedback given once holds forever.</div>
+          </div>
+        </div>
+
+        <!-- right: what this buys -->
+        <div class="en-points">
+          <ul class="points">
+            <li><b>One-line prompts.</b> The know-how lives in the repo, not in the prompter's head.</li>
+            <li><b>No tribal knowledge.</b> A brand-new CLI session starts with everything it needs.</li>
+            <li><b>Consistent output.</b> Same rules in, same patterns out — whoever (or whatever) writes the code.</li>
+            <li><b>Parallel agents.</b> Shared written context lets several agents build without colliding.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- 15 — CONTRIBUTORS -->
   <section class="slide center">
     <div class="panel">
