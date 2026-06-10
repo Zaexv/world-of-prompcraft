@@ -4,15 +4,13 @@ import { registerMesh } from '../core/MeshRegistry';
 import * as G from '../../systems/worldbuilder/objects/geoCache';
 
 /**
- * Boat — a small low-poly wooden sailboat the player boards on entering water.
+ * Boat — a small low-poly wooden sloop the player boards on entering water.
  *
- * Faces +Z (forward), waterline near y=0. The hull is a hand-authored faceted
- * BufferGeometry with a curved sheer, a keel and a bow stem; the rig (boom +
- * billowing triangular mainsail) lives in a named "rig" sub-group that pivots at
- * the mast so BoatSystem can swing it and flex the sail while sailing.
- *
- * The root is flagged `noMerge` so the hierarchy survives buildMesh's by-material
- * merge — the animated sail needs to stay addressable.
+ * Faces +Z (forward), waterline near y=0. Hull is a hand-authored faceted
+ * BufferGeometry with rocker (ends lifted), a deep amidships, a fine rising bow,
+ * a keel and a foredeck. Two billowing triangular sails: a mainsail on the boom
+ * (in the animated "rig" sub-group) and a jib on the forestay (named "jib").
+ * Root is `noMerge` so the rig/jib survive buildMesh's merge and can animate.
  */
 const _mat = new Map<string, THREE.MeshStandardMaterial>();
 function mat(
@@ -40,7 +38,6 @@ function part(
   return mesh;
 }
 
-/** Thin rope/spar between two points. */
 function rope(g: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, m: THREE.MeshStandardMaterial, r = 0.025): void {
   const dir = to.clone().sub(from);
   const len = dir.length();
@@ -51,32 +48,30 @@ function rope(g: THREE.Object3D, from: THREE.Vector3, to: THREE.Vector3, m: THRE
   g.add(mesh);
 }
 
-/** Skinned hull from cross-section stations: [z, halfWidthBottom, halfWidthTop, bottomY, topY]. */
-function hullGeometry(): THREE.BufferGeometry {
-  // Curved sheer: gunwale (topY) rises toward bow and stern, dips amidships;
-  // keel (bottomY) is deepest amidships. Reads as a real hull, not a box.
-  const stations: Array<[number, number, number, number, number]> = [
-    [-2.05, 0.34, 0.60, 0.16, 0.70], // transom (stern), raised gunwale
-    [-1.15, 0.50, 0.76, -0.10, 0.58],
-    [ 0.05, 0.58, 0.82, -0.20, 0.54], // beam (widest, deepest)
-    [ 1.20, 0.44, 0.64, -0.08, 0.58],
-    [ 2.05, 0.18, 0.36, 0.10, 0.70],
-    [ 2.75, 0.02, 0.10, 0.40, 0.86], // raised pointed bow
-  ];
+/** Subdivided triangle between 3 corners, bulged along +X (billow peaks at the centroid). */
+function billowedTriangle(a: THREE.Vector3, b: THREE.Vector3, c: THREE.Vector3, bulge: number, n = 5): THREE.BufferGeometry {
   const pos: number[] = [];
-  for (const [z, hwB, hwT, by, ty] of stations) {
-    pos.push(-hwB, by, z, hwB, by, z, hwT, ty, z, -hwT, ty, z); // BL, BR, TR, TL
+  const id = new Map<string, number>();
+  let k = 0;
+  for (let i = 0; i <= n; i++) {
+    for (let j = 0; j <= n - i; j++) {
+      const u = 1 - i / n - j / n, v = i / n, w = j / n;
+      const x = a.x * u + b.x * v + c.x * w + bulge * 27 * u * v * w;
+      const y = a.y * u + b.y * v + c.y * w;
+      const z = a.z * u + b.z * v + c.z * w;
+      pos.push(x, y, z);
+      id.set(`${i}_${j}`, k++);
+    }
   }
   const idx: number[] = [];
-  const quad = (a: number, b: number, c: number, d: number): void => { idx.push(a, b, c, a, c, d); };
-  for (let s = 0; s < stations.length - 1; s++) {
-    const o = s * 4, n = (s + 1) * 4;
-    quad(o + 0, n + 0, n + 1, o + 1); // bottom
-    quad(o + 0, o + 3, n + 3, n + 0); // left side
-    quad(o + 1, n + 1, n + 2, o + 2); // right side
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n - i; j++) {
+      idx.push(id.get(`${i}_${j}`)!, id.get(`${i + 1}_${j}`)!, id.get(`${i}_${j + 1}`)!);
+      if (i + j < n - 1) {
+        idx.push(id.get(`${i + 1}_${j}`)!, id.get(`${i + 1}_${j + 1}`)!, id.get(`${i}_${j + 1}`)!);
+      }
+    }
   }
-  quad(0, 3, 2, 1); // stern transom
-
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
@@ -85,31 +80,60 @@ function hullGeometry(): THREE.BufferGeometry {
 }
 
 /**
- * Triangular billowing mainsail in rig-local space: tack at the origin (mast,
- * boom height), foot running aft to -Z, head up at +Y. Interior bulges in +X.
+ * Skinned hull with a rounded-V cross-section (keel → turn of the bilge → flared
+ * gunwale) so it reads as a boat, not a flat-bottomed barge. Each station is
+ * [z, beam(half-width), depth(keel below 0), top(gunwale above 0)] with rocker
+ * (ends lifted, deepest amidships).
  */
-function sailGeometry(height: number, foot: number, bulge: number): THREE.BufferGeometry {
-  const NS = 8, NT = 6;
+// Normalized half-section profile: [widthFraction, yFraction]. y<0 scales by
+// depth (toward the keel), y>0 scales by top (toward the gunwale).
+const SECTION: Array<[number, number]> = [
+  [0.00, -1.00], // keel
+  [0.42, -0.80],
+  [0.74, -0.42],
+  [0.94, 0.05], // turn of the bilge
+  [1.00, 1.00], // gunwale
+];
+
+function hullGeometry(): THREE.BufferGeometry {
+  const stations: Array<[number, number, number, number]> = [
+    [-2.00, 0.56, 0.30, 0.66], // transom (stern)
+    [-1.10, 0.74, 0.55, 0.56],
+    [ 0.00, 0.82, 0.64, 0.52], // beam: widest + deepest
+    [ 1.10, 0.66, 0.50, 0.56],
+    [ 1.90, 0.46, 0.36, 0.66],
+    [ 2.45, 0.26, 0.22, 0.80],
+    [ 2.90, 0.05, 0.12, 0.98], // fine, high, pointed bow
+  ];
+  const P = SECTION.length;
   const pos: number[] = [];
+  // Vertex layout: for each station, the right side (P points) then the left.
+  const vid = (s: number, side: 0 | 1, i: number): number => s * (2 * P) + side * P + i;
+  for (const [z, beam, depth, top] of stations) {
+    for (const sign of [1, -1]) {
+      for (const [wf, yf] of SECTION) {
+        const x = sign * wf * beam;
+        const y = yf < 0 ? yf * depth : yf * top;
+        pos.push(x, y, z);
+      }
+    }
+  }
   const idx: number[] = [];
-  for (let i = 0; i <= NS; i++) {
-    const s = i / NS;            // up the luff (mast)
-    const span = foot * (1 - s); // foot tapers to the head → triangle
-    for (let j = 0; j <= NT; j++) {
-      const t = j / NT;          // 0 at luff (mast), 1 at leech (aft)
-      const y = s * height;
-      const z = -t * span;
-      const x = bulge * Math.sin(Math.PI * t) * Math.sin(Math.PI * (0.25 + s * 0.5));
-      pos.push(x, y, z);
+  const quad = (a: number, b: number, c: number, d: number): void => { idx.push(a, b, c, a, c, d); };
+  for (let s = 0; s < stations.length - 1; s++) {
+    for (const side of [0, 1] as const) {
+      for (let i = 0; i < P - 1; i++) {
+        // Wind the two sides oppositely so normals face outward.
+        if (side === 0) quad(vid(s, side, i), vid(s + 1, side, i), vid(s + 1, side, i + 1), vid(s, side, i + 1));
+        else quad(vid(s, side, i), vid(s, side, i + 1), vid(s + 1, side, i + 1), vid(s + 1, side, i));
+      }
     }
   }
-  const row = NT + 1;
-  for (let i = 0; i < NS; i++) {
-    for (let j = 0; j < NT; j++) {
-      const a = i * row + j, b = a + 1, c = a + row, d = c + 1;
-      idx.push(a, c, b, b, c, d);
-    }
+  // Transom: close the stern section (right ↔ left).
+  for (let i = 0; i < P - 1; i++) {
+    quad(vid(0, 0, i), vid(0, 0, i + 1), vid(0, 1, i + 1), vid(0, 1, i));
   }
+
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
@@ -123,54 +147,75 @@ export class Boat extends Mesh {
 
   build(_ctx: BuildContext): THREE.Group {
     const g = new THREE.Group();
-    g.userData.noMerge = true; // keep hierarchy so the sail can animate
+    g.userData.noMerge = true;
 
     const hullMat = mat(0x7a4f2b, 0.82, THREE.DoubleSide);
+    const deckMat = mat(0x6b4426, 0.85, THREE.DoubleSide);
     const floorMat = mat(0x563c22, 0.9);
     const trim = mat(0x32220f, 0.7);
     const bench = mat(0x8a6038, 0.8);
     const keelMat = mat(0x3f2c18, 0.85);
     const rigMat = mat(0x4a3a28, 0.9);
-    const sailMat = mat(0xf2ead6, 0.95, THREE.DoubleSide, false); // smooth billow
+    const sailMat = mat(0xf2ead6, 0.95, THREE.DoubleSide, false);
     const flagMat = mat(0xc0392b, 0.8, THREE.DoubleSide);
 
-    // Hull, floorboards, gunwale trim.
+    // Hull + floorboards.
     part(g, hullGeometry(), hullMat);
-    part(g, G.box(0.9, 0.06, 3.7), floorMat, 0, 0.0, 0.05);
-    part(g, G.box(0.10, 0.11, 4.0), trim, 0.74, 0.58, 0.0);
-    part(g, G.box(0.10, 0.11, 4.0), trim, -0.74, 0.58, 0.0);
-    part(g, G.box(1.25, 0.11, 0.12), trim, 0, 0.66, -2.02); // transom cap
+    part(g, G.box(0.85, 0.06, 3.4), floorMat, 0, 0.0, -0.1);
 
-    // Keel along the bottom centreline + a bow stem post.
-    part(g, G.box(0.12, 0.22, 4.3), keelMat, 0, -0.26, 0.1);
-    part(g, G.box(0.14, 0.5, 0.4), keelMat, 0, 0.2, 2.55, 0.5);
+    // Rubrail strakes amidships + transom cap.
+    part(g, G.box(0.09, 0.10, 3.0), trim, 0.7, 0.5, -0.2);
+    part(g, G.box(0.09, 0.10, 3.0), trim, -0.7, 0.5, -0.2);
+    part(g, G.box(1.15, 0.11, 0.12), trim, 0, 0.6, -1.98);
 
-    // Aft helm bench + a forward thwart.
-    part(g, G.box(1.2, 0.09, 0.3), bench, 0, 0.34, -1.3);
-    part(g, G.box(1.1, 0.09, 0.28), bench, 0, 0.34, 0.6);
+    // Keel down the centreline.
+    part(g, G.box(0.12, 0.26, 4.2), keelMat, 0, -0.3, 0.0);
+
+    // Foredeck: a triangular deck closing the bow over the gunwales.
+    part(g, billowedTriangle(
+      new THREE.Vector3(-0.46, 0.6, 1.5), new THREE.Vector3(0.46, 0.6, 1.5),
+      new THREE.Vector3(0, 0.92, 2.85), 0,
+    ), deckMat);
+
+    // Helm bench (aft) + a forward thwart.
+    part(g, G.box(1.1, 0.09, 0.3), bench, 0, 0.34, -1.25);
+    part(g, G.box(1.0, 0.09, 0.28), bench, 0, 0.34, 0.5);
 
     // ── Rig ──────────────────────────────────────────────────────────────────
-    const mastZ = 0.55;
+    const mastZ = 0.5;
     const mastTop = 3.5;
     const boomY = 1.05;
     part(g, G.cylinder(0.06, 0.09, mastTop, 6), rigMat, 0, mastTop / 2, mastZ);
 
-    // Animated boom + sail, pivoting at the mast foot (named for BoatSystem).
+    // Mainsail + boom in a pivoting "rig" group (animated by BoatSystem).
     const rig = new THREE.Group();
     rig.name = 'rig';
     rig.position.set(0, boomY, mastZ);
     const foot = 1.7;
     part(rig, G.cylinder(0.045, 0.045, foot, 5), rigMat, 0, 0, -foot / 2, Math.PI / 2);
-    const sail = part(rig, sailGeometry(mastTop - boomY - 0.15, foot, 0.5), sailMat);
-    sail.name = 'sail';
+    const main = part(rig, billowedTriangle(
+      new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 0, -foot),
+      new THREE.Vector3(0, mastTop - boomY - 0.15, 0), 0.5,
+    ), sailMat);
+    main.name = 'sail';
     g.add(rig);
 
-    // Standing rigging (static, on the hull): forestay, backstay, shrouds.
+    // Jib (foresail): a clean foretriangle on the forestay, forward of the mast.
+    // Luff runs bow→upper-forestay; foot low along the foredeck; leech faces aft.
+    const jib = part(g, billowedTriangle(
+      new THREE.Vector3(0, 0.9, 2.55),  // tack at the bow deck
+      new THREE.Vector3(0, 2.7, 0.95),  // head up the forestay
+      new THREE.Vector3(0, 1.0, 1.5),   // clew (aft-low, ahead of the mast)
+      0.3,
+    ), sailMat);
+    jib.name = 'jib';
+
+    // Standing rigging.
     const headPt = new THREE.Vector3(0, mastTop, mastZ);
-    rope(g, headPt, new THREE.Vector3(0, 0.7, 2.6), rigMat);
-    rope(g, headPt, new THREE.Vector3(0, 0.7, -1.9), rigMat);
-    rope(g, headPt, new THREE.Vector3(0.74, 0.6, mastZ), rigMat);
-    rope(g, headPt, new THREE.Vector3(-0.74, 0.6, mastZ), rigMat);
+    rope(g, headPt, new THREE.Vector3(0, 0.8, 2.8), rigMat);   // forestay
+    rope(g, headPt, new THREE.Vector3(0, 0.7, -1.9), rigMat);  // backstay
+    rope(g, headPt, new THREE.Vector3(0.72, 0.55, mastZ), rigMat);
+    rope(g, headPt, new THREE.Vector3(-0.72, 0.55, mastZ), rigMat);
 
     // Masthead pennant.
     part(g, G.box(0.02, 0.22, 0.5), flagMat, 0, mastTop - 0.2, mastZ + 0.3);

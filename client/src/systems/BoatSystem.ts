@@ -21,11 +21,33 @@ const HOP_HEIGHT = 1.4;   // peak of the boarding leap arc (world units)
 const LUNGE = 1.8;        // how far back the leap starts (eases forward into the seat)
 const BOB_AMP = 0.14;     // vertical bob amplitude
 const ROCK_AMP = 0.05;    // side-to-side rock (radians)
+const SPARK_N = 50;       // magic-poof particle count
+const SPARK_RADIUS = 4.5; // how far sparkles fly out as the boat vanishes
+
+let _sparkSprite: THREE.Texture | null = null;
+function sparkSprite(): THREE.Texture {
+  if (_sparkSprite) return _sparkSprite;
+  const s = 32;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = s;
+  const ctx = canvas.getContext('2d');
+  if (ctx) {
+    const grd = ctx.createRadialGradient(s / 2, s / 2, 0, s / 2, s / 2, s / 2);
+    grd.addColorStop(0, 'rgba(255,255,255,1)');
+    grd.addColorStop(0.4, 'rgba(200,230,255,0.7)');
+    grd.addColorStop(1, 'rgba(180,160,255,0)');
+    ctx.fillStyle = grd;
+    ctx.fillRect(0, 0, s, s);
+  }
+  _sparkSprite = new THREE.CanvasTexture(canvas);
+  return _sparkSprite;
+}
 
 export class BoatSystem {
   private readonly boat: THREE.Group;
   private readonly rig: THREE.Object3D | null;   // boom + sail, pivots at the mast
-  private readonly sail: THREE.Object3D | null;  // billow animates along local X
+  private readonly sail: THREE.Object3D | null;  // mainsail billow animates along local X
+  private readonly jib: THREE.Object3D | null;   // foresail billow animates along local X
   private mounted = false;
   /** >0 while boarding, <0 while leaving; magnitude counts down to 0. */
   private transition = 0;
@@ -33,14 +55,47 @@ export class BoatSystem {
   private time = 0;
   private sailBillow = 1;
   private boomSwing = 0;
+  private vanishSpin = 0;
+
+  // Magic-poof sparkles shown when the boat vanishes on hop-off.
+  private readonly sparkles: THREE.Points;
+  private readonly sparkDirs: Float32Array;
 
   constructor(private readonly scene: THREE.Scene) {
     const built = buildMesh('boat_rowboat', { position: new THREE.Vector3(), scale: 1 });
     this.boat = (built as THREE.Group) ?? new THREE.Group();
     this.rig = this.boat.getObjectByName('rig') ?? null;
     this.sail = this.boat.getObjectByName('sail') ?? null;
+    this.jib = this.boat.getObjectByName('jib') ?? null;
     this.boat.visible = false;
     this.scene.add(this.boat);
+
+    // Sparkle cloud — random outward (upward-biased) directions, magic tints.
+    const pos = new Float32Array(SPARK_N * 3);
+    const col = new Float32Array(SPARK_N * 3);
+    this.sparkDirs = new Float32Array(SPARK_N * 3);
+    const tints = [new THREE.Color(0xaef0ff), new THREE.Color(0xc8a8ff), new THREE.Color(0xffffff)];
+    for (let i = 0; i < SPARK_N; i++) {
+      const a = Math.random() * Math.PI * 2;
+      const e = Math.random() * 0.8 + 0.1; // bias upward
+      const r = 0.5 + Math.random() * 0.5;
+      this.sparkDirs[i * 3] = Math.cos(a) * Math.cos(e) * r;
+      this.sparkDirs[i * 3 + 1] = Math.sin(e) * r + 0.3;
+      this.sparkDirs[i * 3 + 2] = Math.sin(a) * Math.cos(e) * r;
+      const c = tints[i % tints.length]!;
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const sparkMat = new THREE.PointsMaterial({
+      size: 0.9, map: sparkSprite(), vertexColors: true, transparent: true,
+      depthWrite: false, blending: THREE.AdditiveBlending, sizeAttenuation: true,
+    });
+    this.sparkles = new THREE.Points(geo, sparkMat);
+    this.sparkles.visible = false;
+    this.sparkles.userData.noCollision = true;
+    this.scene.add(this.sparkles);
   }
 
   /** True while the player is riding the boat (or mid board/leave animation). */
@@ -77,6 +132,7 @@ export class BoatSystem {
       if (!this.leaving) lunge = (1 - p) * LUNGE; // boarding only: ease into the seat
       if (this.leaving && this.transition === 0) {
         this.boat.visible = false;
+        this.sparkles.visible = false;
         this.leaving = false;
       }
     }
@@ -89,7 +145,20 @@ export class BoatSystem {
     const fwdZ = Math.cos(yaw);
     this.boat.position.set(px + fwdX * BOAT_OFFSET, waterLevel + bob, pz + fwdZ * BOAT_OFFSET);
     this.boat.rotation.set(rockX, yaw, rockZ);
-    const grow = this.mounted ? 1 : Math.max(0.001, 1 - this.transition / BOARD_TIME);
+
+    let grow: number;
+    if (this.leaving) {
+      // Magic vanish: shrink to nothing while spinning up and lifting off, with a
+      // sparkle burst.
+      const p = 1 - this.transition / BOARD_TIME; // 0→1
+      grow = Math.max(0.001, 1 - p);
+      this.vanishSpin += delta * 9;
+      this.boat.position.y += p * 1.3;
+      this.boat.rotation.y = yaw + this.vanishSpin;
+      this.updateSparkles(p);
+    } else {
+      grow = this.mounted ? 1 : Math.max(0.001, 1 - this.transition / BOARD_TIME);
+    }
     this.boat.scale.setScalar(grow * BOAT_SCALE);
 
     // Seat the player at the helm, bobbing with the boat, plus the leap arc/lunge.
@@ -107,10 +176,32 @@ export class BoatSystem {
     const targetBillow = 1 + (moving ? 0.35 : 0.08) + Math.sin(this.time * 2.4) * 0.07;
     this.sailBillow = this.sailBillow + (targetBillow - this.sailBillow) * t;
     if (this.sail) this.sail.scale.x = this.sailBillow;
+    // Jib billows a touch less than the main.
+    if (this.jib) this.jib.scale.x = 0.8 + (this.sailBillow - 1) * 0.8;
     // Boom swings out to leeward under way, with a gentle sway.
     const targetSwing = (moving ? 0.16 : 0.0) + Math.sin(this.time * 1.3) * 0.05;
     this.boomSwing = this.boomSwing + (targetSwing - this.boomSwing) * t;
     if (this.rig) this.rig.rotation.y = this.boomSwing;
+  }
+
+  /** Fly the sparkles outward from the boat and fade them as it vanishes (p: 0→1). */
+  private updateSparkles(p: number): void {
+    this.sparkles.visible = true;
+    const c = this.boat.position;
+    const pos = this.sparkles.geometry.attributes.position as THREE.BufferAttribute;
+    const reach = p * SPARK_RADIUS;
+    for (let i = 0; i < SPARK_N; i++) {
+      pos.setXYZ(
+        i,
+        c.x + this.sparkDirs[i * 3]! * reach,
+        c.y + this.sparkDirs[i * 3 + 1]! * reach + p * 0.5,
+        c.z + this.sparkDirs[i * 3 + 2]! * reach,
+      );
+    }
+    pos.needsUpdate = true;
+    const m = this.sparkles.material as THREE.PointsMaterial;
+    m.opacity = 1 - p;                 // fade out
+    m.size = (0.5 + (1 - p) * 0.9) * BOAT_SCALE * 0.5; // shrink as they fade
   }
 
   private board(controller: PlayerController): void {
@@ -120,6 +211,7 @@ export class BoatSystem {
     controller.inBoat = true;
     this.boat.visible = true;
     this.boat.scale.setScalar(0.001);
+    this.sparkles.visible = false;
     AudioSystem.getInstance().playSfx('jump');
   }
 
@@ -127,7 +219,9 @@ export class BoatSystem {
     this.mounted = false;
     this.leaving = true;
     this.transition = BOARD_TIME;
+    this.vanishSpin = 0;
     controller.inBoat = false;
+    // Magic poof — reuse the jump cue (a dedicated sparkle SFX could slot in here).
     AudioSystem.getInstance().playSfx('jump');
   }
 }
