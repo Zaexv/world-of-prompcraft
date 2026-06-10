@@ -37,11 +37,73 @@ function makeWarmupRng(): Rng {
  * corrupt later real spawns. The wrapper Object3Ds are dropped (GC'd); the leaked
  * GPU buffers are a handful of tiny offscreen meshes — negligible.
  */
-export function warmUpShaders(
+/** Resolve on the next animation frame so the DOM (loading bar) can repaint
+ *  between warmup batches — the work is on the main thread, so without yielding
+ *  the bar would freeze at 0% until everything finished. */
+function nextFrame(): Promise<void> {
+  return new Promise((resolve) => requestAnimationFrame(() => resolve()));
+}
+
+/** True when a texture's image is decoded and ready to upload to the GPU. */
+function textureHasImageData(tex: THREE.Texture): boolean {
+  const img = tex.image as
+    | { data?: ArrayLike<number>; width?: number; height?: number; complete?: boolean }
+    | undefined;
+  if (!img) return false;
+  if (img.data) return img.data.length > 0; // DataTexture
+  if (img.complete === true) return true; // HTMLImageElement, fully loaded
+  return typeof img.width === 'number' && img.width > 0; // ImageBitmap / canvas
+}
+
+/** A reusable 1×1 white image to stand in for textures still loading at warmup. */
+let warmupPlaceholderImage: HTMLCanvasElement | null = null;
+function getPlaceholderImage(): HTMLCanvasElement {
+  if (!warmupPlaceholderImage) {
+    warmupPlaceholderImage = document.createElement('canvas');
+    warmupPlaceholderImage.width = 1;
+    warmupPlaceholderImage.height = 1;
+    const ctx = warmupPlaceholderImage.getContext('2d');
+    if (ctx) {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, 1, 1);
+    }
+  }
+  return warmupPlaceholderImage;
+}
+
+/** Give every texture bound to the warmup meshes a valid image before the render.
+ *  Real meshes built above bind Poly Haven maps that are STILL loading async at
+ *  warmup time; rendering them makes three try to upload a texture with no image
+ *  → "Texture marked for update but no image data found." Setting `needsUpdate =
+ *  false` does NOT help (three's setter ignores `false`), so instead we drop in a
+ *  1×1 placeholder so the upload succeeds silently. The asset loader overwrites
+ *  `image` and re-flags `needsUpdate` on its onLoad, so the real texture still
+ *  uploads at runtime. Shader programs are unaffected — the cache key depends on
+ *  which map SLOTS are bound, not on the pixels. */
+function fillUnloadedTextures(roots: THREE.Object3D[]): void {
+  for (const root of roots) {
+    root.traverse((child) => {
+      const material = (child as THREE.Mesh).material;
+      if (!material) return;
+      const mats = Array.isArray(material) ? material : [material];
+      for (const mat of mats) {
+        for (const value of Object.values(mat as unknown as Record<string, unknown>)) {
+          if (value instanceof THREE.Texture && !textureHasImageData(value)) {
+            value.image = getPlaceholderImage();
+            value.needsUpdate = true;
+          }
+        }
+      }
+    });
+  }
+}
+
+export async function warmUpShaders(
   renderer: THREE.WebGLRenderer,
   scene: THREE.Scene,
   camera: THREE.Camera,
-): void {
+  onProgress?: (fraction: number) => void,
+): Promise<void> {
   // Compile against the REAL scene, not an isolated one: a program's cache key
   // includes the scene's light count, fog and environment. An empty scene
   // compiles the 0-light / no-fog / no-env variant — which never renders — so the
@@ -54,8 +116,13 @@ export function warmUpShaders(
   const rng = makeWarmupRng();
   const temp: THREE.Object3D[] = [];
 
+  // Each closure adds some temp meshes to the scene; the runner below executes
+  // them in small batches, compiling + yielding between batches so the loading
+  // bar reports real progress instead of freezing on one synchronous block.
+  const steps: Array<() => void> = [];
+
   for (const type of meshTypes()) {
-    try {
+    steps.push(() => {
       let obj: THREE.Object3D | undefined;
       if (meshCategory(type) === 'npc') {
         // Route through the NPC pipeline so flatShading/clone variants compile.
@@ -63,7 +130,7 @@ export function warmUpShaders(
       } else {
         obj = buildMesh(type, { position: hidden, scale: 1, rng });
       }
-      if (!obj) continue;
+      if (!obj) return;
       obj.position.copy(hidden);
       obj.visible = true;
       obj.traverse((child) => {
@@ -92,52 +159,54 @@ export function warmUpShaders(
           // colliders are invisible — no program to warm; drop them.
         }
       }
-    } catch {
-      // A type that can't build from a generic context simply isn't pre-warmed —
-      // it will compile on first real use (same as before). Never fail boot.
-    }
+    });
   }
 
-  // Also compile dynamic materials (sprites/particles/basic) that aren't registered meshes.
-  // Use a 1x1 DataTexture so it has valid image data for the GPU.
+  // A 1×1 DataTexture stands in for every bound slot so no "no image data" error
+  // fires while the real assets are still loading asynchronously.
   const dummyMap = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1);
   dummyMap.anisotropy = 8;
   dummyMap.needsUpdate = true; // DataTexture ctor doesn't flag for upload
-  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dummyMap, color: 0xffffff, transparent: true }));
-  sprite.position.copy(hidden);
-  sprite.frustumCulled = false;
-  scene.add(sprite);
-  temp.push(sprite);
 
-  const points = new THREE.Points(
-    new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0]), 3)),
-    new THREE.PointsMaterial({ map: dummyMap, size: 1, transparent: true, depthWrite: false })
-  );
-  points.position.copy(hidden);
-  points.frustumCulled = false;
-  scene.add(points);
-  temp.push(points);
+  // Dynamic materials (sprites/particles) that aren't registered meshes.
+  steps.push(() => {
+    const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: dummyMap, color: 0xffffff, transparent: true }));
+    sprite.position.copy(hidden);
+    sprite.frustumCulled = false;
+    scene.add(sprite);
+    temp.push(sprite);
+
+    const points = new THREE.Points(
+      new THREE.BufferGeometry().setAttribute('position', new THREE.BufferAttribute(new Float32Array([0,0,0]), 3)),
+      new THREE.PointsMaterial({ map: dummyMap, size: 1, transparent: true, depthWrite: false })
+    );
+    points.position.copy(hidden);
+    points.frustumCulled = false;
+    scene.add(points);
+    temp.push(points);
+  });
 
   // MeshBasicMaterial variants (Outlines, Sky, UI)
-  const basicVariants = [
-    { side: THREE.FrontSide, fog: true,  map: null },
-    { side: THREE.BackSide,  fog: true,  map: null },
-    { side: THREE.DoubleSide,fog: true,  map: null },
-    { side: THREE.FrontSide, fog: false, map: null },
-    { side: THREE.BackSide,  fog: false, map: null },
-    { side: THREE.FrontSide, fog: true,  map: dummyMap },
-  ];
-
-  for (const v of basicVariants) {
-    const m = new THREE.Mesh(
-      new THREE.BoxGeometry(),
-      new THREE.MeshBasicMaterial({ color: 0xffffff, side: v.side, fog: v.fog, map: v.map })
-    );
-    m.position.copy(hidden);
-    m.frustumCulled = false;
-    scene.add(m);
-    temp.push(m);
-  }
+  steps.push(() => {
+    const basicVariants = [
+      { side: THREE.FrontSide, fog: true,  map: null },
+      { side: THREE.BackSide,  fog: true,  map: null },
+      { side: THREE.DoubleSide,fog: true,  map: null },
+      { side: THREE.FrontSide, fog: false, map: null },
+      { side: THREE.BackSide,  fog: false, map: null },
+      { side: THREE.FrontSide, fog: true,  map: dummyMap },
+    ];
+    for (const v of basicVariants) {
+      const m = new THREE.Mesh(
+        new THREE.BoxGeometry(),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, side: v.side, fog: v.fog, map: v.map })
+      );
+      m.position.copy(hidden);
+      m.frustumCulled = false;
+      scene.add(m);
+      temp.push(m);
+    }
+  });
 
   // PBR variants (Standard/Physical).
   //
@@ -173,72 +242,98 @@ export function warmUpShaders(
   // the coast. fog + scene.environment (envMap) are on for all world content.
   // Cross-product bounded (5 × 2 × 2 × 2 × 2 = 80).
   for (const physical of [false, true]) {
-    for (const flat of [true, false]) {
-      for (const vertexColors of [false, true]) {
-        for (const side of [THREE.FrontSide, THREE.DoubleSide]) {
-          for (const combo of mapCombos) {
-            const params: THREE.MeshStandardMaterialParameters = {
-              color: 0xffffff, flatShading: flat, fog: true, vertexColors, side,
-              map: combo.map ? dummyMap : null,
-              normalMap: combo.nor ? dummyMap : null,
-              roughnessMap: combo.rough ? dummyMap : null,
-            };
-            const mat = physical
-              ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
-              : new THREE.MeshStandardMaterial(params);
+    steps.push(() => {
+      for (const flat of [true, false]) {
+        for (const vertexColors of [false, true]) {
+          for (const side of [THREE.FrontSide, THREE.DoubleSide]) {
+            for (const combo of mapCombos) {
+              const params: THREE.MeshStandardMaterialParameters = {
+                color: 0xffffff, flatShading: flat, fog: true, vertexColors, side,
+                map: combo.map ? dummyMap : null,
+                normalMap: combo.nor ? dummyMap : null,
+                roughnessMap: combo.rough ? dummyMap : null,
+              };
+              const mat = physical
+                ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
+                : new THREE.MeshStandardMaterial(params);
 
-            const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
-            m.position.copy(hidden);
-            m.frustumCulled = false;
-            m.castShadow = true;
-            m.receiveShadow = true;
-            scene.add(m);
-            temp.push(m);
+              const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
+              m.position.copy(hidden);
+              m.frustumCulled = false;
+              m.castShadow = true;
+              m.receiveShadow = true;
+              scene.add(m);
+              temp.push(m);
+            }
           }
         }
       }
-    }
+    });
   }
 
   // Transparent + fog:false outliers (glass/lenses, sky-adjacent UI panels) that
   // don't share the opaque world program. Kept minimal — these are rare.
-  for (const v of [
-    { physical: true,  flat: true,  fog: true,  trans: true  },
-    { physical: false, flat: true,  fog: false, trans: false },
-  ]) {
-    const params: THREE.MeshStandardMaterialParameters = {
-      color: 0xffffff, flatShading: v.flat, fog: v.fog, transparent: v.trans,
-    };
-    const mat = v.physical
-      ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
-      : new THREE.MeshStandardMaterial(params);
-    const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
-    m.position.copy(hidden);
-    m.frustumCulled = false;
-    m.castShadow = true;
-    m.receiveShadow = true;
-    scene.add(m);
-    temp.push(m);
+  steps.push(() => {
+    for (const v of [
+      { physical: true,  flat: true,  fog: true,  trans: true  },
+      { physical: false, flat: true,  fog: false, trans: false },
+    ]) {
+      const params: THREE.MeshStandardMaterialParameters = {
+        color: 0xffffff, flatShading: v.flat, fog: v.fog, transparent: v.trans,
+      };
+      const mat = v.physical
+        ? new THREE.MeshPhysicalMaterial({ ...params, clearcoat: 1 })
+        : new THREE.MeshStandardMaterial(params);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(), mat);
+      m.position.copy(hidden);
+      m.frustumCulled = false;
+      m.castShadow = true;
+      m.receiveShadow = true;
+      scene.add(m);
+      temp.push(m);
+    }
+  });
+
+  // ── Run the steps in small batches, compiling + yielding between each batch ──
+  // so the loading bar reports real progress. A step that can't build (a mesh
+  // type needing context we don't have) is skipped — it compiles on first real
+  // use, same as before; warmup never fails boot. The two render passes after
+  // the loop warm shadow-depth + the off-screen (no-tone-mapping) variants for
+  // everything added above.
+  const BATCH = 4;
+  const totalUnits = steps.length + 1; // +1 → the final render pass below
+  for (let i = 0; i < steps.length; i += BATCH) {
+    const end = Math.min(i + BATCH, steps.length);
+    for (let j = i; j < end; j++) {
+      try {
+        steps[j]!();
+      } catch {
+        // Unbuildable type/variant — skip; it compiles on first real use.
+      }
+    }
+    renderer.compile(scene, camera);
+    onProgress?.(end / totalUnits);
+    await nextFrame();
   }
 
-  // Compile main materials.
-  renderer.compile(scene, camera);
+  // Final pass renders the temp meshes into an OFF-SCREEN target — NOT the screen.
+  // Two reasons:
+  //   1. It compiles the variants `compile()` does NOT: the shadow-DEPTH programs
+  //      (only built during the shadow-map pass) plus the NO-tone-mapping variant.
+  //      three.js folds tone mapping into a material's program ONLY when rendering
+  //      to the screen; the game renders the world through an EffectComposer into a
+  //      render target (tone mapping is a later fullscreen pass), so the world
+  //      materials need exactly this no-tone-mapping variant — the one this warms.
+  //   2. Rendering to the screen here would PAINT the pile of temp warmup meshes
+  //      onto the visible canvas (a "all textures combined" flash) the moment the
+  //      browser gets to repaint between batches. Off-screen never touches it.
+  // The shadow pass still runs (shadowMap.needsUpdate) and writes to the shadow map
+  // regardless of the final target, so shadow-depth programs compile here too.
+  //
+  // Stand a 1×1 placeholder in for any texture still loading, so the render below
+  // doesn't warn "Texture marked for update but no image data found" (see helper).
+  fillUnloadedTextures(temp);
 
-  // A real render pass compiles the variants `compile()` does NOT: the
-  // shadow-DEPTH programs (only built during the shadow-map pass) and any
-  // draw-state-specific variant. The temp meshes sit at the origin in front of
-  // the camera and the sun's shadow frustum, so one render warms their cast +
-  // receive shadow programs.
-  renderer.shadowMap.needsUpdate = true;
-  renderer.render(scene, camera);
-
-  // Render once more into an OFF-SCREEN target. three.js folds tone mapping into
-  // the material program ONLY when rendering to the screen — so a screen render
-  // produces the `TONE_MAPPING` variant, but the game renders the scene through
-  // EffectComposer into a render target (and the water reflection cube is another
-  // off-screen pass), which needs the NO-tone-mapping variant. Without this they
-  // compiled on first sight (the persistent coast/Fort-Malaka stutter). Same
-  // meshes, different output → the complementary programs compile here.
   const rt = new THREE.WebGLRenderTarget(4, 4);
   renderer.setRenderTarget(rt);
   renderer.shadowMap.needsUpdate = true;
@@ -246,6 +341,8 @@ export function warmUpShaders(
   renderer.setRenderTarget(null);
   rt.dispose();
 
-  // Clean up references
+  // Remove the temp meshes synchronously, with NO yield after the render above, so
+  // the browser never paints a frame that still contains them.
   for (const obj of temp) scene.remove(obj);
+  onProgress?.(1);
 }

@@ -23,13 +23,16 @@ loginScreen.show();
 
 loginScreen.onEnterWorld = (username: string, race: string, faction: string) => {
   const loadingOverlay = createLoadingOverlay(app);
-  const engine = bootstrap({ username, race, faction }, app, loadingOverlay, loginScreen);
-  engine.start();
+  void bootstrap({ username, race, faction }, app, loadingOverlay, loginScreen).then((engine) => {
+    engine.start();
+  });
 };
 
 // ── Loading overlay ───────────────────────────────────────────────────────────
 
-function createLoadingOverlay(container: HTMLElement): { setMessage(m: string): void; hide(): void } {
+function createLoadingOverlay(
+  container: HTMLElement,
+): { setMessage(m: string): void; setProgress(f: number): void; hide(): void } {
   const overlay = document.createElement('div');
   Object.assign(overlay.style, {
     position: 'absolute', inset: '0', display: 'flex', flexDirection: 'column',
@@ -50,16 +53,36 @@ function createLoadingOverlay(container: HTMLElement): { setMessage(m: string): 
   message.textContent = 'Loading world...';
   message.style.letterSpacing = '0.3px';
 
+  // Shader-compilation progress bar — fills as warmUpShaders compiles each batch.
+  const barTrack = document.createElement('div');
+  Object.assign(barTrack.style, {
+    width: '240px', height: '6px', borderRadius: '3px',
+    background: 'rgba(160, 184, 255, 0.15)', overflow: 'hidden',
+  } as CSSStyleDeclaration);
+
+  const barFill = document.createElement('div');
+  Object.assign(barFill.style, {
+    width: '0%', height: '100%', borderRadius: '3px',
+    background: 'linear-gradient(90deg, #6f8cff, #9fb9ff)',
+    transition: 'width 0.15s ease-out',
+  } as CSSStyleDeclaration);
+  barTrack.appendChild(barFill);
+
   const style = document.createElement('style');
   style.textContent = `@keyframes promptcraft-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`;
   document.head.appendChild(style);
 
   overlay.appendChild(spinner);
   overlay.appendChild(message);
+  overlay.appendChild(barTrack);
   container.appendChild(overlay);
 
   return {
     setMessage(m: string) { message.textContent = m; },
+    setProgress(f: number) {
+      const pct = Math.max(0, Math.min(1, f)) * 100;
+      barFill.style.width = `${pct.toFixed(1)}%`;
+    },
     hide() { overlay.remove(); },
   };
 }
