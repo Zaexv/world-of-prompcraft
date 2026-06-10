@@ -1,4 +1,5 @@
 import { CharacterPreview } from './CharacterPreview';
+import { isPhone } from '../../utils/DeviceDetection';
 
 interface RaceDef {
   id: string;
@@ -96,6 +97,26 @@ export class CharacterCreation {
     } as CSSStyleDeclaration);
     columns.appendChild(this.raceCardsContainer);
     this.updateRaceCards();
+
+    // Phone: stack preview over a wrapped race grid, and shrink the 3D preview
+    // canvas (CSS only — the renderer bitmap is unchanged) so the whole form
+    // fits and the "Enter World" button below stays reachable.
+    if (isPhone()) {
+      Object.assign(columns.style, {
+        flexDirection: 'column',
+        gap: '1em',
+      } as CSSStyleDeclaration);
+      Object.assign(this.preview.canvas.style, {
+        width: '190px',
+        height: '250px',
+      } as CSSStyleDeclaration);
+      Object.assign(this.raceCardsContainer.style, {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'center',
+        minWidth: '0',
+      } as CSSStyleDeclaration);
+    }
 
     this.element.appendChild(columns);
 

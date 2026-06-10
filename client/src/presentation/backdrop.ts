@@ -74,9 +74,10 @@ export class Backdrop {
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 12 state graph
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 13 PoC transcript
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 14 pillar 3 (coding)
-    { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 15 contributors
-    { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 16 thanks
-    { kind: 'vista', x: 0, z: 0, radius: 28, height: 2.7 },      // spare
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 15 process deep dive
+    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 16 plans deep dive
+    { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 17 contributors
+    { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 18 thanks
   ];
 
   constructor(container: HTMLElement) {

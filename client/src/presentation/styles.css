@@ -21,6 +21,12 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 html, body { height: 100%; }
 
+/* Resolution-proportional scaling: the deck is designed at 1536×864 (16px root).
+   Scaling the root with the viewport makes every rem-based size — type, gaps,
+   cards — keep the exact same proportions on any screen. min() picks the
+   limiting axis so ultra-wide or ultra-tall screens never overflow. */
+html { font-size: min(1.042vw, 1.852vh); }
+
 body {
   font-family: var(--sans);
   color: var(--ink);
@@ -77,7 +83,7 @@ body:has(.slide.cinema.active) .scrim { opacity: 0.08; }
 .panel {
   position: relative;
   width: 100%;
-  max-width: 1180px;
+  max-width: 74rem;
   margin: 0 auto;
   padding: 2.6rem 3rem;
   background: var(--glass);
@@ -96,16 +102,16 @@ body:has(.slide.cinema.active) .scrim { opacity: 0.08; }
   border-radius: 6px;
   pointer-events: none;
 }
-.slide.center .panel { max-width: 880px; text-align: center; }
-.panel--wide { max-width: 1300px !important; }
+.slide.center .panel { max-width: 55rem; text-align: center; }
+.panel--wide { max-width: 81rem !important; }
 .diagram--tall { height: 60vh; }
 
 /* Side-anchored slide — panel hugs one edge, the other half left open for the
    live world to show through. */
 .slide.left { align-items: flex-start; }
-.slide.left .panel { margin: 0; max-width: min(640px, 48vw); }
+.slide.left .panel { margin: 0; max-width: min(40rem, 48vw); }
 .slide.right { align-items: flex-end; }
-.slide.right .panel { margin: 0; max-width: min(640px, 48vw); }
+.slide.right .panel { margin: 0; max-width: min(40rem, 48vw); }
 
 /* Reference image thumbnails (e.g. old PoC + Generative Agents). */
 .refs { display: flex; gap: 1rem; margin-top: 1.6rem; }
@@ -206,8 +212,8 @@ code, .mono { font-family: var(--mono); color: var(--gold-soft); font-size: 0.92
   margin-top: 2rem;
 }
 .speaker-photo {
-  width: 116px;
-  height: 116px;
+  width: 7.25rem;
+  height: 7.25rem;
   border-radius: 50%;
   /* The source is a square with white corners; cover + a slight upward crop
      centres the face inside the circle and clips the corners away cleanly. */
@@ -698,35 +704,43 @@ kbd {
 /* ---------- slide-11 agent demo ---------- */
 .agent-demo {
   display: grid;
-  grid-template-columns: 160px 230px 1fr;
+  grid-template-columns: 10rem 14.5rem 1fr;
   gap: 1rem;
   align-items: start;
   margin-top: 0.6rem;
 }
-/* Full-screen variant — demo fills the whole panel, columns stretch. */
+/* Full-screen variant — demo fills the whole panel, columns stretch.
+   min-height/min-width 0 everywhere so content can never push boxes
+   past the viewport; the trace clips instead of overflowing. */
 .slide.full .agent-demo {
   flex: 1;
   min-height: 0;
-  grid-template-columns: 240px 340px 1fr;
-  gap: 1.4rem;
+  grid-template-columns: 14rem 20rem 1fr;
+  gap: 1.2rem;
   align-items: stretch;
-  margin-top: 1rem;
+  margin-top: 0.8rem;
 }
-.slide.full .agent-npc-col .avatar-stage { height: auto; flex: 1; }
+.slide.full .agent-demo > * { min-width: 0; min-height: 0; }
+.slide.full .agent-npc-col .avatar-stage { height: auto; flex: 1; min-height: 0; }
 .slide.full .igc {
   display: flex;
   flex-direction: column;
-  font-size: clamp(0.78rem, 1vw, 0.92rem);
+  min-height: 0;
+  overflow: hidden;
+  font-size: 0.78rem;
 }
-.slide.full .igc-history { flex: 1; }
-.slide.full .agent-right-col .ad-flow { width: 220px; }
+.slide.full .igc-history { flex: 1; min-height: 0; overflow: hidden; }
+.slide.full .agent-right-col { min-height: 0; }
+.slide.full .agent-right-col .ad-flow { width: 12.5rem; overflow: hidden; }
 .slide.full .agent-trace {
   display: flex;
   flex-direction: column;
-  font-size: clamp(0.82rem, 1.05vw, 0.98rem);
+  min-height: 0;
+  overflow: hidden;
+  font-size: 0.82rem;
 }
-.slide.full .agent-trace .trace-section { flex: 1; }
-.slide.full .trace-thought { font-size: 0.8rem; }
+.slide.full .agent-trace .trace-section { flex: 1; min-height: 0; }
+.slide.full .trace-thought { font-size: 0.72rem; }
 .agent-npc-col {
   display: flex;
   flex-direction: column;
@@ -751,7 +765,7 @@ kbd {
 }
 .agent-right-col .ad-flow {
   flex-shrink: 0;
-  width: 190px;
+  width: 12rem;
 }
 .agent-right-col .agent-trace {
   flex: 1;
@@ -1035,7 +1049,7 @@ kbd {
   gap: 0;
 }
 .ad-node {
-  width: 148px;
+  width: 9.25rem;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1165,7 +1179,7 @@ kbd {
 /* ---- State graph slide: graph + tools + state ---- */
 .sg-layout {
   display: grid;
-  grid-template-columns: 1fr 400px;
+  grid-template-columns: 1fr 25rem;
   gap: 1.4rem;
   margin-top: 0.7rem;
   align-items: start;
@@ -1174,7 +1188,7 @@ kbd {
 .slide.full .sg-layout {
   flex: 1;
   min-height: 0;
-  grid-template-columns: 1.1fr 460px;
+  grid-template-columns: 1.1fr 29rem;
   align-items: stretch;
   margin-top: 1rem;
 }
@@ -1799,183 +1813,401 @@ kbd {
 .scale-fact-val { color: var(--muted); }
 
 /* ================================================================
-   SLIDE 14 — AGENTIC CODING
+   SLIDE 14 — AGENTIC CODING (prompting strategies)
    ================================================================ */
-.ac-layout {
-  display: grid;
-  grid-template-columns: 220px 1fr;
-  gap: 1.8rem;
-  margin-top: 1rem;
-  align-items: start;
-}
-/* Full-screen variant — workflow and output stretch, type scales up. */
-.slide.full .ac-layout {
-  flex: 1;
-  min-height: 0;
-  grid-template-columns: 300px 1fr;
-  gap: 2.2rem;
-  margin-top: 1.2rem;
-  align-items: stretch;
-}
-.slide.full .ac-workflow { justify-content: space-evenly; }
-.slide.full .ac-step-badge { font-size: 0.7rem; }
-.slide.full .ac-step-title { font-size: 0.95rem; }
-.slide.full .ac-step-body { font-size: 0.8rem; }
-.slide.full .ac-step-body code { font-size: 0.74rem; }
-.slide.full .ac-output { justify-content: space-evenly; }
-.slide.full .ac-stat-num { font-size: 2.7rem; }
-.slide.full .ac-stat-label { font-size: 0.92rem; }
-.slide.full .ac-stat-sub { font-size: 0.76rem; }
-.slide.full .ac-tools-title { font-size: 0.85rem; }
-.slide.full .ac-tool { font-size: 0.76rem; padding: 0.2rem 0.6rem; }
-.slide.full .ac-rulebook { font-size: 0.82rem; }
-.slide.full .ac-rulebook-label { font-size: 0.72rem; }
-.slide.full .ac-rulebook-body code { font-size: 0.72rem; }
-.ac-workflow {
+/* The delivery loop as one quiet strip above the strategy grid. */
+.acx-loop {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 0;
-}
-.ac-step {
-  width: 100%;
-  border-radius: 8px;
-  padding: 0.55rem 0.8rem;
-  border: 1px solid var(--line-soft);
-  background: rgba(12,9,20,0.55);
-}
-.ac-step-badge {
+  flex-wrap: wrap;
+  gap: 0.5rem 0.6rem;
+  margin-top: 1.1rem;
   font-family: var(--mono);
-  font-size: 0.56rem;
+}
+.acx-loop-step {
+  font-size: 0.78rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  padding: 0.1rem 0.4rem;
-  border-radius: 4px;
-  display: inline-block;
-  margin-bottom: 0.3rem;
-}
-.ac-step-title {
-  font-family: var(--serif);
-  font-size: 0.72rem;
-  margin-bottom: 0.2rem;
-  color: var(--ink);
-}
-.ac-step-body {
-  font-size: 0.62rem;
-  color: var(--muted);
-  line-height: 1.5;
-}
-.ac-step-body code { font-family: var(--mono); font-size: 0.58rem; color: #e8b84b; }
-.ac-step--research { border-color: rgba(86,184,154,0.35); }
-.ac-step--research .ac-step-badge { background: rgba(86,184,154,0.15); color: #56b89a; }
-.ac-step--plan     { border-color: rgba(136,200,255,0.3); }
-.ac-step--plan     .ac-step-badge { background: rgba(136,200,255,0.12); color: #88c8ff; }
-.ac-step--impl     { border-color: rgba(232,184,75,0.3); }
-.ac-step--impl     .ac-step-badge { background: rgba(232,184,75,0.12); color: #e8b84b; }
-.ac-step--ship     { border-color: rgba(200,168,232,0.3); }
-.ac-step--ship     .ac-step-badge { background: rgba(200,168,232,0.12); color: #c8a8e8; }
-.ac-arrow {
-  color: var(--muted);
-  font-size: 0.85rem;
-  padding: 0.18rem 0;
-  text-align: center;
-}
-.ac-output {
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-.ac-stat-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-}
-.ac-stat-row--4 { grid-template-columns: repeat(4, 1fr); }
-/* Side-by-side callouts; the stacked variant puts the label above the body. */
-.ac-callout-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 0.7rem;
-}
-.ac-rulebook--stack {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
-}
-.ac-stat {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
-}
-.ac-stat-num {
-  font-family: var(--serif);
-  font-size: 2rem;
-  color: var(--gold-bright);
-  line-height: 1;
-  margin-bottom: 0.2rem;
-}
-.ac-stat-label {
-  font-size: 0.72rem;
-  color: var(--ink);
-  margin-bottom: 0.2rem;
-}
-.ac-stat-sub {
-  font-size: 0.60rem;
-  color: var(--muted);
-  line-height: 1.45;
-}
-.ac-tools-built {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid var(--line-soft);
-  border-radius: 8px;
-  padding: 0.7rem 0.9rem;
-}
-.ac-tools-title {
-  font-family: var(--serif);
-  font-size: 0.68rem;
   color: var(--gold-soft);
-  margin-bottom: 0.5rem;
+  background: rgba(212, 179, 105, 0.1);
+  border: 1px solid rgba(212, 179, 105, 0.35);
+  border-radius: 16px;
+  padding: 0.22rem 0.8rem;
+}
+.acx-loop-arr { color: var(--gold); font-size: 0.8rem; }
+.acx-loop-note {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-style: italic;
+  color: var(--muted);
   letter-spacing: 0.04em;
 }
-.ac-tools-list {
+
+/* Six strategy cards — 3 × 2, each with its own accent color. */
+.acx-grid {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: auto auto;
+  align-content: space-evenly;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+.acx-card {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.35rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  background: rgba(10, 7, 17, 0.6);
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid transparent;
+  border-radius: 10px;
+  padding: 0.85rem 1rem;
+  opacity: 0;
+  transition: transform 0.22s ease, border-color 0.22s ease, box-shadow 0.22s ease;
 }
-.ac-tool {
+.slide.active .acx-card { animation: pillar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.acx-card:nth-child(1) { animation-delay: 0.06s; }
+.acx-card:nth-child(2) { animation-delay: 0.14s; }
+.acx-card:nth-child(3) { animation-delay: 0.22s; }
+.acx-card:nth-child(4) { animation-delay: 0.3s; }
+.acx-card:nth-child(5) { animation-delay: 0.38s; }
+.acx-card:nth-child(6) { animation-delay: 0.46s; }
+.acx-card:hover {
+  transform: translateY(-4px);
+  border-color: var(--line);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+}
+.acx-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+.acx-icon { display: inline-flex; }
+.acx-icon svg { width: 1.5rem; height: 1.5rem; }
+.acx-card--ctx   .acx-icon { color: #7ed4b4; }
+.acx-card--skill .acx-icon { color: #f0c155; }
+.acx-card--plan  .acx-icon { color: #9cd4ff; }
+.acx-card--pipe  .acx-icon { color: #dcc4f4; }
+.acx-card--gate  .acx-icon { color: #f4a8a0; }
+.acx-card--mem   .acx-icon { color: #f0b888; }
+.acx-loop-note b { color: var(--gold-soft); }
+.acx-tag {
+  align-self: flex-start;
   font-family: var(--mono);
-  font-size: 0.60rem;
-  padding: 0.15rem 0.5rem;
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid;
   border-radius: 4px;
-  background: rgba(232,184,75,0.1);
-  color: #e8b84b;
-  border: 1px solid rgba(232,184,75,0.22);
+  padding: 0.12rem 0.5rem;
 }
-.ac-rulebook {
-  background: rgba(12,9,20,0.55);
-  border: 1px solid rgba(197,165,90,0.3);
-  border-radius: 8px;
-  padding: 0.65rem 0.9rem;
+.acx-card h3 {
+  font-family: var(--serif);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--ink);
+}
+.acx-card p {
+  font-size: 0.84rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.acx-card p b { color: var(--ink); }
+.acx-card p code { font-size: 0.85em; }
+/* Per-card accents */
+.acx-card--ctx   { border-top-color: rgba(86, 184, 154, 0.7); }
+.acx-card--ctx   .acx-tag { color: #7ed4b4; border-color: rgba(86, 184, 154, 0.45); background: rgba(86, 184, 154, 0.1); }
+.acx-card--skill { border-top-color: rgba(232, 184, 75, 0.7); }
+.acx-card--skill .acx-tag { color: #f0c155; border-color: rgba(232, 184, 75, 0.45); background: rgba(232, 184, 75, 0.1); }
+.acx-card--plan  { border-top-color: rgba(136, 200, 255, 0.7); }
+.acx-card--plan  .acx-tag { color: #9cd4ff; border-color: rgba(136, 200, 255, 0.45); background: rgba(136, 200, 255, 0.1); }
+.acx-card--pipe  { border-top-color: rgba(200, 168, 232, 0.7); }
+.acx-card--pipe  .acx-tag { color: #dcc4f4; border-color: rgba(200, 168, 232, 0.45); background: rgba(200, 168, 232, 0.1); }
+.acx-card--gate  { border-top-color: rgba(220, 80, 80, 0.7); }
+.acx-card--gate  .acx-tag { color: #f4a8a0; border-color: rgba(220, 80, 80, 0.45); background: rgba(220, 80, 80, 0.1); }
+.acx-card--mem   { border-top-color: rgba(217, 148, 80, 0.7); }
+.acx-card--mem   .acx-tag { color: #f0b888; border-color: rgba(217, 148, 80, 0.45); background: rgba(217, 148, 80, 0.1); }
+
+/* Footer strip: the numbers + the punchline. */
+.acx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  margin-top: 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line-soft);
+}
+.acx-stats {
   display: flex;
   align-items: baseline;
-  gap: 0.8rem;
-  font-size: 0.67rem;
-}
-.ac-rulebook-label {
+  gap: 0.6rem;
   font-family: var(--mono);
-  font-size: 0.60rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.acx-stats b {
+  font-family: var(--serif);
+  font-size: 1.3rem;
   color: var(--gold-bright);
-  letter-spacing: 0.08em;
+  font-weight: 700;
+}
+.acx-dot { color: var(--gold); }
+.acx-zero {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
+.acx-zero b { color: var(--gold-soft); }
+
+/* ================================================================
+   SLIDE 14b — THE PROCESS (pipeline of artifacts)
+   ================================================================ */
+.pp-flow {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: stretch;
+  gap: 0.6rem;
+  margin-top: 1.4rem;
+}
+.pp-stage {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  background: rgba(10, 7, 17, 0.6);
+  border: 1px solid var(--line-soft);
+  border-top: 3px solid transparent;
+  border-radius: 10px;
+  padding: 0.95rem 0.95rem 0.85rem;
+  opacity: 0;
+}
+.slide.active .pp-stage { animation: pillar-rise 0.55s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.pp-stage:nth-of-type(1) { animation-delay: 0.06s; }
+.pp-stage:nth-of-type(2) { animation-delay: 0.16s; }
+.pp-stage:nth-of-type(3) { animation-delay: 0.26s; }
+.pp-stage:nth-of-type(4) { animation-delay: 0.36s; }
+.pp-stage:nth-of-type(5) { animation-delay: 0.46s; }
+.pp-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.5rem;
+}
+.pp-icon { display: inline-flex; }
+.pp-icon svg { width: 1.4rem; height: 1.4rem; }
+.pp-stage--prompt   .pp-icon { color: #9cd4ff; }
+.pp-stage--research .pp-icon { color: #7ed4b4; }
+.pp-stage--plan     .pp-icon { color: #f0c155; }
+.pp-stage--impl     .pp-icon { color: #dcc4f4; }
+.pp-stage--ship     .pp-icon { color: #f4a8a0; }
+.pp-agent {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 0.54rem;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
+  color: var(--muted);
+  border: 1px dashed rgba(212, 179, 105, 0.4);
+  border-radius: 10px;
+  padding: 0.1rem 0.4rem;
+  white-space: nowrap;
+}
+.pp-badge {
+  align-self: flex-start;
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  border: 1px solid;
+  border-radius: 4px;
+  padding: 0.12rem 0.5rem;
+}
+.pp-stage h3 {
+  font-family: var(--serif);
+  font-size: clamp(0.9rem, 1.25vw, 1.1rem);
+  color: var(--ink);
+}
+.pp-stage p {
+  font-size: clamp(0.74rem, 0.98vw, 0.88rem);
+  line-height: 1.5;
+  color: var(--muted);
+  overflow-wrap: break-word;
+}
+.pp-stage p b { color: var(--ink); }
+.pp-stage p code { font-size: 0.85em; }
+.pp-artifact {
+  margin-top: auto;
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--gold-soft);
+  background: rgba(212, 179, 105, 0.08);
+  border: 1px dashed rgba(212, 179, 105, 0.4);
+  border-radius: 6px;
+  padding: 0.3rem 0.4rem;
+  text-align: center;
+  overflow-wrap: break-word;
+}
+.pp-arr {
+  align-self: center;
+  color: var(--gold);
+  font-size: 1rem;
   flex-shrink: 0;
 }
-.ac-rulebook-body {
+.pp-stage--prompt   { border-top-color: rgba(136, 200, 255, 0.7); }
+.pp-stage--prompt   .pp-badge { color: #9cd4ff; border-color: rgba(136, 200, 255, 0.45); background: rgba(136, 200, 255, 0.1); }
+.pp-stage--research { border-top-color: rgba(86, 184, 154, 0.7); }
+.pp-stage--research .pp-badge { color: #7ed4b4; border-color: rgba(86, 184, 154, 0.45); background: rgba(86, 184, 154, 0.1); }
+.pp-stage--plan     { border-top-color: rgba(232, 184, 75, 0.7); }
+.pp-stage--plan     .pp-badge { color: #f0c155; border-color: rgba(232, 184, 75, 0.45); background: rgba(232, 184, 75, 0.1); }
+.pp-stage--impl     { border-top-color: rgba(200, 168, 232, 0.7); }
+.pp-stage--impl     .pp-badge { color: #dcc4f4; border-color: rgba(200, 168, 232, 0.45); background: rgba(200, 168, 232, 0.1); }
+.pp-stage--ship     { border-top-color: rgba(220, 80, 80, 0.7); }
+.pp-stage--ship     .pp-badge { color: #f4a8a0; border-color: rgba(220, 80, 80, 0.45); background: rgba(220, 80, 80, 0.1); }
+.pp-note {
+  margin-top: 1.2rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid var(--line-soft);
+  font-size: 0.95rem;
   color: var(--muted);
-  line-height: 1.5;
+  text-align: center;
 }
-.ac-rulebook-body b { color: var(--ink); font-weight: 700; }
-.ac-rulebook-body code { font-family: var(--mono); font-size: 0.60rem; color: #c8a8e8; }
+.pp-note b { color: var(--gold-soft); }
+
+/* ================================================================
+   SLIDE 14c — PLANS (folder + anatomy)
+   ================================================================ */
+.pf-layout {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: 1fr 1.1fr;
+  gap: 1.4rem;
+  margin-top: 1.4rem;
+  align-items: stretch;
+}
+.pf-files {
+  background: rgba(5, 3, 10, 0.88);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.pf-files-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 0.6rem 0.95rem;
+  background: rgba(212, 179, 105, 0.08);
+  border-bottom: 1px solid var(--line-soft);
+  font-size: 0.92rem;
+}
+.pf-count {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  font-style: italic;
+  color: var(--muted);
+}
+.pf-file {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  padding: 0.55rem 0.95rem;
+  font-family: var(--mono);
+  font-size: clamp(0.72rem, 1vw, 0.86rem);
+  border-bottom: 1px solid rgba(212, 179, 105, 0.08);
+}
+.pf-file:last-child { border-bottom: none; }
+.pf-date { color: var(--muted); flex-shrink: 0; }
+.pf-done {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #8ee4c4;
+  background: rgba(86, 184, 154, 0.12);
+  border: 1px solid rgba(86, 184, 154, 0.4);
+  border-radius: 3px;
+  padding: 0.05rem 0.4rem;
+}
+.pf-name { color: var(--gold-soft); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pf-file--more { color: var(--muted); font-style: italic; justify-content: center; margin-top: auto; }
+.pf-right {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.pf-anatomy,
+.pf-life {
+  flex: 1;
+  background: rgba(10, 7, 17, 0.6);
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+}
+.pf-block-title {
+  font-family: var(--serif);
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--gold-soft);
+  margin-bottom: 0.7rem;
+}
+.pf-row {
+  display: flex;
+  gap: 0.9rem;
+  align-items: baseline;
+  padding: 0.45rem 0 0.45rem 0.7rem;
+  border-bottom: 1px solid rgba(212, 179, 105, 0.08);
+  border-left: 3px solid transparent;
+  font-size: clamp(0.8rem, 1.1vw, 0.95rem);
+}
+.pf-row:last-child { border-bottom: none; }
+.pf-row--tldr   { border-left-color: rgba(136, 200, 255, 0.7); }
+.pf-row--tldr   .pf-key { color: #9cd4ff; }
+.pf-row--parts  { border-left-color: rgba(200, 168, 232, 0.7); }
+.pf-row--parts  .pf-key { color: #dcc4f4; }
+.pf-row--fix    { border-left-color: rgba(232, 184, 75, 0.7); }
+.pf-row--fix    .pf-key { color: #f0c155; }
+.pf-row--verify { border-left-color: rgba(86, 184, 154, 0.7); }
+.pf-row--verify .pf-key { color: #8ee4c4; }
+.pf-key {
+  flex-shrink: 0;
+  width: 8.25rem;
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  color: var(--gold-bright);
+}
+.pf-val { color: var(--muted); line-height: 1.5; }
+.pf-life-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+.pf-chip {
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  padding: 0.22rem 0.7rem;
+}
+.pf-chip--human { color: #f0c155; border-color: rgba(232, 184, 75, 0.5); background: rgba(232, 184, 75, 0.1); }
+.pf-chip--done  { color: #8ee4c4; border-color: rgba(86, 184, 154, 0.5); background: rgba(86, 184, 154, 0.1); }
+.pf-life-arr { color: var(--gold); font-size: 0.85rem; }
+.pf-life-note {
+  margin-top: 0.8rem;
+  font-size: 0.84rem;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.pf-life-note code { font-size: 0.85em; }
 
 /* ================================================================
    SLIDE 15 — CONTRIBUTORS (the guild)
@@ -2011,8 +2243,8 @@ kbd {
 }
 /* Portrait medallion — photo (or initial placeholder) in a gilt ring. */
 .contrib-photo {
-  width: 96px;
-  height: 96px;
+  width: 6rem;
+  height: 6rem;
   border-radius: 50%;
   object-fit: cover;
   object-position: center 30%;

@@ -5,6 +5,7 @@ import { Water } from '../scene/Water';
 import { CollisionSystem } from '../systems/CollisionSystem';
 import { CapsuleController } from '../systems/collision/CapsuleController';
 import { Capsule } from '../systems/collision/Capsule';
+import { isPhone } from '../utils/DeviceDetection';
 
 /**
  * Third-person player controller with WoW-style orbit camera:
@@ -89,6 +90,16 @@ export class PlayerController {
   private dragDistance = 0;
   private pointerLocked = false;
 
+  // --- Touch input (set by TouchControls on phones) ---
+  /** Joystick forward axis, -1 (back) .. +1 (forward). */
+  public touchForward = 0;
+  /** Joystick strafe axis, -1 (right) .. +1 (left), matching keyboard A/D sign. */
+  public touchStrafe = 0;
+  /** Whether the joystick is pushed far enough to sprint. */
+  public touchRun = false;
+  /** Gain applied to touch drag-look (touch needs more travel than a mouse). */
+  private readonly touchLookSensitivity = 0.006;
+
   private camera: THREE.PerspectiveCamera;
   private domElement: HTMLElement;
   private getHeightAt: (x: number, z: number) => number;
@@ -107,9 +118,35 @@ export class PlayerController {
     this.cameraPos.copy(this.computeCameraTarget(0));
     this.effectiveDistance = this.zoomDistance;
 
-    this.initMouseOrbit();
+    // On phones the camera is driven by TouchControls (drag-look + pinch zoom).
+    // Skip the desktop mouse-orbit / pointer-lock path — Pointer Lock is
+    // unavailable on mobile Safari and synthetic mouse events would fight the
+    // touch handlers. Keyboard stays wired (harmless, supports BT keyboards).
+    if (!isPhone()) {
+      this.initMouseOrbit();
+      this.initMouseWheel();
+    }
     this.initKeyboard();
-    this.initMouseWheel();
+  }
+
+  // ----------------------------------------------------------------
+  //  Touch camera API (called by TouchControls)
+  // ----------------------------------------------------------------
+
+  /** Rotate the orbit camera by a touch drag delta (in screen pixels). */
+  public applyTouchLook(dxPixels: number, dyPixels: number): void {
+    this.yaw -= dxPixels * this.touchLookSensitivity;
+    this.pitch += dyPixels * this.touchLookSensitivity;
+    this.pitch = clamp(this.pitch, this.minPitch, this.maxPitch);
+  }
+
+  /** Adjust zoom from a pinch gesture. Positive grows distance (zoom out). */
+  public applyTouchZoom(deltaDistance: number): void {
+    this.zoomDistance = clamp(
+      this.zoomDistance + deltaDistance,
+      this.zoomMin,
+      this.zoomMax,
+    );
   }
 
   // ----------------------------------------------------------------
@@ -254,9 +291,12 @@ export class PlayerController {
 
   update(delta: number): void {
     // --- Gather input ---
-    const forward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
-    const strafe = (this.keys['KeyA'] ? 1 : 0) - (this.keys['KeyD'] ? 1 : 0);
-    const running = !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'];
+    const kbForward = (this.keys['KeyW'] ? 1 : 0) - (this.keys['KeyS'] ? 1 : 0);
+    const kbStrafe = (this.keys['KeyA'] ? 1 : 0) - (this.keys['KeyD'] ? 1 : 0);
+    const forward = clamp(kbForward + this.touchForward, -1, 1);
+    const strafe = clamp(kbStrafe + this.touchStrafe, -1, 1);
+    const running =
+      !!this.keys['ShiftLeft'] || !!this.keys['ShiftRight'] || this.touchRun;
 
     const waterLevel = Water.getWaterLevel();
     const terrainHere = this.getHeightAt(this.position.x, this.position.z);
