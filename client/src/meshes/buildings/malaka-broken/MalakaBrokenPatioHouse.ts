@@ -71,7 +71,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
     // One flat collider slab covers the whole footprint so the patio + arcades
     // are walkable and the entrance is a small (≤0.5·S) step up from terrain.
     const floorProxy = boxCollider(outer, 0.4 * S, outer);
-    floorProxy.position.y = fy - 0.2 * S;
+    floorProxy.position.y = fy - 0.2 * S + 0.01 * S;
     g.add(floorProxy);
 
     // Stone arcade floor + terracotta patio tiles (visual)
@@ -86,7 +86,7 @@ export class MalakaBrokenPatioHouse extends Mesh {
     if (patioMat.map) { patioMat.map = patioMat.map.clone(); patioMat.map.repeat.set(10, 10); }
     const patioFloor = new THREE.Mesh(new THREE.PlaneGeometry(patioHalf * 2, patioHalf * 2), patioMat);
     patioFloor.rotation.x = -Math.PI / 2;
-    patioFloor.position.y = fy + 0.02 * S;
+    patioFloor.position.y = fy + 0.04 * S;
     patioFloor.receiveShadow = true;
     patioFloor.userData.noCollision = true;
     g.add(patioFloor);
@@ -308,13 +308,16 @@ export class MalakaBrokenPatioHouse extends Mesh {
       step.castShadow = step.receiveShadow = true;
       step.userData.noCollision = true;
       g.add(step);
-      const proxy = boxCollider(stairW, h, tread);
-      proxy.position.set(stairX, fy + h / 2, z);
-      g.add(proxy);
     }
+    const runLen = stairBottomZ - stairTopZ;          
+    const riseLen = groundH;                          
+    const rampLen = Math.hypot(runLen, riseLen);
+    const rampAngle = Math.atan2(riseLen, runLen);
+    const rampProxy = boxCollider(stairW, 0.4 * S, rampLen);
+    rampProxy.position.set(stairX, fy + riseLen / 2, (stairBottomZ + stairTopZ) / 2);
+    rampProxy.rotation.x = rampAngle;
+    g.add(rampProxy);
     // Sloped stone cheek walls (balustrades) on both sides of the flight.
-    const runLen = stairBottomZ - stairTopZ;          // 3.0S
-    const riseLen = groundH;                          // 3.4S
     const cheekLen = Math.hypot(runLen, riseLen);
     const cheekAng = Math.atan2(riseLen, runLen);
     for (const sx of [-1, 1]) {
@@ -358,7 +361,13 @@ export class MalakaBrokenPatioHouse extends Mesh {
     g.add(table);
 
     // potted greenery in the patio corners
-    for (const [px, pz] of [[-patioHalf + 0.6 * S, patioHalf - 0.6 * S], [patioHalf - 0.6 * S, patioHalf - 0.6 * S]]) {
+    const corners = [
+      [-patioHalf + 0.6 * S, patioHalf - 0.6 * S],
+      [patioHalf - 0.6 * S, patioHalf - 0.6 * S],
+      [-patioHalf + 0.6 * S, -patioHalf + 0.6 * S],
+      [patioHalf - 0.6 * S, -patioHalf + 0.6 * S]
+    ];
+    for (const [px, pz] of corners) {
       const pot = createFlowerPot(S * 1.2);
       pot.position.set(px, fy, pz);
       pot.userData.noCollision = true;
@@ -372,35 +381,97 @@ export class MalakaBrokenPatioHouse extends Mesh {
     g.add(climber);
 
     // ── 8. Pitched tiled roofs over the wings ─────────────────────────────────
-    // Each wing gets a single pitch: ridge high at the patio side, eave low and
-    // overhanging the outer wall. The eave sits right on the wall top so the
-    // roof reads as a proper roof from outside; the patio stays open to sky.
+    // A single continuous BufferGeometry for a perfect hip roof.
     const overhang = 0.6 * S;
-    const ridgeRise = 1.2 * S;
-    const slopeLen = Math.hypot(wingDepth, ridgeRise) + overhang;
+    const ridgeRise = 1.3 * S;
+    const outerExtent = half + overhang; // 7.6S
+    const innerExtent = patioHalf;       // 4.0S
+    const wingW = outerExtent * 2;       // 15.2S
+    const innerW = innerExtent * 2;      // 8.0S
+    const slopeSpan = wingDepth + overhang; // 3.6S
+    const eaveDrop = overhang * (ridgeRise / wingDepth);
+    const roofYInner = topY + ridgeRise;
+    const roofYOuter = topY - eaveDrop;
+    const slopeLen = Math.hypot(slopeSpan, ridgeRise + eaveDrop);
+    const roofThick = 0.16 * S;
+    const ut = 1 / 2.2;
+
+    const roofGeo = new THREE.BufferGeometry();
+    const verts: number[] = [];
+    const uvs: number[] = [];
+    const indices: number[] = [];
+    let vIdx = 0;
+
+    const rotY = (v: [number, number, number], a: number): [number, number, number] => {
+      const cos = Math.cos(a), sin = Math.sin(a);
+      return [v[0]*cos + v[2]*sin, v[1], -v[0]*sin + v[2]*cos];
+    };
+
+    const addRoofSlope = (angle: number) => {
+      const bl = rotY([-outerExtent, roofYOuter, outerExtent], angle);
+      const br = rotY([ outerExtent, roofYOuter, outerExtent], angle);
+      const tr = rotY([ innerExtent, roofYInner, innerExtent], angle);
+      const tl = rotY([-innerExtent, roofYInner, innerExtent], angle);
+
+      // Top face
+      verts.push(...bl, ...br, ...tr, ...tl);
+      const ow = wingW, iw = innerW;
+      uvs.push(0, 0, ow * ut, 0, (ow/2 + iw/2) * ut, slopeLen * ut, (ow/2 - iw/2) * ut, slopeLen * ut);
+      const i0 = vIdx; indices.push(i0, i0+1, i0+2, i0, i0+2, i0+3); vIdx += 4;
+
+      // Bottom face
+      const dY = roofThick;
+      const b_bl: [number,number,number] = [bl[0], bl[1]-dY, bl[2]];
+      const b_br: [number,number,number] = [br[0], br[1]-dY, br[2]];
+      const b_tr: [number,number,number] = [tr[0], tr[1]-dY, tr[2]];
+      const b_tl: [number,number,number] = [tl[0], tl[1]-dY, tl[2]];
+      
+      verts.push(...b_bl, ...b_br, ...b_tr, ...b_tl);
+      uvs.push(0, 0, ow * ut, 0, (ow/2 + iw/2) * ut, slopeLen * ut, (ow/2 - iw/2) * ut, slopeLen * ut);
+      const i1 = vIdx; indices.push(i1, i1+2, i1+1, i1, i1+3, i1+2); vIdx += 4;
+
+      // Outer edge face (Eave)
+      verts.push(...b_bl, ...b_br, ...br, ...bl);
+      uvs.push(0, 0, ow * ut, 0, ow * ut, dY * ut, 0, dY * ut);
+      const i2 = vIdx; indices.push(i2, i2+1, i2+2, i2, i2+2, i2+3); vIdx += 4;
+
+      // Inner edge face (Ridge)
+      verts.push(...b_tr, ...b_tl, ...tl, ...tr);
+      uvs.push(0, 0, iw * ut, 0, iw * ut, dY * ut, 0, dY * ut);
+      const i3 = vIdx; indices.push(i3, i3+1, i3+2, i3, i3+2, i3+3); vIdx += 4;
+    };
+
+    addRoofSlope(0);           // Front (+Z)
+    addRoofSlope(Math.PI / 2); // Right (+X)
+    addRoofSlope(Math.PI);     // Back (-Z)
+    addRoofSlope(-Math.PI / 2);// Left (-X)
+
+    roofGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(verts), 3));
+    roofGeo.setAttribute('uv', new THREE.BufferAttribute(new Float32Array(uvs), 2));
+    roofGeo.setIndex(indices);
+    roofGeo.computeVertexNormals();
+
+    const roofMesh = new THREE.Mesh(roofGeo, mats.roof);
+    roofMesh.castShadow = roofMesh.receiveShadow = true;
+    roofMesh.userData.noCollision = true;
+    g.add(roofMesh);
+
+    // Eave tiles and colliders
     const slopeAngle = Math.atan2(ridgeRise, wingDepth);
-    // Local +Z faces the outer wall (low eave); -Z faces the patio (high ridge).
     const roofSides: Array<{ cx: number; cz: number; rotY: number; span: number }> = [
-      { cx: 0, cz: deckMid, rotY: 0, span: outer + overhang * 2 },
-      { cx: 0, cz: -deckMid, rotY: Math.PI, span: outer + overhang * 2 },
-      { cx: -deckMid, cz: 0, rotY: -Math.PI / 2, span: patioHalf * 2 },
-      { cx: deckMid, cz: 0, rotY: Math.PI / 2, span: patioHalf * 2 },
+      { cx: 0, cz: patioHalf, rotY: 0, span: outer + overhang * 2 },
+      { cx: 0, cz: -patioHalf, rotY: Math.PI, span: outer + overhang * 2 },
+      { cx: -patioHalf, cz: 0, rotY: -Math.PI / 2, span: patioHalf * 2 },
+      { cx: patioHalf, cz: 0, rotY: Math.PI / 2, span: patioHalf * 2 },
     ];
     for (const s of roofSides) {
       const rg = new THREE.Group();
       rg.position.set(s.cx, topY, s.cz);
       rg.rotation.y = s.rotY;
 
-      const plane = new THREE.Mesh(new THREE.BoxGeometry(s.span, 0.16 * S, slopeLen), mats.roof);
-      plane.rotation.x = slopeAngle;             // +Z end drops to the eave
-      plane.position.y = (slopeLen / 2) * Math.sin(slopeAngle); // eave ≈ wall top
-      plane.castShadow = plane.receiveShadow = true;
-      plane.userData.noCollision = true;
-      rg.add(plane);
-
       // terracotta tile rolls along the low outer eave
-      const eaveY = plane.position.y - (slopeLen / 2) * Math.sin(slopeAngle) + 0.12 * S;
-      const eaveZ = (slopeLen / 2) * Math.cos(slopeAngle);
+      const eaveY = -eaveDrop + 0.12 * S;
+      const eaveZ = slopeSpan;
       const tileCount = Math.round(s.span / (0.45 * S));
       for (let i = 0; i < tileCount; i++) {
         const tile = createRoofTile(S, mats);
@@ -410,6 +481,13 @@ export class MalakaBrokenPatioHouse extends Mesh {
         tile.userData.noCollision = true;
         rg.add(tile);
       }
+      
+      const proxy = boxCollider(s.span, 0.2 * S, slopeLen);
+      proxy.rotation.x = slopeAngle;
+      proxy.position.z = slopeSpan / 2;
+      proxy.position.y = (ridgeRise - eaveDrop) / 2;
+      rg.add(proxy);
+
       rg.userData.noCollision = true;
       g.add(rg);
     }
@@ -474,14 +552,16 @@ export class MalakaBrokenPatioHouse extends Mesh {
         blade.rotation.z = (Math.random() - 0.5) * 0.5;
         tuft.add(blade);
       }
-      tuft.position.set(lx, baseY, faceZ + 0.05 * scale);
+      tuft.position.set(lx, baseY, faceZ + 0.08 * scale);
       tuft.userData.noCollision = true;
       parent.add(tuft);
     }
     // a couple of climbing vines scaling the wall
     for (const vx of [-len * 0.3, len * 0.32]) {
       const vine = createClimbingPlant(0.8 * scale, climbH * 0.9, scale, mats);
-      vine.position.set(vx, baseY, faceZ);
+      vine.position.set(vx, baseY, faceZ + 0.08 * scale);
+      const vScale = 0.8 + Math.random() * 0.4;
+      vine.scale.set(vScale, vScale, vScale);
       vine.userData.noCollision = true;
       vine.traverse(o => { o.userData.noCollision = true; });
       parent.add(vine);

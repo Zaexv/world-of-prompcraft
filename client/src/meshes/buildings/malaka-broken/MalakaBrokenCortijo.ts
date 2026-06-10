@@ -54,21 +54,79 @@ function createHipRoof(width: number, depth: number, height: number, mat: THREE.
   return mesh;
 }
 
-/**
- * Monopitch (lean-to) terracotta roof that rings the courtyard: the outer eave
- * sits high, the inner eave low, so rain sheds away from the patio which stays
- * open to the sky. Returned as a flat slab in local space (long axis = X, slopes
- * along +Z = outward); the caller rotates it onto each side of the square.
- * Slopes down toward the outside (inner ridge high, outer eave low) so the four
- * sides overlap into a clean cloister-style hip skirt around the open patio.
- */
-function createWingRoof(length: number, roofDepth: number, rise: number, slabT: number, mat: THREE.Material): THREE.Mesh {
-  const slab = new THREE.Mesh(new THREE.BoxGeometry(length, slabT, roofDepth), mat);
-  // Positive tilt about X drops the +Z (outer) eave and lifts the -Z (inner) ridge.
-  slab.rotation.x = Math.atan2(rise, roofDepth);
-  slab.castShadow = true;
-  slab.userData.noCollision = true;
-  return slab;
+function createCloisterRoof(outerWidth: number, outerDepth: number, innerWidth: number, innerDepth: number, height: number, thickness: number, mat: THREE.Material): THREE.Mesh {
+  const geo = new THREE.BufferGeometry();
+  
+  const ow = outerWidth / 2;
+  const od = outerDepth / 2;
+  const iw = innerWidth / 2;
+  const id = innerDepth / 2;
+  
+  const vertices = new Float32Array([
+    // Top Outer ring (y = 0)
+    -ow, 0, -od,
+     ow, 0, -od,
+     ow, 0,  od,
+    -ow, 0,  od,
+    
+    // Top Inner ring (y = height)
+    -iw, height, -id,
+     iw, height, -id,
+     iw, height,  id,
+    -iw, height,  id,
+
+    // Bot Outer ring
+    -ow, -thickness, -od,
+     ow, -thickness, -od,
+     ow, -thickness,  od,
+    -ow, -thickness,  od,
+    
+    // Bot Inner ring
+    -iw, height - thickness, -id,
+     iw, height - thickness, -id,
+     iw, height - thickness,  id,
+    -iw, height - thickness,  id,
+  ]);
+  
+  const indices = [
+    // Top
+    0, 1, 5,   0, 5, 4,
+    1, 2, 6,   1, 6, 5,
+    2, 3, 7,   2, 7, 6,
+    3, 0, 4,   3, 4, 7,
+    // Bottom
+    8, 13, 9,    8, 12, 13,
+    9, 14, 10,   9, 13, 14,
+    10, 15, 11,  10, 14, 15,
+    11, 12, 8,   11, 15, 12,
+    // Outer sides
+    1, 0, 8,   1, 8, 9,
+    2, 1, 9,   2, 9, 10,
+    3, 2, 10,  3, 10, 11,
+    0, 3, 11,  0, 11, 8,
+    // Inner sides
+    4, 5, 13,  4, 13, 12,
+    5, 6, 14,  5, 14, 13,
+    6, 7, 15,  6, 15, 14,
+    7, 4, 12,  7, 12, 15,
+  ];
+  
+  const uvs = new Float32Array([
+    -ow, -od,   ow, -od,   ow,  od,  -ow,  od,
+    -iw, -id,   iw, -id,   iw,  id,  -iw,  id,
+    -ow, -od,   ow, -od,   ow,  od,  -ow,  od,
+    -iw, -id,   iw, -id,   iw,  id,  -iw,  id,
+  ]);
+  
+  geo.setIndex(indices);
+  geo.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+  geo.setAttribute('uv', new THREE.BufferAttribute(uvs, 2));
+  geo.computeVertexNormals();
+  
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.castShadow = true;
+  mesh.userData.noCollision = true;
+  return mesh;
 }
 
 export class MalakaBrokenCortijo extends Mesh {
@@ -217,48 +275,21 @@ export class MalakaBrokenCortijo extends Mesh {
     }
 
     // ── Sloped terracotta roof ringing the courtyard (cloister hip skirt) ─────
-    // All four slabs run the full footprint length so their corners overlap into
-    // a continuous hip — no gaps, no floating tiles. Each slopes down to the
-    // outside; the inner ridge sits just above the wall top.
+    // A single continuous geometry with an open center. Slopes down to the outside.
     const overhang = 1.0 * scale;
-    const roofDepth = wallT + overhang * 2;
     const roofRise = 1.3 * scale;
-    const slabT = 0.22 * scale;
-    const roofLen = outer + overhang * 2;
-    const sides: { rotY: number; cx: number; cz: number }[] = [
-      { rotY: 0, cx: 0, cz: frontZ },          // front (+Z)
-      { rotY: Math.PI, cx: 0, cz: -frontZ },   // back (-Z)
-      { rotY: -Math.PI / 2, cx: sideX, cz: 0 },// right (+X)
-      { rotY: Math.PI / 2, cx: -sideX, cz: 0 },// left (-X)
-    ];
-    for (const s of sides) {
-      const wrap = new THREE.Group();
-      wrap.position.set(s.cx, wallH, s.cz);
-      wrap.rotation.y = s.rotY;
-      wrap.add(createWingRoof(roofLen, roofDepth, roofRise, slabT, roofMat));
-      g.add(wrap);
-    }
+    const roofOuterW = outer + overhang * 2;
+    const roofOuterD = outer + overhang * 2;
+    const roofInnerW = inner - overhang * 2;
+    const roofInnerD = inner - overhang * 2;
+    const roofThickness = 0.6 * scale;
+    
+    const cloisterRoof = createCloisterRoof(roofOuterW, roofOuterD, roofInnerW, roofInnerD, roofRise, roofThickness, roofMat);
+    // Position it so the middle of its slope covers the wall without clipping
+    cloisterRoof.position.set(0, wallH - roofRise / 2 + 0.3 * scale, 0);
+    g.add(cloisterRoof);
 
-    // ── Corner tower (torre) at the back-left for silhouette ──────────────────
-    const towerSize = 4.0 * scale;
-    const towerH = 8.5 * scale;
-    const tcx = -sideX + towerSize / 2 - wallT / 2;
-    const tcz = -frontZ + towerSize / 2 - wallT / 2;
-    const tZoc = new THREE.Mesh(new THREE.BoxGeometry(towerSize, zocSkirt, towerSize), mats.stone);
-    tZoc.position.set(tcx, zocaloH - zocSkirt / 2, tcz);
-    tZoc.userData.noCollision = true;
-    g.add(tZoc);
-    const tower = new THREE.Mesh(new THREE.BoxGeometry(towerSize - 0.06 * scale, towerH - zocaloH, towerSize - 0.06 * scale), mats.stucco);
-    tower.position.set(tcx, zocaloH + (towerH - zocaloH) / 2, tcz);
-    tower.castShadow = true;
-    tower.userData.noCollision = true;
-    g.add(tower);
-    const tProxy = boxCollider(towerSize, towerH, towerSize);
-    tProxy.position.set(tcx, towerH / 2, tcz);
-    g.add(tProxy);
-    const tRoof = createHipRoof(towerSize + 0.8 * scale, towerSize + 0.8 * scale, 2.2 * scale, roofMat);
-    tRoof.position.set(tcx, towerH - 0.05 * scale, tcz);
-    g.add(tRoof);
+
 
     // ── Exterior windows with iron grilles ────────────────────────────────────
     const winY = 2.6 * scale;
