@@ -121,12 +121,14 @@ export class BoatSystem {
     const rockZ = Math.sin(this.time * 1.1) * ROCK_AMP;
     const rockX = Math.cos(this.time * 0.9) * ROCK_AMP * 0.6;
 
-    // Jump arc (0→1→0) over the transition; while boarding the player also lunges
-    // forward from behind the seat so it reads as a leap INTO the boat.
+    // Transition progress p: 0→1. Drives the jump arc, lunge, and the magic
+    // materialize (board) / vanish (leave) effects below.
     let hop = 0, jump = 0, lunge = 0;
-    if (this.transition > 0) {
+    let p = this.mounted && !this.leaving ? 1 : 0; // settled when fully aboard
+    const transitioning = this.transition > 0;
+    if (transitioning) {
       this.transition = Math.max(0, this.transition - delta);
-      const p = 1 - this.transition / BOARD_TIME; // 0..1
+      p = 1 - this.transition / BOARD_TIME; // 0..1
       jump = Math.sin(p * Math.PI);
       hop = jump * HOP_HEIGHT;
       if (!this.leaving) lunge = (1 - p) * LUNGE; // boarding only: ease into the seat
@@ -146,18 +148,24 @@ export class BoatSystem {
     this.boat.position.set(px + fwdX * BOAT_OFFSET, waterLevel + bob, pz + fwdZ * BOAT_OFFSET);
     this.boat.rotation.set(rockX, yaw, rockZ);
 
+    // Magic materialize / vanish — the SAME sparkle effect both ways. On board the
+    // sparkles converge inward as the boat spins/grows into being; on leave they
+    // burst outward as it spins up, lifts and shrinks away.
     let grow: number;
     if (this.leaving) {
-      // Magic vanish: shrink to nothing while spinning up and lifting off, with a
-      // sparkle burst.
-      const p = 1 - this.transition / BOARD_TIME; // 0→1
-      grow = Math.max(0.001, 1 - p);
       this.vanishSpin += delta * 9;
+      grow = Math.max(0.001, 1 - p);
       this.boat.position.y += p * 1.3;
       this.boat.rotation.y = yaw + this.vanishSpin;
-      this.updateSparkles(p);
+      this.updateSparkles(p * SPARK_RADIUS, 1 - p);
+    } else if (this.mounted && transitioning) {
+      grow = Math.max(0.001, p);
+      this.boat.position.y += (1 - p) * 1.1;             // descends into place
+      this.boat.rotation.y = yaw + (1 - p) * (1 - p) * 7; // spin settles to heading
+      this.updateSparkles((1 - p) * SPARK_RADIUS, 1 - p); // converge inward + fade
     } else {
-      grow = this.mounted ? 1 : Math.max(0.001, 1 - this.transition / BOARD_TIME);
+      grow = this.mounted ? 1 : 0.001;
+      this.sparkles.visible = false;
     }
     this.boat.scale.setScalar(grow * BOAT_SCALE);
 
@@ -184,24 +192,23 @@ export class BoatSystem {
     if (this.rig) this.rig.rotation.y = this.boomSwing;
   }
 
-  /** Fly the sparkles outward from the boat and fade them as it vanishes (p: 0→1). */
-  private updateSparkles(p: number): void {
+  /** Place the sparkles at a given outward reach and opacity around the boat. */
+  private updateSparkles(reach: number, opacity: number): void {
     this.sparkles.visible = true;
     const c = this.boat.position;
     const pos = this.sparkles.geometry.attributes.position as THREE.BufferAttribute;
-    const reach = p * SPARK_RADIUS;
     for (let i = 0; i < SPARK_N; i++) {
       pos.setXYZ(
         i,
         c.x + this.sparkDirs[i * 3]! * reach,
-        c.y + this.sparkDirs[i * 3 + 1]! * reach + p * 0.5,
+        c.y + this.sparkDirs[i * 3 + 1]! * reach,
         c.z + this.sparkDirs[i * 3 + 2]! * reach,
       );
     }
     pos.needsUpdate = true;
     const m = this.sparkles.material as THREE.PointsMaterial;
-    m.opacity = 1 - p;                 // fade out
-    m.size = (0.5 + (1 - p) * 0.9) * BOAT_SCALE * 0.5; // shrink as they fade
+    m.opacity = opacity;
+    m.size = (0.4 + opacity * 0.8) * BOAT_SCALE * 0.5;
   }
 
   private board(controller: PlayerController): void {
@@ -211,8 +218,8 @@ export class BoatSystem {
     controller.inBoat = true;
     this.boat.visible = true;
     this.boat.scale.setScalar(0.001);
-    this.sparkles.visible = false;
-    AudioSystem.getInstance().playSfx('jump');
+    this.vanishSpin = 0;
+    AudioSystem.getInstance().playSfx('jump'); // magic materialize cue
   }
 
   private leave(controller: PlayerController): void {

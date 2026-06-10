@@ -156,6 +156,7 @@ export class Boat extends Mesh {
     const bench = mat(0x8a6038, 0.8);
     const keelMat = mat(0x3f2c18, 0.85);
     const rigMat = mat(0x4a3a28, 0.9);
+    const stripeMat = mat(0x2f5d6e, 0.6); // painted sheer stripe (teal)
     const sailMat = mat(0xf2ead6, 0.95, THREE.DoubleSide, false);
     const flagMat = mat(0xc0392b, 0.8, THREE.DoubleSide);
 
@@ -163,13 +164,20 @@ export class Boat extends Mesh {
     part(g, hullGeometry(), hullMat);
     part(g, G.box(0.85, 0.06, 3.4), floorMat, 0, 0.0, -0.1);
 
-    // Rubrail strakes amidships + transom cap.
-    part(g, G.box(0.09, 0.10, 3.0), trim, 0.7, 0.5, -0.2);
-    part(g, G.box(0.09, 0.10, 3.0), trim, -0.7, 0.5, -0.2);
+    // Painted sheer stripe + dark rubrail cap along each topside, transom cap.
+    part(g, G.box(0.07, 0.16, 3.2), stripeMat, 0.73, 0.40, -0.2);
+    part(g, G.box(0.07, 0.16, 3.2), stripeMat, -0.73, 0.40, -0.2);
+    part(g, G.box(0.10, 0.10, 3.1), trim, 0.71, 0.56, -0.2);
+    part(g, G.box(0.10, 0.10, 3.1), trim, -0.71, 0.56, -0.2);
     part(g, G.box(1.15, 0.11, 0.12), trim, 0, 0.6, -1.98);
 
-    // Keel down the centreline.
+    // Keel down the centreline + a rudder & tiller at the stern.
     part(g, G.box(0.12, 0.26, 4.2), keelMat, 0, -0.3, 0.0);
+    part(g, G.box(0.06, 0.7, 0.42), keelMat, 0, -0.15, -2.12);          // rudder blade
+    part(g, G.cylinder(0.04, 0.04, 1.1, 5), trim, 0, 0.6, -1.6, 0.5);   // tiller
+
+    // Bowsprit spar projecting from the stem.
+    part(g, G.cylinder(0.05, 0.06, 1.0, 5), rigMat, 0, 0.92, 3.15, Math.PI / 2 - 0.15);
 
     // Foredeck: a triangular deck closing the bow over the gunwales.
     part(g, billowedTriangle(
@@ -203,16 +211,16 @@ export class Boat extends Mesh {
     // Jib (foresail): a clean foretriangle on the forestay, forward of the mast.
     // Luff runs bow→upper-forestay; foot low along the foredeck; leech faces aft.
     const jib = part(g, billowedTriangle(
-      new THREE.Vector3(0, 0.9, 2.55),  // tack at the bow deck
-      new THREE.Vector3(0, 2.7, 0.95),  // head up the forestay
-      new THREE.Vector3(0, 1.0, 1.5),   // clew (aft-low, ahead of the mast)
-      0.3,
+      new THREE.Vector3(0, 0.95, 3.5),  // tack at the bowsprit tip
+      new THREE.Vector3(0, 2.8, 0.95),  // head up the forestay
+      new THREE.Vector3(0, 1.0, 1.55),  // clew (aft-low, ahead of the mast)
+      0.32,
     ), sailMat);
     jib.name = 'jib';
 
     // Standing rigging.
     const headPt = new THREE.Vector3(0, mastTop, mastZ);
-    rope(g, headPt, new THREE.Vector3(0, 0.8, 2.8), rigMat);   // forestay
+    rope(g, headPt, new THREE.Vector3(0, 0.95, 3.5), rigMat);  // forestay to bowsprit
     rope(g, headPt, new THREE.Vector3(0, 0.7, -1.9), rigMat);  // backstay
     rope(g, headPt, new THREE.Vector3(0.72, 0.55, mastZ), rigMat);
     rope(g, headPt, new THREE.Vector3(-0.72, 0.55, mastZ), rigMat);
