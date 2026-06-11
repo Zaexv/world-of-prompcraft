@@ -123,7 +123,6 @@ class GameStore:
         NPCs, which are recreated as corpses so ``join_ok`` reports them dead
         and clients refuse to respawn them. Returns the number of restored rows.
         """
-        from ..world.player_state import PlayerData
         from ..world.world_state import NPCData
 
         restored = 0
@@ -146,14 +145,6 @@ class GameStore:
                 )
                 restored += 1
 
-        rows = self._conn.execute("SELECT player_id, data FROM players").fetchall()
-        for player_id, doc in rows:
-            try:
-                fields: dict[str, Any] = json.loads(doc)
-                world_state.players[player_id] = PlayerData(**fields)
-                restored += 1
-            except (json.JSONDecodeError, TypeError) as exc:
-                logger.warning("Skipping corrupt player row %s: %s", player_id, exc)
         return restored
 
     def close(self) -> None:

@@ -73,10 +73,13 @@ def test_world_roundtrip_restores_player_and_npc_state(tmp_path: Path, store: Ga
     store2 = _fresh_store(tmp_path)
     try:
         restored = store2.restore_world(world2)
-        assert restored >= 2
+        assert restored >= 1  # NPCs
         assert world2.npcs[npc_id].hp == 7
         assert world2.npcs[npc_id].position == [123.0, 4.0, -56.0]
-        assert world2.players["zaex"].hp == 55
+        assert "zaex" not in world2.players  # Players are lazy-loaded on join
+        player_doc = store2.load_player("zaex")
+        assert player_doc is not None
+        assert player_doc["hp"] == 55
     finally:
         store2.close()
 

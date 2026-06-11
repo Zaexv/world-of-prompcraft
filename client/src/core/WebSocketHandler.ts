@@ -98,14 +98,14 @@ export class WebSocketHandler {
         }
 
         if (data.players) {
-          for (const p of data.players) {
-            if (p.playerId !== this.d.runtime.localPlayerId) {
-              try {
-                this.d.entityManager.addRemotePlayer(p);
-              } catch (err) {
-                console.error('join_ok: failed to add remote player', p.playerId, err);
-              }
-            }
+          try {
+            // Filter out self just in case the server sent it,
+            // and use updateRemotePlayers so any stale remote players
+            // from a previous connection are culled.
+            const others = data.players.filter((p: RemotePlayerData) => p.playerId !== this.d.runtime.localPlayerId);
+            this.d.entityManager.updateRemotePlayers(others);
+          } catch (err) {
+            console.error('join_ok: failed to update remote players', err);
           }
         }
 

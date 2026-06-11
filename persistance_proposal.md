@@ -1,172 +1,153 @@
 ---
-date: 2026-06-11T21:30:00+02:00
-topic: "Character Persistence Restoration"
-tags: [plan, persistence, join-flow]
+date: 2026-06-11T20:59:41.520532+00:00
+git_commit: e743e1f8fd676e1eb435fedfed0d51ab159724cc
+branch: fix/multiplayer-sync
+topic: "Django ORM & World Persistence Architecture"
+tags: [plan, persistence, django, vector-db]
 status: draft
 ---
 
-# Character Persistence Restoration Implementation Plan
+# Django ORM & World Persistence Architecture Plan
 
 ## Overview
 
-We need to fix character persistence so that returning players are properly restored to their last saved location and health state. Currently, the server successfully saves the player on disconnect, but when the player logs back in, the server immediately overwrites their persisted position with the client's default start point, and the client never receives or applies its restored state.
+Migrate the current raw SQLite persistence layer in `store.py` to use **Django ORM** running standalone inside the FastAPI app. Then, expand the schema to support the full persistence vision: Global World State, Player State, Player-NPC Relationships (with Vector DB), and Lore (Vector DB). We will keep `store.py` as the Repository pattern boundary, isolating the Django ORM details from the rest of the game loop.
 
 ## Current State Analysis
 
-- The server's `GameStore` correctly saves `PlayerData` to SQLite on periodic ticks and disconnects.
-- During login (`handle_join` in `server/src/ws/handlers/join.py`), the server successfully loads the player's saved `PlayerData`.
-- However, immediately after loading it, `handle_join` overwrites `player.position` using `data.get("position")` (which is the client's initial local position).
-- The `join_ok` WebSocket payload sends other players' data (`players` array) but explicitly excludes the joining player's own data, leaving the client blind to its saved position and HP.
-- The client starts at `[0, 0, 0]` (or spawn) and sends that as its initial position, which overwrites the database. 
+- The game currently uses raw `sqlite3` inside `server/src/persistence/store.py` to persist player data and chat history as JSON blobs.
+- The websocket loop is asynchronous, but currently blocks the event loop with synchronous SQLite calls on disconnect.
+- The world state (dead NPCs, completed quests, custom creations) is currently lost on server restart.
+- NPC relationships and Lore exist purely in ephemeral prompts or are hardcoded; they do not have long-term semantic search capability.
 
 ## Desired End State
 
-When a returning player connects, the server should recognize their persisted state, refuse to overwrite it with the client's default login position, and explicitly transmit the restored position/stats back to the client in the `join_ok` payload. The client should then read this payload and teleport the local player to the correct coordinates. 
+A robust Django-powered relational database (SQLite for now, but easily migrateable to Postgres) paired with a Vector Database (like ChromaDB or FAISS) for semantic search.
+
+1. **Standalone Django Setup**: `django.setup()` runs on FastAPI startup.
+2. **Relational Data**: Django Models for `Player`, `NPCState`, `QuestProgress`, and `PlayerNPC_Relationship`.
+3. **Vector Data**: A dedicated Vector DB handling Lore embeddings and NPC relationship summaries to inject into the LLM context.
+4. **Repository Pattern**: `store.py` will wrap all `sync_to_async` Django ORM queries and Vector DB lookups so the FastAPI/WebSocket handlers never see Django models directly.
 
 ### Key Discoveries:
-- **`server/src/ws/handlers/join.py`:** Restores the document successfully but then brutally overwrites it with `player.position = initial_position` (Lines 102-106). 
-- **`client/src/core/WebSocketHandler.ts`:** Processes `join_ok` but doesn't have any code to set the local player's position or HP, because that data isn't even sent by the server.
+- Django's ORM throws `SynchronousOnlyOperation` if called from an async event loop (like FastAPI's websocket handler). We MUST wrap all ORM queries in `store.py` using `asgiref.sync.sync_to_async` to prevent blocking the async game loop and avoid Django's safety exceptions.
+- The `Store` class is passed down via `HandlerContext`. This allows us to cleanly substitute the inner workings without touching the game systems.
 
 ## What We're NOT Doing
 
-- We are not changing the database schema or how persistence is configured (it's already working).
-- We are not changing how often the server saves the player (disconnect saving was fixed in the previous task).
+- We are **not** migrating the FastAPI server to a Django Web Framework server. Django is purely acting as an ORM package.
+- We are **not** exposing Django Models directly to the game logic (`world_state.py` will continue using `PlayerData` dataclasses/pydantic models).
 
 ## Implementation Approach
 
-1. **Server Side (`join.py`)**: 
-   - Check if the player is new vs returning.
-   - If returning, *preserve* their persisted `position`, `hp`, etc.
-   - Inject a new field into the `join_ok` response (e.g. `self_player`) containing the joining player's data.
-2. **Client Side (`WebSocketHandler.ts`)**:
-   - Read `data.self_player` from `join_ok`.
-   - Update `d.playerController.position` and `d.playerController.targetYaw` to snap the camera and controller to the restored location.
-   - Update `d.player.hp` and `d.player.maxHp`. 
+We will approach this in two major stages: first, replacing the existing SQLite code with Django ORM to ensure parity and stability. Second, adding the new schema tables and Vector DB integrations.
 
-## Phase 1: Server Restoration Logic
+## Architecture and Code Reuse
+
+```mermaid
+graph TD
+    WS[WebSocket Handlers] --> Context[HandlerContext]
+    Context --> Store[Store Repository store.py]
+    
+    subgraph Persistence Layer
+        Store --> SyncToAsync[sync_to_async]
+        SyncToAsync --> DjangoORM[Django Models models.py]
+        Store --> VectorDB[ChromaDB / FAISS]
+        DjangoORM --> DB[(SQLite / Postgres)]
+    end
+```
+
+## Phase 1: Django ORM Standalone Setup & Parity
 
 ### Overview
-Stop the server from blindly overwriting persisted player state on join, and send the player's data back to the client.
+Install Django, configure a standalone settings module, define the existing `Player` and `Chat` models, and refactor `store.py` to use them while maintaining the exact same public API.
 
 ### Changes Required:
 
-#### [ ] 1. Update `join.py`
-**File**: `server/src/ws/handlers/join.py`
-**Changes**: 
-- Track whether a player was loaded from the DB or is brand new.
-- Only apply the client's `initial_position` if the player is new.
-- Add `self_player` to the `join_ok` dictionary so the client knows where it should be.
+#### [ ] 1. Django Configuration & Models
+**Files**: `server/src/persistence/django_settings.py`, `server/src/persistence/models.py`
+**Changes**:
+- Create a minimal Django settings file pointing to `data/world.db`.
+- Create `models.py` with a `PlayerModel` (storing JSON data) and `ChatModel` to mirror the existing schema.
+- Add a script to run `django-admin makemigrations` and `migrate`.
 
-```python
-        # Check if they are returning
-        is_new_player = username not in world_state.players
-
-        if is_new_player and ctx.store is not None:
-            doc = ctx.store.load_player(username)
-            if doc:
-                try:
-                    world_state.players[username] = PlayerData(**doc)
-                    is_new_player = False
-                    logger.info(f"Restored persisted state for returning player: {username}")
-                except TypeError:
-                    logger.warning(f"Stale persisted schema for {username} — starting fresh")
-
-        player = world_state.get_player(username)
-        player.username = username
-        player.race = race
-        player.faction = faction
-        
-        # Only override position if this is a brand new player
-        if is_new_player:
-            player.position = initial_position
-        
-        # ... later in join_ok return block ...
-        return {
-            "type": "join_ok",
-            "playerId": username,
-            "self_player": player.to_public_dict(),
-            "players": current_players,
-            "npcs": current_npcs,
-            "worldObjects": world_objects,
-        }
-```
+#### [ ] 2. Refactor `store.py`
+**File**: `server/src/persistence/store.py`
+**Changes**:
+- Add `import django` and `django.setup()` in the module initialization.
+- Rewrite `load_player`, `save_player`, and `record_chat` to use Django ORM.
+- Wrap all database calls with `@sync_to_async` to ensure they run safely in threadpools without triggering Django's async-safety exceptions.
 
 ### Success Criteria:
-#### Automated Verification:
-- [ ] Tests pass: `make check` (ensure no join handler tests break)
 
-#### Manual Verification:
-- [ ] Inspect the WS frame for `join_ok` and confirm `self_player` is present.
+#### Automated Verification:
+- [ ] Tests pass: `cd server && python -m pytest tests/`
+- [ ] Database migrations generate successfully.
+- [ ] Type checking passes: `cd server && python -m mypy src`
 
 ---
 
-## Phase 2: Client Teleportation
+## Phase 2: Expanding the Relational Schema
 
 ### Overview
-Listen for the `self_player` payload in the `join_ok` message and update the local player avatar to match the server.
+Implement the relational database schema for the new persistence features: Global State, Player State (expanding from JSON blob to columns if needed), Relationships, and Quests.
 
 ### Changes Required:
 
-#### [ ] 1. Update Client Message Types
-**File**: `client/src/network/MessageProtocol.ts`
-**Changes**: Update `JoinOkResponse` interface to include `self_player`.
+#### [ ] 1. New Django Models
+**File**: `server/src/persistence/models.py`
+**Changes**:
+- `GlobalWorldState`: Store dead NPCs, spawned buildings, global events.
+- `PlayerQuest`: Track quest IDs and progress status per player.
+- `PlayerNPCRelationship`: Status (`friendly`, `hostile`, `hero`) per player-NPC pair.
 
-```typescript
-export interface JoinOkResponse {
-  type: 'join_ok';
-  playerId: string;
-  self_player: RemotePlayerData;  // Using RemotePlayerData interface as a shape match
-  players: RemotePlayerData[];
-  npcs: any[];
-  worldObjects: any[];
-}
-```
-
-#### [ ] 2. Update `WebSocketHandler.ts`
-**File**: `client/src/core/WebSocketHandler.ts`
-**Changes**: Extract `data.self_player`, teleport the player controller, and sync the HUD.
-
-```typescript
-        // Set local player state from the server's persisted data
-        if (data.self_player) {
-          const sp = data.self_player;
-          
-          // Teleport physical controller
-          if (sp.position && sp.position.length >= 3) {
-            this.d.playerController.position.set(sp.position[0], sp.position[1], sp.position[2]);
-            this.d.playerController.targetYaw = sp.yaw || 0;
-            
-            // Sync camera and rotation instantly without smoothing
-            this.d.playerController.yaw = sp.yaw || 0;
-            this.d.playerController.camera.position.copy(this.d.playerController.position);
-          }
-          
-          // Sync HP
-          if (typeof sp.hp === 'number') {
-            this.d.playerState.setHP(sp.hp, sp.maxHp);
-          }
-        }
-```
+#### [ ] 2. Expose in `store.py`
+**File**: `server/src/persistence/store.py`
+**Changes**:
+- Add `get_npc_relationship(player_id, npc_id)`, `update_npc_relationship()`.
+- Add `get_global_state()`, `save_global_state()`.
+- Add `get_completed_quests(player_id)`.
 
 ### Success Criteria:
 
 #### Automated Verification:
-- [ ] TypeScript compilation passes: `cd client && npm run typecheck`
-- [ ] Linter passes: `cd client && npm run lint`
+- [ ] Migrations apply cleanly.
+- [ ] New unit tests in `tests/domains/persistence/` pass for relationship and global state saving.
 
-#### Manual Verification:
-- [ ] Log in, walk far away from the spawn point, and disconnect.
-- [ ] Refresh the page and log back in.
-- [ ] Verify you instantly appear at your last location instead of spawn!
+---
+
+## Phase 3: Vector Database for Lore and Relationship Summaries
+
+### Overview
+Integrate a Vector Database (e.g., ChromaDB or LangChain's FAISS wrapper) to store semantic data that the LLM needs to query contextually.
+
+### Changes Required:
+
+#### [ ] 1. Vector Store Initialization
+**File**: `server/src/persistence/vector_store.py`
+**Changes**:
+- Set up a local Vector DB instance (persisted to disk in `data/vector_db/`).
+- Define collections: `lore` and `relationships`.
+
+#### [ ] 2. Repository Integration
+**File**: `server/src/persistence/store.py`
+**Changes**:
+- Add `search_lore(query: str, limit: int)`.
+- Add `save_relationship_summary(player_id: str, npc_id: str, summary: str)` and `get_relationship_context(player_id: str, npc_id: str, query: str)`.
+
+### Success Criteria:
+
+#### Automated Verification:
+- [ ] Unit tests for vector insertion and similarity search.
+- [ ] `store.py` correctly routes relational queries to Django and semantic queries to the Vector DB.
 
 ---
 
 ## Testing Strategy
 
-### Manual Testing Steps:
-1. Load the game in the browser.
-2. Walk to a distinct location (e.g. next to a specific tree or house).
-3. Take some fall damage or combat damage to alter HP.
-4. Close the browser tab.
-5. Re-open the game and login with the same username.
-6. Verify the character spawns exactly where you left them, with the exact same HP amount.
+### Unit Tests:
+- `test_store_django.py`: Verify that saving and loading a player through `store.py` actually uses the Django DB under the hood and triggers no `SynchronousOnlyOperation` errors.
+- `test_vector_store.py`: Verify that adding a piece of lore and querying it returns the correct document.
+
+### Integration Tests:
+- Run the WebSocket loop and verify that a player disconnects, `save_player` runs, and no asyncio blocking errors occur.

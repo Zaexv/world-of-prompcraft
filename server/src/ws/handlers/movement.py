@@ -58,8 +58,13 @@ async def handle_player_move(
             # Broadcast nearby player positions as a list
             nearby = world_state.get_nearby_players(position, 200.0)
             nearby.pop(player_id, None)
-            if nearby:
-                nearby_list = list(nearby.values())
+
+            # Filter out players who are disconnected but still in world_state (from persistence)
+            nearby_list = [
+                p_dict for pid, p_dict in nearby.items() if pid in manager.active_connections
+            ]
+
+            if nearby_list:
                 # BUG-11: Also send world_update back to the moving player
                 # so they discover nearby stationary players
                 await manager.send_to(
