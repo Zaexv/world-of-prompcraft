@@ -159,7 +159,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             task = asyncio.create_task(_process(data))
             pending.add(task)
             task.add_done_callback(pending.discard)
-    except WebSocketDisconnect:
+    except Exception as e:
+        logger.info(f"WebSocket closed: {e}")
+    finally:
         for task in pending:
             task.cancel()
         player_id = manager.disconnect(websocket)

@@ -192,6 +192,7 @@ def _get_generated_personality(name: str, behavior: str) -> str:
             f"- ALWAYS remind the player that it's dangerous out in the wild."
         )
 
+
 async def handle_npc_move(
     ctx: HandlerContext,
     data: dict[str, Any],
@@ -209,5 +210,7 @@ async def handle_npc_move(
         if npc:
             npc.position = [float(position[0]), float(position[1]), float(position[2])]
             # Broadcast to nearby players so they see the NPC approach
-            await manager.broadcast({"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]})
+            await manager.broadcast(
+                {"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]}
+            )
     return None
