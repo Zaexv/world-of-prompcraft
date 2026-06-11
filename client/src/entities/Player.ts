@@ -28,6 +28,11 @@ export class Player {
     return new Player(race);
   }
 
+  /** The avatar's current visual facing (radians) — what remote clients should render. */
+  get facingYaw(): number {
+    return this.animator.facing;
+  }
+
   update(
     delta: number,
     isMoving: boolean,

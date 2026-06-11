@@ -101,6 +101,13 @@ export class WebSocketHandler {
 
             this.d.npcNameMap.set(id, n.name);
 
+            // Server-authoritative death: never spawn a dead NPC alive, and
+            // remember the id so chunk reloads can't resurrect it either.
+            if (typeof n.hp === 'number' && n.hp <= 0) {
+              this.d.entityManager.markNPCDead(id);
+              continue;
+            }
+
             try {
               this.d.entityManager.addNPC({
                 id,
@@ -207,17 +214,20 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'npc_dialogue') {
-      if (data.npcName) {
+      // Without an NPC name there is nothing to overhear — older servers used
+      // this shape to relay another player's private prompt; never render it.
+      if (!data.npcName) return;
+      const npc = this.d.entityManager.getNPC(data.npcId as string);
+      this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
+      npc?.playTalk(talkSeconds(data.dialogue as string));
+      // Chat panel is personal: only dialogue from *your own* conversation (or
+      // an NPC reacting to your open chat) lands there. Other players' NPC
+      // replies stay world-only — an overheard bubble over the NPC's head.
+      const speaker = data.speakerPlayer as string | undefined;
+      if (!speaker || speaker === this.d.runtime.localPlayerId) {
         const archetype = this.d.npcStateStore.getState(data.npcId as string)?.personality;
         const dialogueColor = categoryAccent(archetypeCategory(archetype)).text;
         this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, dialogueColor);
-        const npc = this.d.entityManager.getNPC(data.npcId as string);
-        this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
-        npc?.playTalk(talkSeconds(data.dialogue as string));
-      } else {
-        this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
-        const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
-        this.d.spawnChatBubble(data.dialogue as string, remote?.group, 'player', data.speakerPlayer as string);
       }
       return;
     }

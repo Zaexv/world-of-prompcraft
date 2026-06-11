@@ -344,7 +344,9 @@ _VALID_FACTIONS = {"alliance", "horde"}
 _ALLOWED_PLAYER_FIELDS = {"position", "hp", "inventory"}
 
 
-def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) -> None:
+def _auto_register_procedural_npc(
+    npc_id: str, name: str, personality_key: str, position: list[float] | None = None
+) -> None:
     """Register a procedurally spawned NPC in the world state and agent registry on first contact."""
     if _world_state is None or _registry is None:
         return
@@ -362,13 +364,16 @@ def _auto_register_procedural_npc(npc_id: str, name: str, personality_key: str) 
     archetype = personality.get("archetype", "hostile_monster")
     hp = 80
 
+    # A real world position is essential: nearby-broadcasts (combat sync, death,
+    # overheard dialogue) measure from the NPC. Registering at the origin made
+    # those broadcasts invisible to everyone actually standing at the fight.
     npc = NPCData(
         npc_id=npc_id,
         name=name,
         personality=system_prompt,
         hp=hp,
         max_hp=hp,
-        position=[0.0, 0.0, 0.0],
+        position=list(position) if position is not None else [0.0, 0.0, 0.0],
         archetype=archetype,
     )
     _world_state.npcs[npc_id] = npc
@@ -767,6 +772,9 @@ async def _fast_combat_reaction(
                     "type": "npc_dialogue",
                     "npcId": npc_id,
                     "npcName": npc_name,
+                    # Tagging the attacker keeps the bark out of bystanders'
+                    # chat panels — they see an overheard bubble instead.
+                    "speakerPlayer": player_id,
                     "dialogue": dialogue,
                 },
                 origin=npc_after.position,
@@ -861,7 +869,16 @@ async def _handle_interaction(
     # Auto-register procedural NPCs on first interaction.
     # These are spawned client-side and the server has no prior record of them.
     if _world_state.get_npc(npc_id) is None and npc_id.startswith(("proc_", "enc_")):
-        _auto_register_procedural_npc(npc_id, npc_name, personality_key)
+        npc_position_raw = data.get("npcPosition")
+        npc_position: list[float] | None = None
+        if isinstance(npc_position_raw, list) and len(npc_position_raw) >= 3:
+            npc_position = [float(c) for c in npc_position_raw[:3]]
+        elif isinstance(player_state_raw, dict):
+            # Fallback: the interacting player is standing next to the NPC.
+            pos = player_state_raw.get("position")
+            if isinstance(pos, list) and len(pos) >= 3:
+                npc_position = [float(c) for c in pos[:3]]
+        _auto_register_procedural_npc(npc_id, npc_name, personality_key, npc_position)
 
     # Bug 6: Update player state under the world state lock (must happen first
     # so the dead-check below uses the client-synced HP, not stale server HP).
@@ -1116,27 +1133,14 @@ async def _handle_interaction(
 
     dialogue_text = result.get("dialogue", "...")
 
-    # ── Broadcast NPC dialogue to nearby players ──────────────────────────
+    # ── Broadcast the NPC's spoken reply to nearby players ────────────────
+    # Only the NPC's side of a private interaction is audible in the world —
+    # the player's typed prompt is private and is never broadcast. Receivers
+    # render this as an overheard speech bubble, not a chat-panel entry
+    # (the client gates on speakerPlayer != local player).
     npc_for_broadcast = _world_state.get_npc(npc_id)
     if npc_for_broadcast is not None:
         npc_pos = npc_for_broadcast.position
-        npc_broadcast_pos = list(npc_pos)
-        # Broadcast player's prompt
-        await manager.broadcast_nearby(
-            {
-                "type": "npc_dialogue",
-                "npcId": npc_id,
-                "npcName": "",
-                "speakerPlayer": player_id,
-                "dialogue": prompt,
-                "position": npc_broadcast_pos,
-            },
-            origin=npc_pos,
-            radius=100.0,
-            world_state=_world_state,
-            exclude=player_id,
-        )
-        # Broadcast NPC's response
         await manager.broadcast_nearby(
             {
                 "type": "npc_dialogue",
@@ -1144,7 +1148,7 @@ async def _handle_interaction(
                 "npcName": npc_for_broadcast.name,
                 "speakerPlayer": player_id,
                 "dialogue": dialogue_text,
-                "position": npc_broadcast_pos,
+                "position": list(npc_pos),
             },
             origin=npc_pos,
             radius=100.0,

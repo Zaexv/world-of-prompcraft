@@ -402,7 +402,10 @@ export class GameEngine {
         d.ws.send({
           type: 'player_move',
           position: [d.playerController.position.x, d.playerController.position.y, d.playerController.position.z],
-          yaw: d.playerController.yaw,
+          // The avatar's visual facing — NOT the camera orbit yaw. Remote clients
+          // apply this directly to the model, so sending camera yaw made other
+          // players' avatars face wherever the camera pointed.
+          yaw: d.player.facingYaw,
         });
       }
     }

@@ -14,6 +14,10 @@ export class EntityManager {
   public readonly npcs: Map<string, NPC> = new Map();
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
+  /** Ids of NPCs known to be dead (server-authoritative). Spawning these is
+   *  refused so a corpse can't reappear via chunk reload or a re-join. */
+  private readonly deadNpcIds = new Set<string>();
+
   private scene: THREE.Scene;
 
   // Interleaving & Performance
@@ -37,7 +41,8 @@ export class EntityManager {
    * scene first. Without this, re-joins leak the old mesh and NPCs visibly
    * multiply.
    */
-  addNPC(config: NPCConfig): NPC {
+  addNPC(config: NPCConfig): NPC | undefined {
+    if (this.deadNpcIds.has(config.id)) return undefined;
     if (this.npcs.has(config.id)) {
       this.removeNPC(config.id);
     }
@@ -75,6 +80,18 @@ export class EntityManager {
       this.npcs.delete(id);
       this.npcList = Array.from(this.npcs.values());
     }
+  }
+
+  /** Mark an NPC as permanently dead and despawn it if present.
+   *  Future addNPC calls for this id (chunk reload, join_ok replay) are no-ops. */
+  markNPCDead(id: string): void {
+    this.deadNpcIds.add(id);
+    this.removeNPC(id);
+  }
+
+  /** Whether this NPC id is known to be dead. */
+  isNPCDead(id: string): boolean {
+    return this.deadNpcIds.has(id);
   }
 
   // ── Remote player management ────────────────────────────────────────────────

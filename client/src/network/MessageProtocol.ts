@@ -5,6 +5,9 @@ export interface PlayerInteraction {
   npcId: string;
   npcName?: string;
   personalityKey?: string;
+  /** World position of the NPC — lets the server register client-spawned
+   *  (procedural) NPCs at their real location instead of the origin. */
+  npcPosition?: [number, number, number];
   prompt: string;
   playerId: string;
   playerState: {

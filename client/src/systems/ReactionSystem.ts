@@ -82,6 +82,8 @@ export interface EntityManagerLike {
     };
   } | undefined;
   removeNPC?(id: string): void;
+  /** Permanently mark an NPC dead (despawn + refuse respawns on chunk reload). */
+  markNPCDead?(id: string): void;
 }
 
 /**
@@ -208,7 +210,9 @@ export class ReactionSystem {
               const s = 1 - t;
               mesh.scale.set(startScale.x * s, startScale.y * s, startScale.z * s);
               if (t >= 1) {
-                entityManager.removeNPC?.(npcId);
+                // Permanent death — also blocks respawn on chunk reload/rejoin.
+                if (entityManager.markNPCDead) entityManager.markNPCDead(npcId);
+                else entityManager.removeNPC?.(npcId);
                 return false;
               }
               return true;
