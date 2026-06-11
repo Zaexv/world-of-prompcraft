@@ -141,15 +141,25 @@ export class EntityManager {
     return this.remotePlayers.get(playerId);
   }
 
-  /** Update or add remote players from a world update. */
+  /** Update or add remote players from a world update, culling those no longer visible. */
   updateRemotePlayers(players: RemotePlayerData[]): void {
+    const updatedIds = new Set<string>();
+    
     for (const p of players) {
+      updatedIds.add(p.playerId);
       const existing = this.remotePlayers.get(p.playerId);
       if (existing) {
         existing.setTarget(p.position, p.yaw);
         existing.setHP(p.hp, p.maxHp);
       } else {
         this.addRemotePlayer(p);
+      }
+    }
+    
+    // Remove any remote players that were not in this update (e.g. walked out of range, or dropped silently)
+    for (const [id] of this.remotePlayers) {
+      if (!updatedIds.has(id)) {
+        this.removeRemotePlayer(id);
       }
     }
   }

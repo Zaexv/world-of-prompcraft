@@ -38,7 +38,11 @@ const QUEST_GIVER_IDS: ReadonlySet<string> = new Set(['guardia_abelardo']);
 function isQuestGiverNpc(n: any): boolean {
   const id = n?.id ?? n?.npc_id;
   if (typeof id === 'string' && QUEST_GIVER_IDS.has(id)) return true;
-  return n?.archetype === 'quest_giver';
+  if (n?.archetype === 'quest_giver') return true;
+  if (typeof n?.personality === 'string') {
+    return n.personality.includes('offer_quest') || n.personality.includes('offer_custom_quest');
+  }
+  return false;
 }
 
 export interface WSHandlerDeps {

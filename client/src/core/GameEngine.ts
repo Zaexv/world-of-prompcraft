@@ -229,7 +229,9 @@ export class GameEngine {
 
       const npc = d.entityManager.getNPC(npcId);
       if (npc) {
-        npc.walkToPlayer(d.playerController.position.clone());
+        const targetPos = d.playerController.position.clone();
+        npc.walkToPlayer(targetPos);
+        d.ws.sendNPCMove(npcId, [targetPos.x, targetPos.y, targetPos.z]);
       }
 
       d.uiManager.showInteractionPanel(npcId, npcName);

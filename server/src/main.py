@@ -176,6 +176,14 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     except Exception:
                         logger.exception("Failed persisting %s on disconnect", player_id)
                 world_state.players.pop(player_id, None)
+
+            # Broadcast disconnect to other clients
+            t = asyncio.create_task(
+                manager.broadcast({"type": "player_left", "playerId": player_id})
+            )
+            # The pending set tracks active tasks to avoid them being garbage collected
+            pending.add(t)
+            t.add_done_callback(pending.discard)
             # Bug 16: Clean up equipment dict on disconnect
             cleanup_player_equipment(player_id)
             cleanup_player_locks(player_id)
