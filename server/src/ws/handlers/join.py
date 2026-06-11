@@ -87,23 +87,31 @@ async def handle_join(
         world_state.refresh_npcs()
         if ctx.registry:
             ctx.registry.refresh_agents()
+
+        is_new_player = username not in world_state.players
+
         # Returning player not in memory (left earlier / server restarted after
         # their save): restore the persisted document before initializing.
-        if username not in world_state.players and ctx.store is not None:
+        if is_new_player and ctx.store is not None:
             doc = ctx.store.load_player(username)
             if doc:
                 from ...world.player_state import PlayerData
 
                 try:
                     world_state.players[username] = PlayerData(**doc)
+                    is_new_player = False
                     logger.info(f"Restored persisted state for returning player: {username}")
                 except TypeError:
                     logger.warning(f"Stale persisted schema for {username} — starting fresh")
+
         player = world_state.get_player(username)
         player.username = username
         player.race = race
         player.faction = faction
-        player.position = initial_position
+
+        if is_new_player:
+            player.position = initial_position
+
         logger.info(f"Player state initialized: {username}")
 
     # Build list of current players (excluding the joining player)
@@ -136,9 +144,15 @@ async def handle_join(
         world_objects = world_state.get_world_objects()
 
     logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
+
+    self_player_data = None
+    if world_state is not None:
+        self_player_data = world_state.get_player(username).to_public_dict()
+
     return {
         "type": "join_ok",
         "playerId": username,
+        "self_player": self_player_data,
         "players": current_players,
         "npcs": current_npcs,
         "worldObjects": world_objects,

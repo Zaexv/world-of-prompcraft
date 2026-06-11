@@ -387,6 +387,7 @@ export interface ErrorResponse {
 export interface JoinOk {
   type: "join_ok";
   playerId: string;
+  self_player?: RemotePlayerData;
   players: RemotePlayerData[];
   npcs: NPCInitData[];
   /** Player-built objects already in the shared world (placed by anyone). */

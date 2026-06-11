@@ -76,6 +76,23 @@ export class WebSocketHandler {
       try {
         this.d.uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${this.d.username}!`);
 
+        // Set local player state from the server's persisted data
+        if (data.self_player) {
+          const sp = data.self_player;
+          
+          // Teleport physical controller
+          if (sp.position && sp.position.length >= 3) {
+            this.d.playerController.position.set(sp.position[0], sp.position[1], sp.position[2]);
+            this.d.playerController.yaw = sp.yaw || 0;
+            // The camera will sync to this position on the next tick of playerController.update()
+          }
+          
+          // Sync HP
+          if (typeof sp.hp === 'number') {
+            this.d.playerState.merge({ hp: sp.hp, maxHp: sp.maxHp });
+          }
+        }
+
         if (data.players) {
           for (const p of data.players) {
             if (p.playerId !== this.d.runtime.localPlayerId) {
