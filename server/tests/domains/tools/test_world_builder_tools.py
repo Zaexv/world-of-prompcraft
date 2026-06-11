@@ -202,7 +202,12 @@ def test_create_custom_mesh_unburies_non_sphere_details() -> None:
             "parts": [
                 {"shape": "sphere", "size": [0.25], "position": [0.7, 0.4, 0], "color": "#841"},
                 # dist ~0.18 + bounding radius 0.05 < 0.25 → buried
-                {"shape": "cone", "size": [0.05, 0.1], "position": [0.7, 0.55, 0.1], "color": "#841"},
+                {
+                    "shape": "cone",
+                    "size": [0.05, 0.1],
+                    "position": [0.7, 0.55, 0.1],
+                    "color": "#841",
+                },
             ],
         }
     )
@@ -300,9 +305,7 @@ def test_create_creature_insect_has_glass_wings_and_no_legs() -> None:
     actions: list[Any] = []
     creature = _tools(actions)["create_creature"]
 
-    creature.invoke(
-        {"label": "Abeja", "x": 0.0, "z": 0.0, "kind": "insect", "color": "#FFD700"}
-    )
+    creature.invoke({"label": "Abeja", "x": 0.0, "z": 0.0, "kind": "insect", "color": "#FFD700"})
 
     parts = actions[0]["params"]["spec"]["parts"]
     wings = [p for p in parts if p.get("mat") == "glass"]

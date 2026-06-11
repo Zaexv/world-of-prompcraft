@@ -58,39 +58,69 @@ def _quadruped_parts(
     head_y = body_y + r * 0.7
 
     parts: list[dict[str, Any]] = [
-        {"shape": "capsule", "size": [r, length], "position": [0, body_y, 0],
-         "axis": "x", "color": color},
-        {"shape": "sphere", "size": [head_r, head_r, head_r],
-         "position": [head_x, head_y, 0], "color": color},
+        {
+            "shape": "capsule",
+            "size": [r, length],
+            "position": [0, body_y, 0],
+            "axis": "x",
+            "color": color,
+        },
+        {
+            "shape": "sphere",
+            "size": [head_r, head_r, head_r],
+            "position": [head_x, head_y, 0],
+            "color": color,
+        },
         # snout pokes forward from the head
-        {"shape": "capsule", "size": [head_r * 0.35, head_r * 1.1],
-         "position": [head_x + head_r * 0.85, head_y - head_r * 0.2, 0],
-         "axis": "x", "color": accent},
+        {
+            "shape": "capsule",
+            "size": [head_r * 0.35, head_r * 1.1],
+            "position": [head_x + head_r * 0.85, head_y - head_r * 0.2, 0],
+            "axis": "x",
+            "color": accent,
+        },
         # eyes on the front face, mirrored across z
-        {"shape": "sphere", "size": [head_r * 0.16] * 3,
-         "position": [head_x + head_r * 0.8, head_y + head_r * 0.3, head_r * 0.45],
-         "color": "#1a1a1a"},
-        {"shape": "sphere", "size": [head_r * 0.16] * 3,
-         "position": [head_x + head_r * 0.8, head_y + head_r * 0.3, -head_r * 0.45],
-         "color": "#1a1a1a"},
+        {
+            "shape": "sphere",
+            "size": [head_r * 0.16] * 3,
+            "position": [head_x + head_r * 0.8, head_y + head_r * 0.3, head_r * 0.45],
+            "color": "#1a1a1a",
+        },
+        {
+            "shape": "sphere",
+            "size": [head_r * 0.16] * 3,
+            "position": [head_x + head_r * 0.8, head_y + head_r * 0.3, -head_r * 0.45],
+            "color": "#1a1a1a",
+        },
     ]
 
     if ear_style == "floppy":
         for side in (1.0, -1.0):
             parts.append(
-                {"shape": "sphere",
-                 "size": [head_r * 0.2, head_r * 0.55, head_r * 0.32],
-                 "position": [head_x - head_r * 0.15, head_y + head_r * 0.35,
-                              side * head_r * 0.95],
-                 "color": accent}
+                {
+                    "shape": "sphere",
+                    "size": [head_r * 0.2, head_r * 0.55, head_r * 0.32],
+                    "position": [
+                        head_x - head_r * 0.15,
+                        head_y + head_r * 0.35,
+                        side * head_r * 0.95,
+                    ],
+                    "color": accent,
+                }
             )
     else:  # pointy
         for side in (1.0, -1.0):
             parts.append(
-                {"shape": "cone", "size": [head_r * 0.28, head_r * 0.7],
-                 "position": [head_x - head_r * 0.15, head_y + head_r * 1.05,
-                              side * head_r * 0.5],
-                 "color": accent}
+                {
+                    "shape": "cone",
+                    "size": [head_r * 0.28, head_r * 0.7],
+                    "position": [
+                        head_x - head_r * 0.15,
+                        head_y + head_r * 1.05,
+                        side * head_r * 0.5,
+                    ],
+                    "color": accent,
+                }
             )
 
     leg_x = max(half - r * 0.6, 0.05)
@@ -98,14 +128,23 @@ def _quadruped_parts(
     for sx in (1.0, -1.0):
         for sz in (1.0, -1.0):
             parts.append(
-                {"shape": "cylinder", "size": [r * 0.32, leg_len],
-                 "position": [sx * leg_x, leg_len / 2, sz * leg_z], "color": color}
+                {
+                    "shape": "cylinder",
+                    "size": [r * 0.32, leg_len],
+                    "position": [sx * leg_x, leg_len / 2, sz * leg_z],
+                    "color": color,
+                }
             )
 
     parts.append(
-        {"shape": "capsule", "size": [r * 0.18, r * 1.6],
-         "position": [-(half + r * 0.4), body_y + r * 0.6, 0],
-         "axis": "x", "rotation": [0.0, 0.0, 0.7], "color": accent}
+        {
+            "shape": "capsule",
+            "size": [r * 0.18, r * 1.6],
+            "position": [-(half + r * 0.4), body_y + r * 0.6, 0],
+            "axis": "x",
+            "rotation": [0.0, 0.0, 0.7],
+            "color": accent,
+        }
     )
     return parts
 
@@ -119,33 +158,75 @@ def _insect_parts(
     y = r + 0.45  # hovers above the ground
     parts: list[dict[str, Any]] = [
         # abdomen at the back, with two accent stripe bands
-        {"shape": "sphere", "size": [length * 0.35, r, r],
-         "position": [-length * 0.25, y, 0], "color": color},
-        {"shape": "sphere", "size": [length * 0.07, r * 1.04, r * 1.04],
-         "position": [-length * 0.18, y, 0], "color": accent},
-        {"shape": "sphere", "size": [length * 0.07, r * 1.04, r * 1.04],
-         "position": [-length * 0.38, y, 0], "color": accent},
+        {
+            "shape": "sphere",
+            "size": [length * 0.35, r, r],
+            "position": [-length * 0.25, y, 0],
+            "color": color,
+        },
+        {
+            "shape": "sphere",
+            "size": [length * 0.07, r * 1.04, r * 1.04],
+            "position": [-length * 0.18, y, 0],
+            "color": accent,
+        },
+        {
+            "shape": "sphere",
+            "size": [length * 0.07, r * 1.04, r * 1.04],
+            "position": [-length * 0.38, y, 0],
+            "color": accent,
+        },
         # thorax + head toward +x
-        {"shape": "sphere", "size": [r * 0.9] * 3,
-         "position": [length * 0.18, y, 0], "color": color},
-        {"shape": "sphere", "size": [r * 0.65] * 3,
-         "position": [length * 0.45, y + r * 0.1, 0], "color": accent},
+        {
+            "shape": "sphere",
+            "size": [r * 0.9] * 3,
+            "position": [length * 0.18, y, 0],
+            "color": color,
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.65] * 3,
+            "position": [length * 0.45, y + r * 0.1, 0],
+            "color": accent,
+        },
         # big insect eyes, mirrored across z
-        {"shape": "sphere", "size": [r * 0.22] * 3,
-         "position": [length * 0.55, y + r * 0.25, r * 0.35], "color": "#1a1a1a"},
-        {"shape": "sphere", "size": [r * 0.22] * 3,
-         "position": [length * 0.55, y + r * 0.25, -r * 0.35], "color": "#1a1a1a"},
+        {
+            "shape": "sphere",
+            "size": [r * 0.22] * 3,
+            "position": [length * 0.55, y + r * 0.25, r * 0.35],
+            "color": "#1a1a1a",
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.22] * 3,
+            "position": [length * 0.55, y + r * 0.25, -r * 0.35],
+            "color": "#1a1a1a",
+        },
         # translucent wings above the thorax, mirrored across z
-        {"shape": "sphere", "size": [length * 0.28, r * 0.07, r * 0.5],
-         "position": [length * 0.05, y + r * 0.95, r * 0.75],
-         "rotation": [0.25, 0.0, 0.0], "color": "#eef6ff", "mat": "glass"},
-        {"shape": "sphere", "size": [length * 0.28, r * 0.07, r * 0.5],
-         "position": [length * 0.05, y + r * 0.95, -r * 0.75],
-         "rotation": [-0.25, 0.0, 0.0], "color": "#eef6ff", "mat": "glass"},
+        {
+            "shape": "sphere",
+            "size": [length * 0.28, r * 0.07, r * 0.5],
+            "position": [length * 0.05, y + r * 0.95, r * 0.75],
+            "rotation": [0.25, 0.0, 0.0],
+            "color": "#eef6ff",
+            "mat": "glass",
+        },
+        {
+            "shape": "sphere",
+            "size": [length * 0.28, r * 0.07, r * 0.5],
+            "position": [length * 0.05, y + r * 0.95, -r * 0.75],
+            "rotation": [-0.25, 0.0, 0.0],
+            "color": "#eef6ff",
+            "mat": "glass",
+        },
         # stinger pointing backwards
-        {"shape": "cone", "size": [r * 0.25, r * 0.7],
-         "position": [-length * 0.62, y, 0], "rotation": [0.0, 0.0, 1.57],
-         "color": accent},
+        {
+            "shape": "cone",
+            "size": [r * 0.25, r * 0.7],
+            "position": [-length * 0.62, y, 0],
+            "rotation": [0.0, 0.0, 1.57],
+            "color": accent,
+        },
     ]
     return parts
 
@@ -161,33 +242,68 @@ def _bird_parts(
     head_y = y + r * 0.85
     head_x = length * 0.42
     parts: list[dict[str, Any]] = [
-        {"shape": "sphere", "size": [length * 0.5, r, r * 0.85],
-         "position": [0, y, 0], "color": color},
-        {"shape": "sphere", "size": [r * 0.72] * 3,
-         "position": [head_x, head_y, 0], "color": color},
+        {
+            "shape": "sphere",
+            "size": [length * 0.5, r, r * 0.85],
+            "position": [0, y, 0],
+            "color": color,
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.72] * 3,
+            "position": [head_x, head_y, 0],
+            "color": color,
+        },
         # beak pointing forward (+x)
-        {"shape": "cone", "size": [r * 0.28, r * 0.9],
-         "position": [head_x + r * 0.95, head_y, 0], "rotation": [0.0, 0.0, -1.57],
-         "color": "#e69500"},
-        {"shape": "sphere", "size": [r * 0.14] * 3,
-         "position": [head_x + r * 0.55, head_y + r * 0.25, r * 0.4], "color": "#1a1a1a"},
-        {"shape": "sphere", "size": [r * 0.14] * 3,
-         "position": [head_x + r * 0.55, head_y + r * 0.25, -r * 0.4], "color": "#1a1a1a"},
+        {
+            "shape": "cone",
+            "size": [r * 0.28, r * 0.9],
+            "position": [head_x + r * 0.95, head_y, 0],
+            "rotation": [0.0, 0.0, -1.57],
+            "color": "#e69500",
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.14] * 3,
+            "position": [head_x + r * 0.55, head_y + r * 0.25, r * 0.4],
+            "color": "#1a1a1a",
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.14] * 3,
+            "position": [head_x + r * 0.55, head_y + r * 0.25, -r * 0.4],
+            "color": "#1a1a1a",
+        },
         # folded wings on the flanks
-        {"shape": "sphere", "size": [length * 0.32, r * 0.45, r * 0.16],
-         "position": [-length * 0.05, y + r * 0.25, r * 0.85], "color": accent},
-        {"shape": "sphere", "size": [length * 0.32, r * 0.45, r * 0.16],
-         "position": [-length * 0.05, y + r * 0.25, -r * 0.85], "color": accent},
+        {
+            "shape": "sphere",
+            "size": [length * 0.32, r * 0.45, r * 0.16],
+            "position": [-length * 0.05, y + r * 0.25, r * 0.85],
+            "color": accent,
+        },
+        {
+            "shape": "sphere",
+            "size": [length * 0.32, r * 0.45, r * 0.16],
+            "position": [-length * 0.05, y + r * 0.25, -r * 0.85],
+            "color": accent,
+        },
         # tail feathers angled up at the back
-        {"shape": "sphere", "size": [length * 0.22, r * 0.12, r * 0.45],
-         "position": [-length * 0.52, y + r * 0.4, 0], "rotation": [0.0, 0.0, 0.5],
-         "color": accent},
+        {
+            "shape": "sphere",
+            "size": [length * 0.22, r * 0.12, r * 0.45],
+            "position": [-length * 0.52, y + r * 0.4, 0],
+            "rotation": [0.0, 0.0, 0.5],
+            "color": accent,
+        },
     ]
     for side in (1.0, -1.0):
         parts.append(
-            {"shape": "cylinder", "size": [r * 0.1, leg_len],
-             "position": [length * 0.05, leg_len / 2, side * r * 0.35],
-             "color": "#e69500"}
+            {
+                "shape": "cylinder",
+                "size": [r * 0.1, leg_len],
+                "position": [length * 0.05, leg_len / 2, side * r * 0.35],
+                "color": "#e69500",
+            }
         )
     return parts
 
@@ -200,25 +316,53 @@ def _fish_parts(
     r = max(0.06, min(0.8, body_radius))
     y = r + 0.35
     parts: list[dict[str, Any]] = [
-        {"shape": "sphere", "size": [length * 0.5, r, r * 0.45],
-         "position": [0, y, 0], "color": color},
+        {
+            "shape": "sphere",
+            "size": [length * 0.5, r, r * 0.45],
+            "position": [0, y, 0],
+            "color": color,
+        },
         # tail fin, vertical lobe at the back
-        {"shape": "sphere", "size": [length * 0.16, r * 0.85, r * 0.08],
-         "position": [-length * 0.58, y, 0], "color": accent},
+        {
+            "shape": "sphere",
+            "size": [length * 0.16, r * 0.85, r * 0.08],
+            "position": [-length * 0.58, y, 0],
+            "color": accent,
+        },
         # dorsal fin on top
-        {"shape": "sphere", "size": [length * 0.2, r * 0.5, r * 0.07],
-         "position": [0, y + r * 0.85, 0], "color": accent},
+        {
+            "shape": "sphere",
+            "size": [length * 0.2, r * 0.5, r * 0.07],
+            "position": [0, y + r * 0.85, 0],
+            "color": accent,
+        },
         # side fins, mirrored across z
-        {"shape": "sphere", "size": [length * 0.12, r * 0.08, r * 0.4],
-         "position": [length * 0.1, y - r * 0.3, r * 0.5],
-         "rotation": [0.5, 0.0, 0.0], "color": accent},
-        {"shape": "sphere", "size": [length * 0.12, r * 0.08, r * 0.4],
-         "position": [length * 0.1, y - r * 0.3, -r * 0.5],
-         "rotation": [-0.5, 0.0, 0.0], "color": accent},
-        {"shape": "sphere", "size": [r * 0.13] * 3,
-         "position": [length * 0.38, y + r * 0.2, r * 0.38], "color": "#1a1a1a"},
-        {"shape": "sphere", "size": [r * 0.13] * 3,
-         "position": [length * 0.38, y + r * 0.2, -r * 0.38], "color": "#1a1a1a"},
+        {
+            "shape": "sphere",
+            "size": [length * 0.12, r * 0.08, r * 0.4],
+            "position": [length * 0.1, y - r * 0.3, r * 0.5],
+            "rotation": [0.5, 0.0, 0.0],
+            "color": accent,
+        },
+        {
+            "shape": "sphere",
+            "size": [length * 0.12, r * 0.08, r * 0.4],
+            "position": [length * 0.1, y - r * 0.3, -r * 0.5],
+            "rotation": [-0.5, 0.0, 0.0],
+            "color": accent,
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.13] * 3,
+            "position": [length * 0.38, y + r * 0.2, r * 0.38],
+            "color": "#1a1a1a",
+        },
+        {
+            "shape": "sphere",
+            "size": [r * 0.13] * 3,
+            "position": [length * 0.38, y + r * 0.2, -r * 0.38],
+            "color": "#1a1a1a",
+        },
     ]
     return parts
 
