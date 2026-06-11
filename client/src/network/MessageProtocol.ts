@@ -5,6 +5,9 @@ export interface PlayerInteraction {
   npcId: string;
   npcName?: string;
   personalityKey?: string;
+  /** World position of the NPC — lets the server register client-spawned
+   *  (procedural) NPCs at their real location instead of the origin. */
+  npcPosition?: [number, number, number];
   prompt: string;
   playerId: string;
   playerState: {
@@ -19,6 +22,9 @@ export interface PlayerMove {
   playerId: string;
   position: [number, number, number];
   yaw: number;
+  /** Current HP — keeps the server (and other players' nameplates) fresh
+   *  between interactions instead of only syncing on NPC contact. */
+  hp?: number;
 }
 
 export interface JoinRequest {
@@ -114,6 +120,12 @@ export interface WorldDirectEdit {
   params: WorldSpawnParams | WorldRemoveParams;
 }
 
+export interface NpcMove {
+  type: 'npc_move';
+  npcId: string;
+  position: [number, number, number];
+}
+
 export type ClientMessage =
   | PlayerInteraction
   | PlayerMove
@@ -127,7 +139,8 @@ export type ClientMessage =
   | QuestUpdate
   | PingMessage
   | WorldModifyRequest
-  | WorldDirectEdit;
+  | WorldDirectEdit
+  | NpcMove;
 
 // ── Action Params (discriminated by kind) ────────────────────────────────────
 // Each action kind carries a typed params object. This makes the client-server
@@ -374,6 +387,7 @@ export interface ErrorResponse {
 export interface JoinOk {
   type: "join_ok";
   playerId: string;
+  self_player?: RemotePlayerData;
   players: RemotePlayerData[];
   npcs: NPCInitData[];
   /** Player-built objects already in the shared world (placed by anyone). */
@@ -426,6 +440,12 @@ export interface PongMessage {
   type: "pong";
 }
 
+/** Server-authoritative NPC wander positions (periodic tick, nearby NPCs only). */
+export interface NPCPositions {
+  type: "npc_positions";
+  updates: Array<{ npcId: string; position: [number, number, number] }>;
+}
+
 export interface WorldModifyResponse {
   type: "world_modify_response";
   dialogue: string;
@@ -462,6 +482,7 @@ export type ServerMessage =
   | WorldUpdate
   | ChatBroadcast
   | NPCDialogue
+  | NPCPositions
   | PongMessage
   | WorldModifyResponse
   | WorldModifyStart

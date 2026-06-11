@@ -117,8 +117,6 @@ export class ProceduralPopulator {
   private collisionSystem: CollisionSystem | null = null;
   private entityManager: EntityManager | null = null;
 
-  private npcCounter = 0;
-
   private queue: PendingChunk[] = [];
   private _queueDirty = false; // sort only when new chunks are queued
   private populated = new Set<string>();
@@ -301,7 +299,10 @@ export class ProceduralPopulator {
         if (this.isUnderwater(mx, mz)) continue;
         const my = this.terrain.getHeightAt(mx, mz);
         const def = rng.pick(defs);
-        const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}_${this.npcCounter++}`;
+        // Deterministic id — derived purely from the seeded spawn slot so every
+        // client names this NPC identically. A per-client counter here broke
+        // cross-player sync (death broadcasts referenced ids nobody else had).
+        const npcId = `proc_${def.id}_${chunkX}_${chunkZ}_${i}`;
         this.spawnTasks.push({ key, run: () => {
           if (!this.entityManager || this.entityManager.npcs.size >= MAX_NPCS) return;
           this.entityManager.addNPC({

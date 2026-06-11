@@ -207,7 +207,7 @@ export async function bootstrap(
         type: 'player_move',
         playerId: runtime.localPlayerId,
         position: [tx, teleportY, tz],
-        yaw: playerController.yaw,
+        yaw: player.facingYaw,
       });
     }
   };
@@ -325,6 +325,7 @@ export async function bootstrap(
       npcId: runtime.activeNpcId,
       npcName: npc?.name,
       personalityKey: npc?.personalityKey || undefined,
+      npcPosition: npc ? [npc.position.x, npc.position.y, npc.position.z] : undefined,
       prompt,
       playerId: runtime.localPlayerId,
       playerState: {

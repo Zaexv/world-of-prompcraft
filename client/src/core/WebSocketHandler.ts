@@ -38,7 +38,11 @@ const QUEST_GIVER_IDS: ReadonlySet<string> = new Set(['guardia_abelardo']);
 function isQuestGiverNpc(n: any): boolean {
   const id = n?.id ?? n?.npc_id;
   if (typeof id === 'string' && QUEST_GIVER_IDS.has(id)) return true;
-  return n?.archetype === 'quest_giver';
+  if (n?.archetype === 'quest_giver') return true;
+  if (typeof n?.personality === 'string') {
+    return n.personality.includes('QUEST -') || n.personality.includes('Give quests');
+  }
+  return false;
 }
 
 export interface WSHandlerDeps {
@@ -76,17 +80,37 @@ export class WebSocketHandler {
       try {
         this.d.uiManager.chatPanel.addSystemMessage(`Welcome to World of Promptcraft, ${this.d.username}!`);
 
-        if (data.players) {
-          for (const p of data.players) {
-            if (p.playerId !== this.d.runtime.localPlayerId) {
-              try {
-                this.d.entityManager.addRemotePlayer(p);
-              } catch (err) {
-                console.error('join_ok: failed to add remote player', p.playerId, err);
-              }
-            }
+        // Set local player state from the server's persisted data
+        if (data.self_player) {
+          const sp = data.self_player;
+          
+          // Teleport physical controller
+          if (sp.position && sp.position.length >= 3) {
+            this.d.playerController.position.set(sp.position[0], sp.position[1], sp.position[2]);
+            this.d.playerController.yaw = sp.yaw || 0;
+            // The camera will sync to this position on the next tick of playerController.update()
+          }
+          
+          // Sync HP
+          if (typeof sp.hp === 'number') {
+            this.d.playerState.merge({ hp: sp.hp, maxHp: sp.maxHp });
           }
         }
+
+        if (data.players) {
+          try {
+            // Filter out self just in case the server sent it,
+            // and use updateRemotePlayers so any stale remote players
+            // from a previous connection are culled.
+            const others = data.players.filter((p: RemotePlayerData) => p.playerId !== this.d.runtime.localPlayerId);
+            this.d.entityManager.updateRemotePlayers(others);
+          } catch (err) {
+            console.error('join_ok: failed to update remote players', err);
+          }
+        }
+
+        // Online: the server owns NPC positions from here on.
+        this.d.entityManager.setServerAuthoritativeNPCs(true);
 
         if (data.npcs) {
           console.info(`Received ${data.npcs.length} NPCs from server.`);
@@ -100,6 +124,13 @@ export class WebSocketHandler {
             }
 
             this.d.npcNameMap.set(id, n.name);
+
+            // Server-authoritative death: never spawn a dead NPC alive, and
+            // remember the id so chunk reloads can't resurrect it either.
+            if (typeof n.hp === 'number' && n.hp <= 0) {
+              this.d.entityManager.markNPCDead(id);
+              continue;
+            }
 
             try {
               this.d.entityManager.addNPC({
@@ -207,18 +238,28 @@ export class WebSocketHandler {
     }
 
     if (data.type === 'npc_dialogue') {
-      if (data.npcName) {
+      // Without an NPC name there is nothing to overhear — older servers used
+      // this shape to relay another player's private prompt; never render it.
+      if (!data.npcName) return;
+      const npc = this.d.entityManager.getNPC(data.npcId as string);
+      this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
+      npc?.playTalk(talkSeconds(data.dialogue as string));
+      // Chat panel is personal: only dialogue from *your own* conversation (or
+      // an NPC reacting to your open chat) lands there. Other players' NPC
+      // replies stay world-only — an overheard bubble over the NPC's head.
+      const speaker = data.speakerPlayer as string | undefined;
+      if (!speaker || speaker === this.d.runtime.localPlayerId) {
         const archetype = this.d.npcStateStore.getState(data.npcId as string)?.personality;
         const dialogueColor = categoryAccent(archetypeCategory(archetype)).text;
         this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, dialogueColor);
-        const npc = this.d.entityManager.getNPC(data.npcId as string);
-        this.d.spawnChatBubble(data.dialogue as string, npc?.mesh, 'npc', data.npcName as string);
-        npc?.playTalk(talkSeconds(data.dialogue as string));
-      } else {
-        this.d.uiManager.chatPanel.addMessage(data.speakerPlayer as string, data.dialogue as string);
-        const remote = this.d.entityManager.getRemotePlayer(data.speakerPlayer as string);
-        this.d.spawnChatBubble(data.dialogue as string, remote?.group, 'player', data.speakerPlayer as string);
       }
+      return;
+    }
+
+    if (data.type === 'npc_positions') {
+      this.d.entityManager.applyServerNPCPositions(
+        (data.updates ?? []) as Array<{ npcId: string; position: [number, number, number] }>,
+      );
       return;
     }
 
@@ -403,7 +444,9 @@ export class WebSocketHandler {
           }
         } else {
           logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
-          const targetNpc = this.d.entityManager.getNPC(target);
+          // `target` is the "npc" discriminator, not an id — the struck NPC is
+          // the one the message is about.
+          const targetNpc = this.d.entityManager.getNPC(npcId);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;

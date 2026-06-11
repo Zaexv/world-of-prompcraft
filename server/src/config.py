@@ -65,6 +65,12 @@ class Settings(BaseSettings):
     agent_invoke_timeout_seconds: float = 60.0
     ws_port: int = 8000
 
+    # ── Persistence ───────────────────────────────────────────────────────────
+    # SQLite database for the mutable game state (players, NPC hp/positions).
+    # Empty string disables persistence (e.g. in tests).
+    persistence_db_path: str = "data/world.db"
+    persistence_save_interval_seconds: float = 30.0
+
     # World-wide directive injected into every NPC prompt (reasoning + speaking),
     # on top of each NPC's own personality. Use it for rules that must hold for
     # all characters. Override via the NPC_GLOBAL_DIRECTIVE env var; set empty to

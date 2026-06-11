@@ -14,6 +14,16 @@ export class EntityManager {
   public readonly npcs: Map<string, NPC> = new Map();
   private readonly remotePlayers: Map<string, RemotePlayer> = new Map();
 
+  /** Ids of NPCs known to be dead (server-authoritative). Spawning these is
+   *  refused so a corpse can't reappear via chunk reload or a re-join. */
+  private readonly deadNpcIds = new Set<string>();
+
+  /** Online mode: the server owns NPC positions — local random wander is off
+   *  and positions pushed by the server are applied in update(). */
+  private serverAuthoritativeNPCs = false;
+  /** Server NPC positions waiting to be applied (needs getHeightAt). */
+  private pendingNPCPositions: Array<{ npcId: string; position: [number, number, number] }> = [];
+
   private scene: THREE.Scene;
 
   // Interleaving & Performance
@@ -37,7 +47,8 @@ export class EntityManager {
    * scene first. Without this, re-joins leak the old mesh and NPCs visibly
    * multiply.
    */
-  addNPC(config: NPCConfig): NPC {
+  addNPC(config: NPCConfig): NPC | undefined {
+    if (this.deadNpcIds.has(config.id)) return undefined;
     if (this.npcs.has(config.id)) {
       this.removeNPC(config.id);
     }
@@ -53,6 +64,7 @@ export class EntityManager {
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     this.npcList = Array.from(this.npcs.values());
+    if (this.serverAuthoritativeNPCs) npc.setServerDriven(true);
     return npc;
   }
 
@@ -75,6 +87,32 @@ export class EntityManager {
       this.npcs.delete(id);
       this.npcList = Array.from(this.npcs.values());
     }
+  }
+
+  /** Mark an NPC as permanently dead and despawn it if present.
+   *  Future addNPC calls for this id (chunk reload, join_ok replay) are no-ops. */
+  markNPCDead(id: string): void {
+    this.deadNpcIds.add(id);
+    this.removeNPC(id);
+  }
+
+  /** Hand NPC position authority to the server (online mode). Applies to all
+   *  current and future NPCs; offline play and the presentation backdrop keep
+   *  the local wander AI. */
+  setServerAuthoritativeNPCs(on: boolean): void {
+    this.serverAuthoritativeNPCs = on;
+    for (const npc of this.npcList) npc.setServerDriven(on);
+  }
+
+  /** Queue server-pushed NPC positions; applied next update() where terrain
+   *  height is available (walk when near, teleport when badly diverged). */
+  applyServerNPCPositions(updates: Array<{ npcId: string; position: [number, number, number] }>): void {
+    this.pendingNPCPositions.push(...updates);
+  }
+
+  /** Whether this NPC id is known to be dead. */
+  isNPCDead(id: string): boolean {
+    return this.deadNpcIds.has(id);
   }
 
   // ── Remote player management ────────────────────────────────────────────────
@@ -103,14 +141,25 @@ export class EntityManager {
     return this.remotePlayers.get(playerId);
   }
 
-  /** Update or add remote players from a world update. */
+  /** Update or add remote players from a world update, culling those no longer visible. */
   updateRemotePlayers(players: RemotePlayerData[]): void {
+    const updatedIds = new Set<string>();
+    
     for (const p of players) {
+      updatedIds.add(p.playerId);
       const existing = this.remotePlayers.get(p.playerId);
       if (existing) {
         existing.setTarget(p.position, p.yaw);
+        existing.setHP(p.hp, p.maxHp);
       } else {
         this.addRemotePlayer(p);
+      }
+    }
+    
+    // Remove any remote players that were not in this update (e.g. walked out of range, or dropped silently)
+    for (const [id] of this.remotePlayers) {
+      if (!updatedIds.has(id)) {
+        this.removeRemotePlayer(id);
       }
     }
   }
@@ -136,6 +185,27 @@ export class EntityManager {
     this.frameCount++;
     const start = performance.now();
     const BUDGET_MS = 2.0;
+
+    // 0. SERVER NPC POSITIONS — walk to nearby corrections, snap to far ones.
+    if (this.pendingNPCPositions.length > 0) {
+      for (const u of this.pendingNPCPositions) {
+        const npc = this.npcs.get(u.npcId);
+        if (!npc) continue;
+        const [x, , z] = u.position;
+        const dx = x - npc.position.x;
+        const dz = z - npc.position.z;
+        if (dx * dx + dz * dz > 25 * 25) {
+          // Badly diverged (rejoin, long cull) — teleport and re-ground.
+          const y = getHeightAt ? getHeightAt(x, z) : npc.position.y;
+          npc.mesh.position.set(x, y, z);
+          npc.position.copy(npc.mesh.position);
+          if (getHeightAt) npc.snapToGround(getHeightAt);
+        } else if (dx * dx + dz * dz > 0.36) {
+          npc.walkToServerPosition(new THREE.Vector3(x, npc.position.y, z));
+        }
+      }
+      this.pendingNPCPositions.length = 0;
+    }
 
     // 1. DISTANCE CULLING & LOD (Interleaved: only check a portion of NPCs per frame)
     const count = this.npcList.length;

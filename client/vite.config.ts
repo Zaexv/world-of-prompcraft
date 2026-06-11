@@ -54,7 +54,7 @@ export default defineConfig(({ mode }) => {
     server: {
       host: true,
       port: 5173,
-      allowedHosts: ['wow.rafaelpernil.com'],
+      allowedHosts: ['wow.rafaelpernil.com', 'play.worldofpromptcraft.com'],
       fs: {
         allow: ['..'],
       },

@@ -50,6 +50,7 @@ export class GameEngine {
   private running = false;
   private moveSendTimer = 0;
   private lastInteractedNpcName = '';
+  private activeDialogNpcId: string | null = null;
 
   // Minimap NPC dot throttle — rebuild at most once every 10 frames
   private _npcDotTick = 0;
@@ -228,7 +229,9 @@ export class GameEngine {
 
       const npc = d.entityManager.getNPC(npcId);
       if (npc) {
-        npc.walkToPlayer(d.playerController.position.clone());
+        const targetPos = d.playerController.position.clone();
+        npc.walkToPlayer(targetPos);
+        d.ws.sendNPCMove(npcId, [targetPos.x, targetPos.y, targetPos.z]);
       }
 
       d.uiManager.showInteractionPanel(npcId, npcName);
@@ -346,8 +349,28 @@ export class GameEngine {
     }
 
     if (dialogFocusActive && d.runtime.activeNpcId) {
-      const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
-      npc?.updateApproachTarget(d.playerController.position);
+      if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
+        this.activeDialogNpcId = d.runtime.activeNpcId;
+        const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
+        if (npc) {
+          const dx = npc.position.x - d.playerController.position.x;
+          const dz = npc.position.z - d.playerController.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > 1.5) {
+            const nx = d.playerController.position.x + (dx / dist) * 1.5;
+            const nz = d.playerController.position.z + (dz / dist) * 1.5;
+            const targetPos = new THREE.Vector3(nx, npc.position.y, nz);
+            npc.walkToServerPosition(targetPos);
+            d.ws.send({
+              type: 'npc_move',
+              npcId: npc.id,
+              position: [nx, npc.position.y, nz],
+            });
+          }
+        }
+      }
+    } else {
+      this.activeDialogNpcId = null;
     }
 
     if (this.introCinematicActive) {
@@ -402,7 +425,11 @@ export class GameEngine {
         d.ws.send({
           type: 'player_move',
           position: [d.playerController.position.x, d.playerController.position.y, d.playerController.position.z],
-          yaw: d.playerController.yaw,
+          // The avatar's visual facing — NOT the camera orbit yaw. Remote clients
+          // apply this directly to the model, so sending camera yaw made other
+          // players' avatars face wherever the camera pointed.
+          yaw: d.player.facingYaw,
+          hp: d.playerState.hp,
         });
       }
     }

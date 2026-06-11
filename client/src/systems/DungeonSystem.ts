@@ -261,6 +261,7 @@ export class DungeonSystem {
         color: config.enemyColor,
         behavior: 'hostile',
       });
+      if (!npc) continue; // already slain on a previous run
       npc.wanderRadius = 0;
       this.dungeonEnemyIds.push(enemyId);
     }

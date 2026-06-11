@@ -113,4 +113,9 @@ export class WebSocketClient {
       this.heartbeatTimer = null;
     }
   }
+  sendNPCMove(npcId: string, position: [number, number, number]): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: 'npc_move', npcId, position }));
+    }
+  }
 }

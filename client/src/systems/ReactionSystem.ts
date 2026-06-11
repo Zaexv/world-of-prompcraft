@@ -82,6 +82,8 @@ export interface EntityManagerLike {
     };
   } | undefined;
   removeNPC?(id: string): void;
+  /** Permanently mark an NPC dead (despawn + refuse respawns on chunk reload). */
+  markNPCDead?(id: string): void;
 }
 
 /**
@@ -208,7 +210,9 @@ export class ReactionSystem {
               const s = 1 - t;
               mesh.scale.set(startScale.x * s, startScale.y * s, startScale.z * s);
               if (t >= 1) {
-                entityManager.removeNPC?.(npcId);
+                // Permanent death — also blocks respawn on chunk reload/rejoin.
+                if (entityManager.markNPCDead) entityManager.markNPCDead(npcId);
+                else entityManager.removeNPC?.(npcId);
                 return false;
               }
               return true;
@@ -289,7 +293,10 @@ export class ReactionSystem {
           this.createFloatingText(`-${amount}`, "#ff3333", this.playerWorldPos());
           this.flashScreen("#8b0000");
         } else {
-          const targetNpc = this.entityManager.getNPC(target as string);
+          // `target` is the literal "npc" discriminator — the damaged NPC is the
+          // one this response belongs to. Looking up getNPC("npc") never hit,
+          // which silently dropped every damage popup.
+          const targetNpc = actingNpc ?? this.entityManager.getNPC(target as string);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;
