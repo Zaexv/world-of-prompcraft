@@ -14,6 +14,7 @@ from .agents.registry import AgentRegistry
 from .agents.world_builder_agent import create_world_builder_agent
 from .config import settings
 from .llm.provider import get_llm
+from .persistence import GameStore
 from .world.npc_wander import npc_wander_loop
 from .world.world_state import WorldState
 from .ws import handler as _handler_module
@@ -41,12 +42,23 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     )
     world_builder_agent = create_world_builder_agent(builder_llm, pending_world_actions)
 
+    # Persistence: restore the previous session's world, then save periodically.
+    global _store
+    save_task: asyncio.Task[None] | None = None
+    if settings.persistence_db_path:
+        _store = GameStore(settings.persistence_db_path)
+        world_state.refresh_npcs()  # build manifest NPCs first so overrides apply
+        restored = _store.restore_world(world_state)
+        logger.info("Restored %d persisted rows from %s", restored, settings.persistence_db_path)
+        save_task = asyncio.create_task(_periodic_save(_store, world_state))
+
     init_handler(
         registry,
         world_state,
         manager,
         world_builder_agent=world_builder_agent,
         pending_world_actions=pending_world_actions,
+        store=_store,
     )
     logger.info(
         "Backend ready: %d NPCs registered, LLM provider=%s",
@@ -60,11 +72,32 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     yield  # app runs
 
     wander_task.cancel()
+    if save_task is not None:
+        save_task.cancel()
+    if _store is not None:
+        _store.save_world(world_state)
+        _store.close()
+        _store = None
     logger.info("Shutting down World of Promptcraft backend.")
 
 
 app = FastAPI(title="World of Promptcraft", lifespan=lifespan)
 manager = ConnectionManager()
+
+# SQLite game-state store; None when persistence is disabled.
+_store: GameStore | None = None
+
+
+async def _periodic_save(store: GameStore, world_state: WorldState) -> None:
+    """Snapshot the world on an interval so a crash loses at most one window."""
+    while True:
+        await asyncio.sleep(settings.persistence_save_interval_seconds)
+        try:
+            store.save_world(world_state)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            logger.exception("Periodic world save failed")
 
 
 @app.get("/health")
@@ -131,9 +164,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
             task.cancel()
         player_id = manager.disconnect(websocket)
         if player_id is not None:
-            # Remove player from the shared world state
+            # Persist, then remove the player from the shared world state.
             world_state = _handler_module._world_state
             if world_state is not None:
+                player = world_state.players.get(player_id)
+                if player is not None and _store is not None:
+                    try:
+                        _store.save_player(player_id, player)
+                    except Exception:
+                        logger.exception("Failed persisting %s on disconnect", player_id)
                 world_state.players.pop(player_id, None)
             # Bug 16: Clean up equipment dict on disconnect
             cleanup_player_equipment(player_id)

@@ -55,6 +55,9 @@ _manager: ConnectionManager | None = None
 _world_builder_agent: Any | None = None
 _pending_world_actions: list[Any] = []
 
+# SQLite game store (None = persistence disabled)
+_game_store: Any | None = None
+
 # Single shared context: holds the service references above plus the shared
 # mutable runtime state (interaction locks, background tasks, agent semaphore,
 # player equipment) that the domain handlers operate on.
@@ -72,6 +75,7 @@ def _sync_context() -> HandlerContext:
     _context.manager = _manager
     _context.world_builder_agent = _world_builder_agent
     _context.pending_world_actions = _pending_world_actions
+    _context.store = _game_store
     return _context
 
 
@@ -81,9 +85,11 @@ def init_handler(
     manager: ConnectionManager,
     world_builder_agent: Any | None = None,
     pending_world_actions: list[Any] | None = None,
+    store: Any | None = None,
 ) -> None:
     """Wire the handler to the live registry, world state, and connection manager."""
     global _registry, _world_state, _manager, _world_builder_agent, _pending_world_actions
+    global _game_store
     _registry = registry
     _world_state = world_state
     _manager = manager
@@ -91,6 +97,8 @@ def init_handler(
         _world_builder_agent = world_builder_agent
     if pending_world_actions is not None:
         _pending_world_actions = pending_world_actions
+    if store is not None:
+        _game_store = store
     _sync_context()
 
 

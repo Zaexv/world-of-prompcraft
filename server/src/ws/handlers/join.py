@@ -87,6 +87,18 @@ async def handle_join(
         world_state.refresh_npcs()
         if ctx.registry:
             ctx.registry.refresh_agents()
+        # Returning player not in memory (left earlier / server restarted after
+        # their save): restore the persisted document before initializing.
+        if username not in world_state.players and ctx.store is not None:
+            doc = ctx.store.load_player(username)
+            if doc:
+                from ...world.player_state import PlayerData
+
+                try:
+                    world_state.players[username] = PlayerData(**doc)
+                    logger.info(f"Restored persisted state for returning player: {username}")
+                except TypeError:
+                    logger.warning(f"Stale persisted schema for {username} — starting fresh")
         player = world_state.get_player(username)
         player.username = username
         player.race = race

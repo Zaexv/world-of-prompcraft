@@ -97,11 +97,14 @@ class WorldState:
         """Synchronize in-memory NPCs with the manifest definitions."""
         definitions = get_npc_definitions()
 
-        # 1. Remove NPCs that are no longer in the manifest
+        # 1. Remove NPCs that are no longer in the manifest. Runtime-registered
+        # procedural NPCs (proc_/enc_) are never manifest entries — keep them,
+        # otherwise every join wipes their state (including deaths).
         current_ids = set(self.npcs.keys())
         manifest_ids = set(definitions.keys())
         for npc_id in current_ids - manifest_ids:
-            del self.npcs[npc_id]
+            if not npc_id.startswith(("proc_", "enc_")):
+                del self.npcs[npc_id]
 
         # 2. Add or update NPCs from the manifest
         for npc_id, npc_def in definitions.items():

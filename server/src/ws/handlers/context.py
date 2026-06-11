@@ -33,6 +33,10 @@ class HandlerContext:
     world_builder_agent: Any | None = None
     pending_world_actions: list[Any] = field(default_factory=list)
 
+    # SQLite game store (src.persistence.GameStore) — None when disabled.
+    # Handlers only read/restore through it; main.py owns the save cadence.
+    store: Any | None = None
+
     # Per-player interaction locks — prevents concurrent interactions from the same client
     interaction_locks: dict[str, asyncio.Lock] = field(default_factory=dict)
 
