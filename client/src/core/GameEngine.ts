@@ -406,6 +406,7 @@ export class GameEngine {
           // apply this directly to the model, so sending camera yaw made other
           // players' avatars face wherever the camera pointed.
           yaw: d.player.facingYaw,
+          hp: d.playerState.hp,
         });
       }
     }

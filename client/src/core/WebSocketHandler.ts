@@ -88,6 +88,9 @@ export class WebSocketHandler {
           }
         }
 
+        // Online: the server owns NPC positions from here on.
+        this.d.entityManager.setServerAuthoritativeNPCs(true);
+
         if (data.npcs) {
           console.info(`Received ${data.npcs.length} NPCs from server.`);
           for (const n of data.npcs) {
@@ -229,6 +232,13 @@ export class WebSocketHandler {
         const dialogueColor = categoryAccent(archetypeCategory(archetype)).text;
         this.d.uiManager.chatPanel.addMessage(data.npcName as string, data.dialogue as string, dialogueColor);
       }
+      return;
+    }
+
+    if (data.type === 'npc_positions') {
+      this.d.entityManager.applyServerNPCPositions(
+        (data.updates ?? []) as Array<{ npcId: string; position: [number, number, number] }>,
+      );
       return;
     }
 
@@ -413,7 +423,9 @@ export class WebSocketHandler {
           }
         } else {
           logCombat(`You strike ${npcName} for ${amount} damage!`, '#ffffff');
-          const targetNpc = this.d.entityManager.getNPC(target);
+          // `target` is the "npc" discriminator, not an id — the struck NPC is
+          // the one the message is about.
+          const targetNpc = this.d.entityManager.getNPC(npcId);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;

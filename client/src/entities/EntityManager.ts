@@ -18,6 +18,12 @@ export class EntityManager {
    *  refused so a corpse can't reappear via chunk reload or a re-join. */
   private readonly deadNpcIds = new Set<string>();
 
+  /** Online mode: the server owns NPC positions — local random wander is off
+   *  and positions pushed by the server are applied in update(). */
+  private serverAuthoritativeNPCs = false;
+  /** Server NPC positions waiting to be applied (needs getHeightAt). */
+  private pendingNPCPositions: Array<{ npcId: string; position: [number, number, number] }> = [];
+
   private scene: THREE.Scene;
 
   // Interleaving & Performance
@@ -58,6 +64,7 @@ export class EntityManager {
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     this.npcList = Array.from(this.npcs.values());
+    if (this.serverAuthoritativeNPCs) npc.setServerDriven(true);
     return npc;
   }
 
@@ -87,6 +94,20 @@ export class EntityManager {
   markNPCDead(id: string): void {
     this.deadNpcIds.add(id);
     this.removeNPC(id);
+  }
+
+  /** Hand NPC position authority to the server (online mode). Applies to all
+   *  current and future NPCs; offline play and the presentation backdrop keep
+   *  the local wander AI. */
+  setServerAuthoritativeNPCs(on: boolean): void {
+    this.serverAuthoritativeNPCs = on;
+    for (const npc of this.npcList) npc.setServerDriven(on);
+  }
+
+  /** Queue server-pushed NPC positions; applied next update() where terrain
+   *  height is available (walk when near, teleport when badly diverged). */
+  applyServerNPCPositions(updates: Array<{ npcId: string; position: [number, number, number] }>): void {
+    this.pendingNPCPositions.push(...updates);
   }
 
   /** Whether this NPC id is known to be dead. */
@@ -126,6 +147,7 @@ export class EntityManager {
       const existing = this.remotePlayers.get(p.playerId);
       if (existing) {
         existing.setTarget(p.position, p.yaw);
+        existing.setHP(p.hp, p.maxHp);
       } else {
         this.addRemotePlayer(p);
       }
@@ -153,6 +175,27 @@ export class EntityManager {
     this.frameCount++;
     const start = performance.now();
     const BUDGET_MS = 2.0;
+
+    // 0. SERVER NPC POSITIONS — walk to nearby corrections, snap to far ones.
+    if (this.pendingNPCPositions.length > 0) {
+      for (const u of this.pendingNPCPositions) {
+        const npc = this.npcs.get(u.npcId);
+        if (!npc) continue;
+        const [x, , z] = u.position;
+        const dx = x - npc.position.x;
+        const dz = z - npc.position.z;
+        if (dx * dx + dz * dz > 25 * 25) {
+          // Badly diverged (rejoin, long cull) — teleport and re-ground.
+          const y = getHeightAt ? getHeightAt(x, z) : npc.position.y;
+          npc.mesh.position.set(x, y, z);
+          npc.position.copy(npc.mesh.position);
+          if (getHeightAt) npc.snapToGround(getHeightAt);
+        } else if (dx * dx + dz * dz > 0.36) {
+          npc.walkToServerPosition(new THREE.Vector3(x, npc.position.y, z));
+        }
+      }
+      this.pendingNPCPositions.length = 0;
+    }
 
     // 1. DISTANCE CULLING & LOD (Interleaved: only check a portion of NPCs per frame)
     const count = this.npcList.length;

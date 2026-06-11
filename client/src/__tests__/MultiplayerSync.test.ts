@@ -125,6 +125,56 @@ describe("EntityManager dead-NPC registry", () => {
   });
 });
 
+describe("server-authoritative NPC positions", () => {
+  it("walks near corrections, teleports far ones, and disables local wander", async () => {
+    const { EntityManager } = await import("../entities/EntityManager");
+    const em = new EntityManager(new THREE.Scene());
+    const flat = () => 0;
+
+    const npc = em.addNPC({ id: "wolf_b", name: "Wolf", position: new THREE.Vector3(0, 0, 0) });
+    expect(npc).toBeDefined();
+    em.setServerAuthoritativeNPCs(true);
+    em.setPlayerPosition(0, 0);
+
+    // Near correction (~3m): the NPC walks toward it (arrival radius is 1.5m,
+    // so it legitimately settles just short of the exact target).
+    em.applyServerNPCPositions([{ npcId: "wolf_b", position: [3, 0, 0] }]);
+    for (let i = 0; i < 600; i++) em.update(1 / 60, flat);
+    expect(npc!.position.x).toBeGreaterThan(1.4); // walked within arrival radius
+    expect(npc!.position.x).toBeLessThanOrEqual(3.01);
+
+    // Far correction (>25m): instant teleport.
+    em.applyServerNPCPositions([{ npcId: "wolf_b", position: [100, 0, 100] }]);
+    em.update(1 / 60, flat);
+    expect(npc!.position.x).toBe(100);
+    expect(npc!.position.z).toBe(100);
+
+    // No local random wander drift: with no further server updates the NPC
+    // stays put (server-driven NPCs never invent their own movement).
+    const sx = npc!.position.x;
+    const sz = npc!.position.z;
+    em.setPlayerPosition(100, 100); // keep it in the active update radius
+    for (let i = 0; i < 1200; i++) em.update(1 / 60, flat);
+    expect(npc!.position.x).toBe(sx);
+    expect(npc!.position.z).toBe(sz);
+  });
+
+  it("updates remote player nameplate HP from world updates", async () => {
+    const { EntityManager } = await import("../entities/EntityManager");
+    const em = new EntityManager(new THREE.Scene());
+    const data = {
+      playerId: "p2", username: "Frodo", position: [0, 0, 0] as [number, number, number],
+      race: "human", faction: "alliance", hp: 100, maxHp: 100, yaw: 0,
+    };
+    const remote = em.addRemotePlayer(data);
+    const spy = vi.spyOn(remote.nameplate, "updateHP");
+
+    em.updateRemotePlayers([{ ...data, hp: 42 }]);
+
+    expect(spy).toHaveBeenCalledWith(42, 100);
+  });
+});
+
 describe("procedural NPC id determinism", () => {
   it("contains only seed-derived parts (no per-client counter)", () => {
     // Mirrors ProceduralPopulator's id template: proc_<def>_<chunkX>_<chunkZ>_<i>

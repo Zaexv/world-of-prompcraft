@@ -14,6 +14,7 @@ from .agents.registry import AgentRegistry
 from .agents.world_builder_agent import create_world_builder_agent
 from .config import settings
 from .llm.provider import get_llm
+from .world.npc_wander import npc_wander_loop
 from .world.world_state import WorldState
 from .ws import handler as _handler_module
 from .ws.connection_manager import ConnectionManager
@@ -53,8 +54,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         settings.llm_provider,
     )
 
+    # Server-authoritative NPC wandering — every player sees NPCs in the same place.
+    wander_task = asyncio.create_task(npc_wander_loop(world_state, manager))
+
     yield  # app runs
 
+    wander_task.cancel()
     logger.info("Shutting down World of Promptcraft backend.")
 
 

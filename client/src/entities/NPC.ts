@@ -125,6 +125,19 @@ export class NPC {
     this.wander.walkTo(playerPosition);
   }
 
+  /** Hand position authority to the server: local random wandering stops and
+   *  the NPC only moves toward positions pushed via walkToServerPosition. */
+  setServerDriven(on: boolean): void {
+    this.wander.serverDriven = on;
+  }
+
+  /** Walk toward a server-authoritative position (terrain height resolved
+   *  during the walk). Far-away corrections teleport instead — see
+   *  EntityManager.applyServerNPCPositions. */
+  walkToServerPosition(target: THREE.Vector3): void {
+    this.wander.walkTo(target);
+  }
+
   updateApproachTarget(playerPosition: THREE.Vector3): void {
     this.wander.updateApproachTarget(playerPosition);
   }

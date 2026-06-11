@@ -22,6 +22,9 @@ export interface PlayerMove {
   playerId: string;
   position: [number, number, number];
   yaw: number;
+  /** Current HP — keeps the server (and other players' nameplates) fresh
+   *  between interactions instead of only syncing on NPC contact. */
+  hp?: number;
 }
 
 export interface JoinRequest {
@@ -429,6 +432,12 @@ export interface PongMessage {
   type: "pong";
 }
 
+/** Server-authoritative NPC wander positions (periodic tick, nearby NPCs only). */
+export interface NPCPositions {
+  type: "npc_positions";
+  updates: Array<{ npcId: string; position: [number, number, number] }>;
+}
+
 export interface WorldModifyResponse {
   type: "world_modify_response";
   dialogue: string;
@@ -465,6 +474,7 @@ export type ServerMessage =
   | WorldUpdate
   | ChatBroadcast
   | NPCDialogue
+  | NPCPositions
   | PongMessage
   | WorldModifyResponse
   | WorldModifyStart

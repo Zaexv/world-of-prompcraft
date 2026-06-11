@@ -46,7 +46,14 @@ async def handle_player_move(
 
     try:
         if world_state is not None:
-            await world_state.update_player(player_id, {"position": position, "yaw": yaw})
+            updates: dict[str, Any] = {"position": position, "yaw": yaw}
+            # HP rides along with movement so other players' nameplates stay
+            # fresh between interactions. Clamped server-side — never trusted raw.
+            hp = data.get("hp")
+            if isinstance(hp, (int, float)):
+                player = world_state.get_player(player_id)
+                updates["hp"] = max(0, min(int(hp), player.max_hp))
+            await world_state.update_player(player_id, updates)
 
             # Broadcast nearby player positions as a list
             nearby = world_state.get_nearby_players(position, 200.0)

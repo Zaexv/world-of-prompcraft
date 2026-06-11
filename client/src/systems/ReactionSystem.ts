@@ -293,7 +293,10 @@ export class ReactionSystem {
           this.createFloatingText(`-${amount}`, "#ff3333", this.playerWorldPos());
           this.flashScreen("#8b0000");
         } else {
-          const targetNpc = this.entityManager.getNPC(target as string);
+          // `target` is the literal "npc" discriminator — the damaged NPC is the
+          // one this response belongs to. Looking up getNPC("npc") never hit,
+          // which silently dropped every damage popup.
+          const targetNpc = actingNpc ?? this.entityManager.getNPC(target as string);
           if (targetNpc) {
             const npcPos = targetNpc.mesh.position.clone();
             npcPos.y += 3;

@@ -6,6 +6,10 @@ import type { NPCMotionProfile } from './NPCMotion';
 type CollisionSystem = { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean };
 
 export class NPCWander {
+  /** When true the server owns this NPC's position: local random wandering is
+   *  suppressed; the NPC only walks to explicit targets (walkTo). */
+  public serverDriven = false;
+
   private wanderTarget = new THREE.Vector3();
   private hasWanderTarget = false;
   private wanderCooldown: number;
@@ -50,6 +54,10 @@ export class NPCWander {
       this.walkToward(dx, dz, delta, getHeightAt);
       return;
     }
+
+    // Online mode: the server decides where NPCs stroll; without an explicit
+    // target the NPC stands idle instead of inventing local-only movement.
+    if (this.serverDriven) return;
 
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
