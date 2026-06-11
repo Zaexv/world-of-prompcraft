@@ -66,9 +66,9 @@ if (stageEl2 && promptEl2) {
   try {
     agentShowcase = new MeshShowcase(stageEl2, promptEl2, [
       { id: 'mage_tower', prompt: 'agent: code a mage tower mesh class' },
-      { id: 'malaka_church', prompt: 'agent: generate a stone church' },
+      { id: 'malaka_broken_church', prompt: 'agent: generate a ruined stone church' },
       { id: 'biome_obsidian_spire', prompt: 'agent: new biome prop — obsidian spire' },
-      { id: 'malaka_cortijo', prompt: 'agent: build a whitewashed cortijo' },
+      { id: 'malaka_broken_cortijo', prompt: 'agent: build a weathered cortijo' },
       { id: 'biome_elven_tower', prompt: 'agent: author an elven tower' },
       { id: 'ancient_tree', prompt: 'agent: add an ancient tree to the catalog' },
     ]);
