@@ -159,12 +159,14 @@ async def _handle_interaction(
 
 def cleanup_player_equipment(player_id: str) -> None:
     """Remove a player's equipment data on disconnect (Bug 16)."""
-    items.cleanup_player_equipment(_context, player_id)
+    if _context is not None:
+        items.cleanup_player_equipment(_context, player_id)
 
 
 def cleanup_player_locks(player_id: str) -> None:
     """Remove per-player interaction lock on disconnect."""
-    interaction.cleanup_player_locks(_context, player_id)
+    if _context is not None:
+        interaction.cleanup_player_locks(_context, player_id)
 
 
 def manager_player_id(websocket: WebSocket) -> str | None:

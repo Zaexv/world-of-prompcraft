@@ -40,7 +40,7 @@ function isQuestGiverNpc(n: any): boolean {
   if (typeof id === 'string' && QUEST_GIVER_IDS.has(id)) return true;
   if (n?.archetype === 'quest_giver') return true;
   if (typeof n?.personality === 'string') {
-    return n.personality.includes('offer_quest') || n.personality.includes('offer_custom_quest');
+    return n.personality.includes('QUEST -') || n.personality.includes('Give quests');
   }
   return false;
 }
