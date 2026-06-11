@@ -33,7 +33,12 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     registry = AgentRegistry(llm=llm, world_state=world_state)
 
     pending_world_actions: list[Any] = []
-    world_builder_agent = create_world_builder_agent(llm, pending_world_actions)
+    # The world builder needs a much larger generation budget than NPC dialogue:
+    # its create_custom_mesh tool calls carry multi-part JSON specs.
+    builder_llm = get_llm(
+        settings.model_copy(update={"response_max_tokens": settings.world_builder_max_tokens})
+    )
+    world_builder_agent = create_world_builder_agent(builder_llm, pending_world_actions)
 
     init_handler(
         registry,

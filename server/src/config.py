@@ -44,11 +44,19 @@ class Settings(BaseSettings):
     # nothing. "none" disables thinking for fast, in-character replies; set to
     # "low"/"medium"/"high" (or "" to omit the param) to re-enable it.
     ollama_reasoning_effort: str = "none"
+    # Keep the model loaded between requests. Ollama's default unloads after
+    # ~5 min idle; the next request then pays a multi-GB cold reload that can
+    # blow the agent timeout and surface as "the NPC/World Spirit does nothing".
+    ollama_keep_alive: str = "60m"
 
     # ── Shared ────────────────────────────────────────────────────────────────
     llm_temperature: float = 0.1
     max_tokens: int = 4096
     response_max_tokens: int = 180
+    # The world builder emits large create_custom_mesh tool calls (JSON with many
+    # parts). Under the 180-token dialogue budget those truncate mid-JSON, the
+    # serving layer drops the partial call, and the agent appears to do nothing.
+    world_builder_max_tokens: int = 2048
     max_concurrent_llm_calls: int = 24
     reflect_every_n_human_turns: int = 5
     # Covers a single cold-start request plus the warm reason → act → respond

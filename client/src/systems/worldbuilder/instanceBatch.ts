@@ -79,16 +79,6 @@ export function buildInstancedBatch(
   const objects: THREE.Object3D[] = [];
   const colliderGroup = new THREE.Group();
 
-  // Bounding-sphere centre = mean instance position (instanced mesh sits at the
-  // origin, so its geometry boundingSphere is expressed in world coordinates).
-  const center = new THREE.Vector3();
-  for (const it of instances) center.add(it.pos);
-  center.multiplyScalar(1 / count);
-  let maxDist = 0;
-  for (const it of instances) maxDist = Math.max(maxDist, it.pos.distanceTo(center));
-
-  let maxInstRadius = 0;
-
   for (const mesh of templ) {
     const geo = mesh.geometry;
     mesh.updateMatrix();
@@ -110,9 +100,12 @@ export function buildInstancedBatch(
     inst.instanceMatrix.needsUpdate = true;
     objects.push(inst);
 
-    geo.computeBoundingSphere();
-    const r = geo.boundingSphere?.radius ?? 0;
-    for (const it of instances) maxInstRadius = Math.max(maxInstRadius, r * it.scale);
+    // Frustum culling: do NOT hand-set geometry.boundingSphere here. Since
+    // r158 the renderer culls an InstancedMesh by `object.boundingSphere`,
+    // which InstancedMesh.computeBoundingSphere() derives by transforming the
+    // LOCAL geometry sphere through every instance matrix. A pre-baked
+    // world-space sphere would be transformed AGAIN and land far off-world,
+    // culling the whole batch while it is on screen.
 
     // Per-instance collider from the template's collider meshes.
     if (mesh.userData.isCollider === true) {
@@ -132,13 +125,6 @@ export function buildInstancedBatch(
         }
       }
     }
-  }
-
-  // Expand each instanced geometry's bounding sphere to span the whole chunk of
-  // instances, so frustum culling works at chunk granularity (mesh is at origin).
-  const sphere = new THREE.Sphere(center, maxDist + maxInstRadius);
-  for (const inst of objects) {
-    if (inst instanceof THREE.InstancedMesh) inst.geometry.boundingSphere = sphere.clone();
   }
 
   return { objects, colliders: colliderGroup.children.length > 0 ? colliderGroup : null };

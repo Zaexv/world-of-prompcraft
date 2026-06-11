@@ -1588,9 +1588,11 @@ async def _handle_world_modify(data: dict[str, Any], websocket: WebSocket) -> di
     }
 
     try:
+        # Generous: a cold Ollama start reloads a multi-GB model before the
+        # first token; 30s made the first build after idle fail as "dormant".
         result = await asyncio.wait_for(
             _world_builder_agent.ainvoke(input_state),
-            timeout=30.0,
+            timeout=90.0,
         )
         actions = list(_pending_world_actions)
         dialogue: str = result.get("response_text", "The world reshapes itself...")
