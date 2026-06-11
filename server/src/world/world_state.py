@@ -111,7 +111,7 @@ class WorldState:
             personality_key = npc_def.get("personality_key", npc_id)
             personality = NPC_PERSONALITIES.get(personality_key, {})
             system_prompt = personality.get("system_prompt", "You are a mysterious stranger.")
-            archetype = personality.get("archetype", "")
+            archetype = personality.get("archetype", npc_def.get("role", ""))
             initial_hp = npc_def.get("initial_hp", 100)
 
             if npc_id in self.npcs:

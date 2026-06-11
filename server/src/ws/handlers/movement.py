@@ -191,3 +191,23 @@ def _get_generated_personality(name: str, behavior: str) -> str:
             f"- If attacked, use emote('cry') and plead for peace. Don't fight.\n"
             f"- ALWAYS remind the player that it's dangerous out in the wild."
         )
+
+async def handle_npc_move(
+    ctx: HandlerContext,
+    data: dict[str, Any],
+    websocket: WebSocket,
+    manager: ConnectionManager,
+) -> dict[str, Any] | None:
+    """Handle a client-driven NPC movement (e.g. approaching a player for dialogue)."""
+    world_state = ctx.world_state
+    if world_state is None:
+        return None
+    npc_id = data.get("npcId")
+    position = data.get("position")
+    if npc_id and isinstance(position, list) and len(position) >= 3:
+        npc = world_state.get_npc(npc_id)
+        if npc:
+            npc.position = [float(position[0]), float(position[1]), float(position[2])]
+            # Broadcast to nearby players so they see the NPC approach
+            await manager.broadcast({"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]})
+    return None

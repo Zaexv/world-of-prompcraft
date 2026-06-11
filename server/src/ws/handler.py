@@ -109,6 +109,7 @@ _MESSAGE_HANDLERS: dict[str, _HandlerFunc] = {
     "ping": system.handle_ping,
     "interaction": interaction.handle_interaction,
     "player_move": movement.handle_player_move,
+    "npc_move": movement.handle_npc_move,
     "explore_area": movement.handle_explore_area,
     "use_item": items.handle_use_item,
     "equip_item": items.handle_equip_item,

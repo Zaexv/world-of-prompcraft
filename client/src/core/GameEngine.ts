@@ -50,6 +50,7 @@ export class GameEngine {
   private running = false;
   private moveSendTimer = 0;
   private lastInteractedNpcName = '';
+  private activeDialogNpcId: string | null = null;
 
   // Minimap NPC dot throttle — rebuild at most once every 10 frames
   private _npcDotTick = 0;
@@ -346,8 +347,28 @@ export class GameEngine {
     }
 
     if (dialogFocusActive && d.runtime.activeNpcId) {
-      const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
-      npc?.updateApproachTarget(d.playerController.position);
+      if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
+        this.activeDialogNpcId = d.runtime.activeNpcId;
+        const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
+        if (npc) {
+          const dx = npc.position.x - d.playerController.position.x;
+          const dz = npc.position.z - d.playerController.position.z;
+          const dist = Math.sqrt(dx * dx + dz * dz);
+          if (dist > 1.5) {
+            const nx = d.playerController.position.x + (dx / dist) * 1.5;
+            const nz = d.playerController.position.z + (dz / dist) * 1.5;
+            const targetPos = new THREE.Vector3(nx, npc.position.y, nz);
+            npc.walkToServerPosition(targetPos);
+            d.ws.send({
+              type: 'npc_move',
+              npcId: npc.id,
+              position: [nx, npc.position.y, nz],
+            });
+          }
+        }
+      }
+    } else {
+      this.activeDialogNpcId = null;
     }
 
     if (this.introCinematicActive) {

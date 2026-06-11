@@ -51,7 +51,7 @@ export class NPCWander {
         this.arrived();
         return;
       }
-      this.walkToward(dx, dz, delta, getHeightAt);
+      this.walkToward(dx, dz, delta, getHeightAt, collisionSystem);
       return;
     }
 
@@ -175,7 +175,7 @@ export class NPCWander {
     cb?.();
   }
 
-  private walkToward(dx: number, dz: number, delta: number, getHeightAt: (x: number, z: number) => number): void {
+  private walkToward(dx: number, dz: number, delta: number, getHeightAt: (x: number, z: number) => number, collisionSystem?: CollisionSystem): void {
     const dist = Math.sqrt(dx * dx + dz * dz);
     const speed = this.motionProfile.moveSpeed * 1.5;
     const step = Math.min(speed * delta, dist);
@@ -184,6 +184,11 @@ export class NPCWander {
     const nextX = this.mesh.position.x + nx * step;
     const nextZ = this.mesh.position.z + nz * step;
     const nextY = getHeightAt(nextX, nextZ);
+
+    if (collisionSystem?.isPositionBlocked(nextX, nextY, nextZ, 0.55)) {
+      this.arrived();
+      return;
+    }
 
     this.mesh.position.x = nextX;
     this.mesh.position.z = nextZ;

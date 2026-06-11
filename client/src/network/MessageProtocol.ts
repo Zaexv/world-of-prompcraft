@@ -120,6 +120,12 @@ export interface WorldDirectEdit {
   params: WorldSpawnParams | WorldRemoveParams;
 }
 
+export interface NpcMove {
+  type: 'npc_move';
+  npcId: string;
+  position: [number, number, number];
+}
+
 export type ClientMessage =
   | PlayerInteraction
   | PlayerMove
@@ -133,7 +139,8 @@ export type ClientMessage =
   | QuestUpdate
   | PingMessage
   | WorldModifyRequest
-  | WorldDirectEdit;
+  | WorldDirectEdit
+  | NpcMove;
 
 // ── Action Params (discriminated by kind) ────────────────────────────────────
 // Each action kind carries a typed params object. This makes the client-server
