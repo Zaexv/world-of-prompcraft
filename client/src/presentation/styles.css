@@ -975,17 +975,18 @@ kbd {
 }
 .trace-section {
   display: grid;
-  grid-template-columns: 68px 1fr;
+  grid-template-columns: 104px 1fr;
   border-bottom: 1px solid rgba(197, 165, 90, 0.08);
   padding: 0.48rem 0;
 }
 .trace-section:last-of-type { border-bottom: none; }
 .trace-step-label {
-  padding: 0.14rem 0.85rem;
+  padding: 0.14rem 0.7rem;
   font-size: 0.68rem;
   font-weight: 700;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
+  white-space: nowrap;
   align-self: flex-start;
 }
 .trace-section.reason { border-left: 3px solid #56b89a; }
