@@ -83,6 +83,14 @@ export class AudioSystem {
   playStartMusic(): void {
     if (!this.initialized) return;
     this.stopCurrentMusic();
+    // Halt and rewind the transport before scheduling. The clock must be parked
+    // at tick 0 *while* we register the loops, then started — otherwise the tick-0
+    // downbeat events fall into the scheduler's past as the clock advances during
+    // setup and get dropped, leaving a silent first bar (the 1n pad is deferred a
+    // whole bar). With a parked origin every loop's first fire lands together at
+    // bar 0 / beat 0, and the tick-derived indices below all read 0 on that tick.
+    Tone.Transport.stop();
+    Tone.Transport.position = 0;
     const bpm = 76 + Math.floor(Math.random() * 22);
     Tone.Transport.bpm.value = bpm;
 
@@ -138,52 +146,57 @@ export class AudioSystem {
     // Bass per chord: root and fifth an octave below the pad.
     const bassTones = progression.map(chord => [semisUp(chord[0], -12), semisUp(chord[2], -12)]);
 
-    // Anchor every loop to the same bar boundary. Without a shared startTime
-    // each scheduleRepeat aligns to the transport's tick-0 grid and its counter
-    // begins on its own first fire, which lands at a different absolute tick per
-    // interval (4n vs 2n vs 1n vs 8n). That offset — set by when playStartMusic
-    // runs relative to Transport.start() — desynced the pad from the arp on init.
-    // Quantizing all four to the next measure locks index 0 of every loop to the
-    // same bar, so the chord/bass/arp progressions advance together.
-    const barStart = Tone.Transport.nextSubdivision('1m');
+    // Every loop derives its musical position from the transport clock at the
+    // callback time rather than a private counter. Private counters start at 0 on
+    // each loop's first fire, which lands at a different absolute tick per
+    // interval (4n vs 2n vs 1n vs 8n) depending on when playStartMusic runs
+    // relative to Transport.start() — so the pad's bar N and the arp's bar N drift
+    // apart. Anchoring all indices to absolute transport ticks (origin = tick 0)
+    // keeps chord/bass/arp progressions locked together every load.
+    const PPQ = Tone.Transport.PPQ;            // ticks per quarter note
+    const ticksPerBar = PPQ * 4;               // 4/4
+    const barIndexAt = (time: number): number =>
+      Math.floor(Math.round(Tone.Transport.getTicksAtTime(time)) / ticksPerBar);
+    const subdivInBarAt = (time: number, parts: number): number => {
+      const tick = Math.round(Tone.Transport.getTicksAtTime(time));
+      return Math.floor((tick % ticksPerBar) / (ticksPerBar / parts));
+    };
 
     // ── Light pulse: soft kick on beat 1, gentle brush on beat 3 ──
-    let beat4 = 0;
     const beatInterval = Tone.Transport.scheduleRepeat((time) => {
-      const barBeat = beat4 % 4;
+      const barBeat = subdivInBarAt(time, 4);
       if (barBeat === 0) kick.triggerAttackRelease('C1', '32n', time);
       if (barBeat === 2) snare.triggerAttackRelease('32n', time);
-      beat4++;
-    }, '4n', barStart);
+    }, '4n');
     this.registerTransportEvent(beatInterval);
 
     // ── Bass: chord root on beat 1, fifth on beat 3 ──
-    let bassHalf = 0;
     const bassInterval = Tone.Transport.scheduleRepeat((time) => {
-      const [bassRoot, bassFifth] = bassTones[Math.floor(bassHalf / 2) % bassTones.length];
-      bassSynth.triggerAttackRelease(bassHalf % 2 === 0 ? bassRoot : bassFifth, '2n', time);
-      bassHalf++;
-    }, '2n', barStart);
+      const [bassRoot, bassFifth] = bassTones[barIndexAt(time) % bassTones.length];
+      const half = subdivInBarAt(time, 2);
+      bassSynth.triggerAttackRelease(half === 0 ? bassRoot : bassFifth, '2n', time);
+    }, '2n');
     this.registerTransportEvent(bassInterval);
 
     // ── Chords: hold one triad per bar (airy pad) ──
-    let chordBar = 0;
     const chordInterval = Tone.Transport.scheduleRepeat((time) => {
-      chordSynth.triggerAttackRelease(progression[chordBar % progression.length], '1n', time);
-      chordBar++;
-    }, '1n', barStart);
+      chordSynth.triggerAttackRelease(progression[barIndexAt(time) % progression.length], '1n', time);
+    }, '1n');
     this.registerTransportEvent(chordInterval);
 
     // ── Arpeggio: pattern 8-5-3-1-3-5-8-5 over the bar's chord ──
     // Degrees map to arp-set indices: 1→0 (root), 3→1, 5→2, 8→3 (octave).
     const arpPattern = [3, 2, 1, 0, 1, 2, 3, 2];
-    let arpEighth = 0;
     const arpInterval = Tone.Transport.scheduleRepeat((time) => {
-      const tones = arpTones[Math.floor(arpEighth / 8) % arpTones.length];
-      arpSynth.triggerAttackRelease(tones[arpPattern[arpEighth % arpPattern.length]], '8n', time);
-      arpEighth++;
-    }, '8n', barStart);
+      const tones = arpTones[barIndexAt(time) % arpTones.length];
+      const eighth = subdivInBarAt(time, 8);
+      arpSynth.triggerAttackRelease(tones[arpPattern[eighth]], '8n', time);
+    }, '8n');
     this.registerTransportEvent(arpInterval);
+
+    // Release the parked clock now that all loops are registered; first fire of
+    // each lands together on tick 0.
+    Tone.Transport.start();
   }
 
   setMasterVolume(v: number): void {
