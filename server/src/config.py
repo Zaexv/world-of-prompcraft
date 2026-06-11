@@ -44,6 +44,10 @@ class Settings(BaseSettings):
     # nothing. "none" disables thinking for fast, in-character replies; set to
     # "low"/"medium"/"high" (or "" to omit the param) to re-enable it.
     ollama_reasoning_effort: str = "none"
+    # Keep the model loaded between requests. Ollama's default unloads after
+    # ~5 min idle; the next request then pays a multi-GB cold reload that can
+    # blow the agent timeout and surface as "the NPC/World Spirit does nothing".
+    ollama_keep_alive: str = "60m"
 
     # ── Shared ────────────────────────────────────────────────────────────────
     llm_temperature: float = 0.1

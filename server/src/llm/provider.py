@@ -125,6 +125,7 @@ class OllamaProvider(LLMProvider):
             "base_url": _ollama_native_base_url(settings.ollama_base_url),
             "temperature": settings.llm_temperature,
             "num_predict": settings.response_max_tokens,
+            "keep_alive": settings.ollama_keep_alive,
             "client_kwargs": {"timeout": settings.ollama_request_timeout_seconds},
         }
         # Many local models (e.g. Qwen3) emit a hidden reasoning block. "none"

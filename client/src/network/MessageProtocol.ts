@@ -91,11 +91,15 @@ export interface WorldModifyRequest {
 
 /** A single primitive in a generated custom mesh. */
 export interface MeshSpecPart {
-  shape: "box" | "cylinder" | "sphere" | "cone" | "pyramid";
+  shape: "box" | "cylinder" | "sphere" | "cone" | "pyramid" | "capsule" | "torus";
   size: number[];
   position: [number, number, number];
   color: string;
   rotation?: [number, number, number];
+  /** Lay an upright shape (capsule/cylinder/cone) horizontally along this axis. */
+  axis?: "x" | "z";
+  /** Optional finish: shiny metal, emissive glow, or translucent glass. */
+  mat?: "metal" | "glow" | "glass";
 }
 
 /** A brand-new mesh composed of primitives, produced by the create_custom_mesh tool. */

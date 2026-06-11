@@ -203,7 +203,25 @@
       "Bash(echo \"vitest=$?\")",
       "Bash(node_modules/.bin/tsc --noEmit)",
       "Bash(echo \"tsc=$?\")",
-      "Bash(node_modules/.bin/eslint src/debug/PerfHUD.ts)"
+      "Bash(node_modules/.bin/eslint src/debug/PerfHUD.ts)",
+      "Bash(node_modules/.bin/eslint src/core/ShaderWarmup.ts)",
+      "Bash(node_modules/.bin/eslint src/debug/shaderTrace.ts src/core/GameBootstrapper.ts)",
+      "Bash(node_modules/.bin/eslint src/debug/shaderTrace.ts)",
+      "Bash(node_modules/.bin/eslint src/entities/npc/NPCMeshFactory.ts src/meshes/core/mergeStatic.ts src/entities/ModelStyling.ts)",
+      "Bash(node_modules/.bin/eslint src/ui/core/UIComponent.ts)",
+      "PowerShell(ollama ps *)",
+      "PowerShell(python debug_wb.py)",
+      "PowerShell(Remove-Item *)",
+      "PowerShell(python -m pytest tests -q 2>$null | Select-Object -Last 5)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q; python -m ruff check src/agents/tools/world_builder.py src/agents/world_builder_agent.py; python -m mypy src/agents/tools/world_builder.py src/agents/world_builder_agent.py)",
+      "PowerShell(pnpm exec *)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 2; python -m ruff check src/agents; python -m mypy src/agents/tools/world_builder.py)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src/agents; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1; python debug_wb.py)",
+      "PowerShell(python debug_wb.py 2>$null | Select-Object -Last 14)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src/agents; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1; python debug_wb.py 2>$null | Select-Object -Last 14)",
+      "PowerShell(python -m mypy src/agents/tools/world_builder.py)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src; python -m mypy src 2>$null | Select-Object -Last 1)",
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1)"
     ]
   },
   "hooks": {
