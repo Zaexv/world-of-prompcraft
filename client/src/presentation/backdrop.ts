@@ -73,9 +73,12 @@ export class Backdrop {
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 11 agent in action
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 12 state graph
     { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 13 PoC transcript
-    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 14 pillar 3 (coding)
-    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 15 process deep dive
-    { kind: 'vista', x: 460, z: 100, radius: 38, height: 3.0 },  // 16 plans deep dive
+    // Pillar 3 (agentic coding) lives over the Fort Malaka plaza — the camera
+    // orbits the Plaza Well (manifest landmark ~(-145, -282)) where the fort's
+    // NPCs gather and wander, so the audience sees the living world up close.
+    { kind: 'vista', x: -145, z: -282, radius: 30, height: 4.5 }, // 14 pillar 3 (coding)
+    { kind: 'vista', x: -145, z: -282, radius: 30, height: 4.5 }, // 15 process deep dive
+    { kind: 'vista', x: -145, z: -282, radius: 30, height: 4.5 }, // 16 plans deep dive
     { kind: 'vista', x: 70, z: 120, radius: 22, height: 2.5 },   // 17 contributors
     { kind: 'vista', x: -90, z: -30, radius: 24, height: 2.6 },  // 18 thanks
   ];

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>World of Promptcraft — LLMdays</title>
+<title>From Prompt to Play: Creating a Fully Generative Agentic Videogame</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet" />
@@ -20,8 +20,8 @@
   <!-- 1 — TITLE -->
   <section class="slide center">
     <div class="panel title-card">
-      <h1>World of <span class="grad">Promptcraft</span></h1>
-      <p class="lead">The agentic world where <span class="grad">prompting is the interface</span></p>
+      <h1>From Prompt to <span class="grad">Play</span></h1>
+      <p class="lead">Creating a <span class="grad">Fully Generative Agentic Videogame</span></p>
       <div class="speaker">
         <img class="speaker-photo" src="./eduardo.png" alt="Eduardo Pertierra Puche" />
         <div class="speaker-meta">
@@ -827,6 +827,7 @@ flowchart TD
             <span class="pp-badge">intent</span>
           </div>
           <h3>The ask</h3>
+          <div class="pp-meta"><span class="pp-ctx pp-ctx--you">you · the human</span></div>
           <p>"Players clip through the Suarezlands hills — fix the collisions."</p>
           <div class="pp-artifact">a sentence, not a spec</div>
         </div>
@@ -835,9 +836,9 @@ flowchart TD
           <div class="pp-head">
             <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>
             <span class="pp-badge">explore</span>
-            <span class="pp-agent">session/context</span>
           </div>
           <h3>Research</h3>
+          <div class="pp-meta"><span class="pp-ctx">research-agent</span></div>
           <p>An agent reads the code and writes down how it <b>actually</b> works — root causes, with the offending lines cited. No guessing.</p>
           <div class="pp-artifact">report → docs/agents/research/</div>
         </div>
@@ -846,9 +847,9 @@ flowchart TD
           <div class="pp-head">
             <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6"/><path d="M9 12h6"/><path d="M9 16h4"/></svg></span>
             <span class="pp-badge">design</span>
-            <span class="pp-agent">session/context</span>
           </div>
           <h3>Plan</h3>
+          <div class="pp-meta"><span class="pp-ctx">plan-agent</span></div>
           <p>A new agent reads the report and writes a phased plan — exact files, fixes, verification. Cheap to correct, <b>it's still just text</b>.</p>
           <div class="pp-artifact">plan → docs/plans/ · human reviews</div>
         </div>
@@ -857,9 +858,9 @@ flowchart TD
           <div class="pp-head">
             <span class="pp-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 18l6-6-6-6"/><path d="M8 6l-6 6 6 6"/></svg></span>
             <span class="pp-badge">build</span>
-            <span class="pp-agent">session/context</span>
           </div>
           <h3>Implement</h3>
+          <div class="pp-meta"><span class="pp-ctx">implement-agent</span></div>
           <p>Another clean session executes the agreed plan phase by phase, looping on <code>tsc · eslint · pytest</code> until green.</p>
           <div class="pp-artifact">commits · human reviews the diff</div>
         </div>
@@ -870,12 +871,13 @@ flowchart TD
             <span class="pp-badge">release</span>
           </div>
           <h3>Ship</h3>
+          <div class="pp-meta"><span class="pp-ctx">review-agent</span></div>
           <p>Hooks gate the commit, CI gates the merge. The plan is renamed <code>DONE</code> and stays behind as documentation.</p>
           <div class="pp-artifact">2026-05-29_DONE_….md</div>
         </div>
       </div>
 
-      <div class="pp-note">Each behaviour runs in its <b>own agent, context and session</b> — the artifacts carry the knowledge between them. The human steers at two points: <b>the plan</b> and <b>the diff</b>.</div>
+      <div class="pp-note">Each step runs in its <b>own context window</b>, on a <b>model picked for the job</b> — the written artifacts carry the knowledge between them. The human steers at two points: <b>the plan</b> and <b>the diff</b>.</div>
     </div>
   </section>
 
@@ -890,31 +892,31 @@ flowchart TD
         <!-- left: the real folder -->
         <div class="pf-files">
           <div class="pf-files-title"><code>docs/plans/</code><span class="pf-count">36 plans · all executed</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-24</span><span class="pf-done">DONE</span><span class="pf-name">malaka-suarezlands-rebuild</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-24</span><span class="pf-done">DONE</span><span class="pf-name">npc-style-movement-backpressure</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-26</span><span class="pf-done">DONE</span><span class="pf-name">refactor</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">agentic-world-building</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">item_collision_position_plan</span></div>
-          <div class="pf-file"><span class="pf-date">2026-05-29</span><span class="pf-done">DONE</span><span class="pf-name">deployment-plan</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-18</span><span class="pf-done">DONE</span><span class="pf-name">malaka-fort-plaza</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-21</span><span class="pf-done">DONE</span><span class="pf-name">procedural-biome-volcano</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-23</span><span class="pf-done">DONE</span><span class="pf-name">npc-wander-ai</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-26</span><span class="pf-done">DONE</span><span class="pf-name">combat-fast-path</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-28</span><span class="pf-done">DONE</span><span class="pf-name">water-caustics-shader</span></div>
+          <div class="pf-file"><span class="pf-date">2026-05-30</span><span class="pf-done">DONE</span><span class="pf-name">infinite-terrain-streaming</span></div>
           <div class="pf-file pf-file--more">+ 30 more…</div>
         </div>
 
         <!-- right: anatomy + lifecycle -->
         <div class="pf-right">
           <div class="pf-anatomy">
-            <div class="pf-block-title">⚜ Inside a plan</div>
+            <div class="pf-block-title">Inside a plan</div>
             <div class="pf-row pf-row--tldr"><span class="pf-key">◈ TL;DR</span><span class="pf-val">root causes first — the whole diagnosis in ten lines</span></div>
             <div class="pf-row pf-row--parts"><span class="pf-key">✦ Parts</span><span class="pf-val">one per problem, with the offending code cited by file and line</span></div>
             <div class="pf-row pf-row--fix"><span class="pf-key">⚒ Fix required</span><span class="pf-val">exact files and changes — an agent can execute it without asking</span></div>
             <div class="pf-row pf-row--verify"><span class="pf-key">✓ Verification</span><span class="pf-val">how we'll know it worked, before the work starts</span></div>
           </div>
           <div class="pf-life">
-            <div class="pf-block-title">↻ Lifecycle</div>
+            <div class="pf-block-title">Lifecycle</div>
             <div class="pf-life-chips">
-              <span class="pf-chip">✎ drafted by agent</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip pf-chip--human">⚖ corrected by human</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip">⚙ executed in phases</span><span class="pf-life-arr">→</span>
-              <span class="pf-chip pf-chip--done">✓ renamed DONE</span>
+              <span class="pf-chip"><span class="pf-chip-n">1</span>drafted by agent</span>
+              <span class="pf-chip pf-chip--human"><span class="pf-chip-n">2</span>corrected by human</span>
+              <span class="pf-chip"><span class="pf-chip-n">3</span>executed in phases</span>
+              <span class="pf-chip pf-chip--done"><span class="pf-chip-n">4</span>renamed DONE</span>
             </div>
             <p class="pf-life-note">Old plans never rot — the <code>DONE_</code> prefix turns them into a decision log agents read during research.</p>
           </div>
@@ -969,10 +971,8 @@ flowchart TD
 
 <div class="progress" id="progress"></div>
 <div class="chrome">
-  <span class="brand">World of Promptcraft</span>
   <span class="counter"><span id="cur">1</span> / <span id="total">17</span></span>
 </div>
-<div class="hint">Navigate with <kbd>←</kbd> <kbd>→</kbd> or scroll · <kbd>F</kbd> fullscreen · <kbd>?</kbd> help</div>
 
 <!-- Speaker help overlay (toggled with ? / h) -->
 <div class="help" id="help" hidden>
