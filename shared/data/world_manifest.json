@@ -3231,6 +3231,141 @@
               "personality_key": "moon_spider",
               "wander_radius": 15
             }
+          },
+          {
+            "id": "manolo_lluis",
+            "identity": {
+              "name": "Lluis",
+              "role": "villager"
+            },
+            "transform": {
+              "position": [
+                97,
+                12,
+                -89
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "manolo_lluis",
+              "wander_radius": 3
+            }
+          },
+          {
+            "id": "manolo_evil_carlos",
+            "identity": {
+              "name": "Evil Carlos",
+              "role": "villager"
+            },
+            "transform": {
+              "position": [
+                103,
+                12,
+                -89
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "manolo_evil_carlos",
+              "wander_radius": 3
+            }
+          },
+          {
+            "id": "manolo_good_carlos",
+            "identity": {
+              "name": "Good Carlos",
+              "role": "villager"
+            },
+            "transform": {
+              "position": [
+                97,
+                12,
+                -96
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "manolo_good_carlos",
+              "wander_radius": 3
+            }
+          },
+          {
+            "id": "manolo_quino",
+            "identity": {
+              "name": "Quino",
+              "role": "villager"
+            },
+            "transform": {
+              "position": [
+                103,
+                12,
+                -96
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "manolo_quino",
+              "wander_radius": 3
+            }
+          },
+          {
+            "id": "manolo_kevin",
+            "identity": {
+              "name": "Kevin",
+              "role": "villager"
+            },
+            "transform": {
+              "position": [
+                100,
+                12,
+                -86
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ]
+            },
+            "stats": {
+              "max_hp": 80,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "manolo_kevin",
+              "wander_radius": 3
+            }
           }
         ]
       },
