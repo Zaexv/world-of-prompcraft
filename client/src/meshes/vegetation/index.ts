@@ -7,4 +7,5 @@ import './AncientTree';
 import './MushroomCluster';
 import './CrystalCluster';
 import './MalakaPalmTree';
+import './NiregPalmTree';
 

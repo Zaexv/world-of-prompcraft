@@ -21,6 +21,7 @@ import './individual/GuardiaAbelardo';
 import './individual/LuisaPatatera';
 import './individual/SanchoBarriga';
 import './individual/AlonsoQuijano';
+import './individual/AmphitheatreManolos';
 // Tutorial guide (starting area)
 import './individual/TutorialMan';
 // Named wilderness / biome characters (fixed manifest NPCs)

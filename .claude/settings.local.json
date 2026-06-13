@@ -221,7 +221,15 @@
       "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src/agents; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1; python debug_wb.py 2>$null | Select-Object -Last 14)",
       "PowerShell(python -m mypy src/agents/tools/world_builder.py)",
       "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src; python -m mypy src 2>$null | Select-Object -Last 1)",
-      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1)"
+      "PowerShell(python -m pytest tests/domains/tools/test_world_builder_tools.py -q 2>$null | Select-Object -Last 1; python -m ruff check src; python -m mypy src/agents/tools/world_builder.py 2>$null | Select-Object -Last 1)",
+      "Bash(git merge *)",
+      "Bash(git reset *)",
+      "Bash(git pull *)",
+      "Bash(git push *)",
+      "Bash(sort -u -t: -k2)",
+      "Bash(awk -F'\"archetype\": ' '{print $2}')",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)"
     ]
   },
   "hooks": {
