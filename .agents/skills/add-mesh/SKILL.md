@@ -1,8 +1,20 @@
 ---
-name: mesh-from-picture
-description: Create a new building mesh in World of Promptcraft from a reference picture. Use whenever the user supplies an image (photo, concept art, screenshot) of a building/structure and wants it reproduced as a class-based Three.js mesh in the mesh catalog, registered and placeable in the world. Handles analyzing the image, generating the Mesh class, registering it, and wiring it into authored or procedural placement.
-argument-hint: [path or attached image + optional target, e.g. "make this a desert building" or "add to Málaga"]
+name: add-mesh
+description: Add a new mesh (building, structure, prop, vegetation) to World of Promptcraft as a class-based Three.js mesh in the catalog, registered and placeable. Use whenever the user wants to create a mesh — from a reference picture OR from scratch/description — generate the Mesh class, register it, wire it into authored or procedural placement, then review its quality. Includes Three.js geometry reference and a mesh quality-audit checklist.
+argument-hint: [image path/attachment OR description + optional target, e.g. "make this a desert building" or "add a market stall to Málaga"]
 ---
+
+# Add Mesh
+
+This skill has three reference docs under `reference/`:
+- **`reference/threejs-geometry.md`** — Three.js geometry primer: built-in shapes,
+  BufferGeometry, custom vertices, instancing. Read when building geometry from scratch.
+- **`reference/quality-review.md`** — mesh quality audit (PBR materials, LODs, tiling,
+  colliders). Run as the FINAL step after creating any mesh, or standalone to audit
+  existing meshes.
+
+Default flow below is **from a reference picture**. For from-scratch meshes, skip the
+image-analysis step and use `reference/threejs-geometry.md` to author geometry directly.
 
 # Mesh From Picture
 
