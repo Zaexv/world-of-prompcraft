@@ -277,11 +277,14 @@ export async function bootstrap(
         }
       },
       getPlaced: () => worldBuilder.getPlacedObjects(),
-      onNpcDesign: (prompt: string, archetype?: string) => {
+      onNpcDesign: (prompt: string, archetype?: string, skin?: string) => {
         if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
         const pos = playerController.position;
-        ws.send({ type: 'npc_design', prompt, position: [pos.x, pos.y, pos.z], archetype });
+        ws.send({ type: 'npc_design', prompt, position: [pos.x, pos.y, pos.z], archetype, skin });
       },
+      getNpcs: () => Array.from(npcStateStore.states.entries()).map(([id, s]) => ({
+        id, name: s.name || id, archetype: s.archetype, hp: s.hp, maxHp: s.maxHp,
+      })),
     }
   );
   // Populate the NPC-designer archetype dropdown from the server (tool limits live there).

@@ -172,8 +172,11 @@ class WorldState:
         arch = get_archetype(archetype)
         allowed_tools = list(arch.allowed_tools) if arch is not None else None
         personality = record.get("flavor_prompt", "") or "You are a mysterious stranger."
-        hp = int(record.get("initial_hp", arch.default_hp if arch is not None else 100))
+        # 0 / missing HP means "use the archetype default" — never spawn at 0 (dead).
+        default_hp = arch.default_hp if arch is not None else 100
+        hp = int(record.get("initial_hp") or 0) or default_hp
         position = list(record.get("position", [0.0, 0.0, 0.0]))
+        style = record.get("style")
 
         if npc_id in self.npcs:
             npc = self.npcs[npc_id]
@@ -181,6 +184,8 @@ class WorldState:
             npc.personality = personality
             npc.archetype = archetype
             npc.allowed_tools = allowed_tools
+            if style is not None:
+                npc.style = style
         else:
             npc = NPCData(
                 npc_id=npc_id,
@@ -191,6 +196,7 @@ class WorldState:
                 position=position,
                 archetype=archetype,
                 allowed_tools=allowed_tools,
+                style=style,
             )
             self.npcs[npc_id] = npc
         return npc

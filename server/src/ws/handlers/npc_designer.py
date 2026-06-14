@@ -49,6 +49,7 @@ async def handle_npc_design(
     if not isinstance(position, list) or len(position) < 3:
         position = [0.0, 0.0, 0.0]
     archetype_hint = data.get("archetype")
+    skin = data.get("skin")
 
     ctx.pending_npc_actions.clear()
 
@@ -82,12 +83,15 @@ async def handle_npc_design(
             "npcs": [],
         }
 
-    spawned = await _apply_npc_actions(ctx, list(ctx.pending_npc_actions), position)
+    spawned = await _apply_npc_actions(ctx, list(ctx.pending_npc_actions), position, skin)
     return {"type": "npc_design_response", "dialogue": dialogue, "npcs": spawned}
 
 
 async def _apply_npc_actions(
-    ctx: HandlerContext, actions: list[dict[str, Any]], position: list[float]
+    ctx: HandlerContext,
+    actions: list[dict[str, Any]],
+    position: list[float],
+    skin: str | None = None,
 ) -> list[dict[str, Any]]:
     """Persist + register + collect broadcast payloads for npc_create/update actions."""
     if ctx.world_state is None or ctx.registry is None:
@@ -107,6 +111,7 @@ async def _apply_npc_actions(
                 "flavor_prompt": params.get("flavor_prompt", ""),
                 "initial_hp": params.get("hp") or 0,
                 "position": list(position),
+                "style": skin,
             }
             await asyncio.to_thread(save_designed_npc, record)
             npc = ctx.world_state.upsert_designed_npc(record)

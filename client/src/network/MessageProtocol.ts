@@ -137,6 +137,8 @@ export interface NpcDesignRequest {
   position: [number, number, number];
   /** Optional archetype hint chosen from the dropdown. */
   archetype?: string;
+  /** Optional skin/style chosen from the dropdown. */
+  skin?: string;
 }
 
 export type ClientMessage =

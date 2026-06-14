@@ -1,9 +1,25 @@
 import { UIComponent } from "./core/UIComponent";
 
+/** Selectable NPC skins (mirrors the NPCPlaceholderStyle union). */
+export const NPC_SKINS = [
+  'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer',
+  'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem',
+  'boar', 'orc', 'undead', 'oracle',
+] as const;
+
 export interface PlacedSummary {
   id: string;
   type: string;
   label: string;
+}
+
+/** Summary of an existing NPC, for the world builder's NPC list. */
+export interface NpcSummary {
+  id: string;
+  name: string;
+  archetype?: string;
+  hp?: number;
+  maxHp?: number;
 }
 
 /** An archetype option for the NPC designer dropdown (from /npc/archetypes). */
@@ -23,9 +39,11 @@ export interface WorldBuilderPanelOptions {
   /** Current placed objects, for the list. */
   getPlaced?: () => PlacedSummary[];
   /** Send a chat-driven NPC creation request (NPC tab). */
-  onNpcDesign?: (prompt: string, archetype?: string) => void;
+  onNpcDesign?: (prompt: string, archetype?: string, skin?: string) => void;
   /** Archetypes for the NPC dropdown (fetched from the server). */
   npcArchetypes?: ArchetypeInfo[];
+  /** Current existing NPCs, for the NPC tab list. */
+  getNpcs?: () => NpcSummary[];
 }
 
 /**
@@ -51,6 +69,8 @@ export class WorldBuilderPanel extends UIComponent {
   declare private npcSection: HTMLElement;
   declare private archSelect: HTMLSelectElement;
   declare private archTools: HTMLElement;
+  declare private skinSelect: HTMLSelectElement;
+  declare private npcList: HTMLElement;
 
   private selectedFile: File | null = null;
   private streamingBlueprints: Map<string, { total: number, received: number }> = new Map();
@@ -60,8 +80,9 @@ export class WorldBuilderPanel extends UIComponent {
   private readonly onPaletteSpawn?: (type: string) => void;
   private readonly onDelete?: (id: string) => void;
   private readonly getPlaced?: () => PlacedSummary[];
-  private readonly onNpcDesign?: (prompt: string, archetype?: string) => void;
+  private readonly onNpcDesign?: (prompt: string, archetype?: string, skin?: string) => void;
   private npcArchetypes: ArchetypeInfo[];
+  private readonly getNpcs?: () => NpcSummary[];
 
   onSubmit: (prompt: string, attachment?: File) => void;
   onUndo: () => void;
@@ -83,6 +104,7 @@ export class WorldBuilderPanel extends UIComponent {
     this.getPlaced = options.getPlaced;
     this.onNpcDesign = options.onNpcDesign;
     this.npcArchetypes = options.npcArchetypes ?? [];
+    this.getNpcs = options.getNpcs;
 
     this.setupShortcuts();
     // render() already ran inside super() with catalog/archetypes undefined —
@@ -156,6 +178,20 @@ export class WorldBuilderPanel extends UIComponent {
           font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
         "></select>
         <div class="wb-arch-tools" style="color:#8a7; font-size:10px; min-height:12px;"></div>
+        <label style="color:#aaa; font-size:11px;">Skin</label>
+        <select class="wb-skin" style="
+          width:100%; box-sizing:border-box; background:rgba(10,8,20,0.8);
+          border:1px solid rgba(197,165,90,0.3); border-radius:6px; color:#e8dcc8;
+          font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
+        ">${NPC_SKINS.map((s) => `<option value="${s}">${s}</option>`).join('')}</select>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+          <label style="color:#aaa; font-size:11px;">Existing NPCs</label>
+          <button class="wb-npc-refresh" style="background:none; border:none; color:#c5a55a; cursor:pointer; font-size:11px;">↻</button>
+        </div>
+        <div class="wb-npc-list" style="
+          max-height:140px; overflow-y:auto; display:flex; flex-direction:column; gap:3px;
+          font-size:11px; color:#e8dcc8;
+        "></div>
       </div>
 
       <div class="wb-palette" style="display:none; flex-direction:column; gap:6px;">
@@ -279,6 +315,8 @@ export class WorldBuilderPanel extends UIComponent {
     this.npcSection = this.container.querySelector('.wb-npc')!;
     this.archSelect = this.container.querySelector('.wb-arch')!;
     this.archTools = this.container.querySelector('.wb-arch-tools')!;
+    this.skinSelect = this.container.querySelector('.wb-skin')!;
+    this.npcList = this.container.querySelector('.wb-npc-list')!;
 
     const closeBtn = this.container.querySelector('.wb-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hide());
@@ -320,6 +358,8 @@ export class WorldBuilderPanel extends UIComponent {
     npcTab.addEventListener('click', () => this.toggleSection('npc'));
     this.archSelect.addEventListener('change', () => this.updateArchToolsHint());
     this.archSelect.addEventListener('keydown', (e) => e.stopPropagation());
+    const npcRefresh = this.container.querySelector('.wb-npc-refresh') as HTMLButtonElement;
+    npcRefresh.addEventListener('click', () => this.refreshNpcList());
     this.renderArchetypes();
 
     this.paletteSearch.addEventListener('keydown', (e) => e.stopPropagation());
@@ -356,7 +396,29 @@ export class WorldBuilderPanel extends UIComponent {
       : 'Describe what you want to build or change...';
     this.setReady();
     if (show && which === 'placed') this.refreshPlaced();
+    if (show && which === 'npc') this.refreshNpcList();
     if (show && which === 'palette') setTimeout(() => this.paletteSearch.focus(), 30);
+  }
+
+  /** Repaint the existing-NPCs list from the latest world state. */
+  public refreshNpcList(): void {
+    if (!this.npcList) return;
+    const npcs = (this.getNpcs?.() ?? []).slice().sort((a, b) => a.name.localeCompare(b.name));
+    this.npcList.innerHTML = '';
+    if (npcs.length === 0) {
+      this.npcList.innerHTML = `<span style="color:#888;">No NPCs nearby.</span>`;
+      return;
+    }
+    for (const n of npcs) {
+      const row = document.createElement('div');
+      const arch = n.archetype ? ` · ${n.archetype}` : '';
+      const hp = typeof n.hp === 'number' ? ` · ${n.hp}${n.maxHp ? '/' + n.maxHp : ''} HP` : '';
+      row.textContent = `${n.name}${arch}${hp}`;
+      row.title = n.id;
+      row.style.padding = '2px 4px';
+      row.style.borderBottom = '1px solid rgba(197,165,90,0.12)';
+      this.npcList.appendChild(row);
+    }
   }
 
   // ── Palette browser ───────────────────────────────────────────────
@@ -454,7 +516,7 @@ export class WorldBuilderPanel extends UIComponent {
       this.setResponse('The Architect breathes life into your words...');
       this.sendBtn.disabled = true;
       this.sendBtn.textContent = '…';
-      this.onNpcDesign?.(text, this.archSelect.value || undefined);
+      this.onNpcDesign?.(text, this.archSelect.value || undefined, this.skinSelect.value || undefined);
       return;
     }
 

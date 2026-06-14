@@ -14,13 +14,19 @@ beforeEach(() => {
   document.body.innerHTML = '<div id="game-ui"></div>';
 });
 
-function makePanel(onNpcDesign: (p: string, a?: string) => void) {
+type NpcRow = { id: string; name: string; archetype?: string; hp?: number };
+
+function makePanel(
+  onNpcDesign: (p: string, a?: string, skin?: string) => void,
+  getNpcs?: () => NpcRow[],
+) {
   return new WorldBuilderPanel(
     () => {/* world build */},
     () => {},
     () => {},
     {
       onNpcDesign,
+      getNpcs,
       npcArchetypes: [
         { key: 'friendly_merchant', allowed_tools: ['dialogue', 'trade'], hostile: false },
         { key: 'hostile_monster', allowed_tools: ['offense', 'defense'], hostile: true },
@@ -47,9 +53,30 @@ describe('WorldBuilderPanel NPC mode', () => {
     const textarea = document.querySelector('textarea') as HTMLTextAreaElement;
     textarea.value = 'a fierce goblin';
 
+    const skin = document.querySelector('.wb-skin') as HTMLSelectElement;
+    skin.value = 'orc';
+
     (document.querySelector('.wb-send') as HTMLButtonElement).click();
 
-    expect(onNpcDesign).toHaveBeenCalledWith('a fierce goblin', 'hostile_monster');
+    expect(onNpcDesign).toHaveBeenCalledWith('a fierce goblin', 'hostile_monster', 'orc');
+  });
+
+  it('lists existing NPCs from getNpcs when the NPC tab opens', () => {
+    makePanel(() => {}, () => [
+      { id: 'des_1', name: 'Greta', archetype: 'friendly_merchant', hp: 100 },
+    ]);
+    (document.querySelector('.wb-tab-npc') as HTMLButtonElement).click();
+    const list = document.querySelector('.wb-npc-list') as HTMLElement;
+    expect(list.textContent).toContain('Greta');
+    expect(list.textContent).toContain('friendly_merchant');
+  });
+
+  it('populates the skin dropdown', () => {
+    makePanel(() => {});
+    const skin = document.querySelector('.wb-skin') as HTMLSelectElement;
+    const values = Array.from(skin.options).map((o) => o.value);
+    expect(values).toContain('dragon');
+    expect(values).toContain('merchant');
   });
 
   it('setArchetypes replaces dropdown options', () => {
