@@ -3,9 +3,12 @@ broadcasts, and ``explore_area`` dynamic NPC agent registration."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 from typing import TYPE_CHECKING, Any
+
+from ...world.npc_wander import SUPPRESS_AFTER_MOVE_SECONDS
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -109,13 +112,18 @@ async def handle_explore_area(
             from ...world.world_state import NPCData
 
             personality = _get_generated_personality(name, behavior)
+            default_hp = 60 if behavior == "hostile" else 80
+            hp = int(npc_data.get("hp") or default_hp)
             npc = NPCData(
                 npc_id=npc_id,
                 name=name,
                 personality=personality,
-                hp=60 if behavior == "hostile" else 80,
-                max_hp=60 if behavior == "hostile" else 80,
+                hp=hp,
+                max_hp=hp,
                 position=npc_data.get("position", [0, 0, 0]),
+                # Movable: the server wander loop strolls them (default radius)
+                # so every player sees them in the same place.
+                fixed=False,
             )
             ctx.world_state.npcs[npc_id] = npc
 
@@ -214,6 +222,11 @@ async def handle_npc_move(
         npc = world_state.get_npc(npc_id)
         if npc:
             npc.position = [float(position[0]), float(position[1]), float(position[2])]
+            # Hold the wander loop off this NPC while the player keeps summoning
+            # it (each npc_move refreshes the window), so it stays put to talk.
+            npc.wander_suppressed_until = (
+                asyncio.get_event_loop().time() + SUPPRESS_AFTER_MOVE_SECONDS
+            )
             # Broadcast to nearby players so they see the NPC approach
             await manager.broadcast(
                 {"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]}

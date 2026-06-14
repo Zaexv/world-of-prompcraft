@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 
-import { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
+import { WorldBuilderPanel, type NpcDesignOptions } from '../ui/WorldBuilderPanel';
 
 beforeEach(() => {
   document.body.innerHTML = '<div id="game-ui"></div>';
@@ -17,7 +17,7 @@ beforeEach(() => {
 type NpcRow = { id: string; name: string; archetype?: string; hp?: number };
 
 function makePanel(
-  onNpcDesign: (p: string, a?: string, skin?: string) => void,
+  onNpcDesign: (p: string, opts?: NpcDesignOptions) => void,
   getNpcs?: () => NpcRow[],
 ) {
   return new WorldBuilderPanel(
@@ -58,7 +58,37 @@ describe('WorldBuilderPanel NPC mode', () => {
 
     (document.querySelector('.wb-send') as HTMLButtonElement).click();
 
-    expect(onNpcDesign).toHaveBeenCalledWith('a fierce goblin', 'hostile_monster', 'orc');
+    // Defaults to a fixed NPC, so no movement fields are sent.
+    expect(onNpcDesign).toHaveBeenCalledWith('a fierce goblin', {
+      archetype: 'hostile_monster',
+      skin: 'orc',
+      fixed: true,
+      movementStyle: undefined,
+      wanderRadius: undefined,
+    });
+  });
+
+  it('sends movement settings when the NPC is set to roam (Fixed unchecked)', () => {
+    const onNpcDesign = vi.fn();
+    makePanel(onNpcDesign);
+
+    (document.querySelector('.wb-tab-npc') as HTMLButtonElement).click();
+    (document.querySelector('textarea') as HTMLTextAreaElement).value = 'a town crier';
+
+    const fixed = document.querySelector('.wb-npc-fixed') as HTMLInputElement;
+    fixed.checked = false;
+    fixed.dispatchEvent(new Event('change'));
+
+    (document.querySelector('.wb-move') as HTMLSelectElement).value = 'patrol';
+    (document.querySelector('.wb-wander') as HTMLInputElement).value = '12';
+
+    (document.querySelector('.wb-send') as HTMLButtonElement).click();
+
+    expect(onNpcDesign).toHaveBeenCalledWith('a town crier', expect.objectContaining({
+      fixed: false,
+      movementStyle: 'patrol',
+      wanderRadius: 12,
+    }));
   });
 
   it('lists existing NPCs from getNpcs when the NPC tab opens', () => {

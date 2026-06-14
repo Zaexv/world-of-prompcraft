@@ -76,6 +76,79 @@ def test_far_npc_and_dead_npc_do_not_move() -> None:
     assert world.npcs["dead"].position == [5.0, 0.0, 5.0]
 
 
+def test_fixed_npc_never_moves() -> None:
+    world = WorldState()
+    npc = _spawn(world, "statue", [5.0, 0.0, 5.0])
+    npc.fixed = True
+    player = world.get_player("p1")
+    player.position = [5.0, 0.0, 5.0]
+
+    rng = random.Random(9)
+    for _ in range(100):
+        updates = step_npcs(world, {}, rng)
+        assert all(u["npcId"] != "statue" for u in updates)
+
+    assert world.npcs["statue"].position == [5.0, 0.0, 5.0]
+
+
+def test_zero_wander_radius_npc_never_moves() -> None:
+    world = WorldState()
+    npc = _spawn(world, "rooted", [5.0, 0.0, 5.0])
+    npc.wander_radius = 0
+    player = world.get_player("p1")
+    player.position = [5.0, 0.0, 5.0]
+
+    rng = random.Random(11)
+    for _ in range(100):
+        updates = step_npcs(world, {}, rng)
+        assert all(u["npcId"] != "rooted" for u in updates)
+
+    assert world.npcs["rooted"].position == [5.0, 0.0, 5.0]
+
+
+def test_summoned_npc_is_left_alone_until_suppression_expires() -> None:
+    world = WorldState()
+    npc = _spawn(world, "summoned", [5.0, 0.0, 5.0])
+    npc.wander_suppressed_until = 100.0  # suppressed until t=100
+    player = world.get_player("p1")
+    player.position = [5.0, 0.0, 5.0]
+
+    rng = random.Random(13)
+
+    # Before expiry: never moves no matter how many ticks.
+    for _ in range(50):
+        updates = step_npcs(world, {}, rng, now=50.0)
+        assert all(u["npcId"] != "summoned" for u in updates)
+    assert world.npcs["summoned"].position == [5.0, 0.0, 5.0]
+
+    # After expiry: free to wander again.
+    moved = False
+    for _ in range(50):
+        if any(u["npcId"] == "summoned" for u in step_npcs(world, {}, rng, now=150.0)):
+            moved = True
+            break
+    assert moved, "wandering resumes once suppression expires"
+
+
+def test_per_npc_wander_radius_overrides_default() -> None:
+    world = WorldState()
+    npc = _spawn(world, "rover", [10.0, 0.0, 10.0])
+    npc.wander_radius = 20.0  # wider than the default WANDER_RADIUS
+    player = world.get_player("p1")
+    player.position = [10.0, 0.0, 10.0]
+
+    homes: dict[str, list[float]] = {}
+    rng = random.Random(5)
+    max_dist = 0.0
+    for _ in range(400):
+        step_npcs(world, homes, rng)
+        pos = world.npcs["rover"].position
+        max_dist = max(max_dist, math.sqrt((pos[0] - 10.0) ** 2 + (pos[2] - 10.0) ** 2))
+
+    assert max_dist <= 20.0 + 1e-9
+    assert max_dist > WANDER_RADIUS, "the wider per-NPC radius is actually used"
+
+
 def test_updates_carry_npc_id_and_new_position() -> None:
     world = WorldState()
     # Far from the origin so the world's built-in starter NPCs stay inactive.

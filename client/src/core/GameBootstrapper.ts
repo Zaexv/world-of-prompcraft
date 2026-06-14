@@ -194,6 +194,7 @@ export async function bootstrap(
   loadingOverlay.setMessage('Connecting to server...');
   const wsProto = window.location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocketClient(`${wsProto}://${window.location.host}/ws`);
+  worldGenerator.setWebSocket(ws);
 
   uiManager.minimap.onWaypointClick = (waypoint) => {
     // Arrive clear of the structure's footprint, not inside its mesh.
@@ -234,6 +235,7 @@ export async function bootstrap(
     },
     stopReconnect: () => ws.stopReconnect(),
     spawnChatBubble,
+    onJoined: () => worldGenerator.reportProceduralNpcs(),
   });
 
   // Wire worldBuilderPanel now that ws is available
@@ -277,10 +279,19 @@ export async function bootstrap(
         }
       },
       getPlaced: () => worldBuilder.getPlacedObjects(),
-      onNpcDesign: (prompt: string, archetype?: string, skin?: string) => {
+      onNpcDesign: (prompt, opts) => {
         if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
         const pos = playerController.position;
-        ws.send({ type: 'npc_design', prompt, position: [pos.x, pos.y, pos.z], archetype, skin });
+        ws.send({
+          type: 'npc_design',
+          prompt,
+          position: [pos.x, pos.y, pos.z],
+          archetype: opts?.archetype,
+          skin: opts?.skin,
+          movement_style: opts?.movementStyle,
+          wander_radius: opts?.wanderRadius,
+          fixed: opts?.fixed,
+        });
       },
       getNpcs: () => Array.from(npcStateStore.states.entries()).map(([id, s]) => ({
         id, name: s.name || id, archetype: s.archetype, hp: s.hp, maxHp: s.maxHp,

@@ -63,6 +63,12 @@ export interface NPCDefinition {
     personality_key: string;
     wander_radius: number;
     style?: string;
+    /** Movement personality: stroll / patrol / prowl / float / swagger / stomp. */
+    movement_style?: string;
+    /** When true the NPC stays at its authored position: it never wanders, never
+     *  walks to the player on click, and is not snapped to terrain (so it can sit
+     *  on a rooftop). */
+    fixed?: boolean;
     /** Archetype key — sets the NPC's tool budget on the server. */
     archetype?: string;
     /** Inline personality/voice authored in the editor (overrides personality_key lookup). */

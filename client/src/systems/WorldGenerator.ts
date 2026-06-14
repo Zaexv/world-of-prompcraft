@@ -16,6 +16,7 @@ import type { WorldBuilder } from './WorldBuilder';
 import { ProceduralPopulator } from './ProceduralPopulator';
 import type { LandmarkDefinition, NPCDefinition } from '../state/WorldManifest';
 import type { NPCPlaceholderStyle } from '../entities/NPCModels';
+import type { NPCMotionSource } from '../entities/NPCMotion';
 import { FOOTPRINT_SPECS } from '../scene/Terrain';
 import { isTeleportType } from './TeleportRegistry';
 
@@ -50,6 +51,7 @@ export class WorldGenerator {
   private worldBuilder: WorldBuilder | null = null;
   private minimap: Minimap | null = null;
   private populator: ProceduralPopulator;
+  private ws: WebSocketClient | null = null;
 
   private chunkObjects: Map<string, THREE.Object3D[]> = new Map();
   private chunkNPCs: Map<string, string[]> = new Map();
@@ -70,6 +72,34 @@ export class WorldGenerator {
     this.populator = new ProceduralPopulator(terrain);
     this.populator.setScene(scene);
     this.populator.setEntityManager(entityManager);
+    // Procedural NPCs are server-authoritative like manifest NPCs: report each
+    // one so the server owns its wander + combat and all players share it.
+    // ws.send no-ops while offline, so this is safe before/after connect.
+    this.populator.setNpcSink((npc) => {
+      this.ws?.send({ type: 'explore_area', position: npc.position, npcs: [npc] });
+    });
+  }
+
+  /** Provide the live WebSocket (created after this generator). */
+  setWebSocket(ws: WebSocketClient): void {
+    this.ws = ws;
+  }
+
+  /** Re-report every currently-spawned procedural NPC to the server. Called on
+   *  join so NPCs spawned before the connection completed get registered too. */
+  reportProceduralNpcs(): void {
+    const npcs = [];
+    for (const npc of this.entityManager.getAllNPCs()) {
+      if (!npc.id.startsWith('proc_')) continue;
+      npcs.push({
+        id: npc.id,
+        name: npc.name,
+        behavior: 'hostile',
+        position: [npc.position.x, npc.position.y, npc.position.z] as [number, number, number],
+        hp: 80,
+      });
+    }
+    if (npcs.length > 0) this.ws?.send({ type: 'explore_area', position: [0, 0, 0], npcs });
   }
 
   /** Call once per frame from the game loop to drain the spawn queue. */
@@ -252,7 +282,9 @@ export class WorldGenerator {
           personalityKey: npcDef.ai.personality_key,
           wanderRadius: npcDef.ai.wander_radius,
           scale: npcDef.transform.scale,
-          style: npcDef.ai.style as NPCPlaceholderStyle | undefined
+          style: npcDef.ai.style as NPCPlaceholderStyle | undefined,
+          movementStyle: npcDef.ai.movement_style as NPCMotionSource['movementStyle'] | undefined,
+          fixed: npcDef.ai.fixed,
         });
         npcIds.push(npcDef.id);
       }

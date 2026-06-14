@@ -28,6 +28,9 @@ export interface NPCConfig {
   scale?: number;
   /** Show the floating golden "!" quest-giver marker above this NPC. */
   isQuestGiver?: boolean;
+  /** When true the NPC holds its authored position: no wander, no walk-to-player
+   *  on click, no ground snap (lets it sit on a rooftop). */
+  fixed?: boolean;
 }
 
 export class NPC {
@@ -44,6 +47,8 @@ export class NPC {
   public homePosition: THREE.Vector3;
   public wanderRadius = 8;
   public isGrounded = false;
+  /** Authored-position NPC: no wander, no walk-to-player, no ground snap. */
+  public readonly fixed: boolean;
 
   private readonly motionProfile: NPCMotionProfile;
   private readonly wander: NPCWander;
@@ -60,8 +65,9 @@ export class NPC {
     this.personalityKey = config.personalityKey ?? '';
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
+    this.fixed = config.fixed ?? false;
     this.motionProfile = createNPCMotionProfile(config);
-    this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
+    this.wanderRadius = this.fixed ? 0 : (config.wanderRadius ?? this.motionProfile.wanderRadius);
 
     this.mesh = built.object3D;
     this.materials = built.materials;
@@ -85,8 +91,13 @@ export class NPC {
     this.wander = new NPCWander(this.mesh, this.position, this.motionProfile, this.animator, this.id);
   }
 
-  /** Force immediate ground snapping. Useful during initialization. */
+  /** Force immediate ground snapping. Useful during initialization.
+   *  No-op for fixed NPCs so authored Y (e.g. a rooftop) is preserved. */
   snapToGround(getHeightAt: (x: number, z: number) => number): void {
+    if (this.fixed) {
+      this.animator.setBaseY(this.position.y);
+      return;
+    }
     const y = getHeightAt(this.position.x, this.position.z);
     this.mesh.position.y = y;
     this.position.y = y;
@@ -114,14 +125,16 @@ export class NPC {
     getHeightAt: (x: number, z: number) => number,
     collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
   ): void {
-    if (this.wanderRadius <= 0) return;
+    if (this.fixed || this.wanderRadius <= 0) return;
     const waterHoverY = Water.LEVEL
       + this.waterHoverHeight
       + Math.sin(this.waterHoverPhase) * this.waterHoverAmplitude;
     this.wander.update(delta, getHeightAt, collisionSystem, this.wanderRadius, this.homePosition, waterHoverY);
   }
 
+  /** Walk to the player on interaction. Fixed NPCs ignore this and stay put. */
   walkToPlayer(playerPosition: THREE.Vector3): void {
+    if (this.fixed) return;
     this.wander.walkTo(playerPosition);
   }
 

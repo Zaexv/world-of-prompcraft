@@ -64,6 +64,9 @@ export class EntityManager {
     this.npcs.set(npc.id, npc);
     this.scene.add(npc.mesh);
     this.npcList = Array.from(this.npcs.values());
+    // Online mode: the server owns NPC positions (it runs the wander loop), so
+    // local random wander is suppressed and the NPC only walks to server-pushed
+    // targets. Fixed NPCs never move regardless (see NPC.fixed).
     if (this.serverAuthoritativeNPCs) npc.setServerDriven(true);
     return npc;
   }
@@ -186,7 +189,10 @@ export class EntityManager {
     const start = performance.now();
     const BUDGET_MS = 2.0;
 
-    // 0. SERVER NPC POSITIONS — walk to nearby corrections, snap to far ones.
+    // 0. SERVER NPC POSITIONS — the server owns NPC movement (wander loop). Walk
+    //    to nearby targets, teleport on a large divergence (rejoin / long cull).
+    //    Fixed NPCs hold their authored spot: they ignore small targets and only
+    //    teleport-reground on a big jump.
     if (this.pendingNPCPositions.length > 0) {
       for (const u of this.pendingNPCPositions) {
         const npc = this.npcs.get(u.npcId);
@@ -200,7 +206,7 @@ export class EntityManager {
           npc.mesh.position.set(x, y, z);
           npc.position.copy(npc.mesh.position);
           if (getHeightAt) npc.snapToGround(getHeightAt);
-        } else if (dx * dx + dz * dz > 0.36) {
+        } else if (!npc.fixed && dx * dx + dz * dz > 0.36) {
           npc.walkToServerPosition(new THREE.Vector3(x, npc.position.y, z));
         }
       }

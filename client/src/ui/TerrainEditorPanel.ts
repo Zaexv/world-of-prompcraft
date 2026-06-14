@@ -11,6 +11,8 @@ const NPC_SKINS = [
   'boar', 'orc', 'undead', 'oracle',
 ];
 
+const NPC_MOVEMENT_STYLES = ['stroll', 'patrol', 'prowl', 'float', 'swagger', 'stomp'];
+
 /**
  * Terrain Editor Panel — manual 3D interface for sculpting terrain and placing buildings.
  */
@@ -174,6 +176,20 @@ export class TerrainEditorPanel extends UIComponent {
         <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px;">
           <span>Max HP (0 = archetype default)</span>
           <input type="number" class="te-npc-hp" min="0" step="10" value="0" style="width:60px; background:#1a1108; color:#e8dcc8; border:1px solid #333;">
+        </div>
+        <label style="display:flex; align-items:center; gap:6px; font-size:11px; color:#aaa;">
+          <input type="checkbox" class="te-npc-fixed" checked style="accent-color:#c5a55a;">
+          Fixed (stays put — rooftops, shopkeepers)
+        </label>
+        <div class="te-npc-wander" style="display:none; flex-direction:column; gap:6px;">
+          <div style="display:flex; flex-direction:column; gap:3px;">
+            <span style="font-size:10px; color:#888;">Movement style</span>
+            <select class="te-npc-move" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;">${NPC_MOVEMENT_STYLES.map((s) => `<option value="${s}">${s}</option>`).join('')}</select>
+          </div>
+          <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px;">
+            <span>Wander radius (m)</span>
+            <input type="number" class="te-npc-wander-radius" min="0" max="60" step="1" value="8" style="width:60px; background:#1a1108; color:#e8dcc8; border:1px solid #333;">
+          </div>
         </div>
         <span class="te-npc-hint" style="font-size:9px; color:#666;">Click the ground to place this NPC.</span>
         <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
@@ -362,6 +378,10 @@ export class TerrainEditorPanel extends UIComponent {
     const skinSelect = this.container.querySelector('.te-npc-skin') as HTMLSelectElement;
     const flavorInput = this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement;
     const hpInput = this.container.querySelector('.te-npc-hp') as HTMLInputElement;
+    const fixedCheck = this.container.querySelector('.te-npc-fixed') as HTMLInputElement;
+    const moveSelect = this.container.querySelector('.te-npc-move') as HTMLSelectElement;
+    const wanderInput = this.container.querySelector('.te-npc-wander-radius') as HTMLInputElement;
+    const wanderSection = this.container.querySelector('.te-npc-wander') as HTMLElement;
     const newBtn = this.container.querySelector('.te-npc-new') as HTMLButtonElement;
     const refreshBtn = this.container.querySelector('.te-npc-refresh') as HTMLButtonElement;
     if (!nameInput || !archSelect || !skinSelect) return;
@@ -372,12 +392,18 @@ export class TerrainEditorPanel extends UIComponent {
       const sel = this.npcArchetypes.find((a) => a.key === archSelect.value);
       archTools.textContent = sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';
     };
+    const syncWanderVisibility = () => {
+      wanderSection.style.display = fixedCheck.checked ? 'none' : 'flex';
+    };
     const sync = () => this.editor.setNpcDesign({
       name: nameInput.value,
       archetype: archSelect.value,
       flavorPrompt: flavorInput.value,
       hp: parseInt(hpInput.value) || 0,
       skin: skinSelect.value,
+      fixed: fixedCheck.checked,
+      movementStyle: moveSelect.value,
+      wanderRadius: Number(wanderInput.value) || 0,
     });
 
     nameInput.addEventListener('input', sync);
@@ -385,6 +411,9 @@ export class TerrainEditorPanel extends UIComponent {
     hpInput.addEventListener('input', sync);
     archSelect.addEventListener('change', () => { updateToolsHint(); sync(); });
     skinSelect.addEventListener('change', sync);
+    fixedCheck.addEventListener('change', () => { syncWanderVisibility(); sync(); });
+    moveSelect.addEventListener('change', sync);
+    wanderInput.addEventListener('input', sync);
 
     newBtn.addEventListener('click', () => this.startNewNpc());
     refreshBtn.addEventListener('click', () => this.refreshNpcList());
@@ -424,6 +453,10 @@ export class TerrainEditorPanel extends UIComponent {
     (this.container.querySelector('.te-npc-skin') as HTMLSelectElement).value = info.skin;
     (this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement).value = info.flavorPrompt;
     (this.container.querySelector('.te-npc-hp') as HTMLInputElement).value = String(info.hp);
+    (this.container.querySelector('.te-npc-fixed') as HTMLInputElement).checked = info.fixed;
+    (this.container.querySelector('.te-npc-move') as HTMLSelectElement).value = info.movementStyle;
+    (this.container.querySelector('.te-npc-wander-radius') as HTMLInputElement).value = String(info.wanderRadius);
+    (this.container.querySelector('.te-npc-wander') as HTMLElement).style.display = info.fixed ? 'none' : 'flex';
     const sel = this.npcArchetypes.find((a) => a.key === info.archetype);
     (this.container.querySelector('.te-npc-arch-tools') as HTMLElement).textContent =
       sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';

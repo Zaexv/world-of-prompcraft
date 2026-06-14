@@ -109,6 +109,16 @@ interface PendingChunk {
   cx: number; cz: number;  // world-space chunk centre
 }
 
+/** Minimal init data reported to the server so it owns a procedural NPC's
+ *  movement (wander loop) and combat. */
+export interface ProceduralNpcInit {
+  id: string;
+  name: string;
+  behavior: string;
+  position: [number, number, number];
+  hp: number;
+}
+
 // ── Main class ────────────────────────────────────────────────────────────────
 
 export class ProceduralPopulator {
@@ -116,6 +126,8 @@ export class ProceduralPopulator {
   private scene: THREE.Scene | null = null;
   private collisionSystem: CollisionSystem | null = null;
   private entityManager: EntityManager | null = null;
+  /** Sink that registers a freshly spawned procedural NPC with the server. */
+  private npcSink: ((npc: ProceduralNpcInit) => void) | null = null;
 
   private queue: PendingChunk[] = [];
   private _queueDirty = false; // sort only when new chunks are queued
@@ -161,6 +173,9 @@ export class ProceduralPopulator {
   setScene(scene: THREE.Scene): void { this.scene = scene; }
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
   setEntityManager(em: EntityManager): void { this.entityManager = em; }
+
+  /** Register a sink that reports each spawned procedural NPC to the server. */
+  setNpcSink(sink: ((npc: ProceduralNpcInit) => void) | null): void { this.npcSink = sink; }
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -318,6 +333,12 @@ export class ProceduralPopulator {
             appearance: { mesh: `npc_creature_${def.id}` },
           });
           this._trackNpc(key, npcId);
+          // Hand the NPC to the server so it owns its wander + combat and all
+          // players see it in the same place. No-op offline (sink guards send).
+          this.npcSink?.({
+            id: npcId, name: def.name, behavior: 'hostile',
+            position: [mx, my, mz], hp: def.maxHp,
+          });
         } });
       }
     }

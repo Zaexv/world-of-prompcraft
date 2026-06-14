@@ -36,6 +36,10 @@ MOVE_CHANCE = 0.6
 ACTIVE_RADIUS = 150.0
 # Seconds between ticks.
 TICK_SECONDS = 3.0
+# After a player summons an NPC (npc_move), the wander loop leaves it alone for
+# this long so it stays with the player instead of strolling off. Each summon
+# refreshes the window, so it holds for the whole conversation.
+SUPPRESS_AFTER_MOVE_SECONDS = 8.0
 
 
 def _dist_xz(a: list[float], b: list[float]) -> float:
@@ -48,12 +52,14 @@ def step_npcs(
     world_state: WorldState,
     homes: dict[str, list[float]],
     rng: random.Random,
+    now: float = 0.0,
 ) -> list[dict[str, Any]]:
     """Advance every active NPC one wander step; return the position updates.
 
     An NPC is active when alive and within ACTIVE_RADIUS of any player. Each
     step is a bounded random stroll that never leaves WANDER_RADIUS around the
-    NPC's home (its first-seen position, recorded in `homes`).
+    NPC's home (its first-seen position, recorded in `homes`). ``now`` is a
+    monotonic clock used to honor per-NPC wander suppression (recent summons).
     """
     player_positions = [list(p.position) for p in world_state.players.values()]
     if not player_positions:
@@ -62,6 +68,16 @@ def step_npcs(
     updates: list[dict[str, Any]] = []
     for npc in world_state.npcs.values():
         if npc.hp <= 0:
+            continue
+        # Fixed NPCs hold their authored spot (rooftops, shopkeepers, etc.); a
+        # wander_radius of 0 is treated the same way.
+        if npc.fixed:
+            continue
+        # Recently summoned by a player — leave it where they called it.
+        if npc.wander_suppressed_until > now:
+            continue
+        radius = npc.wander_radius if npc.wander_radius is not None else WANDER_RADIUS
+        if radius <= 0:
             continue
         if not any(_dist_xz(npc.position, pp) <= ACTIVE_RADIUS for pp in player_positions):
             continue
@@ -79,8 +95,8 @@ def step_npcs(
         hx, hz = home[0], home[2]
         dx, dz = nx - hx, nz - hz
         dist = math.sqrt(dx * dx + dz * dz)
-        if dist > WANDER_RADIUS:
-            scale = WANDER_RADIUS / dist
+        if dist > radius:
+            scale = radius / dist
             nx = hx + dx * scale
             nz = hz + dz * scale
 
@@ -98,8 +114,9 @@ async def npc_wander_loop(world_state: WorldState, manager: ConnectionManager) -
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
+            now = asyncio.get_event_loop().time()
             async with world_state._lock:
-                updates = step_npcs(world_state, homes, rng)
+                updates = step_npcs(world_state, homes, rng, now)
             if not updates:
                 continue
             # Each player receives only the NPCs near them.

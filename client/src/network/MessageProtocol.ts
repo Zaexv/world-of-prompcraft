@@ -61,7 +61,15 @@ export interface EquipItem {
 export interface ExploreArea {
   type: "explore_area";
   position: [number, number, number];
-  npcs: NPCInitData[];
+  /** Procedural NPCs the client spawned, handed to the server so it owns their
+   *  movement (wander loop) + combat and all players share them. */
+  npcs: Array<{
+    id: string;
+    name: string;
+    behavior: string;
+    position: [number, number, number];
+    hp: number;
+  }>;
 }
 
 export interface DungeonEnter {
@@ -139,6 +147,12 @@ export interface NpcDesignRequest {
   archetype?: string;
   /** Optional skin/style chosen from the dropdown. */
   skin?: string;
+  /** Movement personality (stroll/patrol/prowl/float/swagger/stomp). */
+  movement_style?: string;
+  /** How far it may roam from its spawn (0 = stay put). */
+  wander_radius?: number;
+  /** Pin to the spawn spot: no wander, no walk-to-player, no ground snap. */
+  fixed?: boolean;
 }
 
 export type ClientMessage =
@@ -503,6 +517,10 @@ export interface NpcPayload {
   scale?: number;
   style?: unknown;
   appearance?: unknown;
+  movement_style?: string;
+  wander_radius?: number;
+  /** Hold authored position: no wander, no walk-to-player, no ground snap. */
+  fixed?: boolean;
 }
 
 export interface NpcDesignResponse {

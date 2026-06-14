@@ -23,6 +23,8 @@ import { WorldDebugOverlay } from '../debug/WorldDebugOverlay';
 import { PerfHUD } from '../debug/PerfHUD';
 
 const MOVE_SEND_INTERVAL = 1 / 10;
+/** How often to stream a summoned NPC's live position while in dialogue (s). */
+const NPC_MOVE_STREAM_INTERVAL = 1 / 5;
 const INTRO_DURATION_SEC = 8;
 
 export interface GameEngineDeps {
@@ -49,6 +51,8 @@ export interface GameEngineDeps {
 export class GameEngine {
   private running = false;
   private moveSendTimer = 0;
+  /** Throttle for streaming a summoned NPC's live position to the server. */
+  private npcMoveStreamTimer = 0;
   private lastInteractedNpcName = '';
   private activeDialogNpcId: string | null = null;
 
@@ -228,7 +232,7 @@ export class GameEngine {
       this.lastInteractedNpcName = npcName;
 
       const npc = d.entityManager.getNPC(npcId);
-      if (npc) {
+      if (npc && !npc.fixed) {
         const targetPos = d.playerController.position.clone();
         npc.walkToPlayer(targetPos);
         d.ws.sendNPCMove(npcId, [targetPos.x, targetPos.y, targetPos.z]);
@@ -355,25 +359,31 @@ export class GameEngine {
     }
 
     if (dialogFocusActive && d.runtime.activeNpcId) {
-      if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
-        this.activeDialogNpcId = d.runtime.activeNpcId;
-        const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
-        if (npc) {
+      const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
+      // Fixed NPCs never move — don't summon or stream them.
+      if (npc && !npc.fixed) {
+        // On first focus, walk the NPC to the player (stops ~1.5m away).
+        if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
+          this.activeDialogNpcId = d.runtime.activeNpcId;
+          this.npcMoveStreamTimer = 0;
           const dx = npc.position.x - d.playerController.position.x;
           const dz = npc.position.z - d.playerController.position.z;
           const dist = Math.sqrt(dx * dx + dz * dz);
           if (dist > 1.5) {
             const nx = d.playerController.position.x + (dx / dist) * 1.5;
             const nz = d.playerController.position.z + (dz / dist) * 1.5;
-            const targetPos = new THREE.Vector3(nx, npc.position.y, nz);
-            npc.walkToServerPosition(targetPos);
-            d.ws.send({
-              type: 'npc_move',
-              npcId: npc.id,
-              position: [nx, npc.position.y, nz],
-            });
+            npc.walkToServerPosition(new THREE.Vector3(nx, npc.position.y, nz));
           }
         }
+        // Stream the NPC's live position so the server (and other players) see
+        // the approach in real time, and the server holds off wandering it away.
+        this.npcMoveStreamTimer += delta;
+        if (this.npcMoveStreamTimer >= NPC_MOVE_STREAM_INTERVAL) {
+          this.npcMoveStreamTimer = 0;
+          d.ws.sendNPCMove(npc.id, [npc.position.x, npc.position.y, npc.position.z]);
+        }
+      } else {
+        this.activeDialogNpcId = d.runtime.activeNpcId;
       }
     } else {
       this.activeDialogNpcId = null;
