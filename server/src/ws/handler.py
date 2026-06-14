@@ -24,6 +24,7 @@ from .handlers import (
     items,
     join,
     movement,
+    npc_designer,
     quest,
     system,
     world_builder,
@@ -55,6 +56,10 @@ _manager: ConnectionManager | None = None
 _world_builder_agent: Any | None = None
 _pending_world_actions: list[Any] = []
 
+# NPC Designer agent and its pending actions list
+_npc_designer_agent: Any | None = None
+_pending_npc_actions: list[Any] = []
+
 # SQLite game store (None = persistence disabled)
 _game_store: Any | None = None
 
@@ -75,6 +80,8 @@ def _sync_context() -> HandlerContext:
     _context.manager = _manager
     _context.world_builder_agent = _world_builder_agent
     _context.pending_world_actions = _pending_world_actions
+    _context.npc_designer_agent = _npc_designer_agent
+    _context.pending_npc_actions = _pending_npc_actions
     _context.store = _game_store
     return _context
 
@@ -86,10 +93,12 @@ def init_handler(
     world_builder_agent: Any | None = None,
     pending_world_actions: list[Any] | None = None,
     store: Any | None = None,
+    npc_designer_agent: Any | None = None,
+    pending_npc_actions: list[Any] | None = None,
 ) -> None:
     """Wire the handler to the live registry, world state, and connection manager."""
     global _registry, _world_state, _manager, _world_builder_agent, _pending_world_actions
-    global _game_store
+    global _game_store, _npc_designer_agent, _pending_npc_actions
     _registry = registry
     _world_state = world_state
     _manager = manager
@@ -97,6 +106,10 @@ def init_handler(
         _world_builder_agent = world_builder_agent
     if pending_world_actions is not None:
         _pending_world_actions = pending_world_actions
+    if npc_designer_agent is not None:
+        _npc_designer_agent = npc_designer_agent
+    if pending_npc_actions is not None:
+        _pending_npc_actions = pending_npc_actions
     if store is not None:
         _game_store = store
     _sync_context()
@@ -121,6 +134,7 @@ _MESSAGE_HANDLERS: dict[str, _HandlerFunc] = {
     "world_modify": world_builder.handle_world_modify,
     "world_direct_edit": world_builder.handle_world_direct_edit,
     "world_manifest_update": world_builder.handle_world_manifest_update,
+    "npc_design": npc_designer.handle_npc_design,
 }
 
 # Message types handled before player registration. A tuple (not a set) so the

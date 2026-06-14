@@ -9,7 +9,7 @@ from langchain_core.messages import HumanMessage
 
 from .nodes.constants import EMPTY_DIALOGUE
 from .npc_agent import create_npc_agent
-from .tools import get_all_tools
+from .tools import get_all_tools, get_tools_for
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
@@ -67,49 +67,30 @@ class AgentRegistry:
         self._response_cache: dict[str, dict[str, Any]] = {}
         self._build_agents()
 
-    def _build_agents(self) -> None:
-        """Create a compiled graph for every NPC registered in world state."""
-        for npc_id, npc_data in self._world_state.npcs.items():
-            npc_config = {
-                "name": npc_data.name,
-                "personality": npc_data.personality,
-            }
+    def _build_agent_for(self, npc_data: Any) -> None:
+        """Create and store a compiled graph + shared containers for one NPC.
 
-            # Each NPC gets its own mutable containers for the tool closure
-            pending_actions: list[Any] = []
-            world_snapshot: dict[str, Any] = {}
-
-            tools = get_all_tools(
-                pending_actions=pending_actions,
-                world_state=world_snapshot,
-            )
-
-            agent = create_npc_agent(
-                npc_id=npc_id,
-                npc_config=npc_config,
-                llm=self._llm,
-                tools=tools,
-                shared_pending_actions=pending_actions,
-                world_state=self._world_state,
-                checkpointer=self._checkpointer,
-            )
-            self._agents[npc_id] = agent
-            self._shared_state[npc_id] = {
-                "pending_actions": pending_actions,
-                "world_snapshot": world_snapshot,
-            }
-            logger.info("Registered agent for NPC %s (%s)", npc_id, npc_data.name)
-
-    def register_dynamic_npc(self, npc_data: Any) -> None:
-        """Register a dynamically generated NPC agent at runtime."""
+        Tool binding honours ``npc_data.allowed_tools``: when set, only those
+        categories are bound (the archetype tool limit); when ``None``, all tools
+        are bound (back-compat default).
+        """
         npc_id = npc_data.npc_id
-        if npc_id in self._agents:
-            return
+        npc_config = {
+            "name": npc_data.name,
+            "personality": npc_data.personality,
+        }
 
-        npc_config = {"name": npc_data.name, "personality": npc_data.personality}
+        # Each NPC gets its own mutable containers for the tool closure
         pending_actions: list[Any] = []
         world_snapshot: dict[str, Any] = {}
-        tools = get_all_tools(pending_actions=pending_actions, world_state=world_snapshot)
+
+        allowed = getattr(npc_data, "allowed_tools", None)
+        if allowed is None:
+            tools = get_all_tools(pending_actions=pending_actions, world_state=world_snapshot)
+        else:
+            tools = get_tools_for(
+                allowed, pending_actions=pending_actions, world_state=world_snapshot
+            )
 
         agent = create_npc_agent(
             npc_id=npc_id,
@@ -125,7 +106,23 @@ class AgentRegistry:
             "pending_actions": pending_actions,
             "world_snapshot": world_snapshot,
         }
-        logger.info("Dynamically registered agent for NPC %s (%s)", npc_id, npc_data.name)
+        logger.info("Registered agent for NPC %s (%s)", npc_id, npc_data.name)
+
+    def _build_agents(self) -> None:
+        """Create a compiled graph for every NPC registered in world state."""
+        for npc_data in self._world_state.npcs.values():
+            self._build_agent_for(npc_data)
+
+    def register_dynamic_npc(self, npc_data: Any) -> None:
+        """Register a dynamically generated NPC agent at runtime."""
+        if npc_data.npc_id in self._agents:
+            return
+        self._build_agent_for(npc_data)
+
+    def remove_agent(self, npc_id: str) -> None:
+        """Drop an NPC's compiled agent + shared containers (e.g. before rebuild)."""
+        self._agents.pop(npc_id, None)
+        self._shared_state.pop(npc_id, None)
 
     def refresh_agents(self) -> None:
         """Synchronize AI agents with the current world state population."""
@@ -143,35 +140,7 @@ class AgentRegistry:
                 # Update existing (if personality changed)
                 self._shared_state[npc_id]["personality"] = npc_data.personality
                 continue
-
-            npc_config = {
-                "name": npc_data.name,
-                "personality": npc_data.personality,
-            }
-
-            pending_actions: list[Any] = []
-            world_snapshot: dict[str, Any] = {}
-
-            tools = get_all_tools(
-                pending_actions=pending_actions,
-                world_state=world_snapshot,
-            )
-
-            agent = create_npc_agent(
-                npc_id=npc_id,
-                npc_config=npc_config,
-                llm=self._llm,
-                tools=tools,
-                shared_pending_actions=pending_actions,
-                world_state=self._world_state,
-                checkpointer=self._checkpointer,
-            )
-            self._agents[npc_id] = agent
-            self._shared_state[npc_id] = {
-                "pending_actions": pending_actions,
-                "world_snapshot": world_snapshot,
-            }
-            logger.info("Registered agent for NPC %s (%s)", npc_id, npc_data.name)
+            self._build_agent_for(npc_data)
 
     def _populate_world_snapshot(self, npc_id: str, player_id: str) -> None:
         """Fill the tool-closure world_snapshot dict with current data."""

@@ -12,11 +12,22 @@ def test_all_personalities_have_required_fields() -> None:
         assert not missing, f"{npc_id} missing fields: {missing}"
 
 
-def test_all_personalities_have_tool_rules() -> None:
+def test_personality_data_no_longer_embeds_generic_tool_preamble() -> None:
+    # Tool rules now come from the archetype at runtime, not from the per-NPC
+    # data — so the generic all-tools preamble must be gone from every record.
     for npc_id, config in NPC_PERSONALITIES.items():
-        assert "TOOL USAGE RULES" in config["system_prompt"], (
-            f"{npc_id} missing TOOL USAGE RULES in system prompt"
+        assert "TOOL USAGE RULES" not in config["system_prompt"], (
+            f"{npc_id} still embeds the generic tool preamble in its data"
         )
+
+
+def test_archetype_supplies_tool_rules() -> None:
+    from src.agents.personalities.archetypes import get_archetype
+
+    for npc_id, config in NPC_PERSONALITIES.items():
+        arch = get_archetype(config["archetype"])
+        assert arch is not None, f"{npc_id} has unregistered archetype"
+        assert "TOOL USAGE RULES" in arch.tool_rules
 
 
 def test_dragon_has_fire_rules() -> None:

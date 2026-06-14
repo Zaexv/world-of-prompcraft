@@ -57,6 +57,9 @@ class Settings(BaseSettings):
     # parts). Under the standard dialogue budget those truncate mid-JSON, the
     # serving layer drops the partial call, and the agent appears to do nothing.
     world_builder_max_tokens: int = 2048
+    # Gate for the in-game NPC Designer (chat-driven NPC creation). Powerful edit —
+    # disable in shared/production deployments where not every player should build NPCs.
+    npc_designer_enabled: bool = True
     max_concurrent_llm_calls: int = 24
     reflect_every_n_human_turns: int = 5
     # Covers a single cold-start request plus the warm reason → act → respond

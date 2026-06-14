@@ -8,7 +8,9 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
+from ..agents.personalities.archetypes import get_archetype
 from ..agents.personalities.templates import NPC_PERSONALITIES
+from .designed_npcs import load_designed_npcs
 from .npc_definitions import get_npc_definitions
 from .player_state import PlayerData
 from .zones import get_zone, get_zone_description
@@ -29,6 +31,9 @@ class NPCData:
     # Archetype (e.g. "hostile_boss", "friendly_merchant") drives the instant,
     # deterministic combat reply so attacks don't wait on the LLM.
     archetype: str = ""
+    # Tool categories this NPC may call (set from its archetype). ``None`` means
+    # "all tools" — the back-compat default before archetype gating.
+    allowed_tools: list[str] | None = None
     style: str | None = None
     appearance: dict[str, Any] | None = None
     # Set once gold + loot have been awarded for this NPC's death so repeated
@@ -96,7 +101,9 @@ class WorldState:
         current_ids = set(self.npcs.keys())
         manifest_ids = set(definitions.keys())
         for npc_id in current_ids - manifest_ids:
-            if not npc_id.startswith(("proc_", "enc_")):
+            # proc_/enc_ are procedural; des_ are NPC-Designer creations — both
+            # are non-manifest and must survive a manifest refresh.
+            if not npc_id.startswith(("proc_", "enc_", "des_")):
                 del self.npcs[npc_id]
 
         # 2. Add or update NPCs from the manifest
@@ -105,13 +112,23 @@ class WorldState:
             personality = NPC_PERSONALITIES.get(personality_key, {})
             system_prompt = personality.get("system_prompt", "You are a mysterious stranger.")
             archetype = personality.get("archetype", npc_def.get("role", ""))
-            initial_hp = npc_def.get("initial_hp", 100)
+            # The archetype dictates which tool categories this NPC may call. An
+            # unknown archetype falls back to None → all tools (back-compat) and
+            # is warned about so it surfaces in logs.
+            arch = get_archetype(archetype)
+            if archetype and arch is None:
+                logger.warning(
+                    "NPC %s has unknown archetype %r — granting all tools", npc_id, archetype
+                )
+            allowed_tools = list(arch.allowed_tools) if arch is not None else None
+            initial_hp = npc_def.get("initial_hp", arch.default_hp if arch is not None else 100)
 
             if npc_id in self.npcs:
                 # Update existing (preserving dynamic state like current HP)
                 self.npcs[npc_id].name = npc_def["name"]
                 self.npcs[npc_id].personality = system_prompt
                 self.npcs[npc_id].archetype = archetype
+                self.npcs[npc_id].allowed_tools = allowed_tools
                 self.npcs[npc_id].position = list(npc_def["position"])
                 self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
                 self.npcs[npc_id].style = npc_def.get("style")
@@ -127,10 +144,50 @@ class WorldState:
                     position=list(npc_def["position"]),
                     scale=npc_def.get("scale", 1.0),
                     archetype=archetype,
+                    allowed_tools=allowed_tools,
                     style=npc_def.get("style"),
                     appearance=npc_def.get("appearance"),
                 )
                 self.npcs[npc_id] = npc
+
+        # 3. Merge in NPC-Designer creations (durable, non-manifest).
+        for record in load_designed_npcs().values():
+            self.upsert_designed_npc(record)
+
+    def upsert_designed_npc(self, record: dict[str, Any]) -> NPCData:
+        """Create or update an in-memory NPC from a designer spec record.
+
+        ``record`` keys: npc_id, name, archetype, flavor_prompt, initial_hp,
+        position. The archetype sets ``allowed_tools`` (the tool limit). Returns
+        the live NPCData. Preserves dynamic HP/mood on update.
+        """
+        npc_id = record["npc_id"]
+        archetype = record.get("archetype", "")
+        arch = get_archetype(archetype)
+        allowed_tools = list(arch.allowed_tools) if arch is not None else None
+        personality = record.get("flavor_prompt", "") or "You are a mysterious stranger."
+        hp = int(record.get("initial_hp", arch.default_hp if arch is not None else 100))
+        position = list(record.get("position", [0.0, 0.0, 0.0]))
+
+        if npc_id in self.npcs:
+            npc = self.npcs[npc_id]
+            npc.name = record.get("name", npc.name)
+            npc.personality = personality
+            npc.archetype = archetype
+            npc.allowed_tools = allowed_tools
+        else:
+            npc = NPCData(
+                npc_id=npc_id,
+                name=record.get("name", "Stranger"),
+                personality=personality,
+                hp=hp,
+                max_hp=hp,
+                position=position,
+                archetype=archetype,
+                allowed_tools=allowed_tools,
+            )
+            self.npcs[npc_id] = npc
+        return npc
 
     # ---- Player helpers ----
 

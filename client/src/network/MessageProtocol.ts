@@ -128,6 +128,17 @@ export interface NpcMove {
   position: [number, number, number];
 }
 
+// ── NPC Designer Messages ─────────────────────────────────────────────────────
+
+/** Chat-driven NPC creation/editing via the Architect agent. */
+export interface NpcDesignRequest {
+  type: "npc_design";
+  prompt: string;
+  position: [number, number, number];
+  /** Optional archetype hint chosen from the dropdown. */
+  archetype?: string;
+}
+
 export type ClientMessage =
   | PlayerInteraction
   | PlayerMove
@@ -142,7 +153,8 @@ export type ClientMessage =
   | PingMessage
   | WorldModifyRequest
   | WorldDirectEdit
-  | NpcMove;
+  | NpcMove
+  | NpcDesignRequest;
 
 // ── Action Params (discriminated by kind) ────────────────────────────────────
 // Each action kind carries a typed params object. This makes the client-server
@@ -476,6 +488,33 @@ export interface WorldModifyEnd {
   blueprintId: string;
 }
 
+/** Server payload describing a single NPC (subset of NPCData.to_dict). */
+export interface NpcPayload {
+  npc_id: string;
+  name: string;
+  hp?: number;
+  maxHp?: number;
+  position: [number, number, number];
+  personality?: string;
+  archetype?: string;
+  mood?: string;
+  scale?: number;
+  style?: unknown;
+  appearance?: unknown;
+}
+
+export interface NpcDesignResponse {
+  type: "npc_design_response";
+  dialogue: string;
+  npcs: NpcPayload[];
+}
+
+/** Broadcast when a designer-created NPC appears (or is updated) for everyone. */
+export interface NpcSpawnBroadcast {
+  type: "npc_spawn";
+  npcs: NpcPayload[];
+}
+
 export type ServerMessage =
   | AgentResponse
   | UseItemResult
@@ -494,4 +533,6 @@ export type ServerMessage =
   | WorldModifyStart
   | WorldModifyChunk
   | WorldModifyEnd
-  | WorldObjectsUpdate;
+  | WorldObjectsUpdate
+  | NpcDesignResponse
+  | NpcSpawnBroadcast;

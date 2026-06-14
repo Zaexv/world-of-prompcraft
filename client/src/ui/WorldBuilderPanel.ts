@@ -6,6 +6,13 @@ export interface PlacedSummary {
   label: string;
 }
 
+/** An archetype option for the NPC designer dropdown (from /npc/archetypes). */
+export interface ArchetypeInfo {
+  key: string;
+  allowed_tools: string[];
+  hostile?: boolean;
+}
+
 export interface WorldBuilderPanelOptions {
   /** All registered mesh type ids, for the palette browser. */
   catalog?: string[];
@@ -15,6 +22,10 @@ export interface WorldBuilderPanelOptions {
   onDelete?: (id: string) => void;
   /** Current placed objects, for the list. */
   getPlaced?: () => PlacedSummary[];
+  /** Send a chat-driven NPC creation request (NPC tab). */
+  onNpcDesign?: (prompt: string, archetype?: string) => void;
+  /** Archetypes for the NPC dropdown (fetched from the server). */
+  npcArchetypes?: ArchetypeInfo[];
 }
 
 /**
@@ -37,14 +48,20 @@ export class WorldBuilderPanel extends UIComponent {
   declare private paletteSearch: HTMLInputElement;
   declare private placedSection: HTMLElement;
   declare private placedList: HTMLElement;
+  declare private npcSection: HTMLElement;
+  declare private archSelect: HTMLSelectElement;
+  declare private archTools: HTMLElement;
 
   private selectedFile: File | null = null;
   private streamingBlueprints: Map<string, { total: number, received: number }> = new Map();
+  private npcMode = false;
 
   private readonly catalog: string[];
   private readonly onPaletteSpawn?: (type: string) => void;
   private readonly onDelete?: (id: string) => void;
   private readonly getPlaced?: () => PlacedSummary[];
+  private readonly onNpcDesign?: (prompt: string, archetype?: string) => void;
+  private npcArchetypes: ArchetypeInfo[];
 
   onSubmit: (prompt: string, attachment?: File) => void;
   onUndo: () => void;
@@ -64,11 +81,14 @@ export class WorldBuilderPanel extends UIComponent {
     this.onPaletteSpawn = options.onPaletteSpawn;
     this.onDelete = options.onDelete;
     this.getPlaced = options.getPlaced;
+    this.onNpcDesign = options.onNpcDesign;
+    this.npcArchetypes = options.npcArchetypes ?? [];
 
     this.setupShortcuts();
-    // render() already ran inside super() with catalog undefined — repaint the
-    // palette now that the real catalog is assigned.
+    // render() already ran inside super() with catalog/archetypes undefined —
+    // repaint now that the real values are assigned.
     this.renderPalette();
+    this.renderArchetypes();
   }
 
   private setupShortcuts(): void {
@@ -125,6 +145,17 @@ export class WorldBuilderPanel extends UIComponent {
       <div class="wb-tabs" style="display:flex; gap:6px;">
         <button class="wb-tab wb-tab-palette" style="${this.tabStyle()}">📦 Catalog</button>
         <button class="wb-tab wb-tab-placed" style="${this.tabStyle()}">🗺️ Placed</button>
+        <button class="wb-tab wb-tab-npc" style="${this.tabStyle()}">🧙 NPC</button>
+      </div>
+
+      <div class="wb-npc" style="display:none; flex-direction:column; gap:6px;">
+        <label style="color:#aaa; font-size:11px;">Archetype (sets what the NPC can do)</label>
+        <select class="wb-arch" style="
+          width:100%; box-sizing:border-box; background:rgba(10,8,20,0.8);
+          border:1px solid rgba(197,165,90,0.3); border-radius:6px; color:#e8dcc8;
+          font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
+        "></select>
+        <div class="wb-arch-tools" style="color:#8a7; font-size:10px; min-height:12px;"></div>
       </div>
 
       <div class="wb-palette" style="display:none; flex-direction:column; gap:6px;">
@@ -245,6 +276,9 @@ export class WorldBuilderPanel extends UIComponent {
     this.paletteSearch = this.container.querySelector('.wb-palette-search')!;
     this.placedSection = this.container.querySelector('.wb-placed')!;
     this.placedList = this.container.querySelector('.wb-placed-list')!;
+    this.npcSection = this.container.querySelector('.wb-npc')!;
+    this.archSelect = this.container.querySelector('.wb-arch')!;
+    this.archTools = this.container.querySelector('.wb-arch-tools')!;
 
     const closeBtn = this.container.querySelector('.wb-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hide());
@@ -282,6 +316,11 @@ export class WorldBuilderPanel extends UIComponent {
     const placedTab = this.container.querySelector('.wb-tab-placed') as HTMLButtonElement;
     paletteTab.addEventListener('click', () => this.toggleSection('palette'));
     placedTab.addEventListener('click', () => this.toggleSection('placed'));
+    const npcTab = this.container.querySelector('.wb-tab-npc') as HTMLButtonElement;
+    npcTab.addEventListener('click', () => this.toggleSection('npc'));
+    this.archSelect.addEventListener('change', () => this.updateArchToolsHint());
+    this.archSelect.addEventListener('keydown', (e) => e.stopPropagation());
+    this.renderArchetypes();
 
     this.paletteSearch.addEventListener('keydown', (e) => e.stopPropagation());
     this.paletteSearch.addEventListener('input', () => this.renderPalette());
@@ -298,12 +337,24 @@ export class WorldBuilderPanel extends UIComponent {
       cursor:pointer;`;
   }
 
-  private toggleSection(which: 'palette' | 'placed'): void {
-    const target = which === 'palette' ? this.paletteSection : this.placedSection;
-    const other = which === 'palette' ? this.placedSection : this.paletteSection;
-    other.style.display = 'none';
+  private toggleSection(which: 'palette' | 'placed' | 'npc'): void {
+    const sections: Record<'palette' | 'placed' | 'npc', HTMLElement> = {
+      palette: this.paletteSection,
+      placed: this.placedSection,
+      npc: this.npcSection,
+    };
+    const target = sections[which];
+    for (const [k, el] of Object.entries(sections)) {
+      if (k !== which) el.style.display = 'none';
+    }
     const show = target.style.display === 'none';
     target.style.display = show ? 'flex' : 'none';
+    // NPC mode is active whenever the NPC section is the one shown.
+    this.npcMode = which === 'npc' && show;
+    this.input.placeholder = this.npcMode
+      ? 'Describe an NPC to create (e.g. a grumpy blacksmith)...'
+      : 'Describe what you want to build or change...';
+    this.setReady();
     if (show && which === 'placed') this.refreshPlaced();
     if (show && which === 'palette') setTimeout(() => this.paletteSearch.focus(), 30);
   }
@@ -395,6 +446,18 @@ export class WorldBuilderPanel extends UIComponent {
 
   private submit(): void {
     const text = this.input.value.trim();
+
+    if (this.npcMode) {
+      if (!text) return;
+      this.addToHistory(text);
+      this.input.value = '';
+      this.setResponse('The Architect breathes life into your words...');
+      this.sendBtn.disabled = true;
+      this.sendBtn.textContent = '…';
+      this.onNpcDesign?.(text, this.archSelect.value || undefined);
+      return;
+    }
+
     if (!text && !this.selectedFile) return;
 
     this.addToHistory(text || 'Image upload');
@@ -418,7 +481,33 @@ export class WorldBuilderPanel extends UIComponent {
 
   public setReady(): void {
     this.sendBtn.disabled = false;
-    this.sendBtn.textContent = 'Build';
+    this.sendBtn.textContent = this.npcMode ? 'Create NPC' : 'Build';
+  }
+
+  /** Replace the archetype dropdown options (e.g. after fetching from server). */
+  public setArchetypes(list: ArchetypeInfo[]): void {
+    this.npcArchetypes = list;
+    this.renderArchetypes();
+  }
+
+  private renderArchetypes(): void {
+    // render() runs inside super() before the subclass assigns npcArchetypes.
+    const list = this.npcArchetypes ?? [];
+    if (!this.archSelect) return;
+    this.archSelect.innerHTML = '';
+    for (const a of list) {
+      const opt = document.createElement('option');
+      opt.value = a.key;
+      opt.textContent = a.hostile ? `${a.key} (hostile)` : a.key;
+      this.archSelect.appendChild(opt);
+    }
+    this.updateArchToolsHint();
+  }
+
+  private updateArchToolsHint(): void {
+    if (!this.archTools) return;
+    const sel = (this.npcArchetypes ?? []).find((a) => a.key === this.archSelect.value);
+    this.archTools.textContent = sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';
   }
 
   public addToHistory(action: string): void {

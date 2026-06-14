@@ -7,8 +7,8 @@ from typing import Any
 from langchain_core.tools import tool
 
 
-def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
-    """Create combat-related tools closed over shared state.
+def create_offense_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
+    """Create offensive combat tools (deal_damage) closed over shared state.
 
     Args:
         pending_actions: Mutable list that accumulates actions for the frontend.
@@ -48,6 +48,23 @@ def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any])
             world_state["player"] = player
 
         return f"Dealt {amount} {damage_type} damage to {target}"
+
+    return [deal_damage]
+
+
+def create_defense_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
+    """Create survival tools (defend, flee) closed over shared state.
+
+    Shared by hostile archetypes AND support archetypes — a healer fleeing or
+    bracing is valid.
+
+    Args:
+        pending_actions: Mutable list that accumulates actions for the frontend.
+        world_state: Mutable dict holding current world/player state.
+
+    Returns:
+        A list of LangChain tool objects.
+    """
 
     @tool
     def defend(stance: str = "block") -> str:
@@ -91,6 +108,20 @@ def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any])
         )
         return f"Fled {direction}"
 
+    return [defend, flee]
+
+
+def create_support_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
+    """Create support tools (heal_target) closed over shared state.
+
+    Args:
+        pending_actions: Mutable list that accumulates actions for the frontend.
+        world_state: Mutable dict holding current world/player state.
+
+    Returns:
+        A list of LangChain tool objects.
+    """
+
     @tool
     def heal_target(target: str, amount: int) -> str:
         """Heal a target, restoring hit-points. Use this when the NPC wants to
@@ -120,4 +151,18 @@ def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any])
 
         return f"Healed {target} for {heal_amount} HP"
 
-    return [deal_damage, defend, flee, heal_target]
+    return [heal_target]
+
+
+def create_combat_tools(pending_actions: list[Any], world_state: dict[str, Any]) -> list[Any]:
+    """Back-compat alias: all combat tools (offense + defense + support).
+
+    Retained so existing imports (e.g. the WorldBuilder agent) keep working.
+    New code should bind the narrower ``offense`` / ``support`` / ``defense``
+    categories via the archetype tool limit.
+    """
+    return [
+        *create_offense_tools(pending_actions, world_state),
+        *create_defense_tools(pending_actions, world_state),
+        *create_support_tools(pending_actions, world_state),
+    ]

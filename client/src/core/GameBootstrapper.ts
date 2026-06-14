@@ -277,8 +277,18 @@ export async function bootstrap(
         }
       },
       getPlaced: () => worldBuilder.getPlacedObjects(),
+      onNpcDesign: (prompt: string, archetype?: string) => {
+        if (!runtime.joinedServer) { worldBuilderPanel.setResponse('Connect to the server first.'); worldBuilderPanel.setReady(); return; }
+        const pos = playerController.position;
+        ws.send({ type: 'npc_design', prompt, position: [pos.x, pos.y, pos.z], archetype });
+      },
     }
   );
+  // Populate the NPC-designer archetype dropdown from the server (tool limits live there).
+  void fetch('/npc/archetypes')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((d) => { if (d?.archetypes) worldBuilderPanel.setArchetypes(d.archetypes); })
+    .catch(() => { /* dropdown stays empty; designer still works with free text */ });
   // Patch worldBuilderPanel ref into handler (created after wsHandler to avoid circular dep)
   (wsHandler as unknown as { d: { worldBuilderPanel: WorldBuilderPanel } }).d.worldBuilderPanel = worldBuilderPanel;
   // Wire HUD Build button → WorldBuilderPanel
