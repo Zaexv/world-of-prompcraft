@@ -425,6 +425,37 @@ QUEST_TEMPLATES: dict[str, QuestInstance] = {
             ),
         ),
     ),
+    "manolos_resupply": QuestInstance(
+        id="manolos_resupply",
+        title="Los Manolos Tienen Sed (y Hambre)",
+        description=(
+            "Lluis and the manolos have been at the broken amphitheatre for hours, "
+            "tio, and the beer and tapas have run out. Bring them more cerveza and "
+            "comida before things get truly evil."
+        ),
+        giver_npc_id="manolo_lluis",
+        giver_name="Lluis",
+        objectives=[
+            QuestObjective(
+                "bring_beer",
+                "Bring cerveza for the manolos",
+                MANUAL_OBJECTIVE_KIND,
+                "manolo_lluis",
+            ),
+            QuestObjective(
+                "bring_food",
+                "Bring comida for the manolos",
+                MANUAL_OBJECTIVE_KIND,
+                "manolo_lluis",
+            ),
+        ],
+        reward=QuestReward(
+            gold=50,
+            items=["Amor Eterno de los Manolos"],
+            xp=40,
+            description="The undying, beer-soaked love and gratitude of the Amphitheatre Manolos.",
+        ),
+    ),
 }
 
 
