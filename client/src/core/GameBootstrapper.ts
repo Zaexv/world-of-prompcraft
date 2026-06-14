@@ -183,10 +183,15 @@ export async function bootstrap(
   // resolves). That left a black screen and a cinematic whose timer had already
   // elapsed by the time the loop started. Warming first means the whole join
   // handshake happens after the engine is live.
-  loadingOverlay.setMessage('Compiling shaders...');
-  await warmUpShaders(renderer, scene, camera, (fraction) => {
-    loadingOverlay.setProgress(fraction);
-  });
+  // Dev/test escape hatch: ?nowarm skips the (slow under software-WebGL) shader
+  // warmup so headless e2e can reach gameplay. Never set in normal play.
+  const skipWarmup = new URLSearchParams(window.location.search).has('nowarm');
+  if (!skipWarmup) {
+    loadingOverlay.setMessage('Compiling shaders...');
+    await warmUpShaders(renderer, scene, camera, (fraction) => {
+      loadingOverlay.setProgress(fraction);
+    });
+  }
 
   // eslint-disable-next-line prefer-const
   let engine: GameEngine;
