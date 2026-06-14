@@ -4,6 +4,13 @@ import { TerrainEditor, EditorMode } from "../debug/TerrainEditor";
 import { meshTypes } from "../meshes/index";
 import { GROUND_TYPES } from "../scene/Terrain";
 
+/** Selectable NPC skins (mirrors NPCPlaceholderStyle). */
+const NPC_SKINS = [
+  'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer',
+  'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem',
+  'boar', 'orc', 'undead', 'oracle',
+];
+
 /**
  * Terrain Editor Panel — manual 3D interface for sculpting terrain and placing buildings.
  */
@@ -143,7 +150,10 @@ export class TerrainEditorPanel extends UIComponent {
       </div>
 
       <div class="te-npc-section" style="display:none; flex-direction:column; gap:6px;">
-        <span style="font-size:11px; color:#aaaaaa; text-transform:uppercase; letter-spacing:1px;">NPC Designer</span>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+          <span class="te-npc-header" style="font-size:11px; color:#c5a55a; text-transform:uppercase; letter-spacing:1px;">New NPC</span>
+          <button class="te-npc-new" style="display:none; background:none; border:1px solid rgba(197,165,90,0.4); color:#c5a55a; cursor:pointer; font-size:10px; padding:2px 6px;">+ New</button>
+        </div>
         <div style="display:flex; flex-direction:column; gap:3px;">
           <span style="font-size:10px; color:#888;">Name</span>
           <input class="te-npc-name" placeholder="e.g. Greta the Smith" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;">
@@ -154,6 +164,10 @@ export class TerrainEditorPanel extends UIComponent {
           <span class="te-npc-arch-tools" style="font-size:9px; color:#8a7; min-height:11px;"></span>
         </div>
         <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10px; color:#888;">Skin</span>
+          <select class="te-npc-skin" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;"></select>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px;">
           <span style="font-size:10px; color:#888;">Personality / voice</span>
           <textarea class="te-npc-flavor" rows="3" placeholder="Who they are and how they speak (no tool rules — the archetype handles those)." style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px; resize:vertical;"></textarea>
         </div>
@@ -161,7 +175,12 @@ export class TerrainEditorPanel extends UIComponent {
           <span>Max HP (0 = archetype default)</span>
           <input type="number" class="te-npc-hp" min="0" step="10" value="0" style="width:60px; background:#1a1108; color:#e8dcc8; border:1px solid #333;">
         </div>
-        <span style="font-size:9px; color:#666;">Click the ground to place this NPC.</span>
+        <span class="te-npc-hint" style="font-size:9px; color:#666;">Click the ground to place this NPC.</span>
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
+          <span style="font-size:10px; color:#888;">Existing NPCs (click to edit)</span>
+          <button class="te-npc-refresh" style="background:none; border:none; color:#c5a55a; cursor:pointer; font-size:11px;">↻</button>
+        </div>
+        <div class="te-npc-list" style="max-height:120px; overflow-y:auto; display:flex; flex-direction:column; gap:2px; font-size:11px;"></div>
       </div>
 
       <div class="te-ground-section" style="display:none; flex-direction:column; gap:4px;">
@@ -206,6 +225,7 @@ export class TerrainEditorPanel extends UIComponent {
         paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
         // NPC designer form only when placing NPCs.
         npcSection.style.display = mode === 'npc' ? 'flex' : 'none';
+        if (mode === 'npc') this.refreshNpcList();
         // Brush settings drive sculpt AND ground paint.
         sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten' || mode === 'paint' || mode === 'erase' || mode === 'water') ? 'flex' : 'none';
         groundSection.style.display = mode === 'paint' ? 'flex' : 'none';
@@ -332,19 +352,24 @@ export class TerrainEditorPanel extends UIComponent {
     });
   }
 
-  /** Wire the NPC designer form: archetype dropdown (from server) + field sync. */
+  private npcArchetypes: Array<{ key: string; allowed_tools: string[]; hostile?: boolean }> = [];
+
+  /** Wire the NPC designer form: archetype + skin dropdowns, field sync, edit list. */
   private setupNpcDesigner(): void {
     const nameInput = this.container.querySelector('.te-npc-name') as HTMLInputElement;
     const archSelect = this.container.querySelector('.te-npc-arch') as HTMLSelectElement;
     const archTools = this.container.querySelector('.te-npc-arch-tools') as HTMLElement;
+    const skinSelect = this.container.querySelector('.te-npc-skin') as HTMLSelectElement;
     const flavorInput = this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement;
     const hpInput = this.container.querySelector('.te-npc-hp') as HTMLInputElement;
-    if (!nameInput || !archSelect) return;
+    const newBtn = this.container.querySelector('.te-npc-new') as HTMLButtonElement;
+    const refreshBtn = this.container.querySelector('.te-npc-refresh') as HTMLButtonElement;
+    if (!nameInput || !archSelect || !skinSelect) return;
 
-    let archetypes: Array<{ key: string; allowed_tools: string[]; hostile?: boolean }> = [];
+    skinSelect.innerHTML = NPC_SKINS.map((s) => `<option value="${s}">${s}</option>`).join('');
 
     const updateToolsHint = () => {
-      const sel = archetypes.find((a) => a.key === archSelect.value);
+      const sel = this.npcArchetypes.find((a) => a.key === archSelect.value);
       archTools.textContent = sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';
     };
     const sync = () => this.editor.setNpcDesign({
@@ -352,25 +377,79 @@ export class TerrainEditorPanel extends UIComponent {
       archetype: archSelect.value,
       flavorPrompt: flavorInput.value,
       hp: parseInt(hpInput.value) || 0,
+      skin: skinSelect.value,
     });
 
     nameInput.addEventListener('input', sync);
     flavorInput.addEventListener('input', sync);
     hpInput.addEventListener('input', sync);
     archSelect.addEventListener('change', () => { updateToolsHint(); sync(); });
+    skinSelect.addEventListener('change', sync);
+
+    newBtn.addEventListener('click', () => this.startNewNpc());
+    refreshBtn.addEventListener('click', () => this.refreshNpcList());
 
     void fetch('/npc/archetypes')
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
         if (!d?.archetypes) return;
-        archetypes = d.archetypes;
-        archSelect.innerHTML = archetypes
+        this.npcArchetypes = d.archetypes;
+        archSelect.innerHTML = this.npcArchetypes
           .map((a) => `<option value="${a.key}">${a.hostile ? `${a.key} (hostile)` : a.key}</option>`)
           .join('');
         updateToolsHint();
         sync();
       })
       .catch(() => { /* dropdown stays empty; placement still works with role fallback */ });
+  }
+
+  /** Reset the form to "new NPC" placement mode. */
+  private startNewNpc(): void {
+    this.editor.clearNpcEdit();
+    (this.container.querySelector('.te-npc-name') as HTMLInputElement).value = '';
+    (this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement).value = '';
+    (this.container.querySelector('.te-npc-hp') as HTMLInputElement).value = '0';
+    (this.container.querySelector('.te-npc-header') as HTMLElement).textContent = 'New NPC';
+    (this.container.querySelector('.te-npc-new') as HTMLElement).style.display = 'none';
+    (this.container.querySelector('.te-npc-hint') as HTMLElement).textContent = 'Click the ground to place this NPC.';
+    this.editor.setNpcDesign({ name: '', flavorPrompt: '', hp: 0 });
+  }
+
+  /** Load an existing NPC into the form for editing. */
+  private loadNpcForEdit(id: string): void {
+    const info = this.editor.beginEditNpc(id);
+    if (!info) return;
+    (this.container.querySelector('.te-npc-name') as HTMLInputElement).value = info.name;
+    (this.container.querySelector('.te-npc-arch') as HTMLSelectElement).value = info.archetype;
+    (this.container.querySelector('.te-npc-skin') as HTMLSelectElement).value = info.skin;
+    (this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement).value = info.flavorPrompt;
+    (this.container.querySelector('.te-npc-hp') as HTMLInputElement).value = String(info.hp);
+    const sel = this.npcArchetypes.find((a) => a.key === info.archetype);
+    (this.container.querySelector('.te-npc-arch-tools') as HTMLElement).textContent =
+      sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';
+    (this.container.querySelector('.te-npc-header') as HTMLElement).textContent = `Editing: ${info.name}`;
+    (this.container.querySelector('.te-npc-new') as HTMLElement).style.display = 'inline-block';
+    (this.container.querySelector('.te-npc-hint') as HTMLElement).textContent = 'Edits apply live. Click ground to place a NEW NPC.';
+  }
+
+  /** Repaint the existing-NPCs list from the manifest. */
+  private refreshNpcList(): void {
+    const list = this.container.querySelector('.te-npc-list') as HTMLElement;
+    if (!list) return;
+    const npcs = this.editor.getNpcList().sort((a, b) => a.name.localeCompare(b.name));
+    list.innerHTML = '';
+    if (npcs.length === 0) {
+      list.innerHTML = `<span style="color:#888;">No NPCs in manifest.</span>`;
+      return;
+    }
+    for (const n of npcs) {
+      const row = document.createElement('button');
+      row.textContent = `${n.name} · ${n.archetype || '—'} · ${n.skin || '—'}`;
+      row.title = n.id;
+      row.style.cssText = 'text-align:left; background:rgba(197,165,90,0.08); border:1px solid rgba(197,165,90,0.2); color:#e8dcc8; cursor:pointer; font-family:inherit; font-size:10px; padding:3px 5px;';
+      row.addEventListener('click', () => this.loadNpcForEdit(n.id));
+      list.appendChild(row);
+    }
   }
 
   private updateAssetList(): void {
@@ -380,11 +459,7 @@ export class TerrainEditorPanel extends UIComponent {
 
     let types: string[] = [];
     if (category === 'npc') {
-      types = [
-        'civilian', 'merchant', 'guard', 'healer', 'sage', 'mage', 'pyromancer',
-        'cryomancer', 'dragon', 'monster', 'spider', 'wasp', 'wolf', 'golem',
-        'boar', 'orc', 'undead', 'oracle'
-      ];
+      types = [...NPC_SKINS];
     } else if (category === 'encounter') {
       // Encounter structures (campsite, bandit camp, …) are registered as 'prop'
       // meshes with an `encounter_` prefix — there is no 'encounter' MeshCategory,
