@@ -52,9 +52,9 @@ class Settings(BaseSettings):
     # ── Shared ────────────────────────────────────────────────────────────────
     llm_temperature: float = 0.1
     max_tokens: int = 4096
-    response_max_tokens: int = 180
+    response_max_tokens: int = 512
     # The world builder emits large create_custom_mesh tool calls (JSON with many
-    # parts). Under the 180-token dialogue budget those truncate mid-JSON, the
+    # parts). Under the standard dialogue budget those truncate mid-JSON, the
     # serving layer drops the partial call, and the agent appears to do nothing.
     world_builder_max_tokens: int = 2048
     max_concurrent_llm_calls: int = 24

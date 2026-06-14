@@ -58,10 +58,10 @@ def length_budget_instruction(lore_used: bool) -> str:
     """
     if lore_used:
         return (
-            "LENGTH: Keep your reply under 500 characters since you are sharing lore. "
-            "Stay tight — only the lore that answers the prompt, no rambling."
+            "LENGTH: Share the lore fully — aim for a few sentences. "
+            "Stay on point: only the lore that answers the prompt, no rambling."
         )
     return (
-        "LENGTH: Keep your reply under 200 characters. One or two punchy sentences. "
-        "No exposition, no lists, no lore dumps."
+        "LENGTH: Reply naturally — a couple of sentences is plenty. "
+        "Be vivid but don't pad with filler or lists."
     )

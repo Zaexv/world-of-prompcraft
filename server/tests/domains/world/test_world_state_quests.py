@@ -76,3 +76,56 @@ async def test_complete_quest_action_grants_reward() -> None:
     )
     assert player.has_completed_quest("village_patrol")
     assert "Guard's Badge of Honor" in player.inventory
+
+
+@pytest.mark.asyncio
+async def test_complete_quest_action_surfaces_reward_feedback() -> None:
+    """Reward feedback (give_item/give_gold) must be appended to the actions list
+    so the client renders banners — regression for quests "returning nothing"."""
+    ws = WorldState()
+    player = ws.get_player("erin")
+    player.accept_template("village_patrol")
+    actions = [
+        {"kind": "complete_quest", "params": {"player_id": "erin", "quest_id": "village_patrol"}}
+    ]
+    await ws.apply_actions(actions)
+
+    kinds = [a["kind"] for a in actions]
+    # The originating complete_quest stays; reward feedback is appended.
+    assert "give_item" in kinds
+    assert any(
+        a["kind"] == "give_item" and a["params"]["item"] == "Guard's Badge of Honor"
+        for a in actions
+    )
+    # No duplicate complete_quest banner (the original already carries it).
+    assert kinds.count("complete_quest") == 1
+
+
+@pytest.mark.asyncio
+async def test_advance_objective_completion_surfaces_reward_feedback() -> None:
+    """Finishing a quest via advance_objective appends a complete_quest banner plus
+    reward feedback to the actions list."""
+    ws = WorldState()
+    player = ws.get_player("frank")
+    player.accept_template("crystal_tear")
+    quest = player.get_quest("crystal_tear")
+    assert quest is not None
+    quest["objectives"][0]["completed"] = True
+    quest["objectives"][1]["completed"] = True
+    actions = [
+        {
+            "kind": "advance_objective",
+            "params": {
+                "player_id": "frank",
+                "quest_id": "crystal_tear",
+                "objective_id": "return_elyria",
+            },
+        }
+    ]
+    await ws.apply_actions(actions)
+
+    kinds = [a["kind"] for a in actions]
+    assert "complete_quest" in kinds
+    assert any(
+        a["kind"] == "give_item" and a["params"]["item"] == "Amulet of Clarity" for a in actions
+    )

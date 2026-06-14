@@ -28,9 +28,9 @@ def _state() -> dict[str, Any]:
     }
 
 
-def test_full_prompt_uses_200_budget_without_lore() -> None:
+def test_full_prompt_uses_tight_budget_without_lore() -> None:
     prompt = reason._build_system_prompt(_state(), player_prompt="")
-    assert "under 200 characters" in prompt
+    assert "a couple of sentences is plenty" in prompt
     assert "World Lore" not in prompt
 
 
@@ -42,8 +42,8 @@ def test_full_prompt_uses_500_budget_with_lore(monkeypatch: pytest.MonkeyPatch) 
     monkeypatch.setattr(reason, "get_retriever", lambda: _FakeRetriever())
 
     prompt = reason._build_system_prompt(_state(), player_prompt="tell me about Teldrassil")
-    assert "under 500 characters" in prompt
-    assert "under 200 characters" not in prompt
+    assert "aim for a few sentences" in prompt
+    assert "a couple of sentences is plenty" not in prompt
     assert "World Lore" in prompt
     assert "Teldrassil" in prompt
 
