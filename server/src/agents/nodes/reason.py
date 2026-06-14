@@ -58,10 +58,12 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
     if recent_events:
         parts.append(f"- Recent events: {'; '.join(recent_events[-5:])}")
 
+    player_name = player.get("username") or "the adventurer"
     parts.extend(
         [
             "",
             "## Player State",
+            f"- Name: {player_name}",
             f"- HP: {player.get('hp', '?')}/{player.get('max_hp', '?')}",
             f"- Mana: {player.get('mana', '?')}/{player.get('max_mana', '?')}",
             f"- Level: {player.get('level', '?')}",
@@ -107,6 +109,7 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
             "## Instructions",
             "Respond to the player's prompt. Use tools to take actions in the world.",
             "Be creative and stay in character.",
+            f"The player's name is {player_name} — address them by name when it feels natural.",
             length_budget_instruction(lore_used),
             "Your mood, relationship, and memories should naturally colour your dialogue.",
         ]
@@ -132,12 +135,15 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
 
 def _build_compact_system_prompt(state: NPCAgentState) -> str:
     world = state.get("world_context", {})
+    player = state.get("player_state", {})
+    player_name = player.get("username") or "the traveler"
     directive = global_npc_directive()
     suffix = f" {directive}" if directive else ""
     return (
         f"You are {state.get('npc_name', 'an NPC')} in {world.get('zone', 'the area')} in a fantasy RPG world. "
         f"Personality: {state.get('npc_personality', 'helpful villager')}. "
         f"Mood: {state.get('mood', 'neutral')}. "
+        f"You are speaking with {player_name}; use their name when natural. "
         "Reply naturally in character, but keep it under 200 characters — one short "
         f"sentence is plenty. Do not mention being an AI.{suffix}"
     )
