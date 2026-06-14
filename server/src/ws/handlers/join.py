@@ -165,13 +165,20 @@ async def handle_join(
     logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
 
     self_player_data = None
+    self_state_data = None
     if world_state is not None:
-        self_player_data = world_state.get_player(username).to_public_dict()
+        self_player = world_state.get_player(username)
+        # Minimal public view (position/hp/gold) — kept for back-compat.
+        self_player_data = self_player.to_public_dict()
+        # Full persisted state (inventory, gold, mana, quests, equipped) so the
+        # client UI reflects everything that was restored, not just hp.
+        self_state_data = self_player.to_dict()
 
     return {
         "type": "join_ok",
         "playerId": username,
         "self_player": self_player_data,
+        "self_state": self_state_data,
         "players": current_players,
         "npcs": current_npcs,
         "worldObjects": world_objects,

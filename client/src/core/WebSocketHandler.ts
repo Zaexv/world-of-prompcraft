@@ -97,6 +97,12 @@ export class WebSocketHandler {
           }
         }
 
+        // Full persisted state: inventory, gold, mana, quests, equipped gear.
+        // (self_player is the minimal public view; self_state carries the rest.)
+        if (data.self_state) {
+          this.d.playerState.merge(data.self_state);
+        }
+
         if (data.players) {
           try {
             // Filter out self just in case the server sent it,
