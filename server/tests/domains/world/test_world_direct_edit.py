@@ -2,16 +2,12 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import pytest
 
-from src.world import world_state as world_state_module
 from src.world.world_state import WorldState
 from src.ws import handler
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 class _FakeWebSocket:
@@ -31,15 +27,14 @@ class _FakeManager:
 
 
 @pytest.fixture(autouse=True)
-def _reset(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Any:
-    monkeypatch.setattr(
-        world_state_module, "_world_objects_path", lambda: tmp_path / "world_objects.json"
-    )
+def _reset() -> Any:
     WorldState._instance = None
+    handler._game_store = None  # no persistence in this in-memory test
     yield
     WorldState._instance = None
     handler._world_state = None
     handler._manager = None
+    handler._game_store = None
 
 
 @pytest.mark.asyncio

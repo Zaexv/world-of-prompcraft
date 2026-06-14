@@ -93,13 +93,19 @@ async def handle_join(
         # Returning player not in memory (left earlier / server restarted after
         # their save): restore the persisted document before initializing.
         if is_new_player and ctx.store is not None:
-            doc = ctx.store.load_player(username)
+            import asyncio
+
+            doc = await asyncio.to_thread(ctx.store.load_player, username)
             if doc:
                 from ...world.player_state import PlayerData
 
                 try:
-                    world_state.players[username] = PlayerData(**doc)
+                    restored_player = PlayerData(**doc)
+                    world_state.players[username] = restored_player
                     is_new_player = False
+                    # Seed the runtime equipment cache (combat reads) from the
+                    # restored single-source-of-truth equipped gear.
+                    ctx.player_equipment[username] = dict(restored_player.equipped or {})
                     logger.info(f"Restored persisted state for returning player: {username}")
                 except TypeError:
                     logger.warning(f"Stale persisted schema for {username} — starting fresh")
@@ -121,11 +127,24 @@ async def handle_join(
             if pid != username and pid in manager.active_connections:
                 current_players.append(p.to_public_dict())
 
-    # Build NPC list
+    # Build NPC list, annotating each with this player's persisted relationship
+    # so the interaction UI shows the right standing before the first chat.
     current_npcs: list[dict[str, Any]] = []
     if world_state is not None:
+        relationships: dict[str, dict[str, Any]] = {}
+        if ctx.store is not None:
+            import asyncio
+
+            relationships = await asyncio.to_thread(
+                ctx.store.load_relationships_for_player, username
+            )
         for npc in world_state.npcs.values():
-            current_npcs.append(npc.to_dict())
+            npc_dict = npc.to_dict()
+            rel = relationships.get(npc.npc_id)
+            if rel is not None:
+                npc_dict["relationship_score"] = rel["relationship_score"]
+                npc_dict["mood"] = rel.get("mood", npc_dict.get("mood", "neutral"))
+            current_npcs.append(npc_dict)
 
     # Broadcast player_joined to everyone else
     if world_state is not None:
@@ -146,13 +165,20 @@ async def handle_join(
     logger.info(f"Join successful: {username}. Sending join_ok with {len(current_npcs)} NPCs.")
 
     self_player_data = None
+    self_state_data = None
     if world_state is not None:
-        self_player_data = world_state.get_player(username).to_public_dict()
+        self_player = world_state.get_player(username)
+        # Minimal public view (position/hp/gold) — kept for back-compat.
+        self_player_data = self_player.to_public_dict()
+        # Full persisted state (inventory, gold, mana, quests, equipped) so the
+        # client UI reflects everything that was restored, not just hp.
+        self_state_data = self_player.to_dict()
 
     return {
         "type": "join_ok",
         "playerId": username,
         "self_player": self_player_data,
+        "self_state": self_state_data,
         "players": current_players,
         "npcs": current_npcs,
         "worldObjects": world_objects,

@@ -11,9 +11,11 @@ export type EquipSlot = "weapon" | "shield" | "trinket";
 export type EquippedItems = Record<EquipSlot, string | null>;
 
 /** Extended player state data that may include quest fields from the server. */
-interface PlayerStatePatch extends Partial<PlayerStateData> {
+export interface PlayerStatePatch extends Partial<PlayerStateData> {
   activeQuests?: ActiveQuest[];
   completedQuests?: string[];
+  /** slot → equipped item name (from the server's persisted PlayerData). */
+  equipped?: Partial<Record<EquipSlot, string | null>>;
 }
 
 /**
@@ -87,6 +89,13 @@ export class PlayerState {
     if (update.gold !== undefined) this.gold = update.gold;
     if (update.inventory !== undefined) {
       this.inventory = update.inventory.map((i) => toItem(i));
+    }
+    if (update.equipped !== undefined) {
+      this.equipped = {
+        weapon: update.equipped.weapon ?? null,
+        shield: update.equipped.shield ?? null,
+        trinket: update.equipped.trinket ?? null,
+      };
     }
     let questChanged = false;
     if (update.activeQuests !== undefined) {

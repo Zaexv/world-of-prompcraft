@@ -1,5 +1,7 @@
 target-version = "py311"
 line-length = 100
+# Django-generated migrations are machine-written; don't lint them.
+extend-exclude = ["src/persistence/gamedata/migrations"]
 
 [lint]
 select = [
@@ -20,7 +22,9 @@ ignore = [
 ]
 
 [lint.per-file-ignores]
-"tests/*" = ["B", "SIM"]  # relax bugbear/simplify in tests
+# relax bugbear/simplify in tests; TC003 would force runtime-used imports into
+# a type-checking block where the test bodies still need them.
+"tests/*" = ["B", "SIM", "TC003"]
 
 [format]
 quote-style = "double"

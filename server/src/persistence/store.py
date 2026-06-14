@@ -1,127 +1,169 @@
-"""SQLite-backed game-state store.
+"""Django-ORM-backed game-state store.
 
-Two tables:
-- ``players`` — the full PlayerData as a JSON document (the player schema
-  evolves quickly; a document column means no migration churn).
-- ``npcs``    — only the *mutable* NPC state (hp, position, loot_dropped).
-  Identity (name, personality, archetype) always comes from the manifest or
-  runtime registration, so restoring is an overlay, never a respawn source.
+Persists the full durable game state into the embedded Django schema
+(:mod:`src.persistence.gamedata.models`):
 
-All methods are synchronous sqlite3 — every call is a tiny single-row write
-or a bounded read, invoked at low frequency (join, disconnect, a periodic
-tick, shutdown), so they're safe to call from the event loop.
+- **Player** + **PlayerInventory** (relational stacks) + **CompletedQuest** —
+  the player's vitals, gold, inventory, quests and equipped gear.
+- **NPCState** — mutable NPC hp / position / loot flag / mood (identity always
+  comes from the manifest or runtime registration, so restoring is an overlay).
+- **NPCRelationship** — queryable mirror of per-(npc, player) relationship.
+- **WorldObject** — player-built world-builder spawns.
+
+Every method here is *synchronous* Django ORM. Callers on the event loop wrap
+them in ``asyncio.to_thread`` (Django forbids sync ORM directly inside the async
+loop); synchronous callers and tests use them directly. Each call is a tiny
+single-row write or a bounded read invoked at low frequency (join, disconnect,
+periodic tick, shutdown), so this stays cheap.
 """
 
 from __future__ import annotations
 
-import json
 import logging
-import sqlite3
-from dataclasses import asdict
-from pathlib import Path
+from collections import Counter
 from typing import TYPE_CHECKING, Any
+
+from django.db import transaction
+
+from .django_setup import setup_django
+
+# Ensure the ORM is configured before the models are imported. Idempotent — a
+# no-op when Django is already set up (server lifespan, pytest-django, manage.py).
+setup_django()
+
+from .gamedata.models import (  # noqa: E402  (must follow setup_django)
+    CompletedQuest,
+    NPCRelationship,
+    NPCState,
+    Player,
+    PlayerInventory,
+    WorldObject,
+)
 
 if TYPE_CHECKING:
     from ..world.world_state import WorldState
 
 logger = logging.getLogger(__name__)
 
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS players (
-    player_id  TEXT PRIMARY KEY,
-    data       TEXT NOT NULL,
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS npcs (
-    npc_id       TEXT PRIMARY KEY,
-    hp           INTEGER NOT NULL,
-    position     TEXT NOT NULL,
-    loot_dropped INTEGER NOT NULL DEFAULT 0,
-    updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
-);
-"""
+# Scalar Player columns mirrored 1:1 with PlayerData fields.
+_PLAYER_SCALARS = (
+    "hp",
+    "max_hp",
+    "mana",
+    "max_mana",
+    "level",
+    "gold",
+    "kill_count",
+    "race",
+    "faction",
+    "yaw",
+)
 
 
 class GameStore:
-    """Persist and restore the mutable game state in a SQLite database."""
+    """Persist and restore the mutable game state via the Django ORM."""
 
-    def __init__(self, db_path: str | Path) -> None:
-        self._path = Path(db_path)
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path, check_same_thread=False)
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+    def __init__(self, db_path: str | object | None = None) -> None:
+        # db_path is accepted for backward call-site compatibility but ignored:
+        # the database is configured globally in django_settings.
+        setup_django()
 
     # ── Players ───────────────────────────────────────────────────────────────
 
     def save_player(self, player_id: str, player: Any) -> None:
-        """Upsert a player's full dataclass state as JSON."""
-        doc = json.dumps(asdict(player))
-        self._conn.execute(
-            "INSERT INTO players (player_id, data, updated_at) VALUES (?, ?, datetime('now')) "
-            "ON CONFLICT(player_id) DO UPDATE SET data = excluded.data, "
-            "updated_at = excluded.updated_at",
-            (player_id, doc),
-        )
-        self._conn.commit()
+        """Upsert a player's scalar state + relational inventory + completed quests."""
+        scalars = {field: getattr(player, field) for field in _PLAYER_SCALARS}
+        scalars["position"] = list(player.position)
+        scalars["active_quests"] = list(player.active_quests)
+        scalars["equipped"] = dict(getattr(player, "equipped", {}) or {})
+
+        with transaction.atomic():
+            row, _ = Player.objects.update_or_create(username=player_id, defaults=scalars)
+
+            # Inventory: collapse the flat list[str] into stacked rows.
+            row.items.all().delete()
+            counts = Counter(player.inventory)
+            if counts:
+                PlayerInventory.objects.bulk_create(
+                    [
+                        PlayerInventory(player=row, item_name=name, quantity=qty)
+                        for name, qty in counts.items()
+                    ]
+                )
+
+            # Completed quests.
+            row.completed.all().delete()
+            completed = list(dict.fromkeys(player.completed_quests))  # de-dup, keep order
+            if completed:
+                CompletedQuest.objects.bulk_create(
+                    [CompletedQuest(player=row, quest_id=qid) for qid in completed]
+                )
 
     def load_player(self, player_id: str) -> dict[str, Any] | None:
-        """Return the persisted player document, or None for a new player."""
-        row = self._conn.execute(
-            "SELECT data FROM players WHERE player_id = ?", (player_id,)
-        ).fetchone()
+        """Return the persisted player as a ``PlayerData(**doc)``-compatible dict."""
+        row = Player.objects.filter(pk=player_id).first()
         if row is None:
             return None
-        try:
-            doc: dict[str, Any] = json.loads(row[0])
-            return doc
-        except (json.JSONDecodeError, TypeError):
-            logger.warning("Corrupt player row for %s — treating as new", player_id)
-            return None
+
+        # Expand stacked inventory back into the flat list[str] runtime shape.
+        inventory: list[str] = []
+        for item in row.items.all():
+            inventory.extend([item.item_name] * max(0, item.quantity))
+
+        completed = list(row.completed.values_list("quest_id", flat=True))
+
+        doc: dict[str, Any] = {field: getattr(row, field) for field in _PLAYER_SCALARS}
+        doc["username"] = row.username
+        doc["position"] = list(row.position)
+        doc["active_quests"] = list(row.active_quests)
+        doc["completed_quests"] = completed
+        doc["inventory"] = inventory
+        doc["equipped"] = dict(row.equipped or {})
+        return doc
 
     # ── NPCs ──────────────────────────────────────────────────────────────────
 
     def save_npc(self, npc: Any) -> None:
-        """Upsert an NPC's mutable state (hp, position, loot flag)."""
-        self._conn.execute(
-            "INSERT INTO npcs (npc_id, hp, position, loot_dropped, updated_at) "
-            "VALUES (?, ?, ?, ?, datetime('now')) "
-            "ON CONFLICT(npc_id) DO UPDATE SET hp = excluded.hp, "
-            "position = excluded.position, loot_dropped = excluded.loot_dropped, "
-            "updated_at = excluded.updated_at",
-            (npc.npc_id, npc.hp, json.dumps(list(npc.position)), int(npc.loot_dropped)),
+        """Upsert an NPC's mutable state (hp, position, loot flag, mood)."""
+        NPCState.objects.update_or_create(
+            npc_id=npc.npc_id,
+            defaults={
+                "hp": npc.hp,
+                "position": list(npc.position),
+                "loot_dropped": bool(npc.loot_dropped),
+                "mood": getattr(npc, "mood", "neutral") or "neutral",
+            },
         )
-        self._conn.commit()
 
     def load_npc_overrides(self) -> dict[str, dict[str, Any]]:
-        """Return npc_id → {hp, position, loot_dropped} for all persisted NPCs."""
+        """Return npc_id → {hp, position, loot_dropped, mood} for all persisted NPCs."""
         overrides: dict[str, dict[str, Any]] = {}
-        for npc_id, hp, position, loot in self._conn.execute(
-            "SELECT npc_id, hp, position, loot_dropped FROM npcs"
-        ):
-            try:
-                pos = json.loads(position)
-            except (json.JSONDecodeError, TypeError):
-                continue
-            overrides[npc_id] = {"hp": hp, "position": pos, "loot_dropped": bool(loot)}
+        for row in NPCState.objects.all():
+            overrides[row.npc_id] = {
+                "hp": row.hp,
+                "position": list(row.position),
+                "loot_dropped": bool(row.loot_dropped),
+                "mood": row.mood,
+            }
         return overrides
 
     # ── Whole-world snapshot / restore ────────────────────────────────────────
 
     def save_world(self, world_state: WorldState) -> None:
-        """Persist every player and every NPC's mutable state."""
-        for player_id, player in world_state.players.items():
-            self.save_player(player_id, player)
-        for npc in world_state.npcs.values():
-            self.save_npc(npc)
+        """Persist every player and every NPC's mutable state in one transaction."""
+        with transaction.atomic():
+            for player_id, player in world_state.players.items():
+                self.save_player(player_id, player)
+            for npc in world_state.npcs.values():
+                self.save_npc(npc)
 
     def restore_world(self, world_state: WorldState) -> int:
         """Overlay persisted state onto a freshly built WorldState.
 
-        Players are recreated from their JSON documents; NPC overrides apply
-        only to NPCs that already exist (manifest) — except dead procedural
-        NPCs, which are recreated as corpses so ``join_ok`` reports them dead
-        and clients refuse to respawn them. Returns the number of restored rows.
+        Players are lazy-loaded on join. NPC overrides apply only to NPCs that
+        already exist (manifest) — except dead procedural NPCs, which are
+        recreated as corpses so ``join_ok`` reports them dead and clients refuse
+        to respawn them. Returns the number of restored NPC rows.
         """
         from ..world.world_state import NPCData
 
@@ -132,6 +174,7 @@ class GameStore:
                 npc.hp = int(override["hp"])
                 npc.position = [float(c) for c in override["position"]]
                 npc.loot_dropped = bool(override["loot_dropped"])
+                npc.mood = str(override.get("mood", "neutral"))
                 restored += 1
             elif npc_id.startswith(("proc_", "enc_")) and int(override["hp"]) <= 0:
                 world_state.npcs[npc_id] = NPCData(
@@ -141,11 +184,49 @@ class GameStore:
                     hp=0,
                     max_hp=1,
                     position=[float(c) for c in override["position"]],
+                    mood=str(override.get("mood", "neutral")),
                     loot_dropped=bool(override["loot_dropped"]),
                 )
                 restored += 1
 
         return restored
 
+    # ── World objects (player-built) ──────────────────────────────────────────
+
+    def load_world_objects(self) -> dict[str, dict[str, Any]]:
+        """Return object_id → spawn-params dict for every persisted world object."""
+        return {row.object_id: dict(row.params) for row in WorldObject.objects.all()}
+
+    def save_world_objects(self, objects: dict[str, dict[str, Any]]) -> None:
+        """Mirror the full current world-object set: upsert present, drop missing."""
+        with transaction.atomic():
+            keep = set(objects.keys())
+            WorldObject.objects.exclude(object_id__in=keep).delete()
+            for object_id, params in objects.items():
+                WorldObject.objects.update_or_create(
+                    object_id=object_id, defaults={"params": params}
+                )
+
+    # ── NPC relationships (mirror of agent memory) ────────────────────────────
+
+    def save_relationship(self, npc_id: str, player_id: str, score: int, mood: str) -> None:
+        """Upsert the queryable relationship mirror for (npc, player)."""
+        NPCRelationship.objects.update_or_create(
+            npc_id=npc_id,
+            player=player_id,
+            defaults={"relationship_score": int(score), "mood": mood or "neutral"},
+        )
+
+    def load_relationships_for_player(self, player_id: str) -> dict[str, dict[str, Any]]:
+        """Return npc_id → {relationship_score, mood} for a given player."""
+        result: dict[str, dict[str, Any]] = {}
+        for row in NPCRelationship.objects.filter(player=player_id):
+            result[row.npc_id] = {
+                "relationship_score": row.relationship_score,
+                "mood": row.mood,
+            }
+        return result
+
     def close(self) -> None:
-        self._conn.close()
+        """No persistent handle to close (the ORM manages connections)."""
+        return None

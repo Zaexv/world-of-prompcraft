@@ -1,3 +1,5 @@
+import type { PlayerStatePatch } from "../state/PlayerState";
+
 // ── Client → Server Messages ──────────────────────────────────────────────────
 
 export interface PlayerInteraction {
@@ -342,6 +344,8 @@ export interface NPCInitData {
   mood: string;
   personality: string;
   archetype?: string;
+  /** This player's persisted standing with the NPC (−100..100). */
+  relationship_score?: number;
 }
 
 export interface RemotePlayerData {
@@ -388,6 +392,8 @@ export interface JoinOk {
   type: "join_ok";
   playerId: string;
   self_player?: RemotePlayerData;
+  /** Full persisted player state (inventory, gold, mana, quests, equipped). */
+  self_state?: PlayerStatePatch;
   players: RemotePlayerData[];
   npcs: NPCInitData[];
   /** Player-built objects already in the shared world (placed by anyone). */

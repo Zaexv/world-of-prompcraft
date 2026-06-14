@@ -2,23 +2,14 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import pytest
 
-from src.world import world_state as world_state_module
 from src.world.world_state import WorldState
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 @pytest.fixture(autouse=True)
-def _reset_world_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """Reset the singleton and isolate disk persistence to a temp file."""
-    monkeypatch.setattr(
-        world_state_module, "_world_objects_path", lambda: tmp_path / "world_objects.json"
-    )
+def _reset_world_state() -> None:
+    """Reset the singleton between tests."""
     WorldState._instance = None
 
 
@@ -67,19 +58,20 @@ def test_apply_world_action_spawn_and_remove() -> None:
     assert ws.get_world_objects() == []
 
 
-def test_persistence_round_trip(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    target = tmp_path / "world_objects.json"
-    monkeypatch.setattr(world_state_module, "_world_objects_path", lambda: target)
+@pytest.mark.django_db
+def test_persistence_round_trip() -> None:
+    """World objects persist through the GameStore (ORM), not the WorldState."""
+    from src.persistence import GameStore
 
+    store = GameStore()
     ws = WorldState()
     ws.add_world_object({"objectId": "wb_1", "objectType": "tower"})
     ws.add_world_object({"objectId": "wb_2", "objectType": "altar"})
-    ws.save_world_objects()
-    assert target.exists()
+    store.save_world_objects(ws.world_objects_map())
 
-    # Fresh state loads what was persisted.
+    # Fresh state loads what the store persisted.
     WorldState._instance = None
     ws2 = WorldState()
-    ws2.load_world_objects()
+    ws2.world_objects.update(store.load_world_objects())
     ids = {o["objectId"] for o in ws2.get_world_objects()}
     assert ids == {"wb_1", "wb_2"}

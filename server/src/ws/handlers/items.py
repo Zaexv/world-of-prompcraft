@@ -120,8 +120,12 @@ async def handle_equip_item(
     slot = data.get("slot", "")
     equipped = data.get("equipped", {})
 
-    # Store the full equipment state
+    # Runtime cache for combat reads...
     ctx.player_equipment[player_id] = equipped
+    # ...and the persisted single source of truth on the player itself, so gear
+    # survives disconnect/restart.
+    if ctx.world_state is not None:
+        ctx.world_state.get_player(player_id).equipped = dict(equipped)
 
     logger.info("Player %s equipped %s in %s slot", player_id, item_name, slot)
     return {"type": "ack", "status": "ok"}

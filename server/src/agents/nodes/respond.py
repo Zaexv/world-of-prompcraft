@@ -69,7 +69,7 @@ def _looks_like_leaked_reasoning(text: str) -> bool:
     """True when raw content is a reasoning dump or a degenerate repetition loop."""
     if _REASONING_HINT.search(text):
         return True
-    if len(text) > 1000:  # dialogue budget is ~180 tokens; this is runaway
+    if len(text) > 2500:  # dialogue budget is ~512 tokens; this is runaway
         return True
     words = text.split()
     # A loop ("Wait, I'll use ` `." repeated) has very low lexical diversity.

@@ -24,6 +24,9 @@ class PlayerData:
     race: str = "human"
     faction: str = "alliance"
     yaw: float = 0.0
+    # Equipped gear: slot -> item_name (weapon / shield / trinket). Single source
+    # of truth, persisted; mirrored into HandlerContext.player_equipment at runtime.
+    equipped: dict[str, str | None] = field(default_factory=dict)
 
     def to_public_dict(self) -> dict[str, Any]:
         """Return minimal data suitable for broadcasting to other players."""
@@ -55,6 +58,7 @@ class PlayerData:
             "race": self.race,
             "faction": self.faction,
             "yaw": self.yaw,
+            "equipped": dict(self.equipped),
             # Client-facing (camelCase) — what PlayerState.merge consumes.
             "activeQuests": client_quests,
             "completedQuests": list(self.completed_quests),
