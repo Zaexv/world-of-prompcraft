@@ -6,6 +6,7 @@ import {
   type Highlight,
   type NpcCategory,
 } from "./npcText";
+import { relationshipBand } from "./relationship";
 
 /** Optional per-message styling for NPC dialogue (category accent + highlights). */
 export interface NpcMessageStyle {
@@ -250,22 +251,11 @@ export class InteractionPanel extends UIComponent {
     this.moodLabel.textContent       = cfg.label;
     this.moodLabel.style.color       = cfg.color;
 
-    const pct = Math.max(0, Math.min(100, (relationshipScore + 100) / 2));
-    this.relFill.style.width = `${pct}%`;
-    this.relFill.style.background =
-      relationshipScore < -30 ? "#cc2222" :
-      relationshipScore < 10  ? "#ccaa22" : "#22cc44";
-
-    this.relLabel.textContent =
-      relationshipScore <= -50 ? "ENEMY"   :
-      relationshipScore <= -10 ? "WARY"    :
-      relationshipScore <=  10 ? "STRANGER":
-      relationshipScore <=  50 ? "FRIEND"  : "ALLY";
-    this.relLabel.style.color =
-      relationshipScore <= -50 ? "#cc4444" :
-      relationshipScore <= -10 ? "#cc8844" :
-      relationshipScore <=  10 ? "rgba(197,165,90,0.6)" :
-      relationshipScore <=  50 ? "#88cc44" : "#44cc44";
+    const band = relationshipBand(relationshipScore);
+    this.relFill.style.width      = `${band.pct}%`;
+    this.relFill.style.background = band.fill;
+    this.relLabel.textContent     = band.label;
+    this.relLabel.style.color     = band.color;
   }
 
   clearHistory(npcId: string): void {

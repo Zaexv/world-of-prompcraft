@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from typing import TYPE_CHECKING, Any
@@ -12,8 +13,10 @@ from .tools import get_all_tools
 
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
+    from langgraph.checkpoint.base import BaseCheckpointSaver
     from langgraph.graph.state import CompiledStateGraph as CompiledGraph
 
+    from ..persistence import GameStore
     from ..world.world_state import WorldState
 
 logger = logging.getLogger(__name__)
@@ -43,9 +46,20 @@ def _build_input_state(
 class AgentRegistry:
     """Creates and manages one LangGraph agent per NPC."""
 
-    def __init__(self, llm: BaseChatModel, world_state: WorldState) -> None:
+    def __init__(
+        self,
+        llm: BaseChatModel,
+        world_state: WorldState,
+        checkpointer: BaseCheckpointSaver[Any] | None = None,
+        store: GameStore | None = None,
+    ) -> None:
         self._llm = llm
         self._world_state = world_state
+        # Persistent NPC memory (relationship / summary / messages). None →
+        # each agent falls back to an in-process MemorySaver (wiped on restart).
+        self._checkpointer = checkpointer
+        # Queryable relationship mirror (for UI / admin). Optional.
+        self._store = store
         self._agents: dict[str, CompiledGraph] = {}  # type: ignore[type-arg]
         # Each NPC gets its own shared pending_actions list and world_state snapshot dict
         # so that tool closures can write into them during invocation.
@@ -77,6 +91,7 @@ class AgentRegistry:
                 tools=tools,
                 shared_pending_actions=pending_actions,
                 world_state=self._world_state,
+                checkpointer=self._checkpointer,
             )
             self._agents[npc_id] = agent
             self._shared_state[npc_id] = {
@@ -103,6 +118,7 @@ class AgentRegistry:
             tools=tools,
             shared_pending_actions=pending_actions,
             world_state=self._world_state,
+            checkpointer=self._checkpointer,
         )
         self._agents[npc_id] = agent
         self._shared_state[npc_id] = {
@@ -148,6 +164,7 @@ class AgentRegistry:
                 tools=tools,
                 shared_pending_actions=pending_actions,
                 world_state=self._world_state,
+                checkpointer=self._checkpointer,
             )
             self._agents[npc_id] = agent
             self._shared_state[npc_id] = {
@@ -247,12 +264,24 @@ class AgentRegistry:
 
         npc_state_update: dict[str, Any] | None = None
         if npc:
+            mood = result.get("mood", "neutral")
+            score = int(result.get("relationship_score", 0))
+            # Persist mood on the world NPC so it survives the next world save.
+            npc.mood = mood
             npc_state_update = {
                 "hp": npc.hp,
                 "maxHp": npc.max_hp,
-                "mood": result.get("mood", "neutral"),
-                "relationship_score": result.get("relationship_score", 0),
+                "mood": mood,
+                "relationship_score": score,
             }
+            # Mirror the relationship into the queryable store (best-effort).
+            if self._store is not None:
+                try:
+                    await asyncio.to_thread(
+                        self._store.save_relationship, npc_id, player_id, score, mood
+                    )
+                except Exception:
+                    logger.exception("Failed mirroring relationship for %s/%s", npc_id, player_id)
 
         response_payload = {
             "dialogue": result.get("response_text", EMPTY_DIALOGUE),

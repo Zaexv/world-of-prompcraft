@@ -39,4 +39,9 @@ server/.coverage.*
 *.log
 shared/data/world_objects.json
 data/*.db
+data/*.db-*
+data/*.sqlite3
 server/data/
+# SQLite WAL/SHM sidecars from the embedded Django persistence layer
+*.db-wal
+*.db-shm

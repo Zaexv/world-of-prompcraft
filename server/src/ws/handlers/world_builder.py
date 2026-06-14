@@ -122,7 +122,12 @@ async def _persist_and_broadcast_world_actions(
     if ctx.world_state is not None:
         for action in world_actions:
             ctx.world_state.apply_world_action(action)
-        ctx.world_state.save_world_objects()
+        if ctx.store is not None:
+            import asyncio
+
+            await asyncio.to_thread(
+                ctx.store.save_world_objects, ctx.world_state.world_objects_map()
+            )
     if ctx.manager is not None:
         await ctx.manager.broadcast(
             {"type": "world_objects_update", "actions": world_actions},

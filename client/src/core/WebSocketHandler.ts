@@ -158,6 +158,7 @@ export class WebSocketHandler {
               archetype: n.archetype,
               scale: n.scale,
               mood: n.mood,
+              relationship_score: n.relationship_score ?? 0,
             });
           }
         } else {

@@ -1,13 +1,11 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import math
 import time
 from collections import deque
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any
 
 from ..agents.personalities.templates import NPC_PERSONALITIES
@@ -16,12 +14,6 @@ from .player_state import PlayerData
 from .zones import get_zone, get_zone_description
 
 logger = logging.getLogger(__name__)
-
-
-def _world_objects_path() -> Path:
-    """Disk location for persisted player-built world objects (shared with the manifest)."""
-    base_dir = Path(__file__).resolve().parents[3]
-    return base_dir / "shared" / "data" / "world_objects.json"
 
 
 @dataclass
@@ -91,7 +83,8 @@ class WorldState:
         # spawn params dict (objectId, objectType, position, scale, label, spec?).
         self.world_objects: dict[str, dict[str, Any]] = {}
         self.refresh_npcs()
-        self.load_world_objects()
+        # World objects are loaded from the persistence store at startup (lifespan),
+        # not here — WorldState stays free of any storage backend.
 
     def refresh_npcs(self) -> None:
         """Synchronize in-memory NPCs with the manifest definitions."""
@@ -227,29 +220,9 @@ class WorldState:
         elif kind == "world_remove":
             self.remove_world_object(str(params.get("objectId", "")))
 
-    def load_world_objects(self) -> None:
-        """Load persisted world objects from disk (best-effort)."""
-        path = _world_objects_path()
-        try:
-            if not path.exists():
-                return
-            data = json.loads(path.read_text())
-            objects = data.get("objects", []) if isinstance(data, dict) else data
-            self.world_objects = {
-                str(o["objectId"]): o for o in objects if isinstance(o, dict) and o.get("objectId")
-            }
-            logger.info("Loaded %d persisted world objects", len(self.world_objects))
-        except Exception:
-            logger.exception("Failed loading world objects from %s", path)
-
-    def save_world_objects(self) -> None:
-        """Persist world objects to disk (best-effort)."""
-        path = _world_objects_path()
-        try:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(json.dumps({"objects": self.get_world_objects()}, indent=2))
-        except Exception:
-            logger.exception("Failed saving world objects to %s", path)
+    def world_objects_map(self) -> dict[str, dict[str, Any]]:
+        """Return a shallow copy of object_id → params for persistence."""
+        return dict(self.world_objects)
 
     # ---- Context ----
 
@@ -287,6 +260,11 @@ class WorldState:
     async def apply_actions(self, actions: list[dict[str, Any]]) -> None:
         """Mutate world state based on a list of action dicts."""
         async with self._lock:
+            # Reward feedback (give_gold/give_item/grant_xp/complete_quest) produced
+            # while completing a quest. Collected here and appended to ``actions``
+            # AFTER the loop so the client renders the reward banners without these
+            # being re-processed (which would double-credit gold/items).
+            reward_actions: list[dict[str, Any]] = []
             for action in actions:
                 kind = action.get("kind")
                 params = action.get("params", {})
@@ -404,7 +382,7 @@ class WorldState:
                         if player.all_objectives_complete(quest_id):
                             from .quest_progress import complete_and_reward
 
-                            complete_and_reward(player, quest_id)
+                            reward_actions.extend(complete_and_reward(player, quest_id))
 
                 elif kind == "complete_quest":
                     pid = params.get("player_id", "")
@@ -413,7 +391,13 @@ class WorldState:
                         from .quest_progress import complete_and_reward
 
                         player = self.get_player(pid)
-                        complete_and_reward(player, quest_id)
+                        # Drop the duplicate complete_quest banner — the originating
+                        # action already carries it; keep only the reward feedback.
+                        reward_actions.extend(
+                            a
+                            for a in complete_and_reward(player, quest_id)
+                            if a.get("kind") != "complete_quest"
+                        )
                         self.recent_events.append(f"{pid} completed quest {quest_id}")
 
                 elif kind == "move_npc":
@@ -425,3 +409,7 @@ class WorldState:
                         npc.position = [float(position[0]), float(position[1]), float(position[2])]
 
                 # spawn_effect, emote are purely visual — client only
+
+            # Surface quest reward feedback to the client. Appended post-loop so it
+            # is sent (the caller forwards this same list) but not re-applied.
+            actions.extend(reward_actions)

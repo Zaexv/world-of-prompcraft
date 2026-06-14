@@ -93,13 +93,19 @@ async def handle_join(
         # Returning player not in memory (left earlier / server restarted after
         # their save): restore the persisted document before initializing.
         if is_new_player and ctx.store is not None:
-            doc = ctx.store.load_player(username)
+            import asyncio
+
+            doc = await asyncio.to_thread(ctx.store.load_player, username)
             if doc:
                 from ...world.player_state import PlayerData
 
                 try:
-                    world_state.players[username] = PlayerData(**doc)
+                    restored_player = PlayerData(**doc)
+                    world_state.players[username] = restored_player
                     is_new_player = False
+                    # Seed the runtime equipment cache (combat reads) from the
+                    # restored single-source-of-truth equipped gear.
+                    ctx.player_equipment[username] = dict(restored_player.equipped or {})
                     logger.info(f"Restored persisted state for returning player: {username}")
                 except TypeError:
                     logger.warning(f"Stale persisted schema for {username} — starting fresh")
@@ -121,11 +127,24 @@ async def handle_join(
             if pid != username and pid in manager.active_connections:
                 current_players.append(p.to_public_dict())
 
-    # Build NPC list
+    # Build NPC list, annotating each with this player's persisted relationship
+    # so the interaction UI shows the right standing before the first chat.
     current_npcs: list[dict[str, Any]] = []
     if world_state is not None:
+        relationships: dict[str, dict[str, Any]] = {}
+        if ctx.store is not None:
+            import asyncio
+
+            relationships = await asyncio.to_thread(
+                ctx.store.load_relationships_for_player, username
+            )
         for npc in world_state.npcs.values():
-            current_npcs.append(npc.to_dict())
+            npc_dict = npc.to_dict()
+            rel = relationships.get(npc.npc_id)
+            if rel is not None:
+                npc_dict["relationship_score"] = rel["relationship_score"]
+                npc_dict["mood"] = rel.get("mood", npc_dict.get("mood", "neutral"))
+            current_npcs.append(npc_dict)
 
     # Broadcast player_joined to everyone else
     if world_state is not None:

@@ -236,6 +236,12 @@ export class GameEngine {
 
       d.uiManager.showInteractionPanel(npcId, npcName);
       const npcState = d.npcStateStore.getState(npcId);
+      // Seed the panel with the persisted relationship/mood so a returning
+      // player sees their real standing before saying a word.
+      d.uiManager.interactionPanel.updateMoodStatus(
+        npcState?.mood ?? "neutral",
+        npcState?.relationship_score ?? 0,
+      );
       const isHostile = npcState?.archetype?.includes("hostile") || npcState?.mood === "angry";
       if (isHostile) {
         d.uiManager.showCombatHUD(npcId, npcName, npcState?.hp ?? 100, npcState?.maxHp ?? 100);

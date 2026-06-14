@@ -342,6 +342,8 @@ export interface NPCInitData {
   mood: string;
   personality: string;
   archetype?: string;
+  /** This player's persisted standing with the NPC (−100..100). */
+  relationship_score?: number;
 }
 
 export interface RemotePlayerData {

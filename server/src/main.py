@@ -30,9 +30,33 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """Initialize world state and agent registry on startup."""
     logger.info("Initializing World of Promptcraft backend...")
 
+    # Embedded Django ORM: configure + migrate the persistence schema before any
+    # store/world access. Migration runs in a thread (sync ORM, blocking I/O).
+    from .persistence.django_setup import run_migrations, setup_django
+
+    setup_django()
+    await asyncio.to_thread(run_migrations)
+
     llm = get_llm(settings)
     world_state = WorldState()
-    registry = AgentRegistry(llm=llm, world_state=world_state)
+
+    # Persistence: open the store + the persistent NPC-memory checkpointer before
+    # building agents, so every agent is wired to durable memory from the start.
+    global _store
+    save_task: asyncio.Task[None] | None = None
+    checkpointer = None
+    checkpointer_cm = None
+    if settings.persistence_db_path:
+        from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+
+        _store = GameStore()
+        checkpointer_cm = AsyncSqliteSaver.from_conn_string(settings.persistence_db_path)
+        checkpointer = await checkpointer_cm.__aenter__()
+        await checkpointer.setup()
+
+    registry = AgentRegistry(
+        llm=llm, world_state=world_state, checkpointer=checkpointer, store=_store
+    )
 
     pending_world_actions: list[Any] = []
     # The world builder needs a much larger generation budget than NPC dialogue:
@@ -42,14 +66,24 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     )
     world_builder_agent = create_world_builder_agent(builder_llm, pending_world_actions)
 
-    # Persistence: restore the previous session's world, then save periodically.
-    global _store
-    save_task: asyncio.Task[None] | None = None
-    if settings.persistence_db_path:
-        _store = GameStore(settings.persistence_db_path)
+    # Restore the previous session's world, then save periodically.
+    if _store is not None:
+        # One-shot migration of any pre-ORM blob data / world_objects.json.
+        from .persistence.importer import import_legacy_data
+
+        migrated = await asyncio.to_thread(import_legacy_data, settings.persistence_db_path, _store)
+        if migrated:
+            logger.info("Migrated %d legacy rows into the ORM schema", migrated)
+
         world_state.refresh_npcs()  # build manifest NPCs first so overrides apply
-        restored = _store.restore_world(world_state)
-        logger.info("Restored %d persisted rows from %s", restored, settings.persistence_db_path)
+        restored = await asyncio.to_thread(_store.restore_world, world_state)
+        # Restore player-built world objects into the in-memory world.
+        world_state.world_objects.update(await asyncio.to_thread(_store.load_world_objects))
+        logger.info(
+            "Restored %d persisted NPC rows and %d world objects",
+            restored,
+            len(world_state.world_objects),
+        )
         save_task = asyncio.create_task(_periodic_save(_store, world_state))
 
     init_handler(
@@ -75,9 +109,11 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     if save_task is not None:
         save_task.cancel()
     if _store is not None:
-        _store.save_world(world_state)
+        await asyncio.to_thread(_store.save_world, world_state)
         _store.close()
         _store = None
+    if checkpointer_cm is not None:
+        await checkpointer_cm.__aexit__(None, None, None)
     logger.info("Shutting down World of Promptcraft backend.")
 
 
@@ -93,7 +129,7 @@ async def _periodic_save(store: GameStore, world_state: WorldState) -> None:
     while True:
         await asyncio.sleep(settings.persistence_save_interval_seconds)
         try:
-            store.save_world(world_state)
+            await asyncio.to_thread(store.save_world, world_state)
         except asyncio.CancelledError:
             raise
         except Exception:
@@ -172,7 +208,7 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 player = world_state.players.get(player_id)
                 if player is not None and _store is not None:
                     try:
-                        _store.save_player(player_id, player)
+                        await asyncio.to_thread(_store.save_player, player_id, player)
                     except Exception:
                         logger.exception("Failed persisting %s on disconnect", player_id)
                 world_state.players.pop(player_id, None)

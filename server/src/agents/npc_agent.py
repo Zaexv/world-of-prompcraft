@@ -16,6 +16,7 @@ from .nodes.summarize import make_summarize_node, route_after_reflect
 if TYPE_CHECKING:
     from langchain_core.language_models import BaseChatModel
     from langchain_core.tools import BaseTool
+    from langgraph.checkpoint.base import BaseCheckpointSaver
     from langgraph.graph.state import CompiledStateGraph as CompiledGraph
 
     from ..world.world_state import WorldState
@@ -37,6 +38,7 @@ def create_npc_agent(
     tools: list[BaseTool],
     shared_pending_actions: list[Any],
     world_state: WorldState,
+    checkpointer: BaseCheckpointSaver[Any] | None = None,
 ) -> CompiledGraph:  # type: ignore[type-arg]
     """Build and compile a LangGraph agent for a single NPC.
 
@@ -50,6 +52,9 @@ def create_npc_agent(
         tools: Pre-built tools (closed over shared mutable state).
         shared_pending_actions: The mutable list tools append actions to.
         world_state: The WorldState instance (for context lookups).
+        checkpointer: Persistent memory backend keyed by ``thread_id``. When None
+            (tests / no persistence) falls back to an in-process ``MemorySaver``
+            that is wiped on restart.
     """
     reason_node = make_reason_node(llm, tools, shared_pending_actions)
     act_node = make_act_node(tools, shared_pending_actions)
@@ -79,5 +84,4 @@ def create_npc_agent(
     )
     graph.add_edge("summarize", END)
 
-    checkpointer = MemorySaver()
-    return graph.compile(checkpointer=checkpointer)
+    return graph.compile(checkpointer=checkpointer or MemorySaver())
