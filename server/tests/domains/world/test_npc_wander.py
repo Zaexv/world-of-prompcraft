@@ -1,4 +1,10 @@
-"""Tests for server-authoritative NPC wandering (src/world/npc_wander.py)."""
+"""Tests for server-authoritative NPC roaming intent (src/world/npc_wander.py).
+
+The server assigns roam GOALS (it owns intent); clients navigate to them. Each
+``step_npcs`` call returns the goals chosen this tick and advances
+``npc.position`` to the goal optimistically. Tests advance ``now`` so the per-NPC
+goal schedule (next_goal_at) actually fires across iterations.
+"""
 
 from __future__ import annotations
 
@@ -42,16 +48,18 @@ def test_no_players_no_movement() -> None:
     assert world.npcs["n1"].position == [10.0, 0.0, 10.0]
 
 
-def test_npc_near_player_wanders_within_radius_of_home() -> None:
+def test_npc_near_player_roams_within_radius_of_home() -> None:
     world = WorldState()
     _spawn(world, "n1", [10.0, 2.0, 10.0])
     player = world.get_player("p1")
     player.position = [12.0, 0.0, 12.0]
 
     homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     rng = random.Random(7)
-    for _ in range(200):  # many ticks — drift must stay bounded
-        step_npcs(world, homes, rng)
+    for t in range(200):  # many goal legs — drift must stay bounded
+        step_npcs(world, homes, rng, float(t), headings, sched)
 
     assert homes["n1"] == [10.0, 2.0, 10.0], "home anchors at the first-seen position"
     pos = world.npcs["n1"].position
@@ -67,9 +75,12 @@ def test_far_npc_and_dead_npc_do_not_move() -> None:
     player = world.get_player("p1")
     player.position = [0.0, 0.0, 0.0]
 
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     rng = random.Random(1)
-    for _ in range(50):
-        updates = step_npcs(world, {}, rng)
+    for t in range(50):
+        updates = step_npcs(world, homes, rng, float(t), headings, sched)
         assert all(u["npcId"] not in ("far", "dead") for u in updates)
 
     assert world.npcs["far"].position == [ACTIVE_RADIUS * 3, 0.0, 0.0]
@@ -83,17 +94,20 @@ def test_fixed_npc_never_moves() -> None:
     player = world.get_player("p1")
     player.position = [5.0, 0.0, 5.0]
 
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     rng = random.Random(9)
-    for _ in range(100):
-        updates = step_npcs(world, {}, rng)
+    for t in range(100):
+        updates = step_npcs(world, homes, rng, float(t), headings, sched)
         assert all(u["npcId"] != "statue" for u in updates)
 
     assert world.npcs["statue"].position == [5.0, 0.0, 5.0]
 
 
-def test_every_non_fixed_npc_moves_each_active_tick() -> None:
-    # Only `fixed` makes an NPC static now — a non-fixed NPC moves every tick it
-    # is active, even with wander_radius 0 (floored to MIN_WANDER_RADIUS).
+def test_every_non_fixed_npc_roams() -> None:
+    # Only `fixed` makes an NPC static — every other active NPC gets roam goals,
+    # even with wander_radius 0 (floored to MIN_WANDER_RADIUS).
     world = WorldState()
     _spawn(world, "a", [5.0, 0.0, 5.0])
     rooted = _spawn(world, "b", [6.0, 0.0, 6.0])
@@ -102,11 +116,14 @@ def test_every_non_fixed_npc_moves_each_active_tick() -> None:
     player.position = [5.0, 0.0, 5.0]
 
     rng = random.Random(11)
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     moved = {"a": False, "b": False}
-    for _ in range(5):
-        for u in step_npcs(world, {}, rng, headings={}):
+    for t in range(40):
+        for u in step_npcs(world, homes, rng, float(t), headings, sched):
             moved[u["npcId"]] = True
-    assert moved["a"] and moved["b"], "every active non-fixed NPC must move"
+    assert moved["a"] and moved["b"], "every active non-fixed NPC must get roam goals"
 
 
 def test_summoned_npc_is_left_alone_until_suppression_expires() -> None:
@@ -117,20 +134,26 @@ def test_summoned_npc_is_left_alone_until_suppression_expires() -> None:
     player.position = [5.0, 0.0, 5.0]
 
     rng = random.Random(13)
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
 
-    # Before expiry: never moves no matter how many ticks.
-    for _ in range(50):
-        updates = step_npcs(world, {}, rng, now=50.0)
+    # Before expiry: never assigned a goal no matter how many ticks.
+    for t in range(50):
+        updates = step_npcs(world, homes, rng, float(t), headings, sched)
         assert all(u["npcId"] != "summoned" for u in updates)
     assert world.npcs["summoned"].position == [5.0, 0.0, 5.0]
 
-    # After expiry: free to wander again.
+    # After expiry: free to roam again.
     moved = False
-    for _ in range(50):
-        if any(u["npcId"] == "summoned" for u in step_npcs(world, {}, rng, now=150.0)):
+    for t in range(101, 200):
+        if any(
+            u["npcId"] == "summoned"
+            for u in step_npcs(world, homes, rng, float(t), headings, sched)
+        ):
             moved = True
             break
-    assert moved, "wandering resumes once suppression expires"
+    assert moved, "roaming resumes once suppression expires"
 
 
 def test_per_npc_wander_radius_overrides_default() -> None:
@@ -141,10 +164,12 @@ def test_per_npc_wander_radius_overrides_default() -> None:
     player.position = [10.0, 0.0, 10.0]
 
     homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     rng = random.Random(5)
     max_dist = 0.0
-    for _ in range(400):
-        step_npcs(world, homes, rng)
+    for t in range(400):
+        step_npcs(world, homes, rng, float(t), headings, sched)
         pos = world.npcs["rover"].position
         max_dist = max(max_dist, math.sqrt((pos[0] - 10.0) ** 2 + (pos[2] - 10.0) ** 2))
 
@@ -152,20 +177,23 @@ def test_per_npc_wander_radius_overrides_default() -> None:
     assert max_dist > WANDER_RADIUS, "the wider per-NPC radius is actually used"
 
 
-def test_updates_carry_npc_id_and_new_position() -> None:
+def test_updates_carry_npc_id_and_goal_position() -> None:
     world = WorldState()
     # Far from the origin so the world's built-in starter NPCs stay inactive.
     _spawn(world, "n1", [1000.0, 0.0, 1000.0])
     player = world.get_player("p1")
     player.position = [1000.0, 0.0, 1000.0]
 
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    sched: dict[str, float] = {}
     rng = random.Random(3)
     updates: list[dict[str, Any]] = []
-    for _ in range(20):
-        updates.extend(step_npcs(world, {}, rng))
-    assert updates, "an adjacent NPC must move within 20 ticks"
+    for t in range(40):
+        updates.extend(step_npcs(world, homes, rng, float(t), headings, sched))
+    assert updates, "an adjacent NPC must get a goal within the window"
     for u in updates:
         assert u["npcId"] == "n1"
         assert len(u["position"]) == 3
-    # The last reported position is the NPC's authoritative position.
+    # The last reported goal is the NPC's authoritative position.
     assert updates[-1]["position"] == world.npcs["n1"].position

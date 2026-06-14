@@ -360,27 +360,28 @@ export class GameEngine {
 
     if (dialogFocusActive && d.runtime.activeNpcId) {
       const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
-      // Fixed NPCs never move — don't summon or stream them.
+      // Fixed NPCs never move — don't summon or follow them.
       if (npc && !npc.fixed) {
-        // On first focus, walk the NPC to the player (stops ~1.5m away).
+        // Force an immediate re-target the frame the NPC becomes the focus.
         if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
           this.activeDialogNpcId = d.runtime.activeNpcId;
-          this.npcMoveStreamTimer = 0;
-          const dx = npc.position.x - d.playerController.position.x;
-          const dz = npc.position.z - d.playerController.position.z;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist > 1.5) {
-            const nx = d.playerController.position.x + (dx / dist) * 1.5;
-            const nz = d.playerController.position.z + (dz / dist) * 1.5;
-            npc.walkToServerPosition(new THREE.Vector3(nx, npc.position.y, nz));
-          }
+          this.npcMoveStreamTimer = NPC_MOVE_STREAM_INTERVAL;
         }
-        // Stream the NPC's live position so the server (and other players) see
-        // the approach in real time, and the server holds off wandering it away.
+        // Continuously walk the NPC toward the player (stopping ~1.5m away), so
+        // it FOLLOWS as the player moves. sendNPCMove makes the server own that
+        // target + suppress its wander so it stays instead of strolling off.
         this.npcMoveStreamTimer += delta;
         if (this.npcMoveStreamTimer >= NPC_MOVE_STREAM_INTERVAL) {
           this.npcMoveStreamTimer = 0;
-          d.ws.sendNPCMove(npc.id, [npc.position.x, npc.position.y, npc.position.z]);
+          const px = d.playerController.position.x;
+          const pz = d.playerController.position.z;
+          const dx = npc.position.x - px;
+          const dz = npc.position.z - pz;
+          const dist = Math.sqrt(dx * dx + dz * dz) || 1;
+          const tx = dist > 1.5 ? px + (dx / dist) * 1.5 : npc.position.x;
+          const tz = dist > 1.5 ? pz + (dz / dist) * 1.5 : npc.position.z;
+          npc.walkToServerPosition(new THREE.Vector3(tx, npc.position.y, tz));
+          d.ws.sendNPCMove(npc.id, [tx, npc.position.y, tz]);
         }
       } else {
         this.activeDialogNpcId = d.runtime.activeNpcId;

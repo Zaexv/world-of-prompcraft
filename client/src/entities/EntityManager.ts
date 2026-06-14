@@ -268,13 +268,14 @@ export class EntityManager {
     for (const npc of this.npcList) {
       if (!npc.mesh.visible) continue;
 
-      // Server-driven NPCs follow their target every frame for ANY visible NPC
-      // (cheap: no collision/pathfind). This matches the server's broadcast
-      // range so nothing you can see is ever frozen — and avoids the gap where
-      // the server (150m) pushes positions but the client (120m) ignored them.
+      // Server-driven NPCs navigate to the server's roam GOAL every frame for any
+      // visible NPC (server owns intent; client owns collision-aware navigation
+      // via NPCWander). Covers the full visible range so nothing on screen freezes,
+      // closing the gap where the server (150m) assigns goals the client (120m)
+      // would otherwise ignore. NPCs without a goal early-out cheaply (idle).
       if (npc.isServerDriven && getHeightAt) {
         npc.update(delta);
-        npc.followServerTarget(delta, getHeightAt);
+        npc.updateWander(delta, getHeightAt, collisionSystem);
         continue;
       }
 
