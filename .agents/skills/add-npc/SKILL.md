@@ -1,6 +1,6 @@
 ---
-name: npc-registry-manager
-description: Manage the global NPC registry for Promptcraft. Use this skill to add or remove persistent characters from the world by updating the NPC list in the world manifest. This affects both server-side AI logic and client-side rendering.
+name: add-npc
+description: Add (or remove) persistent NPC characters in World of Promptcraft. Use this skill to manage the global NPC registry — personality, definition, placement — by updating the world manifest. Affects both server-side AI logic and client-side rendering.
 argument-hint: [action and NPC details, e.g. "add a guard named Bob at 50, 50"]
 ---
 

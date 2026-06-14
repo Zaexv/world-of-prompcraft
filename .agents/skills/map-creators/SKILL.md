@@ -1,8 +1,21 @@
 ---
-name: agentic-world-designer
-description: Architect and reshape the infinite world of Promptcraft. Use this skill to modify the global environment (biomes, transitions, colors), create terrain features (mountains, valleys), and place persistent landmarks by updating the world manifest.
-argument-hint: [feature to modify, e.g. "make the Ember Wastes more jagged" or "add a mountain at -500, 500"]
+name: map-creators
+description: Architect, reshape, and harden the infinite world of Promptcraft. Use to modify the global environment (biomes, transitions, colors), create terrain features (mountains, valleys), place persistent landmarks via the world manifest, implement new world CONTENT (buildings, vegetation, effects, collision), and debug terrain (seams, gaps, LOD artifacts, chunk streaming, player-ground physics).
+argument-hint: [feature to modify, e.g. "make the Ember Wastes more jagged", "add a mountain at -500, 500", or "fix terrain seams"]
 ---
+
+# Map Creators
+
+Three modes — pick by intent:
+
+1. **Design (manifest)** — default flow below. Edit `shared/data/world_manifest.json`:
+   biomes, topology, zones, landmarks. Data-driven, no code.
+2. **Extend (content)** — when you must implement NEW visual assets (tree types,
+   building geometries, shaders, effects) or fix collision coverage before deploying
+   them in the manifest. See **`reference/extend-world.md`**.
+3. **Debug terrain** — when fixing terrain seams/gaps, clipping, LOD artifacts, chunk
+   streaming, mountain generation, or player-ground physics consistency. See
+   **`reference/terrain-debug.md`**.
 
 # Agentic World Designer
 
@@ -49,8 +62,8 @@ You are the supreme architect of **World of Promptcraft**. You have the power to
 - **Lore-Consistency**: Ensure colors, loot, and characters reflect the magical fantasy theme.
 - **Persistence**: Every change is "canon" and will persist for all players.
 
-## Integration with `extend-world`
+## Integration with Extend (content) mode
 
 If you need to define new visual assets (new tree types, new building geometries, new shaders):
-1. Use the `extend-world` skill to implement the code.
-2. Use `agentic-world-designer` to deploy those assets into the manifest.
+1. Follow `reference/extend-world.md` (Extend mode) to implement the code.
+2. Return to Design mode (manifest) to deploy those assets into the manifest.

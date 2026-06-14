@@ -31,6 +31,35 @@ A 3D multiplayer RPG built entirely around **natural language**. Type anything �
 
 ---
 
+## 🛠️ Skills
+
+Agent skills live in [`.agents/skills/`](.agents/skills/) (`.claude/skills` is a
+symlink to it). Invoke with `/<skill>` or let the agent trigger them.
+
+### Game content
+
+| Skill | What it does |
+|-------|--------------|
+| **`install-game`** | Install deps and run the game locally — backend (FastAPI + LangGraph, :8000) and frontend (Three.js + Vite, :5173). |
+| **`add-npc`** | Add/remove persistent NPCs — personality, definition, placement — via the world manifest. |
+| **`add-mesh`** | Add a mesh (building/prop/vegetation) from a picture or from scratch; includes Three.js geometry reference + quality-audit checklist. |
+| **`map-creators`** | Reshape the world: biomes, topology, landmarks (manifest), extend content (collision/assets), and debug terrain (seams/LOD/streaming). |
+| **`add-quest`** | Author quests — curated templates or improvised — objectives, rewards, progress flow (server-authoritative). |
+| **`add-tool`** | Add a new LangGraph agent tool: a typed NPC action wired through tool → registry → client effect. |
+| **`performance-review`** | Profile and report perf — client render pipeline (draw calls, GC, LOD, shaders) and server (agent latency, WS throughput). |
+
+### Workflow helpers
+
+| Skill | What it does |
+|-------|--------------|
+| **`commit`** | Draft and create a git commit for current changes. |
+| **`create-architecture`** | Regenerate `client/`/`server/` `ARCHITECTURE.md` with accurate Mermaid diagrams. |
+| **`rpi-research`** | Deep codebase research → written report. |
+| **`rpi-plan`** | Create detailed, phased implementation plans. |
+| **`rpi-implement`** | Execute approved plans phase by phase with verification. |
+
+---
+
 ## ✨ What Makes This Different
 
 Most games give you buttons: *Attack*, *Trade*, *Talk*. Promptcraft gives you a **text box**.
