@@ -49,6 +49,12 @@ export class TerrainEditor {
   private brushIntensity = 5;
   private selectedType: string = 'pavilion';
   private selectedGroundType: string = 'grass';
+  // Full NPC info captured by the editor's NPC designer form; applied on placeNPC.
+  private npcDesign: { name: string; archetype: string; flavorPrompt: string; hp: number; skin: string } = {
+    name: '', archetype: '', flavorPrompt: '', hp: 0, skin: '',
+  };
+  // When set, NPC form edits apply live to this existing NPC instead of the next placed one.
+  private editingNpcId: string | null = null;
 
   // ── Cursor visuals ──────────────────────────────────────────────────────
   private cursor: THREE.Group;
@@ -447,6 +453,79 @@ export class TerrainEditor {
   public setBrushRadius(r: number): void { this.brushRadius = r; this.brushGroup.scale.setScalar(r / 15); }
   public setBrushIntensity(i: number): void { this.brushIntensity = i; }
   public setSelectedAsset(t: string, _: string): void { this.selectedType = t; this.updatePreview(); }
+
+  /** Set the full NPC info from the editor form. Applies live when editing an
+   * existing NPC; otherwise configures the next placed NPC. Skin drives the
+   * placement ghost preview. */
+  public setNpcDesign(
+    d: Partial<{ name: string; archetype: string; flavorPrompt: string; hp: number; skin: string }>
+  ): void {
+    this.npcDesign = { ...this.npcDesign, ...d };
+    if (d.skin) this.setSelectedAsset(d.skin, 'npc');  // live ghost preview matches skin
+    if (this.editingNpcId) this.applyNpcEdit();
+  }
+
+  /** Existing NPCs in the manifest, for the editor's NPC list. */
+  public getNpcList(): Array<{ id: string; name: string; archetype: string; skin: string; hp: number }> {
+    return this.worldManifest.getNPCs().map((n) => ({
+      id: n.id,
+      name: n.identity.name,
+      archetype: n.ai.archetype || n.identity.role || '',
+      skin: n.ai.style || '',
+      hp: n.stats.max_hp,
+    }));
+  }
+
+  /** Load an existing NPC into the form for editing. Returns its info, or null. */
+  public beginEditNpc(id: string): { name: string; archetype: string; flavorPrompt: string; hp: number; skin: string } | null {
+    const n = this.worldManifest.getNPCs().find((x) => x.id === id);
+    if (!n) return null;
+    this.editingNpcId = id;
+    this.npcDesign = {
+      name: n.identity.name,
+      archetype: n.ai.archetype || '',
+      flavorPrompt: n.ai.flavor_prompt || '',
+      hp: n.stats.max_hp,
+      skin: n.ai.style || '',
+    };
+    return { ...this.npcDesign };
+  }
+
+  /** Stop editing an existing NPC; subsequent form values configure new placements. */
+  public clearNpcEdit(): void {
+    this.editingNpcId = null;
+  }
+
+  /** Apply the current form values to the NPC being edited: manifest + live mesh. */
+  private applyNpcEdit(): void {
+    if (!this.editingNpcId) return;
+    const n = this.worldManifest.getNPCs().find((x) => x.id === this.editingNpcId);
+    if (!n) { this.editingNpcId = null; return; }
+    const d = this.npcDesign;
+    n.identity.name = d.name.trim() || n.identity.name;
+    if (d.archetype) { n.ai.archetype = d.archetype; n.identity.role = d.archetype; }
+    if (d.flavorPrompt.trim()) n.ai.flavor_prompt = d.flavorPrompt.trim();
+    if (d.skin) n.ai.style = d.skin;
+    if (d.hp > 0) n.stats.max_hp = d.hp;
+
+    // Live visual refresh: respawn the mesh with the new skin/name.
+    const em = (this as any).entityManager;
+    if (em) {
+      const existing = em.npcs.get(this.editingNpcId);
+      const pos = existing ? existing.position.clone() : new THREE.Vector3(...n.transform.position);
+      em.removeNPC(this.editingNpcId);
+      em.addNPC({
+        id: n.id,
+        name: n.identity.name,
+        position: pos,
+        personalityKey: n.ai.personality_key,
+        wanderRadius: n.ai.wander_radius,
+        scale: n.transform.scale,
+        style: (d.skin || n.ai.style) as any,
+      });
+    }
+    this.saveState();
+  }
 
   private updatePreview(): void {
     if (this.previewMesh) { this.cursor.remove(this.previewMesh); this.previewMesh = null; }
@@ -939,16 +1018,27 @@ export class TerrainEditor {
 
 
   private placeNPC(pos: THREE.Vector3): void {
-    const n: NPCDefinition = { 
-      id: `npc_${Date.now()}`, 
-      identity: { name: `New ${this.selectedType}`, role: this.selectedType }, 
-      transform: { 
-        position: [pos.x, pos.y, pos.z], 
-        rotation: [0, this.currentRotation, 0], 
-        scale: 1 
-      }, 
-      stats: { max_hp: 100, level: 1 }, 
-      ai: { personality_key: "friendly", wander_radius: 10, style: this.selectedType } 
+    // Placing always creates a new NPC — leave any in-form edit of an existing one.
+    this.editingNpcId = null;
+    const d = this.npcDesign;
+    const skin = d.skin || this.selectedType;
+    const name = d.name.trim() || `New ${skin}`;
+    const n: NPCDefinition = {
+      id: `npc_${Date.now()}`,
+      identity: { name, role: d.archetype || skin },
+      transform: {
+        position: [pos.x, pos.y, pos.z],
+        rotation: [0, this.currentRotation, 0],
+        scale: 1
+      },
+      stats: { max_hp: d.hp > 0 ? d.hp : 100, level: 1 },
+      ai: {
+        personality_key: "friendly",
+        wander_radius: 10,
+        style: skin,
+        ...(d.archetype ? { archetype: d.archetype } : {}),
+        ...(d.flavorPrompt.trim() ? { flavor_prompt: d.flavorPrompt.trim() } : {}),
+      }
     };
     this.worldManifest.getNPCs().push(n);
     

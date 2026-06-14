@@ -72,6 +72,12 @@ export default defineConfig(({ mode }) => {
           changeOrigin: true,
           secure: false,
         },
+        // Lets the NPC Designer dropdown fetch GET /npc/archetypes from the backend.
+        '/npc': {
+          target: serverUrl,
+          changeOrigin: true,
+          secure: false,
+        },
       },
     },
   };

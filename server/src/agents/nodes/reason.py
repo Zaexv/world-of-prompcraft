@@ -9,6 +9,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from ...rag.retriever import get_retriever
 from ..agent_state import NPCAgentState  # noqa: TC001 - LangGraph introspects at runtime
+from ..personalities.archetypes import get_archetype
 from .inline_tools import extract_inline_tool_calls
 from .prompt_parts import (
     global_directive_section,
@@ -45,13 +46,24 @@ def _build_system_prompt(state: NPCAgentState, player_prompt: str = "") -> str:
         "",
         "## Your Personality",
         state.get("npc_personality", "You are a helpful villager."),
-        "",
-        "## Current World Context",
-        f"- Zone: {world.get('zone', 'Unknown')}",
-        f"- Time of day: {world.get('time_of_day', 'day')}",
-        f"- Weather: {world.get('weather', 'clear')}",
-        f"- Nearby entities: {json.dumps(compact_nearby)}",
     ]
+
+    # Tool rules are composed from the NPC's archetype so they list ONLY the
+    # tools actually bound to this agent (no prose about tools it cannot call).
+    arch = get_archetype(world.get("npc_archetype", ""))
+    if arch is not None and arch.tool_rules:
+        parts.extend(["", "## Tool Rules", arch.tool_rules])
+
+    parts.extend(
+        [
+            "",
+            "## Current World Context",
+            f"- Zone: {world.get('zone', 'Unknown')}",
+            f"- Time of day: {world.get('time_of_day', 'day')}",
+            f"- Weather: {world.get('weather', 'clear')}",
+            f"- Nearby entities: {json.dumps(compact_nearby)}",
+        ]
+    )
 
     # Recent world events for situational awareness
     recent_events = world.get("recent_events", [])
@@ -220,7 +232,8 @@ def make_reason_node(
                 break
         prompt_stripped = player_prompt.strip()
         archetype = state.get("world_context", {}).get("npc_archetype", "")
-        hostile_archetype = archetype in ("hostile_boss", "hostile_monster")
+        arch = get_archetype(archetype)
+        hostile_archetype = arch.hostile if arch is not None else False
         short_social = (
             not hostile_archetype
             and len(prompt_stripped) <= 18

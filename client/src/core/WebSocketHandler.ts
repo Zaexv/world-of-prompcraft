@@ -13,7 +13,7 @@ import type { NPCStateStore } from '../state/NPCState';
 import type { ReactionSystem } from '../systems/ReactionSystem';
 import type { WorldBuilder } from '../systems/WorldBuilder';
 import type { WorldBuilderPanel } from '../ui/WorldBuilderPanel';
-import type { WorldSpawnParams, Action } from '../network/MessageProtocol';
+import type { WorldSpawnParams, Action, NpcPayload } from '../network/MessageProtocol';
 import type { PlayerController } from '../entities/PlayerController';
 import type { LoginScreen } from '../ui/LoginScreen';
 import { DamagePopup } from '../ui/DamagePopup';
@@ -402,6 +402,19 @@ export class WebSocketHandler {
       return;
     }
 
+    if (data.type === 'npc_design_response') {
+      this.d.worldBuilderPanel.setResponse(data.dialogue ?? '');
+      this.d.worldBuilderPanel.setReady();
+      this.spawnNpcsFromPayload(data.npcs ?? []);
+      return;
+    }
+
+    if (data.type === 'npc_spawn') {
+      // Another player (or our own designer call) created/updated an NPC.
+      this.spawnNpcsFromPayload(data.npcs ?? []);
+      return;
+    }
+
     if (data.type === 'world_objects_update') {
       // A build/remove made by another player (or our own manual edit echoed
       // back). Apply directly without touching the local undo stack.
@@ -415,6 +428,42 @@ export class WebSocketHandler {
       }
       this.d.worldBuilderPanel.refreshPlaced();
       return;
+    }
+  }
+
+  /** Spawn (or refresh) NPCs delivered by the designer flow, mirroring join_ok. */
+  private spawnNpcsFromPayload(npcs: NpcPayload[]): void {
+    for (const n of npcs) {
+      const id = n.npc_id;
+      const pos = n.position;
+      if (!id || !Array.isArray(pos) || pos.length < 3) continue;
+      this.d.npcNameMap.set(id, n.name);
+      try {
+        this.d.entityManager.addNPC({
+          id,
+          name: n.name,
+          position: new THREE.Vector3(pos[0], pos[1], pos[2]),
+          hp: n.hp,
+          maxHp: n.maxHp,
+          personality: n.personality,
+          scale: n.scale,
+          style: (n.style as never) ?? undefined,
+          appearance: (n.appearance as never) ?? undefined,
+          isQuestGiver: isQuestGiverNpc(n),
+        });
+      } catch (err) {
+        console.error(`npc_spawn: failed to spawn NPC ${n.name} (${id}):`, err);
+      }
+      this.d.npcStateStore.updateState(id, {
+        name: n.name,
+        hp: n.hp,
+        maxHp: n.maxHp,
+        personality: n.personality,
+        archetype: n.archetype,
+        scale: n.scale,
+        mood: n.mood,
+        relationship_score: 0,
+      });
     }
   }
 

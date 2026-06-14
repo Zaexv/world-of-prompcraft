@@ -33,6 +33,10 @@ class HandlerContext:
     world_builder_agent: Any | None = None
     pending_world_actions: list[Any] = field(default_factory=list)
 
+    # NPC Designer agent and its pending actions list (chat-driven NPC creation)
+    npc_designer_agent: Any | None = None
+    pending_npc_actions: list[Any] = field(default_factory=list)
+
     # SQLite game store (src.persistence.GameStore) — None when disabled.
     # Handlers only read/restore through it; main.py owns the save cadence.
     store: Any | None = None

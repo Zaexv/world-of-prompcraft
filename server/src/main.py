@@ -10,6 +10,7 @@ if TYPE_CHECKING:
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 
+from .agents.npc_designer_agent import create_npc_designer_agent
 from .agents.registry import AgentRegistry
 from .agents.world_builder_agent import create_world_builder_agent
 from .config import settings
@@ -66,6 +67,10 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
     )
     world_builder_agent = create_world_builder_agent(builder_llm, pending_world_actions)
 
+    # NPC Designer ("Architect") — chat-driven NPC creation.
+    pending_npc_actions: list[Any] = []
+    npc_designer_agent = create_npc_designer_agent(llm, pending_npc_actions)
+
     # Restore the previous session's world, then save periodically.
     if _store is not None:
         # One-shot migration of any pre-ORM blob data / world_objects.json.
@@ -93,6 +98,8 @@ async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
         world_builder_agent=world_builder_agent,
         pending_world_actions=pending_world_actions,
         store=_store,
+        npc_designer_agent=npc_designer_agent,
+        pending_npc_actions=pending_npc_actions,
     )
     logger.info(
         "Backend ready: %d NPCs registered, LLM provider=%s",
@@ -147,6 +154,25 @@ def _manifest_path() -> str:
 
     base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     return os.path.join(base_dir, "shared", "data", "world_manifest.json")
+
+
+@app.get("/npc/archetypes")
+async def get_npc_archetypes() -> dict[str, Any]:
+    """Expose archetypes + their tool budgets so the NPC Designer can populate
+    dropdowns and show each role's allowed tools (the UI face of the tool limit)."""
+    from .agents.personalities.archetypes import ARCHETYPES
+
+    return {
+        "archetypes": [
+            {
+                "key": a.key,
+                "allowed_tools": list(a.allowed_tools),
+                "default_hp": a.default_hp,
+                "hostile": a.hostile,
+            }
+            for a in ARCHETYPES.values()
+        ]
+    }
 
 
 @app.get("/world/manifest")

@@ -52,6 +52,11 @@ def load_npc_definitions() -> dict[str, dict[str, Any]]:
                 "zone_id": zone_id,
                 "style": n["ai"].get("style"),
                 "appearance": n.get("appearance"),
+                # Editor-authored NPC designer fields (optional). When present they
+                # override the personality_key lookup: archetype sets the tool
+                # budget, flavor_prompt is the inline personality/voice.
+                "archetype": n["ai"].get("archetype"),
+                "flavor_prompt": n["ai"].get("flavor_prompt"),
             }
 
     return npc_registry
