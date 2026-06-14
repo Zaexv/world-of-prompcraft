@@ -106,21 +106,35 @@ async def handle_explore_area(
         npc_id = npc_data.get("id", "")
         name = npc_data.get("name", "Unknown")
         behavior = npc_data.get("behavior", "friendly")
+        personality_key = npc_data.get("personality_key", "")
 
         # Create NPC in world state
         if ctx.world_state and npc_id not in ctx.world_state.npcs:
+            from ...agents.personalities.templates import NPC_PERSONALITIES
             from ...world.world_state import NPCData
 
-            personality = _get_generated_personality(name, behavior)
+            # Procedural/encounter NPCs carry a real personality (their monster
+            # def → NPC_PERSONALITIES). Use it so they keep their authored
+            # character (fierce, territorial) instead of a generic prompt — this
+            # mirrors interaction._auto_register_procedural_npc. Only fall back to
+            # the generic generator when no key resolves.
+            template = NPC_PERSONALITIES.get(personality_key, {})
+            system_prompt = template.get("system_prompt") or _get_generated_personality(
+                name, behavior
+            )
+            archetype = template.get(
+                "archetype", "hostile_monster" if behavior == "hostile" else ""
+            )
             default_hp = 60 if behavior == "hostile" else 80
             hp = int(npc_data.get("hp") or default_hp)
             npc = NPCData(
                 npc_id=npc_id,
                 name=name,
-                personality=personality,
+                personality=system_prompt,
                 hp=hp,
                 max_hp=hp,
                 position=npc_data.get("position", [0, 0, 0]),
+                archetype=archetype,
                 # Movable: the server wander loop strolls them (default radius)
                 # so every player sees them in the same place.
                 fixed=False,

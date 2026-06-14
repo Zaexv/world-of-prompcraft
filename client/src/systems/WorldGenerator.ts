@@ -86,19 +86,10 @@ export class WorldGenerator {
   }
 
   /** Re-report every currently-spawned procedural NPC to the server. Called on
-   *  join so NPCs spawned before the connection completed get registered too. */
+   *  join so NPCs spawned before the connection completed get registered too.
+   *  Uses the populator's real init data — no reconstructed/hardcoded fields. */
   reportProceduralNpcs(): void {
-    const npcs = [];
-    for (const npc of this.entityManager.getAllNPCs()) {
-      if (!npc.id.startsWith('proc_')) continue;
-      npcs.push({
-        id: npc.id,
-        name: npc.name,
-        behavior: 'hostile',
-        position: [npc.position.x, npc.position.y, npc.position.z] as [number, number, number],
-        hp: 80,
-      });
-    }
+    const npcs = this.populator.getSpawnedNpcInits();
     if (npcs.length > 0) this.ws?.send({ type: 'explore_area', position: [0, 0, 0], npcs });
   }
 

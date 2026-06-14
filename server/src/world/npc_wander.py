@@ -27,6 +27,11 @@ logger = logging.getLogger(__name__)
 
 # How far an NPC may drift from its home (spawn) position.
 WANDER_RADIUS = 8.0
+# Floor so even small-radius NPCs roam visibly (no near-frozen pacing).
+MIN_WANDER_RADIUS = 6.0
+# Floor per-tick step so every move clears the client's apply threshold (~0.6m)
+# and reads as actual walking, never an imperceptible nudge.
+MIN_STEP = 1.0
 # Maximum stroll distance per tick.
 STEP_DISTANCE = 2.5
 # Chance an NPC actually moves on a given tick — pauses look alive.
@@ -97,15 +102,16 @@ def step_npcs(
         # Recently summoned by a player — leave it where they called it.
         if npc.wander_suppressed_until > now:
             continue
-        radius = npc.wander_radius if npc.wander_radius is not None else WANDER_RADIUS
-        if radius <= 0:
-            continue
+        # Every non-fixed NPC roams. Floor the radius so small-radius NPCs still
+        # cover visible ground (the user wants all of them moving, not pacing in
+        # a tiny circle).
+        radius = max(MIN_WANDER_RADIUS, npc.wander_radius or WANDER_RADIUS)
         if not any(_dist_xz(npc.position, pp) <= ACTIVE_RADIUS for pp in player_positions):
             continue
 
         prof = MOVEMENT_PROFILES.get(npc.movement_style or "", _DEFAULT_PROFILE)
-        if rng.random() > prof["move_chance"]:
-            continue
+        # No move-chance skip: every active NPC takes a step every tick so none
+        # ever look frozen. Style still shapes step length, turn, and path.
 
         home = homes.setdefault(npc.npc_id, list(npc.position))
 
@@ -117,7 +123,7 @@ def step_npcs(
         else:
             heading += rng.gauss(0.0, prof["turn"])
 
-        step = rng.uniform(prof["step"] * 0.4, prof["step"])
+        step = rng.uniform(max(MIN_STEP, prof["step"] * 0.5), prof["step"])
         nx = npc.position[0] + math.cos(heading) * step
         nz = npc.position[2] + math.sin(heading) * step
 

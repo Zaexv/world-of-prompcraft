@@ -69,6 +69,7 @@ export interface ExploreArea {
     behavior: string;
     position: [number, number, number];
     hp: number;
+    personality_key?: string;
   }>;
 }
 

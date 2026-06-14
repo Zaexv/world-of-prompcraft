@@ -91,19 +91,22 @@ def test_fixed_npc_never_moves() -> None:
     assert world.npcs["statue"].position == [5.0, 0.0, 5.0]
 
 
-def test_zero_wander_radius_npc_never_moves() -> None:
+def test_every_non_fixed_npc_moves_each_active_tick() -> None:
+    # Only `fixed` makes an NPC static now — a non-fixed NPC moves every tick it
+    # is active, even with wander_radius 0 (floored to MIN_WANDER_RADIUS).
     world = WorldState()
-    npc = _spawn(world, "rooted", [5.0, 0.0, 5.0])
-    npc.wander_radius = 0
+    _spawn(world, "a", [5.0, 0.0, 5.0])
+    rooted = _spawn(world, "b", [6.0, 0.0, 6.0])
+    rooted.wander_radius = 0
     player = world.get_player("p1")
     player.position = [5.0, 0.0, 5.0]
 
     rng = random.Random(11)
-    for _ in range(100):
-        updates = step_npcs(world, {}, rng)
-        assert all(u["npcId"] != "rooted" for u in updates)
-
-    assert world.npcs["rooted"].position == [5.0, 0.0, 5.0]
+    moved = {"a": False, "b": False}
+    for _ in range(5):
+        for u in step_npcs(world, {}, rng, headings={}):
+            moved[u["npcId"]] = True
+    assert moved["a"] and moved["b"], "every active non-fixed NPC must move"
 
 
 def test_summoned_npc_is_left_alone_until_suppression_expires() -> None:

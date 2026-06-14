@@ -206,7 +206,13 @@ export class EntityManager {
           npc.mesh.position.set(x, y, z);
           npc.position.copy(npc.mesh.position);
           if (getHeightAt) npc.snapToGround(getHeightAt);
-        } else if (!npc.fixed && dx * dx + dz * dz > 0.36) {
+          // Snap the follow target too, or followServerTarget would walk it back
+          // toward the previous (now stale) target.
+          npc.walkToServerPosition(new THREE.Vector3(x, npc.position.y, z));
+        } else if (!npc.fixed) {
+          // Record the server target — followServerTarget walks the NPC there
+          // smoothly each frame (handles any step size, unlike the dialogue
+          // approach which arrived instantly within 1.5m and never moved).
           npc.walkToServerPosition(new THREE.Vector3(x, npc.position.y, z));
         }
       }
@@ -258,9 +264,19 @@ export class EntityManager {
       this.npcIndex = (this.npcIndex + batchSize) % count;
     }
 
-    // 2. ACTIVE UPDATES (Within update radius and frame budget)
+    // 2. ACTIVE UPDATES
     for (const npc of this.npcList) {
       if (!npc.mesh.visible) continue;
+
+      // Server-driven NPCs follow their target every frame for ANY visible NPC
+      // (cheap: no collision/pathfind). This matches the server's broadcast
+      // range so nothing you can see is ever frozen — and avoids the gap where
+      // the server (150m) pushes positions but the client (120m) ignored them.
+      if (npc.isServerDriven && getHeightAt) {
+        npc.update(delta);
+        npc.followServerTarget(delta, getHeightAt);
+        continue;
+      }
 
       const dx = npc.position.x - this.playerX;
       const dz = npc.position.z - this.playerZ;
@@ -271,11 +287,9 @@ export class EntityManager {
         if (performance.now() - start > BUDGET_MS) break;
 
         npc.update(delta);
-        if (getHeightAt) {
-          // AI updates are even more expensive, so we interleave them too
-          if ((this.frameCount + npc.id.length) % 2 === 0) {
-            npc.updateWander(delta * 2, getHeightAt, collisionSystem);
-          }
+        if (getHeightAt && (this.frameCount + npc.id.length) % 2 === 0) {
+          // Offline: local random wander (interleaved — more expensive).
+          npc.updateWander(delta * 2, getHeightAt, collisionSystem);
         }
       }
     }
