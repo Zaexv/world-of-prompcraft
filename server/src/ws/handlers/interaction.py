@@ -347,30 +347,13 @@ def _auto_register_procedural_npc(
     if ctx.world_state is None or ctx.registry is None:
         return
 
-    from ...agents.personalities.templates import NPC_PERSONALITIES
-    from ...world.world_state import NPCData
-
-    personality = NPC_PERSONALITIES.get(personality_key, {})
-    system_prompt = personality.get(
-        "system_prompt",
-        f"You are {name}, a creature encountered in the wild. You are hostile and territorial.",
-    )
-    # Procedurally spawned NPCs are wild encounters — default to a hostile
-    # monster so the instant combat reply has them fight back.
-    archetype = personality.get("archetype", "hostile_monster")
-    hp = 80
+    from ...world.procedural_npcs import build_procedural_npc
 
     # A real world position is essential: nearby-broadcasts (combat sync, death,
     # overheard dialogue) measure from the NPC. Registering at the origin made
     # those broadcasts invisible to everyone actually standing at the fight.
-    npc = NPCData(
-        npc_id=npc_id,
-        name=name,
-        personality=system_prompt,
-        hp=hp,
-        max_hp=hp,
-        position=list(position) if position is not None else [0.0, 0.0, 0.0],
-        archetype=archetype,
+    npc = build_procedural_npc(
+        npc_id, name, personality_key, position if position is not None else [0.0, 0.0, 0.0]
     )
     ctx.world_state.npcs[npc_id] = npc
     ctx.registry.register_dynamic_npc(npc)
