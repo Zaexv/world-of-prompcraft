@@ -49,6 +49,10 @@ export class TerrainEditor {
   private brushIntensity = 5;
   private selectedType: string = 'pavilion';
   private selectedGroundType: string = 'grass';
+  // Full NPC info captured by the editor's NPC designer form; applied on placeNPC.
+  private npcDesign: { name: string; archetype: string; flavorPrompt: string; hp: number } = {
+    name: '', archetype: '', flavorPrompt: '', hp: 0,
+  };
 
   // ── Cursor visuals ──────────────────────────────────────────────────────
   private cursor: THREE.Group;
@@ -447,6 +451,11 @@ export class TerrainEditor {
   public setBrushRadius(r: number): void { this.brushRadius = r; this.brushGroup.scale.setScalar(r / 15); }
   public setBrushIntensity(i: number): void { this.brushIntensity = i; }
   public setSelectedAsset(t: string, _: string): void { this.selectedType = t; this.updatePreview(); }
+
+  /** Set the full NPC info applied to the next placed NPC (from the editor form). */
+  public setNpcDesign(d: Partial<{ name: string; archetype: string; flavorPrompt: string; hp: number }>): void {
+    this.npcDesign = { ...this.npcDesign, ...d };
+  }
 
   private updatePreview(): void {
     if (this.previewMesh) { this.cursor.remove(this.previewMesh); this.previewMesh = null; }
@@ -939,16 +948,24 @@ export class TerrainEditor {
 
 
   private placeNPC(pos: THREE.Vector3): void {
-    const n: NPCDefinition = { 
-      id: `npc_${Date.now()}`, 
-      identity: { name: `New ${this.selectedType}`, role: this.selectedType }, 
-      transform: { 
-        position: [pos.x, pos.y, pos.z], 
-        rotation: [0, this.currentRotation, 0], 
-        scale: 1 
-      }, 
-      stats: { max_hp: 100, level: 1 }, 
-      ai: { personality_key: "friendly", wander_radius: 10, style: this.selectedType } 
+    const d = this.npcDesign;
+    const name = d.name.trim() || `New ${this.selectedType}`;
+    const n: NPCDefinition = {
+      id: `npc_${Date.now()}`,
+      identity: { name, role: d.archetype || this.selectedType },
+      transform: {
+        position: [pos.x, pos.y, pos.z],
+        rotation: [0, this.currentRotation, 0],
+        scale: 1
+      },
+      stats: { max_hp: d.hp > 0 ? d.hp : 100, level: 1 },
+      ai: {
+        personality_key: "friendly",
+        wander_radius: 10,
+        style: this.selectedType,
+        ...(d.archetype ? { archetype: d.archetype } : {}),
+        ...(d.flavorPrompt.trim() ? { flavor_prompt: d.flavorPrompt.trim() } : {}),
+      }
     };
     this.worldManifest.getNPCs().push(n);
     

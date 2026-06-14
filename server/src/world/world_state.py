@@ -112,6 +112,12 @@ class WorldState:
             personality = NPC_PERSONALITIES.get(personality_key, {})
             system_prompt = personality.get("system_prompt", "You are a mysterious stranger.")
             archetype = personality.get("archetype", npc_def.get("role", ""))
+            # Editor-authored NPC designer fields override the personality_key
+            # lookup: inline archetype sets tools, inline flavor_prompt is the voice.
+            if npc_def.get("archetype"):
+                archetype = npc_def["archetype"]
+            if npc_def.get("flavor_prompt"):
+                system_prompt = npc_def["flavor_prompt"]
             # The archetype dictates which tool categories this NPC may call. An
             # unknown archetype falls back to None → all tools (back-compat) and
             # is warned about so it surfaces in logs.

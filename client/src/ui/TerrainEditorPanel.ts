@@ -142,6 +142,28 @@ export class TerrainEditorPanel extends UIComponent {
         </div>
       </div>
 
+      <div class="te-npc-section" style="display:none; flex-direction:column; gap:6px;">
+        <span style="font-size:11px; color:#aaaaaa; text-transform:uppercase; letter-spacing:1px;">NPC Designer</span>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10px; color:#888;">Name</span>
+          <input class="te-npc-name" placeholder="e.g. Greta the Smith" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;">
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10px; color:#888;">Archetype (sets allowed tools)</span>
+          <select class="te-npc-arch" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;"></select>
+          <span class="te-npc-arch-tools" style="font-size:9px; color:#8a7; min-height:11px;"></span>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:3px;">
+          <span style="font-size:10px; color:#888;">Personality / voice</span>
+          <textarea class="te-npc-flavor" rows="3" placeholder="Who they are and how they speak (no tool rules — the archetype handles those)." style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px; resize:vertical;"></textarea>
+        </div>
+        <div style="display:flex; align-items:center; justify-content:space-between; font-size:12px;">
+          <span>Max HP (0 = archetype default)</span>
+          <input type="number" class="te-npc-hp" min="0" step="10" value="0" style="width:60px; background:#1a1108; color:#e8dcc8; border:1px solid #333;">
+        </div>
+        <span style="font-size:9px; color:#666;">Click the ground to place this NPC.</span>
+      </div>
+
       <div class="te-ground-section" style="display:none; flex-direction:column; gap:4px;">
         <span style="font-size:11px; color:#aaaaaa; text-transform:uppercase; letter-spacing:1px;">Ground Type</span>
         <select class="te-ground-select" style="background:#1a1108; color:#e8dcc8; border:1px solid rgba(197,165,90,0.4); padding:4px; font-family:inherit; font-size:11px;"></select>
@@ -177,10 +199,13 @@ export class TerrainEditorPanel extends UIComponent {
         const paletteSection = this.container.querySelector('.te-palette-section') as HTMLElement;
         const sculptSettings = this.container.querySelector('.te-sculpt-settings') as HTMLElement;
         const groundSection = this.container.querySelector('.te-ground-section') as HTMLElement;
+        const npcSection = this.container.querySelector('.te-npc-section') as HTMLElement;
         const categorySelect = this.container.querySelector('.te-category-select') as HTMLSelectElement;
 
         // The asset palette is needed for BOTH object and NPC placement.
         paletteSection.style.display = (mode === 'place' || mode === 'npc') ? 'flex' : 'none';
+        // NPC designer form only when placing NPCs.
+        npcSection.style.display = mode === 'npc' ? 'flex' : 'none';
         // Brush settings drive sculpt AND ground paint.
         sculptSettings.style.display = (mode === 'raise' || mode === 'lower' || mode === 'flatten' || mode === 'paint' || mode === 'erase' || mode === 'water') ? 'flex' : 'none';
         groundSection.style.display = mode === 'paint' ? 'flex' : 'none';
@@ -283,6 +308,8 @@ export class TerrainEditorPanel extends UIComponent {
       .map(t => `<option value="${t}">${t}</option>`).join('');
     groundSelect.addEventListener('change', () => this.editor.setSelectedGroundType(groundSelect.value));
 
+    this.setupNpcDesigner();
+
     const layerChecks = this.container.querySelectorAll('.te-layer');
     layerChecks.forEach(check => {
       check.addEventListener('change', (e) => {
@@ -303,6 +330,47 @@ export class TerrainEditorPanel extends UIComponent {
     refreshBtn.addEventListener('click', () => {
       this.editor.refreshVisualization();
     });
+  }
+
+  /** Wire the NPC designer form: archetype dropdown (from server) + field sync. */
+  private setupNpcDesigner(): void {
+    const nameInput = this.container.querySelector('.te-npc-name') as HTMLInputElement;
+    const archSelect = this.container.querySelector('.te-npc-arch') as HTMLSelectElement;
+    const archTools = this.container.querySelector('.te-npc-arch-tools') as HTMLElement;
+    const flavorInput = this.container.querySelector('.te-npc-flavor') as HTMLTextAreaElement;
+    const hpInput = this.container.querySelector('.te-npc-hp') as HTMLInputElement;
+    if (!nameInput || !archSelect) return;
+
+    let archetypes: Array<{ key: string; allowed_tools: string[]; hostile?: boolean }> = [];
+
+    const updateToolsHint = () => {
+      const sel = archetypes.find((a) => a.key === archSelect.value);
+      archTools.textContent = sel ? `can use: ${sel.allowed_tools.join(', ')}` : '';
+    };
+    const sync = () => this.editor.setNpcDesign({
+      name: nameInput.value,
+      archetype: archSelect.value,
+      flavorPrompt: flavorInput.value,
+      hp: parseInt(hpInput.value) || 0,
+    });
+
+    nameInput.addEventListener('input', sync);
+    flavorInput.addEventListener('input', sync);
+    hpInput.addEventListener('input', sync);
+    archSelect.addEventListener('change', () => { updateToolsHint(); sync(); });
+
+    void fetch('/npc/archetypes')
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d?.archetypes) return;
+        archetypes = d.archetypes;
+        archSelect.innerHTML = archetypes
+          .map((a) => `<option value="${a.key}">${a.hostile ? `${a.key} (hostile)` : a.key}</option>`)
+          .join('');
+        updateToolsHint();
+        sync();
+      })
+      .catch(() => { /* dropdown stays empty; placement still works with role fallback */ });
   }
 
   private updateAssetList(): void {

@@ -63,6 +63,10 @@ export interface NPCDefinition {
     personality_key: string;
     wander_radius: number;
     style?: string;
+    /** Archetype key — sets the NPC's tool budget on the server. */
+    archetype?: string;
+    /** Inline personality/voice authored in the editor (overrides personality_key lookup). */
+    flavor_prompt?: string;
   };
 }
 
