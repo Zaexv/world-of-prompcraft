@@ -3147,7 +3147,7 @@
             "ai": {
               "personality_key": "tutorial_01",
               "wander_radius": 15,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3175,7 +3175,7 @@
             "ai": {
               "personality_key": "forest_wraith",
               "wander_radius": 18,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3204,7 +3204,7 @@
             "ai": {
               "personality_key": "moon_spider",
               "wander_radius": 15,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3232,7 +3232,7 @@
             "ai": {
               "personality_key": "manolo_lluis",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3260,7 +3260,7 @@
             "ai": {
               "personality_key": "manolo_evil_carlos",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3288,7 +3288,7 @@
             "ai": {
               "personality_key": "manolo_good_carlos",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3316,7 +3316,7 @@
             "ai": {
               "personality_key": "manolo_quino",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3344,7 +3344,7 @@
             "ai": {
               "personality_key": "manolo_kevin",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3374,7 +3374,7 @@
               "personality_key": "juan_pescador",
               "wander_radius": 4,
               "style": "merchant",
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3938,7 +3938,7 @@
             "ai": {
               "personality_key": "road_bandit",
               "wander_radius": 15,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -3967,7 +3967,7 @@
             "ai": {
               "personality_key": "dire_wolf",
               "wander_radius": 22,
-              "fixed": true
+              "fixed": false
             }
           }
         ]
@@ -4039,7 +4039,7 @@
             "ai": {
               "personality_key": "merchant_01",
               "wander_radius": 6,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4067,7 +4067,7 @@
             "ai": {
               "personality_key": "guard_01",
               "wander_radius": 4,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4095,7 +4095,7 @@
             "ai": {
               "personality_key": "guard_01",
               "wander_radius": 3,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4124,7 +4124,7 @@
             "ai": {
               "personality_key": "healer_01",
               "wander_radius": 5,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4152,7 +4152,7 @@
             "ai": {
               "personality_key": "merchant_01",
               "wander_radius": 10,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4180,7 +4180,7 @@
             "ai": {
               "personality_key": "churrero_01",
               "wander_radius": 2,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4210,7 +4210,7 @@
               "personality_key": "guardia_abelardo",
               "wander_radius": 4,
               "style": "guard",
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4240,7 +4240,7 @@
               "personality_key": "luisa_patatera",
               "wander_radius": 4,
               "style": "merchant",
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4270,7 +4270,7 @@
               "personality_key": "sancho_barriga",
               "wander_radius": 4,
               "style": "merchant",
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4300,7 +4300,7 @@
               "personality_key": "alonso_quijano",
               "wander_radius": 4,
               "style": "guard",
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4329,7 +4329,7 @@
             "ai": {
               "personality_key": "zaex_01",
               "wander_radius": 4,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4358,7 +4358,7 @@
             "ai": {
               "personality_key": "nireg_jenkins",
               "wander_radius": 2,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -4387,7 +4387,7 @@
             "ai": {
               "personality_key": "eltito_01",
               "wander_radius": 2,
-              "fixed": true
+              "fixed": false
             }
           }
         ]
@@ -5465,7 +5465,7 @@
             "ai": {
               "personality_key": "lava_hound",
               "wander_radius": 25,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5494,7 +5494,7 @@
             "ai": {
               "personality_key": "lava_hound",
               "wander_radius": 22,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5522,7 +5522,7 @@
             "ai": {
               "personality_key": "lava_hound",
               "wander_radius": 20,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5551,7 +5551,7 @@
             "ai": {
               "personality_key": "obsidian_golem",
               "wander_radius": 8,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5580,7 +5580,7 @@
             "ai": {
               "personality_key": "fire_sprite",
               "wander_radius": 30,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5609,7 +5609,7 @@
             "ai": {
               "personality_key": "fire_sprite",
               "wander_radius": 28,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5637,7 +5637,7 @@
             "ai": {
               "personality_key": "flame_cultist",
               "wander_radius": 15,
-              "fixed": true
+              "fixed": false
             }
           }
         ]
@@ -5770,7 +5770,7 @@
             "ai": {
               "personality_key": "glacial_golem",
               "wander_radius": 6,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5798,7 +5798,7 @@
             "ai": {
               "personality_key": "ice_shaman",
               "wander_radius": 12,
-              "fixed": true
+              "fixed": false
             }
           }
         ]
@@ -5916,7 +5916,7 @@
             "ai": {
               "personality_key": "bog_lurker",
               "wander_radius": 20,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5945,7 +5945,7 @@
             "ai": {
               "personality_key": "bog_lurker",
               "wander_radius": 22,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -5974,7 +5974,7 @@
             "ai": {
               "personality_key": "shadow_serpent",
               "wander_radius": 30,
-              "fixed": true
+              "fixed": false
             }
           }
         ]
@@ -6462,7 +6462,7 @@
             "ai": {
               "personality_key": "stone_boar",
               "wander_radius": 25,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -6491,7 +6491,7 @@
             "ai": {
               "personality_key": "stone_boar",
               "wander_radius": 20,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -6520,7 +6520,7 @@
             "ai": {
               "personality_key": "giant_wasp",
               "wander_radius": 35,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -6549,7 +6549,7 @@
             "ai": {
               "personality_key": "giant_wasp",
               "wander_radius": 32,
-              "fixed": true
+              "fixed": false
             }
           },
           {
@@ -6578,7 +6578,7 @@
             "ai": {
               "personality_key": "sunstone_golem",
               "wander_radius": 6,
-              "fixed": true
+              "fixed": false
             }
           }
         ]

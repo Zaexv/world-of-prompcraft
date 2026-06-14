@@ -36,6 +36,23 @@ MOVE_CHANCE = 0.6
 ACTIVE_RADIUS = 150.0
 # Seconds between ticks.
 TICK_SECONDS = 3.0
+
+# Per movement-style behaviour, so a guard patrols steadily, a sprite drifts,
+# an orc stomps in bursts, etc. `move_chance` = odds of moving this tick (pauses
+# look alive); `step` = max stroll distance; `turn` = how sharply the heading can
+# change when continuing a stroll (radians). Keeping a heading between ticks makes
+# NPCs walk a path instead of teleport-jittering in place.
+MOVEMENT_PROFILES: dict[str, dict[str, float]] = {
+    "stroll": {"move_chance": 0.60, "step": 2.5, "turn": 0.5},
+    "patrol": {"move_chance": 0.85, "step": 3.2, "turn": 0.2},
+    "prowl": {"move_chance": 0.75, "step": 2.8, "turn": 0.7},
+    "float": {"move_chance": 0.45, "step": 1.8, "turn": 0.9},
+    "swagger": {"move_chance": 0.50, "step": 2.2, "turn": 0.4},
+    "stomp": {"move_chance": 0.55, "step": 2.6, "turn": 0.3},
+}
+_DEFAULT_PROFILE = MOVEMENT_PROFILES["stroll"]
+# Odds of re-picking a fresh random heading instead of continuing the current one.
+REPICK_HEADING_CHANCE = 0.2
 # After a player summons an NPC (npc_move), the wander loop leaves it alone for
 # this long so it stays with the player instead of strolling off. Each summon
 # refreshes the window, so it holds for the whole conversation.
@@ -53,17 +70,21 @@ def step_npcs(
     homes: dict[str, list[float]],
     rng: random.Random,
     now: float = 0.0,
+    headings: dict[str, float] | None = None,
 ) -> list[dict[str, Any]]:
     """Advance every active NPC one wander step; return the position updates.
 
-    An NPC is active when alive and within ACTIVE_RADIUS of any player. Each
-    step is a bounded random stroll that never leaves WANDER_RADIUS around the
-    NPC's home (its first-seen position, recorded in `homes`). ``now`` is a
-    monotonic clock used to honor per-NPC wander suppression (recent summons).
+    An NPC is active when alive and within ACTIVE_RADIUS of any player. Each step
+    is a bounded stroll that never leaves the NPC's wander radius around its home
+    (first-seen position, recorded in `homes`). Per-NPC `headings` persist between
+    ticks so movement reads as walking a path, shaped by the NPC's movement_style
+    (see MOVEMENT_PROFILES). ``now`` is a monotonic clock for wander suppression.
     """
     player_positions = [list(p.position) for p in world_state.players.values()]
     if not player_positions:
         return []
+    if headings is None:
+        headings = {}
 
     updates: list[dict[str, Any]] = []
     for npc in world_state.npcs.values():
@@ -82,16 +103,26 @@ def step_npcs(
         if not any(_dist_xz(npc.position, pp) <= ACTIVE_RADIUS for pp in player_positions):
             continue
 
-        home = homes.setdefault(npc.npc_id, list(npc.position))
-        if rng.random() > MOVE_CHANCE:
+        prof = MOVEMENT_PROFILES.get(npc.movement_style or "", _DEFAULT_PROFILE)
+        if rng.random() > prof["move_chance"]:
             continue
 
-        angle = rng.uniform(0.0, math.tau)
-        step = rng.uniform(STEP_DISTANCE * 0.3, STEP_DISTANCE)
-        nx = npc.position[0] + math.cos(angle) * step
-        nz = npc.position[2] + math.sin(angle) * step
+        home = homes.setdefault(npc.npc_id, list(npc.position))
 
-        # Clamp to the wander disc around home — overshoot walks back inward.
+        # Continue the current heading with a gentle turn (a path), or occasionally
+        # strike out in a fresh direction.
+        heading = headings.get(npc.npc_id)
+        if heading is None or rng.random() < REPICK_HEADING_CHANCE:
+            heading = rng.uniform(0.0, math.tau)
+        else:
+            heading += rng.gauss(0.0, prof["turn"])
+
+        step = rng.uniform(prof["step"] * 0.4, prof["step"])
+        nx = npc.position[0] + math.cos(heading) * step
+        nz = npc.position[2] + math.sin(heading) * step
+
+        # Clamp to the wander disc around home; at the boundary, turn back inward
+        # so the NPC paces the area instead of pressing against the edge.
         hx, hz = home[0], home[2]
         dx, dz = nx - hx, nz - hz
         dist = math.sqrt(dx * dx + dz * dz)
@@ -99,7 +130,9 @@ def step_npcs(
             scale = radius / dist
             nx = hx + dx * scale
             nz = hz + dz * scale
+            heading = math.atan2(hz - nz, hx - nx)  # face home for the next tick
 
+        headings[npc.npc_id] = heading
         # y is intentionally left as-is: clients resolve terrain height locally.
         npc.position = [nx, npc.position[1], nz]
         updates.append({"npcId": npc.npc_id, "position": [nx, npc.position[1], nz]})
@@ -110,13 +143,14 @@ def step_npcs(
 async def npc_wander_loop(world_state: WorldState, manager: ConnectionManager) -> None:
     """Background tick: step active NPCs and notify the players who see them."""
     homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
     rng = random.Random()
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
             now = asyncio.get_event_loop().time()
             async with world_state._lock:
-                updates = step_npcs(world_state, homes, rng, now)
+                updates = step_npcs(world_state, homes, rng, now, headings)
             if not updates:
                 continue
             # Each player receives only the NPCs near them.
