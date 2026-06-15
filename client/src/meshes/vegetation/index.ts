@@ -8,4 +8,8 @@ import './MushroomCluster';
 import './CrystalCluster';
 import './MalakaPalmTree';
 import './NiregPalmTree';
+import './MalakaCypressTree';
+import './MalakaOrangeTree';
+import './MalakaGrassTufts';
+import './Teldrassil';
 
