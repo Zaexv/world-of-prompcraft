@@ -91,12 +91,16 @@ class GameStore:
                     ]
                 )
 
-            # Completed quests.
+            # Completed quests (with display title so names survive a reload).
             row.completed.all().delete()
             completed = list(dict.fromkeys(player.completed_quests))  # de-dup, keep order
+            names = getattr(player, "completed_quest_names", {}) or {}
             if completed:
                 CompletedQuest.objects.bulk_create(
-                    [CompletedQuest(player=row, quest_id=qid) for qid in completed]
+                    [
+                        CompletedQuest(player=row, quest_id=qid, name=names.get(qid, ""))
+                        for qid in completed
+                    ]
                 )
 
     def load_player(self, player_id: str) -> dict[str, Any] | None:
@@ -110,13 +114,14 @@ class GameStore:
         for item in row.items.all():
             inventory.extend([item.item_name] * max(0, item.quantity))
 
-        completed = list(row.completed.values_list("quest_id", flat=True))
+        completed_rows = list(row.completed.values_list("quest_id", "name"))
 
         doc: dict[str, Any] = {field: getattr(row, field) for field in _PLAYER_SCALARS}
         doc["username"] = row.username
         doc["position"] = list(row.position)
         doc["active_quests"] = list(row.active_quests)
-        doc["completed_quests"] = completed
+        doc["completed_quests"] = [qid for qid, _ in completed_rows]
+        doc["completed_quest_names"] = {qid: nm for qid, nm in completed_rows if nm}
         doc["inventory"] = inventory
         doc["equipped"] = dict(row.equipped or {})
         return doc

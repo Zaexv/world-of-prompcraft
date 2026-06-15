@@ -28,6 +28,9 @@ export interface NPCConfig {
   scale?: number;
   /** Show the floating golden "!" quest-giver marker above this NPC. */
   isQuestGiver?: boolean;
+  /** When true the NPC holds its authored position: no wander, no walk-to-player
+   *  on click, no ground snap (lets it sit on a rooftop). */
+  fixed?: boolean;
 }
 
 export class NPC {
@@ -44,6 +47,14 @@ export class NPC {
   public homePosition: THREE.Vector3;
   public wanderRadius = 8;
   public isGrounded = false;
+  /** Authored-position NPC: no wander, no walk-to-player, no ground snap. */
+  public readonly fixed: boolean;
+
+  /** Online mode: the server owns this NPC's position. It smoothly walks toward
+   *  the latest server target (see followServerTarget) instead of wandering. */
+  private serverDriven = false;
+  private readonly serverTarget = new THREE.Vector3();
+  private hasServerTarget = false;
 
   private readonly motionProfile: NPCMotionProfile;
   private readonly wander: NPCWander;
@@ -60,8 +71,9 @@ export class NPC {
     this.personalityKey = config.personalityKey ?? '';
     this.position = config.position.clone();
     this.homePosition = config.position.clone();
+    this.fixed = config.fixed ?? false;
     this.motionProfile = createNPCMotionProfile(config);
-    this.wanderRadius = config.wanderRadius ?? this.motionProfile.wanderRadius;
+    this.wanderRadius = this.fixed ? 0 : (config.wanderRadius ?? this.motionProfile.wanderRadius);
 
     this.mesh = built.object3D;
     this.materials = built.materials;
@@ -85,8 +97,13 @@ export class NPC {
     this.wander = new NPCWander(this.mesh, this.position, this.motionProfile, this.animator, this.id);
   }
 
-  /** Force immediate ground snapping. Useful during initialization. */
+  /** Force immediate ground snapping. Useful during initialization.
+   *  No-op for fixed NPCs so authored Y (e.g. a rooftop) is preserved. */
   snapToGround(getHeightAt: (x: number, z: number) => number): void {
+    if (this.fixed) {
+      this.animator.setBaseY(this.position.y);
+      return;
+    }
     const y = getHeightAt(this.position.x, this.position.z);
     this.mesh.position.y = y;
     this.position.y = y;
@@ -114,28 +131,69 @@ export class NPC {
     getHeightAt: (x: number, z: number) => number,
     collisionSystem?: { isPositionBlocked: (x: number, y: number, z: number, halfExtent?: number) => boolean },
   ): void {
-    if (this.wanderRadius <= 0) return;
+    if (this.fixed || this.wanderRadius <= 0) return;
     const waterHoverY = Water.LEVEL
       + this.waterHoverHeight
       + Math.sin(this.waterHoverPhase) * this.waterHoverAmplitude;
     this.wander.update(delta, getHeightAt, collisionSystem, this.wanderRadius, this.homePosition, waterHoverY);
   }
 
+  /** Walk to the player on interaction. Fixed NPCs ignore this and stay put. */
   walkToPlayer(playerPosition: THREE.Vector3): void {
-    this.wander.walkTo(playerPosition);
+    if (this.fixed) return;
+    if (this.serverDriven) {
+      // Server owns position: head there now for instant feedback; the server
+      // echo (npc_move → npc_positions) keeps it authoritative.
+      this.walkToServerPosition(playerPosition);
+    } else {
+      this.wander.walkTo(playerPosition);
+    }
   }
 
   /** Hand position authority to the server: local random wandering stops and
-   *  the NPC only moves toward positions pushed via walkToServerPosition. */
+   *  the NPC only moves toward server-pushed targets (followServerTarget). */
   setServerDriven(on: boolean): void {
+    this.serverDriven = on;
     this.wander.serverDriven = on;
   }
 
-  /** Walk toward a server-authoritative position (terrain height resolved
-   *  during the walk). Far-away corrections teleport instead — see
-   *  EntityManager.applyServerNPCPositions. */
+  get isServerDriven(): boolean {
+    return this.serverDriven;
+  }
+
+  /** Record the latest server-authoritative target. The NPC walks toward it
+   *  smoothly each frame in followServerTarget — netcode-style interpolation so
+   *  it tracks the server fluently regardless of step size. */
   walkToServerPosition(target: THREE.Vector3): void {
-    this.wander.walkTo(target);
+    this.serverTarget.set(target.x, target.y, target.z);
+    this.hasServerTarget = true;
+  }
+
+  /** Walk one frame toward the server target (server-driven NPCs only). Resolves
+   *  terrain height locally; faces travel direction; idles on arrival. */
+  followServerTarget(delta: number, getHeightAt: (x: number, z: number) => number): void {
+    if (!this.hasServerTarget) return;
+    const dx = this.serverTarget.x - this.mesh.position.x;
+    const dz = this.serverTarget.z - this.mesh.position.z;
+    const distSq = dx * dx + dz * dz;
+    if (distSq < 0.0025) {
+      this.animator.play('idle');
+      return;
+    }
+    const dist = Math.sqrt(distSq);
+    const step = Math.min(this.motionProfile.moveSpeed * delta, dist);
+    const nx = this.mesh.position.x + (dx / dist) * step;
+    const nz = this.mesh.position.z + (dz / dist) * step;
+    let ny = getHeightAt(nx, nz);
+    if (ny < Water.LEVEL + 0.05) {
+      ny = Water.LEVEL + this.waterHoverHeight + Math.sin(this.waterHoverPhase) * this.waterHoverAmplitude;
+    }
+    this.mesh.position.set(nx, ny, nz);
+    this.position.copy(this.mesh.position);
+    const targetAngle = Math.atan2(dx, dz);
+    this.mesh.rotation.y = THREE.MathUtils.lerp(this.mesh.rotation.y, targetAngle, Math.min(1, this.motionProfile.turnSpeed * delta));
+    this.animator.setBaseY(ny);
+    this.animator.play('walk');
   }
 
   updateApproachTarget(playerPosition: THREE.Vector3): void {

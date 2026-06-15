@@ -126,31 +126,64 @@ describe("EntityManager dead-NPC registry", () => {
 });
 
 describe("server-authoritative NPC positions", () => {
-  it("walks near corrections, teleports far ones, and disables local wander", async () => {
+  it("walks a server-driven NPC to nearby targets, teleports far ones, no local wander", async () => {
     const { EntityManager } = await import("../entities/EntityManager");
     const em = new EntityManager(new THREE.Scene());
     const flat = () => 0;
 
+    // Non-fixed NPC, online: the server owns its motion. It walks to pushed
+    // targets and never invents its own movement.
     const npc = em.addNPC({ id: "wolf_b", name: "Wolf", position: new THREE.Vector3(0, 0, 0) });
     expect(npc).toBeDefined();
     em.setServerAuthoritativeNPCs(true);
     em.setPlayerPosition(0, 0);
 
-    // Near correction (~3m): the NPC walks toward it (arrival radius is 1.5m,
-    // so it legitimately settles just short of the exact target).
+    // Near target (~3m): the NPC walks toward it (arrival radius ~1.5m).
     em.applyServerNPCPositions([{ npcId: "wolf_b", position: [3, 0, 0] }]);
     for (let i = 0; i < 600; i++) em.update(1 / 60, flat);
-    expect(npc!.position.x).toBeGreaterThan(1.4); // walked within arrival radius
+    expect(npc!.position.x).toBeGreaterThan(1.4);
     expect(npc!.position.x).toBeLessThanOrEqual(3.01);
 
-    // Far correction (>25m): instant teleport.
+    // Far divergence (>25m): instant teleport.
     em.applyServerNPCPositions([{ npcId: "wolf_b", position: [100, 0, 100] }]);
     em.update(1 / 60, flat);
     expect(npc!.position.x).toBe(100);
     expect(npc!.position.z).toBe(100);
 
-    // No local random wander drift: with no further server updates the NPC
-    // stays put (server-driven NPCs never invent their own movement).
+    // No local random wander drift without further server pushes.
+    const sx = npc!.position.x;
+    const sz = npc!.position.z;
+    em.setPlayerPosition(100, 100);
+    for (let i = 0; i < 1200; i++) em.update(1 / 60, flat);
+    expect(npc!.position.x).toBe(sx);
+    expect(npc!.position.z).toBe(sz);
+  });
+
+  it("holds a fixed NPC put: ignores small corrections, teleports far ones, never wanders", async () => {
+    const { EntityManager } = await import("../entities/EntityManager");
+    const em = new EntityManager(new THREE.Scene());
+    const flat = () => 0;
+
+    // Fixed NPCs hold their authored spot. They never wander and ignore small
+    // server corrections; only a large divergence (rejoin / long cull) teleports.
+    const npc = em.addNPC({ id: "wolf_b", name: "Wolf", position: new THREE.Vector3(0, 0, 0), fixed: true });
+    expect(npc).toBeDefined();
+    em.setServerAuthoritativeNPCs(true);
+    em.setPlayerPosition(0, 0);
+
+    // Small correction (~3m): ignored — the NPC stays at its authored position.
+    em.applyServerNPCPositions([{ npcId: "wolf_b", position: [3, 0, 0] }]);
+    for (let i = 0; i < 600; i++) em.update(1 / 60, flat);
+    expect(npc!.position.x).toBe(0);
+    expect(npc!.position.z).toBe(0);
+
+    // Far correction (>25m): instant teleport (re-ground after rejoin/cull).
+    em.applyServerNPCPositions([{ npcId: "wolf_b", position: [100, 0, 100] }]);
+    em.update(1 / 60, flat);
+    expect(npc!.position.x).toBe(100);
+    expect(npc!.position.z).toBe(100);
+
+    // No local random wander drift.
     const sx = npc!.position.x;
     const sz = npc!.position.z;
     em.setPlayerPosition(100, 100); // keep it in the active update radius

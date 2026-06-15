@@ -7,6 +7,20 @@ export const NPC_SKINS = [
   'boar', 'orc', 'undead', 'oracle',
 ] as const;
 
+/** Movement personalities for the NPC designer (mirrors NPCMovementStyle). */
+export const NPC_MOVEMENT_STYLES = [
+  'stroll', 'patrol', 'prowl', 'float', 'swagger', 'stomp',
+] as const;
+
+/** Options chosen in the NPC designer tab when creating an NPC. */
+export interface NpcDesignOptions {
+  archetype?: string;
+  skin?: string;
+  movementStyle?: string;
+  wanderRadius?: number;
+  fixed?: boolean;
+}
+
 export interface PlacedSummary {
   id: string;
   type: string;
@@ -39,7 +53,7 @@ export interface WorldBuilderPanelOptions {
   /** Current placed objects, for the list. */
   getPlaced?: () => PlacedSummary[];
   /** Send a chat-driven NPC creation request (NPC tab). */
-  onNpcDesign?: (prompt: string, archetype?: string, skin?: string) => void;
+  onNpcDesign?: (prompt: string, opts?: NpcDesignOptions) => void;
   /** Archetypes for the NPC dropdown (fetched from the server). */
   npcArchetypes?: ArchetypeInfo[];
   /** Current existing NPCs, for the NPC tab list. */
@@ -70,6 +84,10 @@ export class WorldBuilderPanel extends UIComponent {
   declare private archSelect: HTMLSelectElement;
   declare private archTools: HTMLElement;
   declare private skinSelect: HTMLSelectElement;
+  declare private moveSelect: HTMLSelectElement;
+  declare private wanderInput: HTMLInputElement;
+  declare private fixedCheck: HTMLInputElement;
+  declare private wanderSection: HTMLElement;
   declare private npcList: HTMLElement;
 
   private selectedFile: File | null = null;
@@ -80,7 +98,7 @@ export class WorldBuilderPanel extends UIComponent {
   private readonly onPaletteSpawn?: (type: string) => void;
   private readonly onDelete?: (id: string) => void;
   private readonly getPlaced?: () => PlacedSummary[];
-  private readonly onNpcDesign?: (prompt: string, archetype?: string, skin?: string) => void;
+  private readonly onNpcDesign?: (prompt: string, opts?: NpcDesignOptions) => void;
   private npcArchetypes: ArchetypeInfo[];
   private readonly getNpcs?: () => NpcSummary[];
 
@@ -184,6 +202,27 @@ export class WorldBuilderPanel extends UIComponent {
           border:1px solid rgba(197,165,90,0.3); border-radius:6px; color:#e8dcc8;
           font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
         ">${NPC_SKINS.map((s) => `<option value="${s}">${s}</option>`).join('')}</select>
+
+        <label style="color:#aaa; font-size:11px; display:flex; align-items:center; gap:6px; margin-top:4px;">
+          <input type="checkbox" class="wb-npc-fixed" checked style="accent-color:#c5a55a;">
+          Fixed (stays put — place on rooftops, shopkeepers)
+        </label>
+
+        <div class="wb-npc-wander" style="display:none; flex-direction:column; gap:6px;">
+          <label style="color:#aaa; font-size:11px;">Movement style</label>
+          <select class="wb-move" style="
+            width:100%; box-sizing:border-box; background:rgba(10,8,20,0.8);
+            border:1px solid rgba(197,165,90,0.3); border-radius:6px; color:#e8dcc8;
+            font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
+          ">${NPC_MOVEMENT_STYLES.map((s) => `<option value="${s}">${s}</option>`).join('')}</select>
+          <label style="color:#aaa; font-size:11px;">Wander radius (m)</label>
+          <input type="number" class="wb-wander" min="0" max="60" step="1" value="8" style="
+            width:100%; box-sizing:border-box; background:rgba(10,8,20,0.8);
+            border:1px solid rgba(197,165,90,0.3); border-radius:6px; color:#e8dcc8;
+            font-size:12px; padding:6px 8px; outline:none; font-family:inherit;
+          ">
+        </div>
+
         <div style="display:flex; align-items:center; justify-content:space-between; margin-top:4px;">
           <label style="color:#aaa; font-size:11px;">Existing NPCs</label>
           <button class="wb-npc-refresh" style="background:none; border:none; color:#c5a55a; cursor:pointer; font-size:11px;">↻</button>
@@ -316,7 +355,17 @@ export class WorldBuilderPanel extends UIComponent {
     this.archSelect = this.container.querySelector('.wb-arch')!;
     this.archTools = this.container.querySelector('.wb-arch-tools')!;
     this.skinSelect = this.container.querySelector('.wb-skin')!;
+    this.moveSelect = this.container.querySelector('.wb-move')!;
+    this.wanderInput = this.container.querySelector('.wb-wander')!;
+    this.fixedCheck = this.container.querySelector('.wb-npc-fixed')!;
+    this.wanderSection = this.container.querySelector('.wb-npc-wander')!;
     this.npcList = this.container.querySelector('.wb-npc-list')!;
+
+    // The movement controls only matter for a roaming NPC — hide them while
+    // "Fixed" is checked (the default).
+    this.fixedCheck.addEventListener('change', () => {
+      this.wanderSection.style.display = this.fixedCheck.checked ? 'none' : 'flex';
+    });
 
     const closeBtn = this.container.querySelector('.wb-close') as HTMLButtonElement;
     closeBtn.addEventListener('click', () => this.hide());
@@ -516,7 +565,14 @@ export class WorldBuilderPanel extends UIComponent {
       this.setResponse('The Architect breathes life into your words...');
       this.sendBtn.disabled = true;
       this.sendBtn.textContent = '…';
-      this.onNpcDesign?.(text, this.archSelect.value || undefined, this.skinSelect.value || undefined);
+      const fixed = this.fixedCheck.checked;
+      this.onNpcDesign?.(text, {
+        archetype: this.archSelect.value || undefined,
+        skin: this.skinSelect.value || undefined,
+        fixed,
+        movementStyle: fixed ? undefined : this.moveSelect.value || undefined,
+        wanderRadius: fixed ? undefined : Number(this.wanderInput.value) || undefined,
+      });
       return;
     }
 

@@ -3146,35 +3146,8 @@
             },
             "ai": {
               "personality_key": "tutorial_01",
-              "wander_radius": 15
-            }
-          },
-          {
-            "id": "wraith_01",
-            "identity": {
-              "name": "Sylvara the Wraith",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                80,
-                12.569100342816764,
-                -100
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.1
-            },
-            "stats": {
-              "max_hp": 70,
-              "level": 5
-            },
-            "ai": {
-              "personality_key": "forest_wraith",
-              "wander_radius": 20
+              "wander_radius": 15,
+              "fixed": false
             }
           },
           {
@@ -3186,7 +3159,7 @@
             "transform": {
               "position": [
                 -99.87101375377486,
-                0.48079544873166863,
+                0.3437209829848361,
                 108.24266184249203
               ],
               "rotation": [
@@ -3201,7 +3174,8 @@
             },
             "ai": {
               "personality_key": "forest_wraith",
-              "wander_radius": 18
+              "wander_radius": 18,
+              "fixed": false
             }
           },
           {
@@ -3213,7 +3187,7 @@
             "transform": {
               "position": [
                 50,
-                5.936625378183134,
+                5.836554024587583,
                 -80
               ],
               "rotation": [
@@ -3229,7 +3203,8 @@
             },
             "ai": {
               "personality_key": "moon_spider",
-              "wander_radius": 15
+              "wander_radius": 15,
+              "fixed": false
             }
           },
           {
@@ -3241,7 +3216,7 @@
             "transform": {
               "position": [
                 97,
-                12,
+                14.767785184441523,
                 -89
               ],
               "rotation": [
@@ -3256,7 +3231,8 @@
             },
             "ai": {
               "personality_key": "manolo_lluis",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
             }
           },
           {
@@ -3268,7 +3244,7 @@
             "transform": {
               "position": [
                 103,
-                12,
+                14.767785184441523,
                 -89
               ],
               "rotation": [
@@ -3283,7 +3259,8 @@
             },
             "ai": {
               "personality_key": "manolo_evil_carlos",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
             }
           },
           {
@@ -3295,7 +3272,7 @@
             "transform": {
               "position": [
                 97,
-                12,
+                14.767785184441523,
                 -96
               ],
               "rotation": [
@@ -3310,7 +3287,8 @@
             },
             "ai": {
               "personality_key": "manolo_good_carlos",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
             }
           },
           {
@@ -3322,7 +3300,7 @@
             "transform": {
               "position": [
                 103,
-                12,
+                14.767785184441523,
                 -96
               ],
               "rotation": [
@@ -3337,7 +3315,8 @@
             },
             "ai": {
               "personality_key": "manolo_quino",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
             }
           },
           {
@@ -3349,7 +3328,7 @@
             "transform": {
               "position": [
                 100,
-                12,
+                14.767785184441523,
                 -86
               ],
               "rotation": [
@@ -3364,7 +3343,70 @@
             },
             "ai": {
               "personality_key": "manolo_kevin",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
+            }
+          },
+          {
+            "id": "juan_pescador",
+            "identity": {
+              "name": "Juan el Pescador",
+              "role": "quest_giver"
+            },
+            "transform": {
+              "position": [
+                -15,
+                1.0882822237244736,
+                14
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "juan_pescador",
+              "wander_radius": 4,
+              "style": "merchant",
+              "fixed": false
+            }
+          },
+          {
+            "id": "npc_1781407372518",
+            "identity": {
+              "name": "Test",
+              "role": "hostile_boss"
+            },
+            "transform": {
+              "position": [
+                -1.2167442419057863,
+                0.5968847771360117,
+                21.801749451596862
+              ],
+              "rotation": [
+                0,
+                0,
+                0
+              ],
+              "scale": 1
+            },
+            "stats": {
+              "max_hp": 100,
+              "level": 1
+            },
+            "ai": {
+              "personality_key": "friendly",
+              "wander_radius": 8,
+              "style": "civilian",
+              "movement_style": "stroll",
+              "fixed": false,
+              "archetype": "hostile_boss"
             }
           }
         ]
@@ -3377,7 +3419,7 @@
             "transform": {
               "position": [
                 26.680812895211133,
-                -0.7938034995641386,
+                0.09551130534863672,
                 -7.5104171832994115
               ],
               "scale": 1.2,
@@ -3404,7 +3446,7 @@
             "transform": {
               "position": [
                 65,
-                7.006003458533734,
+                8.940425151302346,
                 -60
               ],
               "scale": 1
@@ -3426,7 +3468,7 @@
             "transform": {
               "position": [
                 24.30302756067104,
-                -0.2337224329498297,
+                0.24276387000673194,
                 -10.945991559880508
               ],
               "scale": 1,
@@ -3453,7 +3495,7 @@
             "transform": {
               "position": [
                 20.705727696780983,
-                -0.5789458001789433,
+                -0.4403680901888806,
                 -5.733251953269367
               ],
               "scale": 1,
@@ -3561,7 +3603,7 @@
             "transform": {
               "position": [
                 -207.45182179409053,
-                21.80203942134787,
+                21.945354139496786,
                 -370.4397894152706
               ],
               "scale": 1,
@@ -3588,7 +3630,7 @@
             "transform": {
               "position": [
                 -213.2518219848254,
-                12.644955404262836,
+                12.919249735005103,
                 -370.4397894152706
               ],
               "scale": 1,
@@ -3615,7 +3657,7 @@
             "transform": {
               "position": [
                 -213.2518219848254,
-                21.03328837466048,
+                21.152662252005594,
                 -376.23978960600544
               ],
               "scale": 1,
@@ -3696,7 +3738,7 @@
             "transform": {
               "position": [
                 -35.37988640585563,
-                1.220637982991022,
+                1.0824182135520042,
                 9.413101305158499
               ],
               "scale": 1,
@@ -3723,7 +3765,7 @@
             "transform": {
               "position": [
                 -17.009498092524307,
-                1.1966225178936405,
+                0.8418760723011705,
                 27.224831528484486
               ],
               "scale": 1,
@@ -3777,7 +3819,7 @@
             "transform": {
               "position": [
                 36.711146506978544,
-                1.0367647032322787,
+                1.958224159887421,
                 -25.633949293085074
               ],
               "scale": 1,
@@ -3804,7 +3846,7 @@
             "transform": {
               "position": [
                 -30.875168016595477,
-                0.16195543099790163,
+                0.2289321803217075,
                 -13.669609019995853
               ],
               "scale": 1,
@@ -3831,7 +3873,7 @@
             "transform": {
               "position": [
                 100.46535492362752,
-                11.666254300046596,
+                14.767785184441523,
                 -92.58943657276316
               ],
               "scale": 1,
@@ -3872,34 +3914,6 @@
       "population": {
         "npcs": [
           {
-            "id": "treant_01",
-            "identity": {
-              "name": "Ancient Treant",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -108.94275775815441,
-                0.9600194170056694,
-                -69.17089400023744
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.8
-            },
-            "stats": {
-              "max_hp": 200,
-              "level": 12
-            },
-            "ai": {
-              "personality_key": "ancient_treant",
-              "wander_radius": 10
-            }
-          },
-          {
             "id": "bandit_02",
             "identity": {
               "name": "Outlaw Scout",
@@ -3908,7 +3922,7 @@
             "transform": {
               "position": [
                 -68.95742664050306,
-                0.6029128849338103,
+                0.741910369414717,
                 -132.26826554253628
               ],
               "rotation": [
@@ -3923,35 +3937,8 @@
             },
             "ai": {
               "personality_key": "road_bandit",
-              "wander_radius": 15
-            }
-          },
-          {
-            "id": "wolf_01",
-            "identity": {
-              "name": "Dire Wolf",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -116.84775337811041,
-                1.2037331916220175,
-                -80.93398125918695
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 0.9
-            },
-            "stats": {
-              "max_hp": 45,
-              "level": 2
-            },
-            "ai": {
-              "personality_key": "dire_wolf",
-              "wander_radius": 20
+              "wander_radius": 15,
+              "fixed": false
             }
           },
           {
@@ -3963,7 +3950,7 @@
             "transform": {
               "position": [
                 -70.7116841896754,
-                1.2016585432493865,
+                1.3075645984190227,
                 -142.30764838528728
               ],
               "rotation": [
@@ -3979,7 +3966,8 @@
             },
             "ai": {
               "personality_key": "dire_wolf",
-              "wander_radius": 22
+              "wander_radius": 22,
+              "fixed": false
             }
           }
         ]
@@ -3992,7 +3980,7 @@
             "transform": {
               "position": [
                 -80,
-                -1.8423199188671175,
+                -0.5442197953389871,
                 -100
               ],
               "scale": 1
@@ -4035,7 +4023,7 @@
             "transform": {
               "position": [
                 -161.772887838581,
-                5.498232500930293,
+                6.124471761527601,
                 -298.09870346028157
               ],
               "rotation": [
@@ -4050,7 +4038,8 @@
             },
             "ai": {
               "personality_key": "merchant_01",
-              "wander_radius": 6
+              "wander_radius": 6,
+              "fixed": false
             }
           },
           {
@@ -4077,7 +4066,8 @@
             },
             "ai": {
               "personality_key": "guard_01",
-              "wander_radius": 4
+              "wander_radius": 4,
+              "fixed": false
             }
           },
           {
@@ -4104,7 +4094,8 @@
             },
             "ai": {
               "personality_key": "guard_01",
-              "wander_radius": 3
+              "wander_radius": 3,
+              "fixed": false
             }
           },
           {
@@ -4116,7 +4107,7 @@
             "transform": {
               "position": [
                 -135.5861404581007,
-                7.87512034245818,
+                8.01087501997169,
                 -305.61640724742955
               ],
               "rotation": [
@@ -4132,7 +4123,8 @@
             },
             "ai": {
               "personality_key": "healer_01",
-              "wander_radius": 5
+              "wander_radius": 5,
+              "fixed": false
             }
           },
           {
@@ -4144,7 +4136,7 @@
             "transform": {
               "position": [
                 -130.59225821744573,
-                -0.41117750507801576,
+                -0.06843258114919203,
                 -248.8697867102963
               ],
               "rotation": [
@@ -4159,7 +4151,8 @@
             },
             "ai": {
               "personality_key": "merchant_01",
-              "wander_radius": 10
+              "wander_radius": 10,
+              "fixed": false
             }
           },
           {
@@ -4171,7 +4164,7 @@
             "transform": {
               "position": [
                 -178.34919001985668,
-                3.2296110718374833,
+                4.129028383903581,
                 -286.3011598209023
               ],
               "rotation": [
@@ -4186,36 +4179,8 @@
             },
             "ai": {
               "personality_key": "churrero_01",
-              "wander_radius": 2
-            }
-          },
-          {
-            "id": "juan_pescador",
-            "identity": {
-              "name": "Juan el Pescador",
-              "role": "quest_giver"
-            },
-            "transform": {
-              "position": [
-                -15,
-                1,
-                14
-              ],
-              "rotation": [
-                0,
-                0.0,
-                0
-              ],
-              "scale": 1.0
-            },
-            "stats": {
-              "max_hp": 100,
-              "level": 1
-            },
-            "ai": {
-              "personality_key": "juan_pescador",
-              "wander_radius": 4,
-              "style": "merchant"
+              "wander_radius": 2,
+              "fixed": false
             }
           },
           {
@@ -4227,15 +4192,15 @@
             "transform": {
               "position": [
                 -112,
-                3.6,
+                3.253039814472266,
                 -258
               ],
               "rotation": [
                 0,
-                0.0,
+                0,
                 0
               ],
-              "scale": 1.0
+              "scale": 1
             },
             "stats": {
               "max_hp": 100,
@@ -4244,7 +4209,8 @@
             "ai": {
               "personality_key": "guardia_abelardo",
               "wander_radius": 4,
-              "style": "guard"
+              "style": "guard",
+              "fixed": false
             }
           },
           {
@@ -4256,15 +4222,15 @@
             "transform": {
               "position": [
                 -158,
-                4,
+                3.2481241912941337,
                 -276
               ],
               "rotation": [
                 0,
-                0.0,
+                0,
                 0
               ],
-              "scale": 1.0
+              "scale": 1
             },
             "stats": {
               "max_hp": 100,
@@ -4273,7 +4239,8 @@
             "ai": {
               "personality_key": "luisa_patatera",
               "wander_radius": 4,
-              "style": "merchant"
+              "style": "merchant",
+              "fixed": false
             }
           },
           {
@@ -4285,15 +4252,15 @@
             "transform": {
               "position": [
                 -150,
-                4,
+                4.43870477011851,
                 -280
               ],
               "rotation": [
                 0,
-                0.0,
+                0,
                 0
               ],
-              "scale": 1.0
+              "scale": 1
             },
             "stats": {
               "max_hp": 100,
@@ -4302,7 +4269,8 @@
             "ai": {
               "personality_key": "sancho_barriga",
               "wander_radius": 4,
-              "style": "merchant"
+              "style": "merchant",
+              "fixed": false
             }
           },
           {
@@ -4314,15 +4282,15 @@
             "transform": {
               "position": [
                 -146,
-                4,
+                4.482538790409633,
                 -280
               ],
               "rotation": [
                 0,
-                0.0,
+                0,
                 0
               ],
-              "scale": 1.0
+              "scale": 1
             },
             "stats": {
               "max_hp": 200,
@@ -4331,7 +4299,8 @@
             "ai": {
               "personality_key": "alonso_quijano",
               "wander_radius": 4,
-              "style": "guard"
+              "style": "guard",
+              "fixed": false
             }
           },
           {
@@ -4343,15 +4312,15 @@
             "transform": {
               "position": [
                 -140,
-                4,
+                4.1491976464081874,
                 -276
               ],
               "rotation": [
                 0,
-                0.0,
+                0,
                 0
               ],
-              "scale": 1.0
+              "scale": 1
             },
             "stats": {
               "max_hp": 900,
@@ -4359,7 +4328,8 @@
             },
             "ai": {
               "personality_key": "zaex_01",
-              "wander_radius": 4
+              "wander_radius": 4,
+              "fixed": false
             }
           },
           {
@@ -4371,7 +4341,7 @@
             "transform": {
               "position": [
                 -190,
-                3.5,
+                3.70265973149887,
                 -290
               ],
               "rotation": [
@@ -4387,7 +4357,8 @@
             },
             "ai": {
               "personality_key": "nireg_jenkins",
-              "wander_radius": 2
+              "wander_radius": 2,
+              "fixed": false
             }
           },
           {
@@ -4399,7 +4370,7 @@
             "transform": {
               "position": [
                 -185,
-                3,
+                4.041385349172598,
                 -300
               ],
               "rotation": [
@@ -4415,7 +4386,8 @@
             },
             "ai": {
               "personality_key": "eltito_01",
-              "wander_radius": 2
+              "wander_radius": 2,
+              "fixed": false
             }
           }
         ]
@@ -4428,7 +4400,7 @@
             "transform": {
               "position": [
                 -118.0072616495921,
-                8.290001790921474,
+                8.113952875524314,
                 -318.605178016145
               ],
               "scale": 1,
@@ -4449,7 +4421,7 @@
             "transform": {
               "position": [
                 -284,
-                2.23676223476934,
+                2.6937893872613143,
                 -334
               ],
               "scale": 1.1,
@@ -4472,7 +4444,7 @@
             "transform": {
               "position": [
                 -145.30480891679812,
-                4.057467150507468,
+                4.482538790409633,
                 -282.0335315617669
               ],
               "scale": 0.55,
@@ -4492,7 +4464,7 @@
             "transform": {
               "position": [
                 -138.97638139483612,
-                9.404588302760736,
+                9.53944941044134,
                 -314.11804931630945
               ],
               "scale": 1,
@@ -4544,7 +4516,7 @@
             "transform": {
               "position": [
                 -133.9949287849858,
-                -0.44467663719864414,
+                -0.09978251720859244,
                 -245.66717671468282
               ],
               "scale": 1,
@@ -4571,7 +4543,7 @@
             "transform": {
               "position": [
                 -161.99441086737926,
-                5.498232500930293,
+                6.124471761527601,
                 -298.76894172728896
               ],
               "scale": 1,
@@ -4625,7 +4597,7 @@
             "transform": {
               "position": [
                 -159.01258378445672,
-                2.8274119283517862,
+                3.486131070725463,
                 -277.0249869778795
               ],
               "scale": 1,
@@ -4652,7 +4624,7 @@
             "transform": {
               "position": [
                 -159.602142034212,
-                2.8102543096963646,
+                3.4783468508027493,
                 -277.0161384647356
               ],
               "scale": 1,
@@ -4679,7 +4651,7 @@
             "transform": {
               "position": [
                 -160.17560562721195,
-                2.7778292969468548,
+                3.455099415345827,
                 -276.8991543190506
               ],
               "scale": 1,
@@ -4706,7 +4678,7 @@
             "transform": {
               "position": [
                 -160.51292085405842,
-                2.7778292969468548,
+                3.455099415345827,
                 -276.8428815559743
               ],
               "scale": 1,
@@ -4733,7 +4705,7 @@
             "transform": {
               "position": [
                 -160.87906289615222,
-                2.7608360975996664,
+                3.4434832170505714,
                 -276.9355066846956
               ],
               "scale": 1,
@@ -4760,7 +4732,7 @@
             "transform": {
               "position": [
                 -161.34000685395256,
-                2.7647304175626926,
+                3.4531012545244577,
                 -276.9393443098237
               ],
               "scale": 1,
@@ -4787,7 +4759,7 @@
             "transform": {
               "position": [
                 -161.47908410609617,
-                2.753292467093495,
+                3.4489354605279896,
                 -276.9110325416042
               ],
               "scale": 1,
@@ -4814,7 +4786,7 @@
             "transform": {
               "position": [
                 -161.43211542306582,
-                2.7456656703784663,
+                3.4435200114378297,
                 -276.42788372592867
               ],
               "scale": 1,
@@ -4841,7 +4813,7 @@
             "transform": {
               "position": [
                 -161.8599305353762,
-                2.678165126298696,
+                3.37556913242459,
                 -276.37583626417813
               ],
               "scale": 1,
@@ -4868,7 +4840,7 @@
             "transform": {
               "position": [
                 -161.47999389022402,
-                2.587128761578305,
+                3.2855673037237376,
                 -275.7949092751955
               ],
               "scale": 1,
@@ -4895,7 +4867,7 @@
             "transform": {
               "position": [
                 -160.9793398913703,
-                2.5951042065867105,
+                3.2856702475315607,
                 -275.77344457229003
               ],
               "scale": 1,
@@ -4922,7 +4894,7 @@
             "transform": {
               "position": [
                 -159.03699437356917,
-                2.7418129460482934,
+                3.401326553889157,
                 -276.45900305121387
               ],
               "scale": 1,
@@ -4949,7 +4921,7 @@
             "transform": {
               "position": [
                 -158.97608700892494,
-                2.659902564643395,
+                3.318765782418551,
                 -275.9031447465433
               ],
               "scale": 1,
@@ -4976,7 +4948,7 @@
             "transform": {
               "position": [
                 -158.9258512463929,
-                2.659902564643395,
+                3.318765782418551,
                 -275.4267838942133
               ],
               "scale": 1,
@@ -5003,7 +4975,7 @@
             "transform": {
               "position": [
                 -159.9483942876433,
-                2.6028507088426442,
+                3.280567009926287,
                 -275.69212391021085
               ],
               "scale": 1,
@@ -5030,7 +5002,7 @@
             "transform": {
               "position": [
                 -159.31492637683556,
-                2.659902564643395,
+                3.318765782418551,
                 -275.4876401186019
               ],
               "scale": 1,
@@ -5057,7 +5029,7 @@
             "transform": {
               "position": [
                 -159.32139926606823,
-                2.589589171118557,
+                3.2478627104859497,
                 -275.0505265421503
               ],
               "scale": 1,
@@ -5084,7 +5056,7 @@
             "transform": {
               "position": [
                 -161.4608279516739,
-                2.587128761578305,
+                3.2855673037237376,
                 -275.36062640227635
               ],
               "scale": 1,
@@ -5111,7 +5083,7 @@
             "transform": {
               "position": [
                 -161.48354396846582,
-                2.370339362134712,
+                3.0690551726874045,
                 -274.26597234241797
               ],
               "scale": 1,
@@ -5138,7 +5110,7 @@
             "transform": {
               "position": [
                 -161.5003106033,
-                2.370339362134712,
+                3.0690551726874045,
                 -274.0589291026146
               ],
               "scale": 1,
@@ -5165,7 +5137,7 @@
             "transform": {
               "position": [
                 -161.72564267628948,
-                2.370339362134712,
+                3.0690551726874045,
                 -273.94263362060127
               ],
               "scale": 1,
@@ -5192,7 +5164,7 @@
             "transform": {
               "position": [
                 -162.02393744095932,
-                2.3207904490620503,
+                3.0232641190302063,
                 -273.8813745134581
               ],
               "scale": 1,
@@ -5219,7 +5191,7 @@
             "transform": {
               "position": [
                 -162.09210339442876,
-                2.214172739590415,
+                2.922189964138336,
                 -273.2179734528243
               ],
               "scale": 1,
@@ -5246,7 +5218,7 @@
             "transform": {
               "position": [
                 -162.09210339442876,
-                2.214172739590415,
+                2.922189964138336,
                 -273.2179734528243
               ],
               "scale": 1,
@@ -5273,7 +5245,7 @@
             "transform": {
               "position": [
                 -162.09210339442876,
-                2.214172739590415,
+                2.922189964138336,
                 -273.2179734528243
               ],
               "scale": 1,
@@ -5300,7 +5272,7 @@
             "transform": {
               "position": [
                 -160.33684319068698,
-                2.504257012094941,
+                3.16134338422403,
                 -274.8890198188905
               ],
               "scale": 1,
@@ -5327,7 +5299,7 @@
             "transform": {
               "position": [
                 -160.77270457103916,
-                2.290946882661143,
+                2.9784299728562584,
                 -273.62827879075707
               ],
               "scale": 1,
@@ -5354,7 +5326,7 @@
             "transform": {
               "position": [
                 -160.98576991097235,
-                2.5951042065867105,
+                3.2856702475315607,
                 -275.28647763925665
               ],
               "scale": 1,
@@ -5381,7 +5353,7 @@
             "transform": {
               "position": [
                 -159.73734959893793,
-                2.3626515446558707,
+                3.0339372566973504,
                 -274.0056678254057
               ],
               "scale": 1,
@@ -5408,7 +5380,7 @@
             "transform": {
               "position": [
                 -178.39515352823238,
-                3.2296110718374833,
+                4.129028383903581,
                 -290.1105363616636
               ],
               "scale": 1,
@@ -5477,7 +5449,7 @@
             "transform": {
               "position": [
                 180,
-                4.1045613210486245,
+                4.351250681867722,
                 -30
               ],
               "rotation": [
@@ -5492,7 +5464,8 @@
             },
             "ai": {
               "personality_key": "lava_hound",
-              "wander_radius": 25
+              "wander_radius": 25,
+              "fixed": false
             }
           },
           {
@@ -5504,7 +5477,7 @@
             "transform": {
               "position": [
                 210,
-                -1.513973084108891,
+                8.115624892462035,
                 55
               ],
               "rotation": [
@@ -5520,7 +5493,8 @@
             },
             "ai": {
               "personality_key": "lava_hound",
-              "wander_radius": 22
+              "wander_radius": 22,
+              "fixed": false
             }
           },
           {
@@ -5532,7 +5506,7 @@
             "transform": {
               "position": [
                 250,
-                5.532405510745614,
+                7.505380804031269,
                 -80
               ],
               "rotation": [
@@ -5547,7 +5521,8 @@
             },
             "ai": {
               "personality_key": "lava_hound",
-              "wander_radius": 20
+              "wander_radius": 20,
+              "fixed": false
             }
           },
           {
@@ -5559,7 +5534,7 @@
             "transform": {
               "position": [
                 300,
-                0.6485863538231055,
+                17.973094808935915,
                 20
               ],
               "rotation": [
@@ -5575,7 +5550,8 @@
             },
             "ai": {
               "personality_key": "obsidian_golem",
-              "wander_radius": 8
+              "wander_radius": 8,
+              "fixed": false
             }
           },
           {
@@ -5587,7 +5563,7 @@
             "transform": {
               "position": [
                 160,
-                0.6003353667674491,
+                2.4738950253705996,
                 80
               ],
               "rotation": [
@@ -5603,7 +5579,8 @@
             },
             "ai": {
               "personality_key": "fire_sprite",
-              "wander_radius": 30
+              "wander_radius": 30,
+              "fixed": false
             }
           },
           {
@@ -5615,7 +5592,7 @@
             "transform": {
               "position": [
                 230,
-                4.134410786861977,
+                5.927525391996897,
                 -55
               ],
               "rotation": [
@@ -5631,7 +5608,8 @@
             },
             "ai": {
               "personality_key": "fire_sprite",
-              "wander_radius": 28
+              "wander_radius": 28,
+              "fixed": false
             }
           },
           {
@@ -5643,7 +5621,7 @@
             "transform": {
               "position": [
                 350,
-                8.634966281540173,
+                27.160028873204414,
                 60
               ],
               "rotation": [
@@ -5658,7 +5636,8 @@
             },
             "ai": {
               "personality_key": "flame_cultist",
-              "wander_radius": 15
+              "wander_radius": 15,
+              "fixed": false
             }
           }
         ]
@@ -5671,7 +5650,7 @@
             "transform": {
               "position": [
                 200,
-                4.21434127221064,
+                12.753193770248462,
                 0
               ],
               "scale": 1.5
@@ -5686,7 +5665,7 @@
             "transform": {
               "position": [
                 280,
-                2.737525164795804,
+                19.87407338063673,
                 80
               ],
               "scale": 1.2
@@ -5701,7 +5680,7 @@
             "transform": {
               "position": [
                 320,
-                10.750043997710092,
+                15.566572797623756,
                 -60
               ],
               "scale": 1.3
@@ -5716,7 +5695,7 @@
             "transform": {
               "position": [
                 160,
-                -2.3695575844132692,
+                1.3360931917899053,
                 -20
               ],
               "scale": 1
@@ -5738,7 +5717,7 @@
             "transform": {
               "position": [
                 240,
-                4.565747191356746,
+                13.630094463341976,
                 30
               ],
               "scale": 1
@@ -5766,118 +5745,6 @@
       "population": {
         "npcs": [
           {
-            "id": "frost_wraith_01",
-            "identity": {
-              "name": "Frost Wraith",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                30,
-                -8.341478200411615,
-                180
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.15
-            },
-            "stats": {
-              "max_hp": 75,
-              "level": 7
-            },
-            "ai": {
-              "personality_key": "frost_wraith",
-              "wander_radius": 22
-            }
-          },
-          {
-            "id": "frost_wraith_02",
-            "identity": {
-              "name": "Frost Wraith",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -60,
-                -1.5855520916649493,
-                220
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.1
-            },
-            "stats": {
-              "max_hp": 70,
-              "level": 6
-            },
-            "ai": {
-              "personality_key": "frost_wraith",
-              "wander_radius": 25
-            }
-          },
-          {
-            "id": "ice_wolf_01",
-            "identity": {
-              "name": "Ice Wolf",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                80,
-                -7.981958325341485,
-                160
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 0.9
-            },
-            "stats": {
-              "max_hp": 55,
-              "level": 5
-            },
-            "ai": {
-              "personality_key": "ice_wolf",
-              "wander_radius": 30
-            }
-          },
-          {
-            "id": "ice_wolf_02",
-            "identity": {
-              "name": "Ice Wolf",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -40,
-                -1.7038601820943018,
-                200
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 0.85
-            },
-            "stats": {
-              "max_hp": 55,
-              "level": 5
-            },
-            "ai": {
-              "personality_key": "ice_wolf",
-              "wander_radius": 28
-            }
-          },
-          {
             "id": "glacial_golem_01",
             "identity": {
               "name": "Glacial Golem",
@@ -5886,7 +5753,7 @@
             "transform": {
               "position": [
                 0,
-                1.5162021348842756,
+                4.378000741168135,
                 300
               ],
               "rotation": [
@@ -5902,35 +5769,8 @@
             },
             "ai": {
               "personality_key": "glacial_golem",
-              "wander_radius": 6
-            }
-          },
-          {
-            "id": "yeti_01",
-            "identity": {
-              "name": "Tundra Yeti",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -80,
-                -2.7511402964245706,
-                260
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.5
-            },
-            "stats": {
-              "max_hp": 130,
-              "level": 11
-            },
-            "ai": {
-              "personality_key": "tundra_yeti",
-              "wander_radius": 15
+              "wander_radius": 6,
+              "fixed": false
             }
           },
           {
@@ -5942,7 +5782,7 @@
             "transform": {
               "position": [
                 60,
-                14.68468226282561,
+                18.582278416081365,
                 340
               ],
               "rotation": [
@@ -5957,7 +5797,8 @@
             },
             "ai": {
               "personality_key": "ice_shaman",
-              "wander_radius": 12
+              "wander_radius": 12,
+              "fixed": false
             }
           }
         ]
@@ -5970,7 +5811,7 @@
             "transform": {
               "position": [
                 0,
-                -6.9289599561432755,
+                -6.851486010407712,
                 200
               ],
               "scale": 1.8
@@ -5985,7 +5826,7 @@
             "transform": {
               "position": [
                 80,
-                3.261095927049959,
+                5.589393100486438,
                 260
               ],
               "scale": 1.2
@@ -6000,7 +5841,7 @@
             "transform": {
               "position": [
                 -60,
-                -1.941167732428842,
+                -1.0296355920603055,
                 300
               ],
               "scale": 1.5
@@ -6017,34 +5858,12 @@
             }
           },
           {
-            "id": "tundra_campfire_01",
-            "type": "campfire",
-            "transform": {
-              "position": [
-                40,
-                -8.62989717306514,
-                160
-              ],
-              "scale": 1
-            },
-            "visual": {
-              "label": "Survivor's Fire",
-              "metadata": {
-                "footprint": {
-                  "shape": "rect",
-                  "width": 1.5,
-                  "depth": 1.4
-                }
-              }
-            }
-          },
-          {
             "id": "ice_moonwell_01",
             "type": "moonwell",
             "transform": {
               "position": [
                 -90,
-                -1.7272752200229682,
+                -1.3627830621189554,
                 340
               ],
               "scale": 1
@@ -6080,7 +5899,7 @@
             "transform": {
               "position": [
                 40,
-                8.649911374948303,
+                7.6648862528782065,
                 -180
               ],
               "rotation": [
@@ -6096,7 +5915,8 @@
             },
             "ai": {
               "personality_key": "bog_lurker",
-              "wander_radius": 20
+              "wander_radius": 20,
+              "fixed": false
             }
           },
           {
@@ -6108,7 +5928,7 @@
             "transform": {
               "position": [
                 -60,
-                2.4604331723874875,
+                2.1793868103919403,
                 -220
               ],
               "rotation": [
@@ -6124,35 +5944,8 @@
             },
             "ai": {
               "personality_key": "bog_lurker",
-              "wander_radius": 22
-            }
-          },
-          {
-            "id": "shadow_serpent_01",
-            "identity": {
-              "name": "Shadow Serpent",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                20,
-                5.8319406709065085,
-                -270
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 0.85
-            },
-            "stats": {
-              "max_hp": 55,
-              "level": 5
-            },
-            "ai": {
-              "personality_key": "shadow_serpent",
-              "wander_radius": 28
+              "wander_radius": 22,
+              "fixed": false
             }
           },
           {
@@ -6180,90 +5973,8 @@
             },
             "ai": {
               "personality_key": "shadow_serpent",
-              "wander_radius": 30
-            }
-          },
-          {
-            "id": "swamp_troll_01",
-            "identity": {
-              "name": "Swamp Troll",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                0,
-                4.22322554617095,
-                -340
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 1.5
-            },
-            "stats": {
-              "max_hp": 150,
-              "level": 14
-            },
-            "ai": {
-              "personality_key": "swamp_troll",
-              "wander_radius": 8
-            }
-          },
-          {
-            "id": "marsh_witch_01",
-            "identity": {
-              "name": "The Bog Witch",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -40,
-                3.661802016095508,
-                -300
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ]
-            },
-            "stats": {
-              "max_hp": 110,
-              "level": 12
-            },
-            "ai": {
-              "personality_key": "marsh_witch",
-              "wander_radius": 10
-            }
-          },
-          {
-            "id": "will_wisp_01",
-            "identity": {
-              "name": "Will-o-Wisp",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                80,
-                6.19699211594732,
-                -200
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ],
-              "scale": 0.7
-            },
-            "stats": {
-              "max_hp": 30,
-              "level": 3
-            },
-            "ai": {
-              "personality_key": "will_o_wisp",
-              "wander_radius": 35
+              "wander_radius": 30,
+              "fixed": false
             }
           }
         ]
@@ -6276,7 +5987,7 @@
             "transform": {
               "position": [
                 0,
-                6.127111559280055,
+                6.007197042127261,
                 -250
               ],
               "scale": 1.6
@@ -6291,7 +6002,7 @@
             "transform": {
               "position": [
                 50,
-                8.10928790396922,
+                7.236363188274308,
                 -180
               ],
               "scale": 1
@@ -6313,7 +6024,7 @@
             "transform": {
               "position": [
                 -30,
-                6.263573294825602,
+                5.691091497127465,
                 -155
               ],
               "scale": 1
@@ -6327,21 +6038,6 @@
                   "depth": 1.4
                 }
               }
-            }
-          },
-          {
-            "id": "bog_tower_01",
-            "type": "tower",
-            "transform": {
-              "position": [
-                100,
-                5.682431259019839,
-                -230
-              ],
-              "scale": 1.2
-            },
-            "visual": {
-              "label": "Sinking Tower"
             }
           },
           {
@@ -6377,7 +6073,7 @@
             "transform": {
               "position": [
                 -186.4713262144877,
-                20.555442688772548,
+                20.914659057658746,
                 -359.7547341619381
               ],
               "scale": 1,
@@ -6404,7 +6100,7 @@
             "transform": {
               "position": [
                 -180.67132602375284,
-                19.218059618239707,
+                19.53399079083732,
                 -359.7547341619381
               ],
               "scale": 1,
@@ -6431,7 +6127,7 @@
             "transform": {
               "position": [
                 -180.67132602375284,
-                19.113822381016217,
+                19.369026245984973,
                 -365.55473435267294
               ],
               "scale": 1,
@@ -6458,7 +6154,7 @@
             "transform": {
               "position": [
                 -174.87132583301798,
-                19.850806407003354,
+                20.071359651152456,
                 -365.55473435267294
               ],
               "scale": 1,
@@ -6485,7 +6181,7 @@
             "transform": {
               "position": [
                 -174.87132583301798,
-                20.713996557994193,
+                20.888376714560913,
                 -371.3547345434078
               ],
               "scale": 1,
@@ -6512,7 +6208,7 @@
             "transform": {
               "position": [
                 -180.67132602375284,
-                26.868880129169117,
+                27.033932352829655,
                 -371.3547345434078
               ],
               "scale": 1,
@@ -6539,7 +6235,7 @@
             "transform": {
               "position": [
                 -175.06094383894512,
-                9.949628669894677,
+                10.272683836308184,
                 -353.12573044636576
               ],
               "scale": 1,
@@ -6566,7 +6262,7 @@
             "transform": {
               "position": [
                 -180.8513191215532,
-                8.79578145436741,
+                9.174931293562176,
                 -352.82017979031343
               ],
               "scale": 1,
@@ -6593,7 +6289,7 @@
             "transform": {
               "position": [
                 -178.4569898660144,
-                9.934456264503542,
+                10.292974272875526,
                 -352.75123773573625
               ],
               "scale": 1,
@@ -6620,7 +6316,7 @@
             "transform": {
               "position": [
                 -176.73871812552943,
-                10.014008769476554,
+                10.358146800282679,
                 -352.5641906519532
               ],
               "scale": 1,
@@ -6647,7 +6343,7 @@
             "transform": {
               "position": [
                 -31.778164238368376,
-                6.176524152903903,
+                5.18292831942861,
                 -337.8497837054069
               ],
               "scale": 1,
@@ -6674,7 +6370,7 @@
             "transform": {
               "position": [
                 -46.18500172349481,
-                6.038926949369899,
+                5.023714325538098,
                 -351.4817407203909
               ],
               "scale": 1,
@@ -6701,7 +6397,7 @@
             "transform": {
               "position": [
                 25.7583872376156,
-                4.972526590440717,
+                3.844285741865621,
                 -290.02967197092977
               ],
               "scale": 1,
@@ -6749,7 +6445,7 @@
             "transform": {
               "position": [
                 -180,
-                -0.0060135795624841615,
+                -0.8044938437342013,
                 30
               ],
               "rotation": [
@@ -6765,34 +6461,8 @@
             },
             "ai": {
               "personality_key": "stone_boar",
-              "wander_radius": 25
-            }
-          },
-          {
-            "id": "stone_boar_02",
-            "identity": {
-              "name": "Stone Boar",
-              "role": "monster"
-            },
-            "transform": {
-              "position": [
-                -220,
-                -5.814096819893003,
-                -50
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ]
-            },
-            "stats": {
-              "max_hp": 65,
-              "level": 5
-            },
-            "ai": {
-              "personality_key": "stone_boar",
-              "wander_radius": 22
+              "wander_radius": 25,
+              "fixed": false
             }
           },
           {
@@ -6804,7 +6474,7 @@
             "transform": {
               "position": [
                 -155,
-                4.289046269326863,
+                3.807199797177152,
                 90
               ],
               "rotation": [
@@ -6820,7 +6490,8 @@
             },
             "ai": {
               "personality_key": "stone_boar",
-              "wander_radius": 20
+              "wander_radius": 20,
+              "fixed": false
             }
           },
           {
@@ -6832,7 +6503,7 @@
             "transform": {
               "position": [
                 -200,
-                5.4802617487278855,
+                4.086193788507688,
                 80
               ],
               "rotation": [
@@ -6848,7 +6519,8 @@
             },
             "ai": {
               "personality_key": "giant_wasp",
-              "wander_radius": 35
+              "wander_radius": 35,
+              "fixed": false
             }
           },
           {
@@ -6860,7 +6532,7 @@
             "transform": {
               "position": [
                 -250,
-                -2.2605507053533502,
+                -1.869601363083577,
                 -20
               ],
               "rotation": [
@@ -6876,7 +6548,8 @@
             },
             "ai": {
               "personality_key": "giant_wasp",
-              "wander_radius": 32
+              "wander_radius": 32,
+              "fixed": false
             }
           },
           {
@@ -6888,7 +6561,7 @@
             "transform": {
               "position": [
                 -310,
-                -0.25481896016734273,
+                -2.1454872514808043,
                 40
               ],
               "rotation": [
@@ -6904,34 +6577,8 @@
             },
             "ai": {
               "personality_key": "sunstone_golem",
-              "wander_radius": 6
-            }
-          },
-          {
-            "id": "wandering_knight_01",
-            "identity": {
-              "name": "Wandering Knight",
-              "role": "neutral"
-            },
-            "transform": {
-              "position": [
-                -175,
-                -4.90559819664651,
-                -70
-              ],
-              "rotation": [
-                0,
-                0,
-                0
-              ]
-            },
-            "stats": {
-              "max_hp": 120,
-              "level": 10
-            },
-            "ai": {
-              "personality_key": "wandering_knight",
-              "wander_radius": 18
+              "wander_radius": 6,
+              "fixed": false
             }
           }
         ]
@@ -6944,50 +6591,13 @@
             "transform": {
               "position": [
                 -170,
-                4.528497300733426,
+                3.6516663434455507,
                 80
               ],
               "scale": 0.9
             },
             "visual": {
               "label": "Stone Well"
-            }
-          },
-          {
-            "id": "meadow_ruins_01",
-            "type": "ruins",
-            "transform": {
-              "position": [
-                -310,
-                -5.8349160122416786,
-                -70
-              ],
-              "scale": 1.1
-            },
-            "visual": {
-              "label": "Farmstead Ruins"
-            }
-          },
-          {
-            "id": "meadow_campfire_01",
-            "type": "campfire",
-            "transform": {
-              "position": [
-                -195,
-                -4.030130945091918,
-                -40
-              ],
-              "scale": 1
-            },
-            "visual": {
-              "label": "Roadside Hearth",
-              "metadata": {
-                "footprint": {
-                  "shape": "rect",
-                  "width": 1.5,
-                  "depth": 1.4
-                }
-              }
             }
           }
         ],

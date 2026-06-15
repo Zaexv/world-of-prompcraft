@@ -109,6 +109,18 @@ interface PendingChunk {
   cx: number; cz: number;  // world-space chunk centre
 }
 
+/** Minimal init data reported to the server so it owns a procedural NPC's
+ *  movement (wander loop) and combat. */
+export interface ProceduralNpcInit {
+  id: string;
+  name: string;
+  behavior: string;
+  position: [number, number, number];
+  hp: number;
+  /** Monster def id → server resolves the real personality (NPC_PERSONALITIES). */
+  personality_key: string;
+}
+
 // ── Main class ────────────────────────────────────────────────────────────────
 
 export class ProceduralPopulator {
@@ -116,6 +128,11 @@ export class ProceduralPopulator {
   private scene: THREE.Scene | null = null;
   private collisionSystem: CollisionSystem | null = null;
   private entityManager: EntityManager | null = null;
+  /** Sink that registers a freshly spawned procedural NPC with the server. */
+  private npcSink: ((npc: ProceduralNpcInit) => void) | null = null;
+  /** Live procedural NPC init data (id → init), kept so they can be re-reported
+   *  on (re)connect with their real values — no reconstructed/hardcoded fields. */
+  private readonly spawnedNpcInits = new Map<string, ProceduralNpcInit>();
 
   private queue: PendingChunk[] = [];
   private _queueDirty = false; // sort only when new chunks are queued
@@ -162,6 +179,12 @@ export class ProceduralPopulator {
   setCollisionSystem(cs: CollisionSystem): void { this.collisionSystem = cs; }
   setEntityManager(em: EntityManager): void { this.entityManager = em; }
 
+  /** Register a sink that reports each spawned procedural NPC to the server. */
+  setNpcSink(sink: ((npc: ProceduralNpcInit) => void) | null): void { this.npcSink = sink; }
+
+  /** All currently-spawned procedural NPC inits, for re-reporting on connect. */
+  getSpawnedNpcInits(): ProceduralNpcInit[] { return [...this.spawnedNpcInits.values()]; }
+
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   /** Called by WorldGenerator.onChunkLoaded — no geometry created here. */
@@ -203,7 +226,10 @@ export class ProceduralPopulator {
     // Remove procedural NPCs
     const npcIds = this.spawnedNpcs.get(key);
     if (npcIds && this.entityManager) {
-      for (const id of npcIds) this.entityManager.removeNPC(id);
+      for (const id of npcIds) {
+        this.entityManager.removeNPC(id);
+        this.spawnedNpcInits.delete(id);
+      }
       this.spawnedNpcs.delete(key);
     }
 
@@ -318,6 +344,14 @@ export class ProceduralPopulator {
             appearance: { mesh: `npc_creature_${def.id}` },
           });
           this._trackNpc(key, npcId);
+          // Hand the NPC to the server so it owns its wander + combat and all
+          // players see it in the same place. No-op offline (sink guards send).
+          const init: ProceduralNpcInit = {
+            id: npcId, name: def.name, behavior: 'hostile',
+            position: [mx, my, mz], hp: def.maxHp, personality_key: def.id,
+          };
+          this.spawnedNpcInits.set(npcId, init);
+          this.npcSink?.(init);
         } });
       }
     }

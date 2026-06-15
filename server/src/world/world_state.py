@@ -36,6 +36,19 @@ class NPCData:
     allowed_tools: list[str] | None = None
     style: str | None = None
     appearance: dict[str, Any] | None = None
+    # Movement: how the NPC wanders client-side, and whether it holds its
+    # authored position (no wander, no walk-to-player, no ground snap).
+    movement_style: str | None = None
+    wander_radius: float | None = None
+    fixed: bool = False
+    # Transient (not persisted): monotonic timestamp until which the wander loop
+    # leaves this NPC alone — set when a player summons it (npc_move) so it stays
+    # put during the conversation instead of strolling away.
+    wander_suppressed_until: float = 0.0
+    # Transient (not persisted): where a player summoned this NPC. The wander loop
+    # walks it here a bounded step per tick (server-authoritative approach, so the
+    # client renders a walk rather than a teleport), clearing it on arrival.
+    summon_target: list[float] | None = None
     # Set once gold + loot have been awarded for this NPC's death so repeated
     # interactions with the corpse don't keep paying out.
     loot_dropped: bool = False
@@ -56,6 +69,11 @@ class NPCData:
             d["style"] = self.style
         if self.appearance is not None:
             d["appearance"] = self.appearance
+        if self.movement_style is not None:
+            d["movement_style"] = self.movement_style
+        if self.wander_radius is not None:
+            d["wander_radius"] = self.wander_radius
+        d["fixed"] = self.fixed
         return d
 
 
@@ -139,6 +157,9 @@ class WorldState:
                 self.npcs[npc_id].scale = npc_def.get("scale", 1.0)
                 self.npcs[npc_id].style = npc_def.get("style")
                 self.npcs[npc_id].appearance = npc_def.get("appearance")
+                self.npcs[npc_id].movement_style = npc_def.get("movement_style")
+                self.npcs[npc_id].wander_radius = npc_def.get("wander_radius")
+                self.npcs[npc_id].fixed = npc_def.get("fixed", False)
             else:
                 # Add new
                 npc = NPCData(
@@ -153,6 +174,9 @@ class WorldState:
                     allowed_tools=allowed_tools,
                     style=npc_def.get("style"),
                     appearance=npc_def.get("appearance"),
+                    movement_style=npc_def.get("movement_style"),
+                    wander_radius=npc_def.get("wander_radius"),
+                    fixed=npc_def.get("fixed", False),
                 )
                 self.npcs[npc_id] = npc
 
@@ -177,6 +201,11 @@ class WorldState:
         hp = int(record.get("initial_hp") or 0) or default_hp
         position = list(record.get("position", [0.0, 0.0, 0.0]))
         style = record.get("style")
+        movement_style = record.get("movement_style")
+        wander_radius = record.get("wander_radius")
+        # Designer-placed NPCs default to fixed (hold position) so existing ones
+        # stay put; opt them into wandering by setting "fixed": false in the spec.
+        fixed = bool(record.get("fixed", True))
 
         if npc_id in self.npcs:
             npc = self.npcs[npc_id]
@@ -186,6 +215,9 @@ class WorldState:
             npc.allowed_tools = allowed_tools
             if style is not None:
                 npc.style = style
+            npc.movement_style = movement_style
+            npc.wander_radius = wander_radius
+            npc.fixed = fixed
         else:
             npc = NPCData(
                 npc_id=npc_id,
@@ -197,6 +229,9 @@ class WorldState:
                 archetype=archetype,
                 allowed_tools=allowed_tools,
                 style=style,
+                movement_style=movement_style,
+                wander_radius=wander_radius,
+                fixed=fixed,
             )
             self.npcs[npc_id] = npc
         return npc

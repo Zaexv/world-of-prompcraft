@@ -50,8 +50,12 @@ export class TerrainEditor {
   private selectedType: string = 'pavilion';
   private selectedGroundType: string = 'grass';
   // Full NPC info captured by the editor's NPC designer form; applied on placeNPC.
-  private npcDesign: { name: string; archetype: string; flavorPrompt: string; hp: number; skin: string } = {
+  private npcDesign: {
+    name: string; archetype: string; flavorPrompt: string; hp: number; skin: string;
+    fixed: boolean; movementStyle: string; wanderRadius: number;
+  } = {
     name: '', archetype: '', flavorPrompt: '', hp: 0, skin: '',
+    fixed: true, movementStyle: 'stroll', wanderRadius: 8,
   };
   // When set, NPC form edits apply live to this existing NPC instead of the next placed one.
   private editingNpcId: string | null = null;
@@ -458,7 +462,10 @@ export class TerrainEditor {
    * existing NPC; otherwise configures the next placed NPC. Skin drives the
    * placement ghost preview. */
   public setNpcDesign(
-    d: Partial<{ name: string; archetype: string; flavorPrompt: string; hp: number; skin: string }>
+    d: Partial<{
+      name: string; archetype: string; flavorPrompt: string; hp: number; skin: string;
+      fixed: boolean; movementStyle: string; wanderRadius: number;
+    }>
   ): void {
     this.npcDesign = { ...this.npcDesign, ...d };
     if (d.skin) this.setSelectedAsset(d.skin, 'npc');  // live ghost preview matches skin
@@ -477,7 +484,10 @@ export class TerrainEditor {
   }
 
   /** Load an existing NPC into the form for editing. Returns its info, or null. */
-  public beginEditNpc(id: string): { name: string; archetype: string; flavorPrompt: string; hp: number; skin: string } | null {
+  public beginEditNpc(id: string): {
+    name: string; archetype: string; flavorPrompt: string; hp: number; skin: string;
+    fixed: boolean; movementStyle: string; wanderRadius: number;
+  } | null {
     const n = this.worldManifest.getNPCs().find((x) => x.id === id);
     if (!n) return null;
     this.editingNpcId = id;
@@ -487,6 +497,9 @@ export class TerrainEditor {
       flavorPrompt: n.ai.flavor_prompt || '',
       hp: n.stats.max_hp,
       skin: n.ai.style || '',
+      fixed: n.ai.fixed ?? true,
+      movementStyle: n.ai.movement_style || 'stroll',
+      wanderRadius: n.ai.wander_radius ?? 8,
     };
     return { ...this.npcDesign };
   }
@@ -507,6 +520,9 @@ export class TerrainEditor {
     if (d.flavorPrompt.trim()) n.ai.flavor_prompt = d.flavorPrompt.trim();
     if (d.skin) n.ai.style = d.skin;
     if (d.hp > 0) n.stats.max_hp = d.hp;
+    n.ai.fixed = d.fixed;
+    n.ai.movement_style = d.movementStyle;
+    n.ai.wander_radius = d.fixed ? 0 : d.wanderRadius;
 
     // Live visual refresh: respawn the mesh with the new skin/name.
     const em = (this as any).entityManager;
@@ -522,6 +538,8 @@ export class TerrainEditor {
         wanderRadius: n.ai.wander_radius,
         scale: n.transform.scale,
         style: (d.skin || n.ai.style) as any,
+        movementStyle: n.ai.movement_style as any,
+        fixed: n.ai.fixed,
       });
     }
     this.saveState();
@@ -1034,14 +1052,16 @@ export class TerrainEditor {
       stats: { max_hp: d.hp > 0 ? d.hp : 100, level: 1 },
       ai: {
         personality_key: "friendly",
-        wander_radius: 10,
+        wander_radius: d.fixed ? 0 : d.wanderRadius,
         style: skin,
+        movement_style: d.movementStyle,
+        fixed: d.fixed,
         ...(d.archetype ? { archetype: d.archetype } : {}),
         ...(d.flavorPrompt.trim() ? { flavor_prompt: d.flavorPrompt.trim() } : {}),
       }
     };
     this.worldManifest.getNPCs().push(n);
-    
+
     // Visually spawn it immediately to avoid full world refresh lag
     const em = (this as any).entityManager;
     if (em) {
@@ -1052,7 +1072,9 @@ export class TerrainEditor {
         personalityKey: n.ai.personality_key,
         wanderRadius: n.ai.wander_radius,
         scale: n.transform.scale,
-        style: n.ai.style as any
+        style: n.ai.style as any,
+        movementStyle: n.ai.movement_style as any,
+        fixed: n.ai.fixed,
       });
       this.manualNPCs.push(n.id);
     }

@@ -3,9 +3,12 @@ broadcasts, and ``explore_area`` dynamic NPC agent registration."""
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 from typing import TYPE_CHECKING, Any
+
+from ...world.npc_wander import SUPPRESS_AFTER_MOVE_SECONDS, step_summon
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -103,19 +106,22 @@ async def handle_explore_area(
         npc_id = npc_data.get("id", "")
         name = npc_data.get("name", "Unknown")
         behavior = npc_data.get("behavior", "friendly")
+        personality_key = npc_data.get("personality_key", "")
 
-        # Create NPC in world state
+        # Create NPC in world state. Shared builder keeps procedural NPCs' real
+        # personality/archetype identical to the first-contact path (interaction
+        # ._auto_register_procedural_npc); the rich combat prompt is the fallback.
         if ctx.world_state and npc_id not in ctx.world_state.npcs:
-            from ...world.world_state import NPCData
+            from ...world.procedural_npcs import build_procedural_npc
 
-            personality = _get_generated_personality(name, behavior)
-            npc = NPCData(
-                npc_id=npc_id,
-                name=name,
-                personality=personality,
-                hp=60 if behavior == "hostile" else 80,
-                max_hp=60 if behavior == "hostile" else 80,
-                position=npc_data.get("position", [0, 0, 0]),
+            npc = build_procedural_npc(
+                npc_id,
+                name,
+                personality_key,
+                npc_data.get("position", [0, 0, 0]),
+                behavior=behavior,
+                hp=npc_data.get("hp"),
+                fallback_prompt=_get_generated_personality(name, behavior),
             )
             ctx.world_state.npcs[npc_id] = npc
 
@@ -212,10 +218,22 @@ async def handle_npc_move(
     position = data.get("position")
     if npc_id and isinstance(position, list) and len(position) >= 3:
         npc = world_state.get_npc(npc_id)
-        if npc:
-            npc.position = [float(position[0]), float(position[1]), float(position[2])]
-            # Broadcast to nearby players so they see the NPC approach
-            await manager.broadcast(
-                {"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]}
+        if npc and not npc.fixed:
+            # Record where to walk the NPC, and hold the wander loop off it while
+            # the player keeps summoning (each npc_move refreshes the window). The
+            # NPC walks over its own legs — bounded steps per tick, here and in the
+            # wander loop — instead of teleporting to the player's feet.
+            npc.summon_target = [float(position[0]), float(position[1]), float(position[2])]
+            npc.wander_suppressed_until = (
+                asyncio.get_event_loop().time() + SUPPRESS_AFTER_MOVE_SECONDS
             )
+            # Take one step immediately so the approach starts without waiting for
+            # the next wander tick, and broadcast it to nearby players.
+            if step_summon(npc):
+                await manager.broadcast(
+                    {
+                        "type": "npc_positions",
+                        "updates": [{"npcId": npc_id, "position": npc.position}],
+                    }
+                )
     return None

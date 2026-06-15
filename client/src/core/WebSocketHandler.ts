@@ -64,6 +64,8 @@ export interface WSHandlerDeps {
   HOSTILE_NPCS: ReadonlySet<string>;
   startIntroCinematic: () => void;
   stopReconnect: () => void;
+  /** Fired once the server join completes (join_ok). */
+  onJoined?: () => void;
   spawnChatBubble: (text: string, parent?: THREE.Object3D, style?: 'player' | 'npc' | 'system', name?: string) => void;
 }
 
@@ -115,8 +117,12 @@ export class WebSocketHandler {
           }
         }
 
-        // Online: the server owns NPC positions from here on.
+        // Online: the server owns NPC positions from here on (it runs the
+        // wander loop and pushes positions; fixed NPCs simply never move).
         this.d.entityManager.setServerAuthoritativeNPCs(true);
+        // Register procedural NPCs spawned before the join completed, so the
+        // server owns their movement too (new ones report themselves on spawn).
+        this.d.onJoined?.();
 
         if (data.npcs) {
           console.info(`Received ${data.npcs.length} NPCs from server.`);
@@ -150,6 +156,9 @@ export class WebSocketHandler {
                 behavior: n.behavior ?? undefined,
                 style: n.style ?? undefined,
                 appearance: n.appearance ?? undefined,
+                movementStyle: n.movement_style ?? undefined,
+                wanderRadius: n.wander_radius ?? undefined,
+                fixed: n.fixed ?? undefined,
                 isQuestGiver: isQuestGiverNpc(n),
               });
             } catch (err) {
@@ -449,6 +458,9 @@ export class WebSocketHandler {
           scale: n.scale,
           style: (n.style as never) ?? undefined,
           appearance: (n.appearance as never) ?? undefined,
+          movementStyle: (n.movement_style as never) ?? undefined,
+          wanderRadius: n.wander_radius ?? undefined,
+          fixed: n.fixed ?? undefined,
           isQuestGiver: isQuestGiverNpc(n),
         });
       } catch (err) {

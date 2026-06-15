@@ -50,6 +50,10 @@ async def handle_npc_design(
         position = [0.0, 0.0, 0.0]
     archetype_hint = data.get("archetype")
     skin = data.get("skin")
+    movement_style = data.get("movement_style")
+    wander_radius = data.get("wander_radius")
+    # Designer NPCs default to fixed (hold position) unless explicitly told to roam.
+    fixed = bool(data.get("fixed", True))
 
     ctx.pending_npc_actions.clear()
 
@@ -83,7 +87,15 @@ async def handle_npc_design(
             "npcs": [],
         }
 
-    spawned = await _apply_npc_actions(ctx, list(ctx.pending_npc_actions), position, skin)
+    spawned = await _apply_npc_actions(
+        ctx,
+        list(ctx.pending_npc_actions),
+        position,
+        skin,
+        movement_style=movement_style,
+        wander_radius=wander_radius,
+        fixed=fixed,
+    )
     return {"type": "npc_design_response", "dialogue": dialogue, "npcs": spawned}
 
 
@@ -92,6 +104,10 @@ async def _apply_npc_actions(
     actions: list[dict[str, Any]],
     position: list[float],
     skin: str | None = None,
+    *,
+    movement_style: str | None = None,
+    wander_radius: float | None = None,
+    fixed: bool = True,
 ) -> list[dict[str, Any]]:
     """Persist + register + collect broadcast payloads for npc_create/update actions."""
     if ctx.world_state is None or ctx.registry is None:
@@ -112,6 +128,9 @@ async def _apply_npc_actions(
                 "initial_hp": params.get("hp") or 0,
                 "position": list(position),
                 "style": skin,
+                "movement_style": movement_style,
+                "wander_radius": wander_radius,
+                "fixed": fixed,
             }
             await asyncio.to_thread(save_designed_npc, record)
             npc = ctx.world_state.upsert_designed_npc(record)
