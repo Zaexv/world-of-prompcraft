@@ -119,4 +119,17 @@ describe("PlayerState quests (server-authoritative)", () => {
   it("getQuestName falls back to the id when unknown", () => {
     expect(state.getQuestName("unknown_quest")).toBe("unknown_quest");
   });
+
+  it("merge caches completed-quest names from {id, name} objects (reload)", () => {
+    // A returning player's snapshot: completed quests as objects, never seen
+    // active this session. The name must still render (not the raw id).
+    state.merge({ completedQuests: [{ id: "crystal_tear", name: "The Crystal Tear" }] });
+    expect(state.isQuestComplete("crystal_tear")).toBe(true);
+    expect(state.getQuestName("crystal_tear")).toBe("The Crystal Tear");
+  });
+
+  it("merge still accepts legacy string[] completedQuests", () => {
+    state.merge({ completedQuests: ["old_quest"] });
+    expect(state.isQuestComplete("old_quest")).toBe(true);
+  });
 });

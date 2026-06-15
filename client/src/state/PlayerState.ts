@@ -13,7 +13,9 @@ export type EquippedItems = Record<EquipSlot, string | null>;
 /** Extended player state data that may include quest fields from the server. */
 export interface PlayerStatePatch extends Partial<PlayerStateData> {
   activeQuests?: ActiveQuest[];
-  completedQuests?: string[];
+  /** Completed quests: ids (legacy) or {id, name} objects (so the title shows
+   *  after a reload, when it wouldn't otherwise be known cross-session). */
+  completedQuests?: Array<string | { id: string; name?: string }>;
   /** slot → equipped item name (from the server's persisted PlayerData). */
   equipped?: Partial<Record<EquipSlot, string | null>>;
 }
@@ -106,7 +108,13 @@ export class PlayerState {
       questChanged = true;
     }
     if (update.completedQuests !== undefined) {
-      this.completedQuests = [...update.completedQuests];
+      // Accept ids (legacy) or {id, name} objects; cache the name so the quest
+      // log shows the title rather than the raw id after a reload.
+      this.completedQuests = update.completedQuests.map((q) => {
+        if (typeof q === 'string') return q;
+        if (q.name) this.questNameCache.set(q.id, q.name);
+        return q.id;
+      });
       questChanged = true;
     }
     this.notify();

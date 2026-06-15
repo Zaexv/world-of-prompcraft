@@ -19,6 +19,9 @@ class PlayerData:
     position: list[float] = field(default_factory=lambda: [0.0, 0.0, 0.0])
     active_quests: list[dict[str, Any]] = field(default_factory=list)
     completed_quests: list[str] = field(default_factory=list)
+    # quest_id -> display title for completed quests, so the client can show the
+    # quest's name (not its raw id) after a reload. Persisted alongside the ids.
+    completed_quest_names: dict[str, str] = field(default_factory=dict)
     kill_count: int = 0
     username: str = ""
     race: str = "human"
@@ -61,7 +64,12 @@ class PlayerData:
             "equipped": dict(self.equipped),
             # Client-facing (camelCase) — what PlayerState.merge consumes.
             "activeQuests": client_quests,
-            "completedQuests": list(self.completed_quests),
+            # Objects so the client can render the title after a reload (the names
+            # aren't otherwise known cross-session).
+            "completedQuests": [
+                {"id": qid, "name": self.completed_quest_names.get(qid, qid)}
+                for qid in self.completed_quests
+            ],
             # Internal/agent-context (snake) consumers still read these.
             "active_quests": list(self.active_quests),
             "completed_quests": list(self.completed_quests),
@@ -115,9 +123,11 @@ class PlayerData:
         """Move quest active→completed and return its reward (or None if absent)."""
         reward: QuestReward | None = None
         remaining: list[dict[str, Any]] = []
+        completed_title: str | None = None
         for quest in self.active_quests:
             if quest.get("id") == quest_id:
                 reward = QuestReward.from_dict(quest.get("reward"))
+                completed_title = str(quest.get("title") or quest.get("name") or quest_id)
             else:
                 remaining.append(quest)
         if reward is None:
@@ -125,6 +135,7 @@ class PlayerData:
         self.active_quests = remaining
         if quest_id not in self.completed_quests:
             self.completed_quests.append(quest_id)
+        self.completed_quest_names[quest_id] = completed_title or quest_id
         return reward
 
     def has_active_quest(self, quest_id: str) -> bool:

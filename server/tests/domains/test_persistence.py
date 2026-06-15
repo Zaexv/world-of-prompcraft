@@ -70,6 +70,7 @@ def test_equipped_and_quests_roundtrip(store: GameStore) -> None:
     player = world.get_player("zaex")
     player.equipped = {"weapon": "Iron Sword", "shield": None}
     player.completed_quests = ["q_intro", "q_intro", "q_wolves"]  # dup ignored
+    player.completed_quest_names = {"q_intro": "The Sacred Flame", "q_wolves": "Wolf Cull"}
     player.active_quests = [{"id": "q_active", "objectives": []}]
 
     store.save_player("zaex", player)
@@ -78,6 +79,11 @@ def test_equipped_and_quests_roundtrip(store: GameStore) -> None:
     assert doc is not None
     assert doc["equipped"] == {"weapon": "Iron Sword", "shield": None}
     assert sorted(doc["completed_quests"]) == ["q_intro", "q_wolves"]
+    # Completed-quest titles survive the round-trip so the client shows names.
+    assert doc["completed_quest_names"] == {
+        "q_intro": "The Sacred Flame",
+        "q_wolves": "Wolf Cull",
+    }
     assert doc["active_quests"] == [{"id": "q_active", "objectives": []}]
 
     # Reconstructable into PlayerData without error.
@@ -85,6 +91,9 @@ def test_equipped_and_quests_roundtrip(store: GameStore) -> None:
 
     restored = PlayerData(**doc)
     assert restored.equipped["weapon"] == "Iron Sword"
+    # to_dict feeds the client {id, name} so the title renders after a reload.
+    completed = restored.to_dict()["completedQuests"]
+    assert {"id": "q_intro", "name": "The Sacred Flame"} in completed
 
 
 def test_load_unknown_player_returns_none(store: GameStore) -> None:

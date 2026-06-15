@@ -54,6 +54,9 @@ class CompletedQuest(models.Model):
 
     player = models.ForeignKey(Player, related_name="completed", on_delete=models.CASCADE)
     quest_id = models.CharField(max_length=64)
+    # Display title, persisted so a returning player sees the quest's name (not its
+    # raw id) in the completed list after a reload.
+    name = models.CharField(max_length=128, default="")
 
     class Meta:
         unique_together = ("player", "quest_id")
