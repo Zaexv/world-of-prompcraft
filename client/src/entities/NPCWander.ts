@@ -21,10 +21,6 @@ export class NPCWander {
   private approachTarget: THREE.Vector3 | null = null;
   private onArrive: (() => void) | null = null;
 
-  /** Server-driven roam goal (server owns intent; the client navigates here with
-   *  real collision + terrain). Null = stand idle until a goal arrives. */
-  private serverGoal: THREE.Vector3 | null = null;
-
   constructor(
     private readonly mesh: THREE.Group,
     private readonly position: THREE.Vector3,
@@ -59,19 +55,10 @@ export class NPCWander {
       return;
     }
 
-    // Online mode: the server owns intent. It assigns roam GOALS; the client
-    // navigates to the latest one with real collision + terrain (no local random
-    // wander). Standing idle until a goal arrives.
-    if (this.serverDriven) {
-      if (!this.serverGoal) { this.animator.play('idle'); return; }
-      const r = this.walkTowardPoint(
-        this.serverGoal.x, this.serverGoal.z, delta, getHeightAt, collisionSystem, waterHoverY,
-      );
-      this.animator.play(r === 'moved' ? 'walk' : 'idle');
-      return;
-    }
+    // Online mode: the server decides where NPCs stroll; without an explicit
+    // target the NPC stands idle instead of inventing local-only movement.
+    if (this.serverDriven) return;
 
-    // Offline mode: invent local random wander goals within the home disc.
     if (!this.isWandering) {
       this.wanderCooldown -= delta;
       if (this.wanderCooldown <= 0) {
@@ -90,50 +77,21 @@ export class NPCWander {
 
     if (!this.hasWanderTarget) return;
 
-    const result = this.walkTowardPoint(
-      this.wanderTarget.x, this.wanderTarget.z, delta, getHeightAt, collisionSystem, waterHoverY,
-    );
-    if (result === 'arrived') {
+    const dx = this.wanderTarget.x - this.mesh.position.x;
+    const dz = this.wanderTarget.z - this.mesh.position.z;
+    const distSq = dx * dx + dz * dz;
+
+    if (distSq < 0.25) {
       this.isWandering = false;
       this.hasWanderTarget = false;
       this.wanderCooldown = this.nextCooldown();
       this.animator.play('idle');
-    } else if (result === 'stuck') {
-      const reTarget = this.pickTarget(getHeightAt, collisionSystem, wanderRadius, homePosition);
-      if (reTarget) {
-        this.wanderTarget.copy(reTarget);
-      } else {
-        this.isWandering = false;
-        this.hasWanderTarget = false;
-        this.wanderCooldown = Math.min(0.5, this.nextCooldown());
-        this.animator.play('idle');
-      }
+      return;
     }
-  }
-
-  /** Set the latest server-assigned roam goal (server-driven NPCs). null = idle. */
-  setServerGoal(goal: THREE.Vector3 | null): void {
-    this.serverGoal = goal ? goal.clone() : null;
-  }
-
-  /** Walk one step toward (tx,tz): collision-aware (detours around obstacles),
-   *  terrain-grounded, water-hovering. Returns 'arrived' (within 0.5m), 'stuck'
-   *  (boxed in), or 'moved'. Shared by offline wander + server-goal navigation. */
-  private walkTowardPoint(
-    tx: number,
-    tz: number,
-    delta: number,
-    getHeightAt: (x: number, z: number) => number,
-    collisionSystem: CollisionSystem | undefined,
-    waterHoverY: number,
-  ): 'arrived' | 'stuck' | 'moved' {
-    const dx = tx - this.mesh.position.x;
-    const dz = tz - this.mesh.position.z;
-    const distSq = dx * dx + dz * dz;
-    if (distSq < 0.25) return 'arrived';
 
     const dist = Math.sqrt(distSq);
-    const step = Math.min(this.motionProfile.moveSpeed * delta, dist);
+    const speed = this.motionProfile.moveSpeed;
+    const step = Math.min(speed * delta, dist);
     const nx = dx / dist;
     const nz = dz / dist;
 
@@ -155,7 +113,15 @@ export class NPCWander {
           nextX = px; nextZ = pz; nextY = py; foundDetour = true; break;
         }
       }
-      if (!foundDetour) return 'stuck';
+      if (!foundDetour) {
+        const reTarget = this.pickTarget(getHeightAt, collisionSystem, wanderRadius, homePosition);
+        if (reTarget) { this.wanderTarget.copy(reTarget); return; }
+        this.isWandering = false;
+        this.hasWanderTarget = false;
+        this.wanderCooldown = Math.min(0.5, this.nextCooldown());
+        this.animator.play('idle');
+        return;
+      }
     }
 
     if (nextY < Water.LEVEL + 0.05) nextY = waterHoverY;
@@ -171,7 +137,6 @@ export class NPCWander {
       Math.min(1, this.motionProfile.turnSpeed * delta),
     );
     this.animator.setBaseY(this.mesh.position.y);
-    return 'moved';
   }
 
   walkTo(target: THREE.Vector3, onArrive?: () => void): void {
