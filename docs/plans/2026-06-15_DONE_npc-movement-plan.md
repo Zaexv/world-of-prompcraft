@@ -2,9 +2,12 @@
 
 **Date:** 2026-06-15
 **Branch:** `feature/sync-npc-movement`
-**Status:** DRAFT — current state works ("works great" per user); this plan
-captures what we learned and the path to do town/collision movement *properly*
-(navmesh) instead of by patching.
+**Status:** ✅ DONE — Phases A (baseline) + B (server occupancy from authored
+landmarks) shipped and verified. Summon-walk (click → NPC walks to you, no
+teleport) and supporting persistence fixes (username, completed-quest names)
+also shipped on this branch. The remaining nav work — making NPCs respect ALL
+collisions (procedural trees/buildings/props) and route *around* them — is
+carried forward into [2026-06-15_npc-collision-navigation-plan.md].
 
 ---
 
