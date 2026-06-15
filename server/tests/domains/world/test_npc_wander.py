@@ -8,7 +8,14 @@ from typing import Any
 
 import pytest
 
-from src.world.npc_wander import ACTIVE_RADIUS, WANDER_RADIUS, step_npcs
+from src.world.npc_wander import (
+    ACTIVE_RADIUS,
+    SUMMON_ARRIVE,
+    SUMMON_STEP,
+    WANDER_RADIUS,
+    step_npcs,
+    step_summon,
+)
 from src.world.world_geometry import (
     Footprint,
     WorldGeometry,
@@ -174,6 +181,56 @@ def test_updates_carry_npc_id_and_new_position() -> None:
         assert len(u["position"]) == 3
     # The last reported position is the NPC's authoritative position.
     assert updates[-1]["position"] == world.npcs["n1"].position
+
+
+# ── Summon (click an NPC → it walks to you) ─────────────────────────────────
+
+
+def test_step_summon_walks_in_bounded_steps_then_stops() -> None:
+    # A far summon must approach in bounded steps (never a teleport) and stop a
+    # short way off, not on the player's feet.
+    world = WorldState()
+    npc = _spawn(world, "n1", [0.0, 0.0, 0.0])
+    npc.summon_target = [100.0, 0.0, 0.0]
+
+    prev = list(npc.position)
+    steps = 0
+    while step_summon(npc):
+        moved = math.hypot(npc.position[0] - prev[0], npc.position[2] - prev[2])
+        assert moved <= SUMMON_STEP + 1e-9, "summon step must be bounded (no teleport)"
+        prev = list(npc.position)
+        steps += 1
+        assert steps < 100, "summon must converge"
+
+    remaining = math.hypot(100.0 - npc.position[0], 0.0 - npc.position[2])
+    assert remaining <= SUMMON_ARRIVE + 1e-6, "stops within arrival distance"
+    assert npc.summon_target is None, "target cleared on arrival"
+
+
+def test_step_summon_noop_without_target() -> None:
+    world = WorldState()
+    npc = _spawn(world, "n1", [0.0, 0.0, 0.0])
+    assert step_summon(npc) is False
+    assert npc.position == [0.0, 0.0, 0.0]
+
+
+def test_summoned_npc_walks_via_wander_loop() -> None:
+    # During suppression the wander loop walks a summoned NPC toward its target
+    # (instead of idling), emitting bounded position updates.
+    world = WorldState()
+    npc = _spawn(world, "n1", [50.0, 0.0, 0.0])
+    npc.summon_target = [0.0, 0.0, 0.0]
+    npc.wander_suppressed_until = 100.0  # suppressed (summoned)
+    player = world.get_player("p1")
+    player.position = [0.0, 0.0, 0.0]
+
+    rng = random.Random(31)
+    start = math.hypot(npc.position[0], npc.position[2])
+    for _ in range(40):
+        step_npcs(world, {}, rng, now=50.0)
+    end = math.hypot(npc.position[0], npc.position[2])
+    assert end < start, "summoned NPC must close the distance to the player"
+    assert end <= SUMMON_ARRIVE + 1e-6, "and arrive beside them"
 
 
 # ── World geometry (landmark footprints) ────────────────────────────────────

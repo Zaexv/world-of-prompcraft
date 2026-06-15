@@ -22,7 +22,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from ..ws.connection_manager import ConnectionManager
     from .world_geometry import WorldGeometry
-    from .world_state import WorldState
+    from .world_state import NPCData, WorldState
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +63,36 @@ REPICK_HEADING_CHANCE = 0.2
 # this long so it stays with the player instead of strolling off. Each summon
 # refreshes the window, so it holds for the whole conversation.
 SUPPRESS_AFTER_MOVE_SECONDS = 8.0
+# Summon: when a player calls an NPC over, the server walks it toward the player a
+# bounded amount per tick — small enough that the client renders a walk, never a
+# >25m "teleport" jump. ~one tick of NPC walking speed so motion stays continuous.
+SUMMON_STEP = 6.0
+# Stop this far from the target so a summoned NPC stands beside the player, not on
+# top of them.
+SUMMON_ARRIVE = 2.5
+
+
+def step_summon(npc: NPCData) -> bool:
+    """Advance a summoned NPC one bounded step toward its summon target.
+
+    Returns True if the NPC moved (so the caller broadcasts the new position).
+    Clears the target on arrival so the NPC idles beside the player instead of
+    jittering on top of them. y is left untouched — clients resolve terrain height.
+    """
+    target = npc.summon_target
+    if target is None:
+        return False
+    dx = target[0] - npc.position[0]
+    dz = target[2] - npc.position[2]
+    dist = math.sqrt(dx * dx + dz * dz)
+    if dist <= SUMMON_ARRIVE:
+        npc.summon_target = None
+        return False
+    step = min(SUMMON_STEP, dist - SUMMON_ARRIVE)
+    nx = npc.position[0] + dx / dist * step
+    nz = npc.position[2] + dz / dist * step
+    npc.position = [nx, npc.position[1], nz]
+    return True
 
 
 def _dist_xz(a: list[float], b: list[float]) -> float:
@@ -106,8 +136,12 @@ def step_npcs(
         # wander_radius of 0 is treated the same way.
         if npc.fixed:
             continue
-        # Recently summoned by a player — leave it where they called it.
+        # Recently summoned by a player — don't wander. Instead walk toward the
+        # summon target (the player) a bounded step, so it approaches on its own
+        # legs rather than teleporting. Idles once it arrives.
         if npc.wander_suppressed_until > now:
+            if step_summon(npc):
+                updates.append({"npcId": npc.npc_id, "position": list(npc.position)})
             continue
         # Every non-fixed NPC roams. Floor the radius so small-radius NPCs still
         # cover visible ground (the user wants all of them moving, not pacing in

@@ -8,7 +8,7 @@ import logging
 import random
 from typing import TYPE_CHECKING, Any
 
-from ...world.npc_wander import SUPPRESS_AFTER_MOVE_SECONDS
+from ...world.npc_wander import SUPPRESS_AFTER_MOVE_SECONDS, step_summon
 
 if TYPE_CHECKING:
     from fastapi import WebSocket
@@ -218,15 +218,22 @@ async def handle_npc_move(
     position = data.get("position")
     if npc_id and isinstance(position, list) and len(position) >= 3:
         npc = world_state.get_npc(npc_id)
-        if npc:
-            npc.position = [float(position[0]), float(position[1]), float(position[2])]
-            # Hold the wander loop off this NPC while the player keeps summoning
-            # it (each npc_move refreshes the window), so it stays put to talk.
+        if npc and not npc.fixed:
+            # Record where to walk the NPC, and hold the wander loop off it while
+            # the player keeps summoning (each npc_move refreshes the window). The
+            # NPC walks over its own legs — bounded steps per tick, here and in the
+            # wander loop — instead of teleporting to the player's feet.
+            npc.summon_target = [float(position[0]), float(position[1]), float(position[2])]
             npc.wander_suppressed_until = (
                 asyncio.get_event_loop().time() + SUPPRESS_AFTER_MOVE_SECONDS
             )
-            # Broadcast to nearby players so they see the NPC approach
-            await manager.broadcast(
-                {"type": "npc_positions", "updates": [{"npcId": npc_id, "position": npc.position}]}
-            )
+            # Take one step immediately so the approach starts without waiting for
+            # the next wander tick, and broadcast it to nearby players.
+            if step_summon(npc):
+                await manager.broadcast(
+                    {
+                        "type": "npc_positions",
+                        "updates": [{"npcId": npc_id, "position": npc.position}],
+                    }
+                )
     return None

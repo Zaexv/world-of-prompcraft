@@ -234,7 +234,10 @@ export class GameEngine {
       const npc = d.entityManager.getNPC(npcId);
       if (npc && !npc.fixed) {
         const targetPos = d.playerController.position.clone();
-        npc.walkToPlayer(targetPos);
+        // Offline: walk it locally. Online: the server walks the NPC over (it
+        // streams bounded steps the client renders); racing to the player's
+        // position locally fights that stream and causes a snap-back.
+        if (!npc.isServerDriven) npc.walkToPlayer(targetPos);
         d.ws.sendNPCMove(npcId, [targetPos.x, targetPos.y, targetPos.z]);
       }
 
@@ -362,25 +365,19 @@ export class GameEngine {
       const npc = d.entityManager.getNPC(d.runtime.activeNpcId);
       // Fixed NPCs never move — don't summon or stream them.
       if (npc && !npc.fixed) {
-        // On first focus, walk the NPC to the player (stops ~1.5m away).
+        // Stream the PLAYER's position as the summon target: the server walks the
+        // NPC over its own legs (bounded steps, stopping a short way off) and
+        // keeps it near if the player moves. The client renders the walk from the
+        // server position stream. Send immediately on first focus, then throttled.
         if (this.activeDialogNpcId !== d.runtime.activeNpcId) {
           this.activeDialogNpcId = d.runtime.activeNpcId;
-          this.npcMoveStreamTimer = 0;
-          const dx = npc.position.x - d.playerController.position.x;
-          const dz = npc.position.z - d.playerController.position.z;
-          const dist = Math.sqrt(dx * dx + dz * dz);
-          if (dist > 1.5) {
-            const nx = d.playerController.position.x + (dx / dist) * 1.5;
-            const nz = d.playerController.position.z + (dz / dist) * 1.5;
-            npc.walkToServerPosition(new THREE.Vector3(nx, npc.position.y, nz));
-          }
+          this.npcMoveStreamTimer = NPC_MOVE_STREAM_INTERVAL;
         }
-        // Stream the NPC's live position so the server (and other players) see
-        // the approach in real time, and the server holds off wandering it away.
         this.npcMoveStreamTimer += delta;
         if (this.npcMoveStreamTimer >= NPC_MOVE_STREAM_INTERVAL) {
           this.npcMoveStreamTimer = 0;
-          d.ws.sendNPCMove(npc.id, [npc.position.x, npc.position.y, npc.position.z]);
+          const p = d.playerController.position;
+          d.ws.sendNPCMove(npc.id, [p.x, p.y, p.z]);
         }
       } else {
         this.activeDialogNpcId = d.runtime.activeNpcId;

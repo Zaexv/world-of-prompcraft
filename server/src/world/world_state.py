@@ -45,6 +45,10 @@ class NPCData:
     # leaves this NPC alone — set when a player summons it (npc_move) so it stays
     # put during the conversation instead of strolling away.
     wander_suppressed_until: float = 0.0
+    # Transient (not persisted): where a player summoned this NPC. The wander loop
+    # walks it here a bounded step per tick (server-authoritative approach, so the
+    # client renders a walk rather than a teleport), clearing it on arrival.
+    summon_target: list[float] | None = None
     # Set once gold + loot have been awarded for this NPC's death so repeated
     # interactions with the corpse don't keep paying out.
     loot_dropped: bool = False
