@@ -194,9 +194,29 @@ export class CharacterCreation {
     this.enterBtn.addEventListener('click', () => {
       const username = this.usernameInput.value.trim();
       if (!username) return;
+      // Remember the name so a returning player rejoins the SAME identity on
+      // reload — server progress is keyed by username, so a fresh name would
+      // start a brand-new character and look like lost progress.
+      try {
+        localStorage.setItem('wop_username', username);
+      } catch {
+        // localStorage unavailable (private mode) — non-fatal.
+      }
       this.onSubmit?.({ username, race: this.selectedRace, faction: this.factionFor(this.selectedRace) });
     });
     this.element.appendChild(this.enterBtn);
+
+    // Prefill the last-used name and enable the button so a returning player can
+    // jump straight back in.
+    try {
+      const savedName = localStorage.getItem('wop_username');
+      if (savedName) {
+        this.usernameInput.value = savedName;
+        this.setEnterBtnEnabled(true);
+      }
+    } catch {
+      // ignore
+    }
   }
 
   private updateRaceCards(): void {

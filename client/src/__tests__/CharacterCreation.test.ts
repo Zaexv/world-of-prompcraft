@@ -53,6 +53,9 @@ function submit(cc: CharacterCreation, username: string): CharacterSelectionResu
 describe('CharacterCreation', () => {
   beforeEach(() => {
     vi.mocked(CharacterPreview).mockClear();
+    // The screen now persists/prefills the last username — isolate tests so a
+    // submit in one doesn't prefill the next (e.g. the empty-username case).
+    localStorage.clear();
   });
 
   it('defaults to human / alliance and submits without a skin field', () => {
@@ -100,6 +103,21 @@ describe('CharacterCreation', () => {
     cc.onSubmit = () => { called = true; };
     enterBtn(cc).click();
     expect(called).toBe(false);
+  });
+
+  it('remembers the username across reloads (save on submit, prefill on load)', () => {
+    submit(new CharacterCreation(), 'Returning');
+    expect(localStorage.getItem('wop_username')).toBe('Returning');
+
+    // A fresh screen (simulating a reload) prefills the saved name and is ready
+    // to submit it without retyping.
+    const reopened = new CharacterCreation();
+    const input = reopened.element.querySelector('input') as HTMLInputElement;
+    expect(input.value).toBe('Returning');
+    let result: CharacterSelectionResult | null = null;
+    reopened.onSubmit = (r) => { result = r; };
+    enterBtn(reopened).click();
+    expect(result).toEqual({ username: 'Returning', race: 'human', faction: 'alliance' });
   });
 
   it('dispose tears down the 3D preview renderer', () => {
