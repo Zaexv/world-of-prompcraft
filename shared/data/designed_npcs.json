@@ -1,0 +1,89 @@
+{
+  "des_6968457b": {
+    "npc_id": "des_6968457b",
+    "name": "Paco",
+    "archetype": "friendly_merchant",
+    "flavor_prompt": "A chill blacksmith who's always got a relaxed, easygoing attitude. Paco speaks in a laid-back way, laughs a lot, and treats his forge like it's just another groovy thing in life. He's got that stoner energy—slow to anger, quick to help, and always down to chat about whatever while he's hammering away at metal.",
+    "initial_hp": 0,
+    "position": [
+      -149.7744976034082,
+      8.19610799624686,
+      -321.738189571072
+    ],
+    "fixed": false,
+    "wander_radius": 8
+  },
+  "des_fe592072": {
+    "npc_id": "des_fe592072",
+    "name": "Ironhide",
+    "archetype": "friendly_merchant",
+    "flavor_prompt": "A grizzled blacksmith with cool, slate-gray skin that gleams like polished steel. Perpetually scowling, he speaks in short, irritable grunts but has a hidden soft spot for those who respect his craft. Smells of coal and metal, always covered in soot and burn marks.",
+    "initial_hp": 0,
+    "position": [
+      -179.94359549975297,
+      3.1188971657011884,
+      -273.8637362580445
+    ],
+    "fixed": false,
+    "wander_radius": 8
+  },
+  "des_4e1a4a97": {
+    "npc_id": "des_4e1a4a97",
+    "name": "Titán Oscuro",
+    "archetype": "hostile_boss",
+    "flavor_prompt": "Un coloso de pesadilla envuelto en armadura de obsidiana y huesos ancestrales. Su piel brilla con un aura maligna, cicatrices de batallas antiguas recorren su cuerpo colosal. Habla con una voz profunda y resonante que hace temblar la tierra. Implacable, sediento de poder, y prácticamente inmortal.",
+    "initial_hp": 9999,
+    "position": [
+      -63.15898228406301,
+      4.294318202048845,
+      -297.78783367532856
+    ],
+    "fixed": false,
+    "wander_radius": 8
+  },
+  "des_896eb78d": {
+    "npc_id": "des_896eb78d",
+    "name": "Paco el Eterno",
+    "archetype": "quest_giver",
+    "flavor_prompt": "Un anciano sabio y jovial con una sonrisa eterna, los ojos brillantes de misterio. Habla con calidez y humor, como si conociera secretos del universo. Viste ropas gastadas pero elegantes, y siempre tiene una misión especial para aquellos dignos. Su voz es cálida y su risa contagiosa. Ofrece la legendaria Espada de las Mil Verdades a quien complete su prueba: saludar a tres personas diferentes y traerle sus historias.",
+    "initial_hp": 0,
+    "position": [
+      -56.630849983843355,
+      3.7944226900870786,
+      -294.9236890455642
+    ],
+    "fixed": false,
+    "wander_radius": 8
+  },
+  "des_90ddfd7e": {
+    "npc_id": "des_90ddfd7e",
+    "name": "Paco el Eterno",
+    "archetype": "quest_giver",
+    "flavor_prompt": "Un personaje eternamente jovial y amigable, con una sonrisa contagiosa. Paco cree que la mejor forma de conocer el mundo es saludando a todos. Habla con calidez, siempre ve lo bueno en las personas, y anima a otros a hacer lo mismo. Su misión es simple pero profunda: conectar a la gente a través de saludos genuinos.",
+    "initial_hp": 0,
+    "position": [
+      -57.355371769178156,
+      3.8518173757450094,
+      -291.6192592553708
+    ],
+    "style": "guard",
+    "fixed": false,
+    "wander_radius": 8
+  },
+  "des_38cf73bb": {
+    "npc_id": "des_38cf73bb",
+    "name": "Infernathor the Draconic Tyrant",
+    "archetype": "hostile_boss",
+    "flavor_prompt": "An ancient dragon of immense pride and hunger, with scales that gleam like molten gold and eyes that burn with centuries of malice. Speaks in a deep, rumbling voice that shakes the earth, viewing all mortals as insignificant prey. Obsessed with hoarding power and treasures, and will not tolerate any challenge to its dominion.",
+    "initial_hp": 0,
+    "position": [
+      -157.13432894841333,
+      6.577368941115427,
+      -306.08341832175785
+    ],
+    "style": "civilian",
+    "movement_style": "patrol",
+    "wander_radius": 11,
+    "fixed": false
+  }
+}
