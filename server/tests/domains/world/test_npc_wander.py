@@ -252,6 +252,54 @@ def test_geometry_does_not_freeze_npcs_in_the_open() -> None:
     assert moved, "an NPC clear of all footprints must still wander"
 
 
+def test_npc_authored_inside_a_footprint_still_roams() -> None:
+    # NPCs are deliberately placed inside landmarks (Amphitheatre Manolos on stage,
+    # merchants in a shop). The footprint is their home, not a wall — they must
+    # keep moving, never freeze. Regression: enforcing geometry on them trapped
+    # every such NPC and the world looked frozen.
+    world = WorldState()
+    big = _footprint(1000.0, 1000.0, 12.0)  # a 24m building
+    _spawn(world, "shopkeeper", [1000.0, 4.0, 1000.0])  # home dead-center inside
+    player = world.get_player("p1")
+    player.position = [1000.0, 0.0, 1000.0]
+    geometry = WorldGeometry([big])
+    assert geometry.is_blocked(1000.0, 1000.0), "home must be inside the footprint"
+
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    rng = random.Random(21)
+    moved = 0
+    for _ in range(20):
+        if step_npcs(world, homes, rng, headings=headings, geometry=geometry):
+            moved += 1
+    assert moved >= 15, "an NPC living inside a landmark must roam freely, not freeze"
+
+
+def test_real_starter_npcs_keep_moving_with_geometry() -> None:
+    # End-to-end on real data: a player at spawn, real manifest geometry, real
+    # authored NPCs (incl. the Amphitheatre Manolos who live inside a footprint).
+    # Every active non-fixed NPC must move — this is the "no NPC is moving" report.
+    geometry = load_world_geometry()
+    world = WorldState()
+    player = world.get_player("p1")
+    player.position = [0.0, 0.0, 0.0]
+    active = [
+        n.npc_id
+        for n in world.npcs.values()
+        if not n.fixed and n.hp > 0 and math.hypot(n.position[0], n.position[2]) <= ACTIVE_RADIUS
+    ]
+    assert active, "spawn area should have active NPCs"
+
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    rng = random.Random(1)
+    moved: set[str] = set()
+    for _ in range(10):
+        for u in step_npcs(world, homes, rng, headings=headings, geometry=geometry):
+            moved.add(u["npcId"])
+    assert set(active) <= moved, f"frozen NPCs: {sorted(set(active) - moved)}"
+
+
 def test_load_world_geometry_reads_manifest_landmarks() -> None:
     # Real manifest: Fort Malaka is a dense authored cluster — it must yield
     # footprints, and a known building's center must read as blocked.

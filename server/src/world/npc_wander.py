@@ -122,6 +122,13 @@ def step_npcs(
 
         home = homes.setdefault(npc.npc_id, list(npc.position))
 
+        # A footprint is a wall only to NPCs that DON'T live in it. Many NPCs are
+        # authored to stand inside a landmark (the Amphitheatre Manolos on their
+        # stage, merchants in their shop) — for them the footprint is home, not an
+        # obstacle, so enforcing it would trap them. Only block NPCs whose home is
+        # in the clear from walking INTO a building.
+        enforce_geometry = geometry is not None and not geometry.is_blocked(home[0], home[2])
+
         # Continue the current heading with a gentle turn (a path), or occasionally
         # strike out in a fresh direction.
         heading = headings.get(npc.npc_id)
@@ -148,7 +155,7 @@ def step_npcs(
         # Don't step into a structure (authored landmark footprints). Try slipping
         # around it at a few heading offsets, keeping inside the wander disc; if
         # nowhere is clear this tick, hold position and re-aim for the next one.
-        if geometry is not None and geometry.is_blocked(nx, nz):
+        if enforce_geometry and geometry is not None and geometry.is_blocked(nx, nz):
             slipped = False
             for off in _DETOUR_OFFSETS:
                 ah = heading + off
