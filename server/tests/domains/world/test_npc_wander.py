@@ -9,6 +9,11 @@ from typing import Any
 import pytest
 
 from src.world.npc_wander import ACTIVE_RADIUS, WANDER_RADIUS, step_npcs
+from src.world.world_geometry import (
+    Footprint,
+    WorldGeometry,
+    load_world_geometry,
+)
 from src.world.world_state import NPCData, WorldState
 
 
@@ -169,3 +174,121 @@ def test_updates_carry_npc_id_and_new_position() -> None:
         assert len(u["position"]) == 3
     # The last reported position is the NPC's authoritative position.
     assert updates[-1]["position"] == world.npcs["n1"].position
+
+
+# ── World geometry (landmark footprints) ────────────────────────────────────
+
+
+def _footprint(cx: float, cz: float, half: float) -> Footprint:
+    return Footprint(
+        cx=cx,
+        cz=cz,
+        half_w=half,
+        half_d=half,
+        cos=1.0,
+        sin=0.0,
+        bound_sq=(half * 1.4143) ** 2,
+    )
+
+
+def test_footprint_contains_axis_aligned() -> None:
+    fp = _footprint(0.0, 0.0, 2.0)
+    assert fp.contains(0.0, 0.0)
+    assert fp.contains(1.9, -1.9)
+    assert not fp.contains(2.1, 0.0)
+    assert not fp.contains(0.0, 5.0)
+
+
+def test_footprint_contains_rotated() -> None:
+    # 45° rotated square: a point off the unrotated corner is now outside.
+    angle = math.pi / 4
+    fp = Footprint(
+        cx=0.0,
+        cz=0.0,
+        half_w=2.0,
+        half_d=2.0,
+        cos=math.cos(angle),
+        sin=math.sin(angle),
+        bound_sq=(2.83) ** 2,
+    )
+    assert fp.contains(0.0, 0.0)
+    # Along the rotated local axis (diagonal in world space) still inside.
+    assert fp.contains(1.3, 1.3)
+
+
+def test_npc_never_steps_into_a_footprint() -> None:
+    # A building sits right next to the NPC's home; over many ticks the NPC must
+    # never land inside it.
+    world = WorldState()
+    _spawn(world, "n1", [1000.0, 0.0, 1000.0])
+    player = world.get_player("p1")
+    player.position = [1000.0, 0.0, 1000.0]
+    geometry = WorldGeometry([_footprint(1004.0, 1000.0, 3.0)])
+
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    rng = random.Random(17)
+    for _ in range(300):
+        step_npcs(world, homes, rng, headings=headings, geometry=geometry)
+        pos = world.npcs["n1"].position
+        assert not geometry.is_blocked(pos[0], pos[2]), "NPC clipped into a footprint"
+
+
+def test_geometry_does_not_freeze_npcs_in_the_open() -> None:
+    # With a footprint that doesn't overlap the wander disc, movement is unaffected.
+    world = WorldState()
+    _spawn(world, "n1", [1000.0, 0.0, 1000.0])
+    player = world.get_player("p1")
+    player.position = [1000.0, 0.0, 1000.0]
+    geometry = WorldGeometry([_footprint(1100.0, 1100.0, 3.0)])  # far away
+
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    rng = random.Random(19)
+    moved = False
+    for _ in range(20):
+        if step_npcs(world, homes, rng, headings=headings, geometry=geometry):
+            moved = True
+    assert moved, "an NPC clear of all footprints must still wander"
+
+
+def test_load_world_geometry_reads_manifest_landmarks() -> None:
+    # Real manifest: Fort Malaka is a dense authored cluster — it must yield
+    # footprints, and a known building's center must read as blocked.
+    geometry = load_world_geometry()
+    assert geometry.footprint_count > 0, "manifest landmarks should load"
+    # malaka_broken_house_reconstructed center (see world_manifest fort_malaka).
+    assert geometry.is_blocked(-178.4, -290.1)
+
+
+def test_npcs_wander_fort_malaka_without_clipping_buildings() -> None:
+    # The d012981 regression scenario, as a unit test: NPCs in the dense Fort
+    # Malaka cluster, with real manifest footprints. Over many ticks none may
+    # land inside a building, and they must still move (not freeze).
+    geometry = load_world_geometry()
+    world = WorldState()
+    player = world.get_player("p1")
+    player.position = [-160.0, 0.0, -270.0]  # inside the fort
+    # Spawn a handful at clear spots around the fort plaza.
+    spots = [
+        [-160.0, 4.0, -270.0],
+        [-150.0, 4.0, -260.0],
+        [-170.0, 4.0, -280.0],
+        [-155.0, 4.0, -285.0],
+    ]
+    for i, p in enumerate(spots):
+        assert not geometry.is_blocked(p[0], p[2]), "test spot must start clear"
+        _spawn(world, f"fort{i}", p)
+
+    fort_ids = [f"fort{i}" for i in range(len(spots))]
+    homes: dict[str, list[float]] = {}
+    headings: dict[str, float] = {}
+    rng = random.Random(23)
+    moved: set[str] = set()
+    for _ in range(200):
+        for u in step_npcs(world, homes, rng, headings=headings, geometry=geometry):
+            moved.add(u["npcId"])
+        for fid in fort_ids:
+            pos = world.npcs[fid].position
+            assert not geometry.is_blocked(pos[0], pos[2]), f"{fid} clipped a building"
+    assert set(fort_ids) <= moved, "every fort NPC must still wander"

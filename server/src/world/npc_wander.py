@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from ..ws.connection_manager import ConnectionManager
+    from .world_geometry import WorldGeometry
     from .world_state import WorldState
 
 logger = logging.getLogger(__name__)
@@ -70,12 +71,18 @@ def _dist_xz(a: list[float], b: list[float]) -> float:
     return math.sqrt(dx * dx + dz * dz)
 
 
+# When a step lands inside a structure, try slipping around it at these heading
+# offsets (radians) before giving up for the tick. Mix of gentle and hard turns.
+_DETOUR_OFFSETS = (0.6, -0.6, 1.2, -1.2, 2.0, -2.0, math.pi)
+
+
 def step_npcs(
     world_state: WorldState,
     homes: dict[str, list[float]],
     rng: random.Random,
     now: float = 0.0,
     headings: dict[str, float] | None = None,
+    geometry: WorldGeometry | None = None,
 ) -> list[dict[str, Any]]:
     """Advance every active NPC one wander step; return the position updates.
 
@@ -138,6 +145,25 @@ def step_npcs(
             nz = hz + dz * scale
             heading = math.atan2(hz - nz, hx - nx)  # face home for the next tick
 
+        # Don't step into a structure (authored landmark footprints). Try slipping
+        # around it at a few heading offsets, keeping inside the wander disc; if
+        # nowhere is clear this tick, hold position and re-aim for the next one.
+        if geometry is not None and geometry.is_blocked(nx, nz):
+            slipped = False
+            for off in _DETOUR_OFFSETS:
+                ah = heading + off
+                ax = npc.position[0] + math.cos(ah) * step
+                az = npc.position[2] + math.sin(ah) * step
+                if math.sqrt((ax - hx) ** 2 + (az - hz) ** 2) > radius:
+                    continue
+                if not geometry.is_blocked(ax, az):
+                    nx, nz, heading, slipped = ax, az, ah, True
+                    break
+            if not slipped:
+                # Boxed in — stay put, pick a fresh heading to probe next tick.
+                headings[npc.npc_id] = rng.uniform(0.0, math.tau)
+                continue
+
         headings[npc.npc_id] = heading
         # y is intentionally left as-is: clients resolve terrain height locally.
         npc.position = [nx, npc.position[1], nz]
@@ -148,15 +174,19 @@ def step_npcs(
 
 async def npc_wander_loop(world_state: WorldState, manager: ConnectionManager) -> None:
     """Background tick: step active NPCs and notify the players who see them."""
+    from .world_geometry import load_world_geometry
+
     homes: dict[str, list[float]] = {}
     headings: dict[str, float] = {}
     rng = random.Random()
+    # Authored landmark footprints (towns) so wandering NPCs don't clip buildings.
+    geometry = load_world_geometry()
     while True:
         await asyncio.sleep(TICK_SECONDS)
         try:
             now = asyncio.get_event_loop().time()
             async with world_state._lock:
-                updates = step_npcs(world_state, homes, rng, now, headings)
+                updates = step_npcs(world_state, homes, rng, now, headings, geometry)
             if not updates:
                 continue
             # Each player receives only the NPCs near them.
